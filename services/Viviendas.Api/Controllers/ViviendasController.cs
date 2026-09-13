@@ -55,7 +55,26 @@ public class ViviendasController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetViviendas()
     {
-        var viviendas = await _supabaseService.GetViviendasAsync();
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                          ?? User.FindFirst("sub")?.Value;
+
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            _logger.LogWarning("GetViviendas: Unauthorized, missing or invalid user ID.");
+            return Unauthorized(new { error = "Token invalido: no contiene ID de usuario" });
+        }
+
+        var accessToken = HttpContext.Request.Headers["Authorization"]
+            .ToString().Replace("Bearer ", "");
+
+        var (rolNombre, condominioId) = await _supabaseService.GetContextoAdminAsync(userId, accessToken);
+
+        if (condominioId == null)
+        {
+            return Ok(new List<object>());
+        }
+
+        var viviendas = await _supabaseService.GetViviendasAsync(condominioId.Value);
         var result = viviendas.Select(v => new
         {
             id = v.Id,
