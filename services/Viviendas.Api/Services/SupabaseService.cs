@@ -155,9 +155,9 @@ public class SupabaseService : ISupabaseService
         }
     }
 
-    public async Task<List<ViviendaDto>> GetViviendasAsync()
+    public async Task<List<ViviendaDto>> GetViviendasAsync(Guid condominioId)
     {
-        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_viviendas?select=*";
+        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_viviendas?select=*&condominio_id=eq.{condominioId}";
 
         var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
         request.Headers.Add("apikey", _serviceRoleKey);
