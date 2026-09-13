@@ -93,10 +93,24 @@ public class ViviendasController : ControllerBase
     [HttpGet("{id}")]
     public async Task<IActionResult> GetVivienda(int id)
     {
-        var vivienda = await _supabaseService.GetViviendaByIdAsync(id);
-        if (vivienda == null)
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                          ?? User.FindFirst("sub")?.Value;
+
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
         {
-            _logger.LogWarning("GetVivienda: Vivienda {Id} not found.", id);
+            _logger.LogWarning("GetVivienda: Unauthorized, missing or invalid user ID.");
+            return Unauthorized(new { error = "Token invalido: no contiene ID de usuario" });
+        }
+
+        var accessToken = HttpContext.Request.Headers["Authorization"]
+            .ToString().Replace("Bearer ", "");
+
+        var (rolNombre, condominioId) = await _supabaseService.GetContextoAdminAsync(userId, accessToken);
+
+        var vivienda = await _supabaseService.GetViviendaByIdAsync(id);
+        if (vivienda == null || condominioId == null || vivienda.CondominioId != condominioId.Value)
+        {
+            _logger.LogWarning("GetVivienda: Vivienda {Id} not found or user doesn't have access.", id);
             return NotFound(new { error = "Vivienda no encontrada" });
         }
 
