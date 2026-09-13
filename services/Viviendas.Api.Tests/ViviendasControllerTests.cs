@@ -44,7 +44,7 @@ public class ViviendasControllerTests : IAsyncLifetime
     {
         // Arrange
         var mockSupabaseService = new Mock<ISupabaseService>();
-        mockSupabaseService.Setup(s => s.GetViviendasAsync())
+        mockSupabaseService.Setup(s => s.GetViviendasAsync(It.IsAny<Guid>()))
             .ReturnsAsync(new List<ViviendaDto> { new ViviendaDto { Id = 1, NumeroCasa = "Test Dir" } });
 
         await using var application = new WebApplicationFactory<Program>()
