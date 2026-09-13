@@ -61,6 +61,8 @@ public class ViviendasController : ControllerBase
             id = v.Id,
             numeroCasa = v.NumeroCasa,
             tipo = v.Tipo,
+            condominioId = v.CondominioId,
+            condominioNombre = v.CondominioNombre,
             creadoEn = v.CreadoEn
         });
 
@@ -84,6 +86,8 @@ public class ViviendasController : ControllerBase
             id = vivienda.Id,
             numeroCasa = vivienda.NumeroCasa,
             tipo = vivienda.Tipo,
+            condominioId = vivienda.CondominioId,
+            condominioNombre = vivienda.CondominioNombre,
             creadoEn = vivienda.CreadoEn
         });
     }
