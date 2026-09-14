@@ -175,4 +175,57 @@ public class SupabaseService : ISupabaseService
 
         return (updated, null);
     }
+
+    public async Task<(string? rolNombre, Guid? condominioId)> GetContextoUsuarioAsync(Guid userId, string accessToken)
+    {
+        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_usuarios?id=eq.{userId}&select=rol_nombre,condominio_id";
+
+        var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await SendRequestAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to fetch user context. Status: {StatusCode}", response.StatusCode);
+            return (null, null);
+        }
+
+        var json = await response.Content.ReadAsStringAsync();
+        JsonDocument doc;
+        try
+        {
+            doc = JsonDocument.Parse(json);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Failed to parse JSON when getting user context.");
+            throw new SupabaseResponseException("Invalid JSON response from Supabase.", ex);
+        }
+
+        using (doc)
+        {
+            if (doc.RootElement.GetArrayLength() == 0) return (null, null);
+
+            var el = doc.RootElement[0];
+            string? rolNombre = null;
+            Guid? condominioId = null;
+
+            if (el.TryGetProperty("rol_nombre", out var rn) && rn.ValueKind != JsonValueKind.Null)
+            {
+                rolNombre = rn.GetString();
+            }
+
+            if (el.TryGetProperty("condominio_id", out var ci) && ci.ValueKind != JsonValueKind.Null)
+            {
+                if (Guid.TryParse(ci.GetString(), out var parsedId))
+                {
+                    condominioId = parsedId;
+                }
+            }
+
+            return (rolNombre, condominioId);
+        }
+    }
 }

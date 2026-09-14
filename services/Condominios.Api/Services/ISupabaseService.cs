@@ -9,4 +9,5 @@ public interface ISupabaseService
     Task<(CondominioDto? condominio, string? error)> CrearCondominioAsync(CreateCondominioRequestDto dto);
     Task<bool> DesactivarCondominioAsync(Guid id);
     Task<(CondominioDto? condominio, string? error)> ActualizarCondominioAsync(Guid id, UpdateCondominioRequestDto dto);
+    Task<(string? rolNombre, Guid? condominioId)> GetContextoUsuarioAsync(Guid userId, string accessToken);
 }
