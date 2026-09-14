@@ -3,6 +3,9 @@ using Condominios.Api.Services;
 using HavenApi.Shared.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
+using HavenApi.Shared.Exceptions;
+using HavenApi.Shared.Rpc;
 
 namespace Condominios.Api.Controllers;
 
@@ -130,5 +133,42 @@ public class CondominiosController : ControllerBase
             activo = condominio.Activo,
             creadoEn = condominio.CreadoEn
         });
+    }
+
+    [Authorize]
+    [HttpPost("{id}/codigo")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GenerarCodigo(Guid id, [FromBody] GenerarCodigoRequestDto? dto)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                          ?? User.FindFirst("sub")?.Value;
+                          
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { error = "Token invalido: no contiene ID de usuario" });
+        }
+
+        var accessToken = HttpContext.Request.Headers["Authorization"]
+            .ToString().Replace("Bearer ", "");
+
+        var (rolNombre, condominioId) = await _supabaseService.GetContextoUsuarioAsync(userId, accessToken);
+
+        if (!string.Equals(rolNombre, "Administrador", StringComparison.OrdinalIgnoreCase) || condominioId != id)
+        {
+            return StatusCode(403, new { error = "No tienes permiso sobre este condominio" });
+        }
+
+        try
+        {
+            var result = await _supabaseService.GenerarCodigoCondominioAsync(id, dto?.MinutosVigencia, userId);
+            return Ok(result);
+        }
+        catch (SupabaseRpcException ex)
+        {
+            var (status, mensaje) = RpcErrorMapper.Map(ex);
+            return StatusCode(status, new { error = mensaje });
+        }
     }
 }
