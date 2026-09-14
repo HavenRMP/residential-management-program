@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Viviendas.Api.DTOs;
 using HavenApi.Shared.Exceptions;
+using HavenApi.Shared.Rpc;
 
 namespace Viviendas.Api.Services;
 
@@ -409,5 +410,33 @@ public class SupabaseService : ISupabaseService
 
             return JsonDocument.Parse("[]").RootElement;
         }
+    }
+
+    public async Task<CodigoViviendaDto?> GenerarCodigoViviendaAsync(int viviendaId, int? minutosVigencia, Guid actorId)
+    {
+        var payload = new Dictionary<string, object>
+        {
+            { "p_vivienda_id", viviendaId }
+        };
+
+        if (minutosVigencia.HasValue)
+        {
+            payload.Add("p_minutos_vigencia", minutosVigencia.Value);
+        }
+
+        return await SupabaseRpcClient.PostRpcAsync<CodigoViviendaDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, "generar_codigo_vivienda", payload, actorId);
+    }
+
+    public async Task<RedimirViviendaResultDto?> RedimirCodigoViviendaAsync(string codigo, Guid usuarioId, Guid actorId)
+    {
+        var payload = new
+        {
+            p_codigo = codigo.Trim().ToUpperInvariant(),
+            p_usuario_id = usuarioId
+        };
+
+        return await SupabaseRpcClient.PostRpcAsync<RedimirViviendaResultDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, "redimir_codigo_vivienda", payload, actorId);
     }
 }

@@ -16,4 +16,6 @@ public interface ISupabaseService
     Task<bool> RemoveResidenteAsync(int viviendaId, Guid usuarioId);
     Task<List<MiViviendaDto>> GetMisViviendasAsync(string accessToken);
     Task<JsonElement> GetResidentesByViviendaIdAsync(int viviendaId);
+    Task<CodigoViviendaDto?> GenerarCodigoViviendaAsync(int viviendaId, int? minutosVigencia, Guid actorId);
+    Task<RedimirViviendaResultDto?> RedimirCodigoViviendaAsync(string codigo, Guid usuarioId, Guid actorId);
 }
