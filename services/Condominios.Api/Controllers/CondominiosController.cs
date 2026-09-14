@@ -171,4 +171,37 @@ public class CondominiosController : ControllerBase
             return StatusCode(status, new { error = mensaje });
         }
     }
+
+    [Authorize]
+    [HttpPost("~/api/codigos/condominio/redimir")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status410Gone)]
+    public async Task<IActionResult> RedimirCodigoCondominio([FromBody] RedimirCodigoRequestDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                          ?? User.FindFirst("sub")?.Value;
+                          
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { error = "Token invalido: no contiene ID de usuario" });
+        }
+
+        try
+        {
+            var result = await _supabaseService.RedimirCodigoCondominioAsync(dto.Codigo, userId, userId);
+            return Ok(result);
+        }
+        catch (SupabaseRpcException ex)
+        {
+            var (status, mensaje) = RpcErrorMapper.Map(ex);
+            return StatusCode(status, new { error = mensaje });
+        }
+    }
 }
