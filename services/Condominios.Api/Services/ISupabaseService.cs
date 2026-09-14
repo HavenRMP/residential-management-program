@@ -10,4 +10,6 @@ public interface ISupabaseService
     Task<bool> DesactivarCondominioAsync(Guid id);
     Task<(CondominioDto? condominio, string? error)> ActualizarCondominioAsync(Guid id, UpdateCondominioRequestDto dto);
     Task<(string? rolNombre, Guid? condominioId)> GetContextoUsuarioAsync(Guid userId, string accessToken);
+    Task<CodigoCondominioDto?> GenerarCodigoCondominioAsync(Guid condominioId, int? minutosVigencia, Guid actorId);
+    Task<UsuarioResumenDto?> RedimirCodigoCondominioAsync(string codigo, Guid usuarioId, Guid actorId);
 }

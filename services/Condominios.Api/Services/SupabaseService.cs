@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Condominios.Api.DTOs;
 using HavenApi.Shared.Exceptions;
+using HavenApi.Shared.Rpc;
 
 namespace Condominios.Api.Services;
 
@@ -227,5 +228,33 @@ public class SupabaseService : ISupabaseService
 
             return (rolNombre, condominioId);
         }
+    }
+
+    public async Task<CodigoCondominioDto?> GenerarCodigoCondominioAsync(Guid condominioId, int? minutosVigencia, Guid actorId)
+    {
+        var payload = new Dictionary<string, object>
+        {
+            { "p_condominio_id", condominioId }
+        };
+
+        if (minutosVigencia.HasValue)
+        {
+            payload.Add("p_minutos_vigencia", minutosVigencia.Value);
+        }
+
+        return await SupabaseRpcClient.PostRpcAsync<CodigoCondominioDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, "generar_codigo_condominio", payload, actorId);
+    }
+
+    public async Task<UsuarioResumenDto?> RedimirCodigoCondominioAsync(string codigo, Guid usuarioId, Guid actorId)
+    {
+        var payload = new
+        {
+            p_codigo = codigo.Trim().ToUpperInvariant(),
+            p_usuario_id = usuarioId
+        };
+
+        return await SupabaseRpcClient.PostRpcAsync<UsuarioResumenDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, "redimir_codigo_condominio", payload, actorId);
     }
 }
