@@ -3,6 +3,8 @@ using Viviendas.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using HavenApi.Shared.Exceptions;
+using HavenApi.Shared.Rpc;
 
 namespace Viviendas.Api.Controllers;
 
@@ -399,5 +401,48 @@ public class ViviendasController : ControllerBase
 
         var residentes = await _supabaseService.GetResidentesByViviendaIdAsync(id);
         return Ok(residentes);
+    }
+
+    [Authorize]
+    [HttpPost("{id}/codigo")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GenerarCodigo(int id, [FromBody] GenerarCodigoRequestDto? dto)
+    {
+        var (adminError, condominioId) = await ValidateAdminAsync();
+        if (adminError != null)
+            return adminError;
+
+        var vivienda = await _supabaseService.GetViviendaByIdAsync(id);
+        if (vivienda == null)
+        {
+            return NotFound(new { error = "Vivienda no encontrada" });
+        }
+
+        if (vivienda.CondominioId != condominioId)
+        {
+            return StatusCode(403, new { error = "No tienes permiso sobre viviendas de otro condominio" });
+        }
+
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                          ?? User.FindFirst("sub")?.Value;
+                          
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { error = "Token invalido: no contiene ID de usuario" });
+        }
+
+        try
+        {
+            var result = await _supabaseService.GenerarCodigoViviendaAsync(id, dto?.MinutosVigencia, userId);
+            return Ok(result);
+        }
+        catch (SupabaseRpcException ex)
+        {
+            var (status, mensaje) = RpcErrorMapper.Map(ex);
+            return StatusCode(status, new { error = mensaje });
+        }
     }
 }
