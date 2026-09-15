@@ -145,7 +145,12 @@ public class AuthController : ControllerBase
             return StatusCode(403, new { error = "Se requiere rol de administrador" });
         }
 
-        var residentes = await _supabaseService.GetResidentesAsync(userId);
+        if (usuario.CondominioId == null)
+        {
+            return Ok(new List<object>());
+        }
+
+        var residentes = await _supabaseService.GetResidentesAsync(usuario.CondominioId.Value);
 
         var result = residentes.Select(r => new
         {
