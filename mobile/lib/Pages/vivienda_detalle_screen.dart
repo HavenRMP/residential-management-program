@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../Services/app_controller.dart';
+import '../Services/viviendas_service.dart';
 
 class ViviendaDetalleScreen extends StatefulWidget {
   const ViviendaDetalleScreen({
@@ -199,7 +200,7 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
               () async {
                 try {
                   final url =
-                      '${dotenv.env['API_BASE_URL_USUARIOS'] ?? ''}/api/Auth/residentes';
+                      '${dotenv.env['API_BASE_URL_USUARIOS'] ?? ''}/api/Auth/residentes?sinVivienda=true';
                   final res = await widget.controller.httpClient.get(
                     Uri.parse(url),
                     headers: {
@@ -700,23 +701,49 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: _openBuscarResidenteModal,
-                  icon: const Icon(Icons.person_add_alt_1, size: 18),
-                  label: const Text(
-                    'Vincular Residente',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF111C99),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: _openBuscarResidenteModal,
+                      icon: const Icon(Icons.person_add_alt_1, size: 18),
+                      label: const Text(
+                        'Vincular',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF111C99),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                    const SizedBox(width: 8),
+                    FilledButton.icon(
+                      onPressed: () async {
+                        final srv = ViviendasService(widget.controller);
+                        final res = await srv.generarCodigo(_vivienda['id'], minutosVigencia: 1440);
+                        if (res != null) {
+                          widget.controller.notifyToast('Código: ${res['codigo']}', success: true, subtitle: 'Expira en 24 horas');
+                        } else {
+                          widget.controller.notifyToast('Error al generar código', success: false);
+                        }
+                      },
+                      icon: const Icon(Icons.qr_code_2_rounded, size: 18),
+                      label: const Text(
+                        'Código',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF0F172A),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ],
             ),

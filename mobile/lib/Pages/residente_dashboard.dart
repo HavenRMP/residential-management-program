@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../Services/app_controller.dart';
 import '../Widgets/header_bar.dart';
 import 'perfil_screen.dart';
+import 'en_construccion_screen.dart';
+import '../Services/condominios_service.dart';
+import '../Services/viviendas_service.dart';
 
 class ResidenteDashboardScreen extends StatefulWidget {
   const ResidenteDashboardScreen({super.key, required this.controller});
@@ -22,6 +25,45 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
   void initState() {
     super.initState();
     _cargarMisViviendas();
+  }
+
+  bool _isRedeeming = false;
+  final _codigoController = TextEditingController();
+
+  Future<void> _redimirCodigo() async {
+    final codigo = _codigoController.text.trim();
+    if (codigo.isEmpty) return;
+
+    setState(() => _isRedeeming = true);
+    
+    // Intentar redimir como vivienda primero, luego condominio
+    final vivService = ViviendasService(widget.controller);
+    final condService = CondominiosService(widget.controller);
+    
+    bool exitoso = false;
+    String errorMsg = 'Código inválido o expirado';
+
+    try {
+      final resViv = await vivService.redimirCodigo(codigo);
+      if (resViv != null) exitoso = true;
+    } catch (_) {
+      try {
+        final resCond = await condService.redimirCodigo(codigo);
+        if (resCond != null) exitoso = true;
+      } catch (e) {
+        errorMsg = e.toString();
+      }
+    }
+
+    setState(() => _isRedeeming = false);
+
+    if (exitoso) {
+      widget.controller.notifyToast('¡Código validado exitosamente!', success: true);
+      _codigoController.clear();
+      _cargarMisViviendas();
+    } else {
+      widget.controller.notifyToast(errorMsg, success: false);
+    }
   }
 
   Future<void> _cargarMisViviendas() async {
@@ -386,6 +428,134 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
               ),
             ),
           ),
+          const SizedBox(height: 24),
+          const Text(
+            '¿Tienes un código de vinculación?',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1E293B),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _codigoController,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: InputDecoration(
+                    hintText: 'Ingresa el código (ej. A1B2C3)',
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              FilledButton(
+                onPressed: _isRedeeming ? null : _redimirCodigo,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF111C99),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: _isRedeeming 
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Text('Redimir'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvisosMock() {
+    return Container(
+      margin: const EdgeInsets.only(top: 24),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x05000000),
+            blurRadius: 6,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.campaign_rounded,
+                  color: Color(0xFFDC2626),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 14),
+              const Text(
+                'Avisos Recientes',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const EnConstruccionScreen(titulo: 'Avisos'),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: const [
+                  Icon(Icons.construction_rounded, color: Color(0xFF94A3B8)),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'El tablón de avisos estará disponible pronto. Estamos trabajando en esta funcionalidad.',
+                      style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -469,6 +639,9 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                             _buildViviendasAsignadas()
                           else
                             _buildViviendaPendiente(),
+                            
+                          // Avisos UI
+                          _buildAvisosMock(),
                         ],
                       ),
                     ),

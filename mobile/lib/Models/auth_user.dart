@@ -11,6 +11,7 @@ class AuthUser {
     this.telefono,
     this.activo,
     this.debeCambiarPassword,
+    this.condominioId,
   });
 
   final String id;
@@ -24,6 +25,7 @@ class AuthUser {
   final String? telefono;
   final bool? activo;
   final bool? debeCambiarPassword;
+  final String? condominioId;
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {
     // Unwrap {data: {...}} if present
@@ -54,6 +56,7 @@ class AuthUser {
       debeCambiarPassword: j['debeCambiarPassword'] is bool
           ? j['debeCambiarPassword']
           : j['debeCambiarPassword']?.toString() == 'true',
+      condominioId: nb(j['condominioId'] ?? j['condominio_id']),
     );
   }
 
@@ -69,6 +72,7 @@ class AuthUser {
     String? telefono,
     bool? activo,
     bool? debeCambiarPassword,
+    String? condominioId,
   }) {
     return AuthUser(
       id: id ?? this.id,
@@ -82,6 +86,7 @@ class AuthUser {
       telefono: telefono ?? this.telefono,
       activo: activo ?? this.activo,
       debeCambiarPassword: debeCambiarPassword ?? this.debeCambiarPassword,
+      condominioId: condominioId ?? this.condominioId,
     );
   }
 }
