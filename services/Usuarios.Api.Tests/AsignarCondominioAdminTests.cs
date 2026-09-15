@@ -83,7 +83,7 @@ public class AsignarCondominioAdminTests : IAsyncLifetime
         var userId = Guid.NewGuid();
         var request = new { CondominioId = Guid.NewGuid() };
 
-        var response = await client.PostAsJsonAsync($"/api/auth/{userId}/condominio", request);
+        var response = await client.PostAsJsonAsync($"/api/usuarios/{userId}/condominio", request);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         mockSupabaseService.Verify(s => s.AsignarCondominioAdminAsync(It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
@@ -106,7 +106,7 @@ public class AsignarCondominioAdminTests : IAsyncLifetime
 
         var request = new { CondominioId = condominioId };
 
-        var response = await client.PostAsJsonAsync($"/api/auth/{userId}/condominio", request);
+        var response = await client.PostAsJsonAsync($"/api/usuarios/{userId}/condominio", request);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -128,7 +128,7 @@ public class AsignarCondominioAdminTests : IAsyncLifetime
 
         var request = new { CondominioId = condominioId };
 
-        var response = await client.PostAsJsonAsync($"/api/auth/{userId}/condominio", request);
+        var response = await client.PostAsJsonAsync($"/api/usuarios/{userId}/condominio", request);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
@@ -152,7 +152,7 @@ public class AsignarCondominioAdminTests : IAsyncLifetime
 
         var request = new { CondominioId = condominioId };
 
-        var response = await client.PostAsJsonAsync($"/api/auth/{userId}/condominio", request);
+        var response = await client.PostAsJsonAsync($"/api/usuarios/{userId}/condominio", request);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         

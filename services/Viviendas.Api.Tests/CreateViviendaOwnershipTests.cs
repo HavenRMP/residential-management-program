@@ -75,13 +75,9 @@ public class CreateViviendaOwnershipTests : IAsyncLifetime
 
     private string GenerateFakeToken(Guid userId)
     {
-        var handler = new JwtSecurityTokenHandler();
-        var token = new JwtSecurityToken(claims: new[]
-        {
-            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
-            new Claim("sub", userId.ToString())
-        });
-        return handler.WriteToken(token);
+        var header = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("{\"alg\":\"none\"}")).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        var payload = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{{\"sub\":\"" + userId + "\",\"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier\":\"" + userId + "\"}}")).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        return $"{header}.{payload}.";
     }
 
     [Fact]
