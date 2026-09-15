@@ -86,7 +86,7 @@ class AppController extends ChangeNotifier {
     if (needsRefresh && _supabaseClient != null) {
       try {
         debugPrint('[AppController] Token expirado o próximo a expirar. Renovando...');
-        final res = await _supabaseClient!.auth.refreshSession();
+        final res = await _supabaseClient.auth.refreshSession();
         if (res.session != null) {
           _session = res.session;
         }
@@ -243,7 +243,7 @@ class AppController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await _supabaseClient!.auth.signInWithPassword(
+      final response = await _supabaseClient.auth.signInWithPassword(
         email: email,
         password: password,
       );
@@ -284,7 +284,7 @@ class AppController extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      await _supabaseClient!.auth.signInWithOAuth(
+      await _supabaseClient.auth.signInWithOAuth(
         OAuthProvider.google,
         redirectTo: kIsWeb
             ? Uri.base.origin
@@ -317,7 +317,7 @@ class AppController extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      final response = await _supabaseClient!.auth.signUp(
+      final response = await _supabaseClient.auth.signUp(
         email: email.trim(),
         password: password,
         data: {
@@ -518,7 +518,7 @@ class AppController extends ChangeNotifier {
       debugPrint('[AppController] 401 recibido en $endpoint. Intentando renovar sesión...');
       try {
         if (_supabaseClient == null) throw Exception('Supabase client is null');
-        final refreshRes = await _supabaseClient!.auth.refreshSession();
+        final refreshRes = await _supabaseClient.auth.refreshSession();
         if (refreshRes.session != null) {
           _session = refreshRes.session;
           token = _session?.accessToken;
