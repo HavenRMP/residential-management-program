@@ -4,7 +4,7 @@ namespace Condominios.Api.Services;
 
 public interface ISupabaseService
 {
-    Task<List<CondominioDto>> GetCondominiosAsync(string? nombre = null);
+    Task<List<CondominioDto>> GetCondominiosAsync(Guid condominioId);
     Task<CondominioDto?> GetCondominioByIdAsync(Guid id);
     Task<(CondominioDto? condominio, string? error)> CrearCondominioAsync(CreateCondominioRequestDto dto);
     Task<bool> DesactivarCondominioAsync(Guid id);

@@ -25,9 +25,27 @@ public class CondominiosController : ControllerBase
 
     [ProducesResponseType(StatusCodes.Status200OK)]
     [HttpGet]
-    public async Task<IActionResult> GetCondominios([FromQuery] string? nombre)
+    public async Task<IActionResult> GetCondominios()
     {
-        var condominios = await _supabaseService.GetCondominiosAsync(nombre);
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                          ?? User.FindFirst("sub")?.Value;
+                          
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { error = "Token invalido: no contiene ID de usuario" });
+        }
+
+        var accessToken = HttpContext.Request.Headers["Authorization"]
+            .ToString().Replace("Bearer ", "");
+
+        var (_, condominioId) = await _supabaseService.GetContextoUsuarioAsync(userId, accessToken);
+
+        if (condominioId == null)
+        {
+            return Ok(new List<object>());
+        }
+
+        var condominios = await _supabaseService.GetCondominiosAsync(condominioId.Value);
         var result = condominios.Select(c => new
         {
             id = c.Id,
