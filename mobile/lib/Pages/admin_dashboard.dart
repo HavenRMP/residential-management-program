@@ -5,6 +5,8 @@ import '../Widgets/header_bar.dart';
 import 'residentes_list.dart';
 
 import 'viviendas_list.dart';
+import '../Services/condominios_service.dart';
+import 'en_construccion_screen.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key, required this.controller});
@@ -13,6 +15,9 @@ class AdminDashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = controller.currentUser;
+    final condominioId = user?.condominioId; // Asumiendo que se puede extraer del token/perfil
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
@@ -48,10 +53,10 @@ class AdminDashboardScreen extends StatelessWidget {
                               ),
                             ],
                           ),
-                          child: const Column(
+                          child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
+                              const Text(
                                 'Panel de Administración',
                                 style: TextStyle(
                                   fontSize: 24,
@@ -59,10 +64,27 @@ class AdminDashboardScreen extends StatelessWidget {
                                   color: Color(0xFF0F172A),
                                 ),
                               ),
-                              SizedBox(height: 8),
-                              Text(
+                              const SizedBox(height: 8),
+                              const Text(
                                 'Bienvenido al centro de control del condominio.',
                                 style: TextStyle(color: Color(0xFF475569)),
+                              ),
+                              const SizedBox(height: 16),
+                              FilledButton.icon(
+                                onPressed: condominioId == null ? null : () async {
+                                  final srv = CondominiosService(controller);
+                                  final res = await srv.generarCodigo(condominioId, minutosVigencia: 1440);
+                                  if (res != null) {
+                                    controller.notifyToast('Código generado: ${res['codigo']}', success: true, subtitle: 'Expira en 24 horas');
+                                  } else {
+                                    controller.notifyToast('Error al generar código', success: false);
+                                  }
+                                },
+                                icon: const Icon(Icons.qr_code_2_rounded, size: 18),
+                                label: const Text('Generar Código de Invitación (Condominio)'),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFF111C99),
+                                ),
                               ),
                             ],
                           ),
@@ -208,6 +230,79 @@ class AdminDashboardScreen extends StatelessWidget {
                                           ),
                                           Text(
                                             'Gestión de Viviendas',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF0F172A),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            
+                            InkWell(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const EnConstruccionScreen(titulo: 'Gestión de Avisos'),
+                                  ),
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                width: 300,
+                                padding: const EdgeInsets.all(24),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  border: Border.all(
+                                    color: const Color(0xFFE2E8F0),
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Color(0x05000000),
+                                      blurRadius: 4,
+                                      offset: Offset(0, 1),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 48,
+                                      height: 48,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFEF2F2),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: const Text(
+                                        '📢',
+                                        style: TextStyle(fontSize: 24),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: const [
+                                          Text(
+                                            'COMUNICACIÓN',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFFDC2626),
+                                              letterSpacing: 1.2,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Gestión de Avisos',
                                             style: TextStyle(
                                               fontSize: 16,
                                               fontWeight: FontWeight.bold,

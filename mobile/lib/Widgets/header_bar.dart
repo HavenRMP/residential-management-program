@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../Services/app_controller.dart';
 import '../Pages/perfil_screen.dart';
+import '../Pages/notificaciones_screen.dart';
 
 class HeaderBar extends StatelessWidget {
   const HeaderBar({
@@ -114,6 +115,50 @@ class HeaderBar extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (user?.role == 'residente')
+                  InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => NotificacionesScreen(controller: controller),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      margin: const EdgeInsets.only(right: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFFBEB),
+                        border: Border.all(color: const Color(0xFFFDE68A)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.notifications_active_rounded,
+                            size: 16,
+                            color: Color(0xFFD97706),
+                          ),
+                          if (MediaQuery.sizeOf(context).width > 500) ...[
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Notificaciones',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF92400E),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
                 InkWell(
                   onTap: () {
                     Navigator.push(
