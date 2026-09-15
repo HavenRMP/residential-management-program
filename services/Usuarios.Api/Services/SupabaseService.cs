@@ -215,13 +215,13 @@ public class SupabaseService : ISupabaseService
         return (updated, null);
     }
 
-    public async Task<List<UsuarioDto>> GetResidentesAsync(Guid actorId)
+    public async Task<List<UsuarioDto>> GetResidentesAsync(Guid condominioId)
     {
-        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_usuarios?rol_id=eq.2&select=*";
+        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_usuarios?rol_id=eq.2&condominio_id=eq.{condominioId}&select=*";
 
         var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
         request.Headers.Add("apikey", _serviceRoleKey);
-        request.Headers.Add("x-actor-id", actorId.ToString());
+        request.Headers.Add("x-actor-id", condominioId.ToString());
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
 
         var response = await SendRequestAsync(request);
@@ -234,6 +234,26 @@ public class SupabaseService : ISupabaseService
 
         var residentes = await ParseJsonAsync<List<UsuarioDto>>(response.Content);
         return residentes ?? new List<UsuarioDto>();
+    }
+
+    public async Task<List<ViviendaResidentesDto>> GetViviendasResidentesAsync()
+    {
+        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_viviendas_residentes?select=*";
+
+        var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+        request.Headers.Add("apikey", _serviceRoleKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
+
+        var response = await SendRequestAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to fetch viviendas_residentes. Status: {StatusCode}", response.StatusCode);
+            return new List<ViviendaResidentesDto>();
+        }
+
+        var result = await ParseJsonAsync<List<ViviendaResidentesDto>>(response.Content);
+        return result ?? new List<ViviendaResidentesDto>();
     }
 
     public async Task<(UsuarioDto? usuario, string? error)> AsignarCondominioAdminAsync(Guid adminId, Guid condominioId)

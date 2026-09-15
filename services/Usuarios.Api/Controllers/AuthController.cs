@@ -117,7 +117,7 @@ public class AuthController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [Authorize]
     [HttpGet("residentes")]
-    public async Task<IActionResult> GetResidentes()
+    public async Task<IActionResult> GetResidentes([FromQuery] bool sinVivienda = false)
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                           ?? User.FindFirst("sub")?.Value;
@@ -145,7 +145,25 @@ public class AuthController : ControllerBase
             return StatusCode(403, new { error = "Se requiere rol de administrador" });
         }
 
-        var residentes = await _supabaseService.GetResidentesAsync(userId);
+        if (usuario.CondominioId == null)
+        {
+            return Ok(new List<object>());
+        }
+
+        var residentes = await _supabaseService.GetResidentesAsync(usuario.CondominioId.Value);
+
+        if (sinVivienda)
+        {
+            var viviendas = await _supabaseService.GetViviendasResidentesAsync();
+            var residentesConViviendaIds = viviendas
+                .SelectMany(v => v.Residentes)
+                .Select(r => r.Id)
+                .ToHashSet();
+
+            residentes = residentes
+                .Where(r => !residentesConViviendaIds.Contains(r.Id))
+                .ToList();
+        }
 
         var result = residentes.Select(r => new
         {
