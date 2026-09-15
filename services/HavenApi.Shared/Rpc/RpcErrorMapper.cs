@@ -13,7 +13,7 @@ public static class RpcErrorMapper
             "CD003" => (410, "Este código ha expirado o fue invalidado."),
             "CD004" => (409, "El usuario ya pertenece a un condominio diferente."),
             "23505" => (409, "El usuario ya está vinculado a esa vivienda."),
-            _ => (500, $"Ocurrió un error inesperado al procesar el código. Detalles: {ex.Message}")
+            _ => (500, "Ocurrió un error inesperado al procesar el código.")
         };
     }
 }
