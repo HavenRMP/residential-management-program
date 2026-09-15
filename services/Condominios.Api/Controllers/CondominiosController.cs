@@ -63,6 +63,24 @@ public class CondominiosController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetCondominio(Guid id)
     {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                          ?? User.FindFirst("sub")?.Value;
+                          
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { error = "Token invalido: no contiene ID de usuario" });
+        }
+
+        var accessToken = HttpContext.Request.Headers["Authorization"]
+            .ToString().Replace("Bearer ", "");
+
+        var (_, condominioId) = await _supabaseService.GetContextoUsuarioAsync(userId, accessToken);
+
+        if (condominioId == null || condominioId.Value != id)
+        {
+            return NotFound(new { error = "Condominio no encontrado" });
+        }
+
         var condominio = await _supabaseService.GetCondominioByIdAsync(id);
         if (condominio == null)
         {
