@@ -156,9 +156,8 @@ public class AsignarCondominioAdminTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         
-        var content = await response.Content.ReadFromJsonAsync<UsuarioDto>();
-        Assert.NotNull(content);
-        Assert.Equal(userId, content.Id);
-        Assert.Equal(condominioId, content.CondominioId);
+        var content = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        Assert.Equal(userId.ToString(), content.GetProperty("id").GetString());
+        Assert.Equal(condominioId.ToString(), content.GetProperty("condominioId").GetString());
     }
 }
