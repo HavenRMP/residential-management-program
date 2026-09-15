@@ -117,28 +117,30 @@ class AdminDashboardScreen extends StatelessWidget {
                                       ),
                                     ),
                                     const SizedBox(width: 16),
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: const [
-                                        Text(
-                                          'GESTIÓN',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: Color(0xFF64748B),
-                                            letterSpacing: 1.2,
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: const [
+                                          Text(
+                                            'GESTIÓN',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFF64748B),
+                                              letterSpacing: 1.2,
+                                            ),
                                           ),
-                                        ),
-                                        Text(
-                                          'Directorio de Residentes',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF0F172A),
+                                          Text(
+                                            'Directorio de Residentes',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF0F172A),
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -190,28 +192,30 @@ class AdminDashboardScreen extends StatelessWidget {
                                       ),
                                     ),
                                     const SizedBox(width: 16),
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: const [
-                                        Text(
-                                          'INMUEBLES',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: Color(0xFF64748B),
-                                            letterSpacing: 1.2,
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: const [
+                                          Text(
+                                            'INMUEBLES',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFF64748B),
+                                              letterSpacing: 1.2,
+                                            ),
                                           ),
-                                        ),
-                                        Text(
-                                          'Gestión de Viviendas',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF0F172A),
+                                          Text(
+                                            'Gestión de Viviendas',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF0F172A),
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 ),
