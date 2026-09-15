@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-
-import 'dart:convert';
-
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'dart:convert';
 import '../Services/app_controller.dart';
+import '../Services/viviendas_service.dart';
 import 'vivienda_detalle_screen.dart';
 
 class ViviendasListScreen extends StatefulWidget {
@@ -20,10 +18,12 @@ class _ViviendasListScreenState extends State<ViviendasListScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   List<dynamic> _viviendas = [];
+  late ViviendasService _viviendasService;
 
   @override
   void initState() {
     super.initState();
+    _viviendasService = ViviendasService(widget.controller);
     _fetchViviendas();
   }
 
@@ -33,24 +33,8 @@ class _ViviendasListScreenState extends State<ViviendasListScreen> {
       _errorMessage = null;
     });
     try {
-      final response = await widget.controller.httpClient.get(
-        Uri.parse(
-          '${dotenv.env['API_BASE_URL_VIVIENDAS'] ?? ''}/api/Viviendas',
-        ),
-        headers: {'Authorization': 'Bearer ${widget.controller.accessToken}'},
-      );
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        final decoded = jsonDecode(response.body);
-        if (decoded is List) {
-          _viviendas = decoded;
-        } else if (decoded is Map && decoded['data'] is List) {
-          _viviendas = decoded['data'];
-        } else {
-          _viviendas = [];
-        }
-      } else {
-        _errorMessage = 'Error de conexión';
-      }
+      final list = await _viviendasService.listar();
+      _viviendas = list;
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
@@ -60,13 +44,8 @@ class _ViviendasListScreenState extends State<ViviendasListScreen> {
 
   Future<void> _deleteVivienda(int id) async {
     try {
-      final response = await widget.controller.httpClient.delete(
-        Uri.parse(
-          '${dotenv.env['API_BASE_URL_VIVIENDAS'] ?? ''}/api/Viviendas/$id',
-        ),
-        headers: {'Authorization': 'Bearer ${widget.controller.accessToken}'},
-      );
-      if (response.statusCode == 204 || response.statusCode == 200) {
+      final success = await _viviendasService.eliminar(id);
+      if (success) {
         widget.controller.notifyToast(
           'Vivienda eliminada correctamente',
           success: true,
