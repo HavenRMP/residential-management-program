@@ -55,14 +55,9 @@ public class SupabaseService : ISupabaseService
         }
     }
 
-    public async Task<List<CondominioDto>> GetCondominiosAsync(string? nombre = null)
+    public async Task<List<CondominioDto>> GetCondominiosAsync(Guid condominioId)
     {
-        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_condominios?select=*";
-        if (!string.IsNullOrWhiteSpace(nombre))
-        {
-            var filterValue = Uri.EscapeDataString(nombre.Trim());
-            requestUrl += $"&nombre=ilike.*{filterValue}*";
-        }
+        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_condominios?select=*&id=eq.{condominioId}";
 
         var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
         request.Headers.Add("apikey", _serviceRoleKey);
