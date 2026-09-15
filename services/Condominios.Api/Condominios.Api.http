@@ -10,11 +10,6 @@ GET {{Condominios.Api_HostAddress}}/api/condominios
 Authorization: Bearer YOUR_ACCESS_TOKEN
 Accept: application/json
 
-### GET /api/condominios?nombre=Reforma (filtrado por nombre)
-GET {{Condominios.Api_HostAddress}}/api/condominios?nombre=Reforma
-Authorization: Bearer YOUR_ACCESS_TOKEN
-Accept: application/json
-
 ### GET /api/condominios/{id}
 GET {{Condominios.Api_HostAddress}}/api/condominios/{{CondominioId}}
 Authorization: Bearer YOUR_ACCESS_TOKEN

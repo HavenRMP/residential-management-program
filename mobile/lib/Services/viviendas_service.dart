@@ -100,4 +100,32 @@ class ViviendasService {
     );
     return response.statusCode >= 200 && response.statusCode < 300;
   }
+
+  Future<Map<String, dynamic>?> generarCodigo(int viviendaId, {int? minutosVigencia}) async {
+    final url = '$baseUrl/api/viviendas/$viviendaId/codigo';
+    final payload = minutosVigencia != null ? {'minutosVigencia': minutosVigencia} : {};
+    final response = await controller.httpClient.post(
+      Uri.parse(url),
+      headers: await _getHeaders(),
+      body: jsonEncode(payload),
+    );
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return jsonDecode(response.body);
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> redimirCodigo(String codigo) async {
+    final url = '$baseUrl/api/codigos/vivienda/redimir';
+    final payload = {'codigo': codigo};
+    final response = await controller.httpClient.post(
+      Uri.parse(url),
+      headers: await _getHeaders(),
+      body: jsonEncode(payload),
+    );
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return jsonDecode(response.body);
+    }
+    return null;
+  }
 }
