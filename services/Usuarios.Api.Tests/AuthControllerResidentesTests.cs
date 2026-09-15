@@ -91,7 +91,7 @@ public class AuthControllerResidentesTests : IAsyncLifetime
         var mockSupabaseService = new Mock<ISupabaseService>();
         
         mockSupabaseService.Setup(s => s.GetUsuarioByIdAsync(adminId, It.IsAny<string>(), It.IsAny<Guid>()))
-            .ReturnsAsync(new UsuarioDto { Id = adminId, RolNombre = "Administrador", CondominioId = condominioId });
+            .ReturnsAsync(new UsuarioDto { Id = adminId, Rol = "Administrador", CondominioId = condominioId });
 
         var expectedResidentes = new List<UsuarioDto> 
         { 
@@ -127,7 +127,7 @@ public class AuthControllerResidentesTests : IAsyncLifetime
         var mockSupabaseService = new Mock<ISupabaseService>();
         
         mockSupabaseService.Setup(s => s.GetUsuarioByIdAsync(adminId, It.IsAny<string>(), It.IsAny<Guid>()))
-            .ReturnsAsync(new UsuarioDto { Id = adminId, RolNombre = "Administrador", CondominioId = null });
+            .ReturnsAsync(new UsuarioDto { Id = adminId, Rol = "Administrador", CondominioId = null });
 
         await using var application = BuildApplication(mockSupabaseService);
         var client = application.CreateClient();
@@ -160,7 +160,7 @@ public class AuthControllerResidentesTests : IAsyncLifetime
         var mockSupabaseService = new Mock<ISupabaseService>();
         
         mockSupabaseService.Setup(s => s.GetUsuarioByIdAsync(adminId, It.IsAny<string>(), It.IsAny<Guid>()))
-            .ReturnsAsync(new UsuarioDto { Id = adminId, RolNombre = "Administrador", CondominioId = condominioId });
+            .ReturnsAsync(new UsuarioDto { Id = adminId, Rol = "Administrador", CondominioId = condominioId });
 
         mockSupabaseService.Setup(s => s.GetResidentesAsync(condominioId))
             .ReturnsAsync(new List<UsuarioDto> { userA, userB, userC });
@@ -207,7 +207,7 @@ public class AuthControllerResidentesTests : IAsyncLifetime
         var mockSupabaseService = new Mock<ISupabaseService>();
         
         mockSupabaseService.Setup(s => s.GetUsuarioByIdAsync(adminId, It.IsAny<string>(), It.IsAny<Guid>()))
-            .ReturnsAsync(new UsuarioDto { Id = adminId, RolNombre = "Administrador", CondominioId = condominioId });
+            .ReturnsAsync(new UsuarioDto { Id = adminId, Rol = "Administrador", CondominioId = condominioId });
 
         mockSupabaseService.Setup(s => s.GetResidentesAsync(condominioId))
             .ReturnsAsync(new List<UsuarioDto> { userA, userB, userC });
