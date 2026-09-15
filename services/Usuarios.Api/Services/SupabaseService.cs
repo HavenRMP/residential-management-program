@@ -236,6 +236,26 @@ public class SupabaseService : ISupabaseService
         return residentes ?? new List<UsuarioDto>();
     }
 
+    public async Task<List<ViviendaResidentesDto>> GetViviendasResidentesAsync()
+    {
+        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_viviendas_residentes?select=*";
+
+        var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+        request.Headers.Add("apikey", _serviceRoleKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
+
+        var response = await SendRequestAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to fetch viviendas_residentes. Status: {StatusCode}", response.StatusCode);
+            return new List<ViviendaResidentesDto>();
+        }
+
+        var result = await ParseJsonAsync<List<ViviendaResidentesDto>>(response.Content);
+        return result ?? new List<ViviendaResidentesDto>();
+    }
+
     public async Task<(UsuarioDto? usuario, string? error)> AsignarCondominioAdminAsync(Guid adminId, Guid condominioId)
     {
         // a) Validar que el usuario objetivo exista y tenga rol_id = 1
