@@ -4,6 +4,8 @@ import '../Services/app_controller.dart';
 import '../Widgets/header_bar.dart';
 import 'perfil_screen.dart';
 import 'en_construccion_screen.dart';
+import '../Services/push_notifications_service.dart';
+import 'avisos_residente_screen.dart';
 import '../Services/condominios_service.dart';
 import '../Services/viviendas_service.dart';
 
@@ -25,6 +27,15 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
   void initState() {
     super.initState();
     _cargarMisViviendas();
+    _solicitarPermisos();
+  }
+
+  Future<void> _solicitarPermisos() async {
+    final granted = await PushNotificationsService.requestPermission();
+    if (!granted) {
+      // Opcional: mostrar un banner pidiendo habilitar notificaciones
+      // o dejar silencioso según el requerimiento.
+    }
   }
 
   bool _isRedeeming = false;
@@ -530,7 +541,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => const EnConstruccionScreen(titulo: 'Avisos'),
+                  builder: (_) => AvisosResidenteScreen(controller: widget.controller),
                 ),
               );
             },
@@ -544,11 +555,11 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
               ),
               child: Row(
                 children: const [
-                  Icon(Icons.construction_rounded, color: Color(0xFF94A3B8)),
+                  Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFF94A3B8), size: 16),
                   SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'El tablón de avisos estará disponible pronto. Estamos trabajando en esta funcionalidad.',
+                      'Toca para ver los avisos vigentes en tu condominio.',
                       style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
                     ),
                   ),

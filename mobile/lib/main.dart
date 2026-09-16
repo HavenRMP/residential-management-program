@@ -1,6 +1,7 @@
 import 'Themes/app_theme.dart';
 import 'Services/app_controller.dart';
 import 'Routes/app_router.dart';
+import 'Services/push_notifications_service.dart';
 
 import 'dart:async';
 
@@ -18,6 +19,14 @@ String? supabaseInitError;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  try {
+    // Intenta inicializar Firebase y las notificaciones.
+    // Esto requiere que se haya ejecutado flutterfire configure
+    await PushNotificationsService.initializeApp();
+  } catch (e) {
+    debugPrint('[main] Error al inicializar notificaciones push: $e');
+  }
 
   try {
     await dotenv.load(fileName: ".env").timeout(

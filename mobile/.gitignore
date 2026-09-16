@@ -83,3 +83,10 @@ local.properties
 Thumbs.db
 *.swp
 *.log
+
+# Firebase configuration
+google-services.json
+GoogleService-Info.plist
+firebase_options.dart
+firebase.json
+/android/app/google-services.json
