@@ -352,24 +352,28 @@ public class SupabaseService : ISupabaseService
         return await ParseJsonAsync<bool>(response.Content);
     }
 
-    public async Task<List<MiViviendaDto>> GetMisViviendasAsync(string accessToken)
+    public async Task<(List<MiViviendaDto> Items, int? TotalCount)> GetMisViviendasAsync(string accessToken, PaginationParams paginacion)
     {
-        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_mis_viviendas?select=*";
+        var resourcePath = "vw_mis_viviendas?select=*";
 
-        var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
-        request.Headers.Add("apikey", _anonKey);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-
-        var response = await SendRequestAsync(request);
-
-        if (!response.IsSuccessStatusCode)
+        try
         {
-            _logger.LogWarning("GetMisViviendas failed. Status: {StatusCode}", response.StatusCode);
-            return new List<MiViviendaDto>();
-        }
+            var result = await SupabaseQueryClient.GetPagedAsync<MiViviendaDto>(
+                _httpClient,
+                _supabaseUrl,
+                _anonKey,
+                accessToken,
+                resourcePath,
+                paginacion
+            );
 
-        var viviendas = await ParseJsonAsync<List<MiViviendaDto>>(response.Content);
-        return viviendas ?? new List<MiViviendaDto>();
+            return (result.Items ?? new List<MiViviendaDto>(), result.TotalCount);
+        }
+        catch (SupabaseResponseException ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch paginated mis-viviendas.");
+            return (new List<MiViviendaDto>(), null);
+        }
     }
 
     public async Task<JsonElement> GetResidentesByViviendaIdAsync(int viviendaId)
