@@ -24,4 +24,10 @@ public class ViviendaDto
 
     [JsonPropertyName("creado_en")]
     public DateTime CreadoEn { get; set; }
+
+    [JsonPropertyName("total_residentes")]
+    public int TotalResidentes { get; set; }
+
+    [JsonPropertyName("esta_ocupada")]
+    public bool EstaOcupada { get; set; }
 }
