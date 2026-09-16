@@ -3,6 +3,7 @@ using Avisos.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using HavenApi.Shared.Pagination;
 
 namespace Avisos.Api.Controllers;
 
@@ -54,7 +55,7 @@ public class AvisosController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [HttpGet]
-    public async Task<IActionResult> GetAvisos()
+    public async Task<IActionResult> GetAvisos([FromQuery] PaginationParams paginacion)
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                           ?? User.FindFirst("sub")?.Value;
@@ -72,11 +73,11 @@ public class AvisosController : ControllerBase
 
         if (condominioId == null)
         {
-            return Ok(new List<AvisoDto>());
+            return Ok(PagedResult<AvisoDto>.Create(new List<AvisoDto>(), paginacion, 0));
         }
 
-        var avisos = await _supabaseService.GetAvisosVigentesAsync(condominioId.Value);
-        return Ok(avisos);
+        var (items, totalCount) = await _supabaseService.GetAvisosVigentesAsync(condominioId.Value, paginacion);
+        return Ok(PagedResult<AvisoDto>.Create(items, paginacion, totalCount));
     }
 
     [ProducesResponseType(StatusCodes.Status200OK)]
