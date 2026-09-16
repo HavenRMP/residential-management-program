@@ -2,6 +2,8 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using Avisos.Api.DTOs;
 using HavenApi.Shared.Exceptions;
+using HavenApi.Shared.Pagination;
+using HavenApi.Shared.Rpc;
 
 namespace Avisos.Api.Services;
 
@@ -124,24 +126,28 @@ public class SupabaseService : ISupabaseService
         }
     }
 
-    public async Task<List<AvisoDto>> GetAvisosVigentesAsync(Guid condominioId)
+    public async Task<(List<AvisoDto> Items, int? TotalCount)> GetAvisosVigentesAsync(Guid condominioId, PaginationParams paginacion)
     {
-        var requestUrl = $"{_supabaseUrl}/rest/v1/{VwAvisosVigentes}?condominio_id=eq.{condominioId}&select=*";
+        var resourcePath = $"{VwAvisosVigentes}?condominio_id=eq.{condominioId}&select=*";
 
-        var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
-        request.Headers.Add("apikey", _serviceRoleKey);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
-
-        var response = await SendRequestAsync(request);
-
-        if (!response.IsSuccessStatusCode)
+        try
         {
-            _logger.LogWarning("Failed to fetch avisos vigentes. Status: {StatusCode}", response.StatusCode);
-            return new List<AvisoDto>();
-        }
+            var result = await SupabaseQueryClient.GetPagedAsync<AvisoDto>(
+                _httpClient,
+                _supabaseUrl,
+                _serviceRoleKey,
+                _serviceRoleKey,
+                resourcePath,
+                paginacion
+            );
 
-        var result = await ParseJsonAsync<List<AvisoDto>>(response.Content);
-        return result ?? new List<AvisoDto>();
+            return (result.Items ?? new List<AvisoDto>(), result.TotalCount);
+        }
+        catch (SupabaseResponseException ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch paginated avisos vigentes.");
+            return (new List<AvisoDto>(), null);
+        }
     }
 
     public async Task<List<AvisoDto>> GetAvisosHistoricoAsync(Guid condominioId)
