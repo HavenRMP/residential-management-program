@@ -7,6 +7,7 @@ import 'residentes_list.dart';
 import 'viviendas_list.dart';
 import '../Services/condominios_service.dart';
 import 'en_construccion_screen.dart';
+import 'avisos_admin_screen.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key, required this.controller});
@@ -249,7 +250,7 @@ class AdminDashboardScreen extends StatelessWidget {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => const EnConstruccionScreen(titulo: 'Gestión de Avisos'),
+                                    builder: (_) => AvisosAdminScreen(controller: controller),
                                   ),
                                 );
                               },
