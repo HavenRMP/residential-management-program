@@ -14,33 +14,74 @@ class AvisosResidenteScreen extends StatefulWidget {
 
 class _AvisosResidenteScreenState extends State<AvisosResidenteScreen> {
   bool _isLoading = true;
+  bool _isFetchingMore = false;
+  bool _hasMore = true;
+  int _currentPage = 1;
   List<dynamic> _avisos = [];
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    _cargarAvisos();
+    _cargarAvisos(refresh: true);
+    _scrollController.addListener(_onScroll);
   }
 
-  Future<void> _cargarAvisos() async {
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      _cargarAvisos();
+    }
+  }
+
+  Future<void> _cargarAvisos({bool refresh = false}) async {
+    if (refresh) {
+      _currentPage = 1;
+      _hasMore = true;
+    }
+    
+    if (!_hasMore || (_isFetchingMore && !refresh)) return;
+
     setState(() {
-      _isLoading = true;
+      if (refresh) {
+        _isLoading = true;
+      } else {
+        _isFetchingMore = true;
+      }
     });
 
     try {
       final service = AvisosService(widget.controller);
-      final avisos = await service.getAvisosVigentes();
+      final response = await service.getAvisosVigentes(page: _currentPage, pageSize: 10);
       
-      if (avisos != null) {
+      if (response != null) {
+        final items = response['items'] as List<dynamic>? ?? [];
+        
         setState(() {
-          _avisos = avisos;
+          if (refresh) {
+            _avisos = items;
+          } else {
+            _avisos.addAll(items);
+          }
+          _currentPage++;
+          _hasMore = items.length == 10;
           _isLoading = false;
+          _isFetchingMore = false;
         });
-      } else {
+      } else if (refresh) {
         _redirigirAConstruccion('No se pudieron cargar los avisos');
       }
     } catch (e) {
-      _redirigirAConstruccion('Error al cargar avisos');
+      if (refresh) {
+        _redirigirAConstruccion('Error al cargar avisos');
+      } else {
+        setState(() => _isFetchingMore = false);
+      }
     }
   }
 
@@ -75,13 +116,25 @@ class _AvisosResidenteScreenState extends State<AvisosResidenteScreen> {
       ),
       body: _avisos.isEmpty
           ? _buildEmptyState()
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _avisos.length,
-              itemBuilder: (context, index) {
-                final aviso = _avisos[index];
-                return _buildAvisoCard(aviso);
-              },
+          : RefreshIndicator(
+              onRefresh: () => _cargarAvisos(refresh: true),
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.all(16),
+                itemCount: _avisos.length + (_hasMore ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index == _avisos.length) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: CircularProgressIndicator(),
+                      ),
+                    );
+                  }
+                  final aviso = _avisos[index];
+                  return _buildAvisoCard(aviso);
+                },
+              ),
             ),
     );
   }

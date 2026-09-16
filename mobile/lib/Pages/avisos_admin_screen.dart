@@ -15,41 +15,103 @@ class AvisosAdminScreen extends StatefulWidget {
 class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   bool _isLoading = true;
+  
+  // Vigentes
   List<dynamic> _avisosVigentes = [];
+  bool _isFetchingVigentes = false;
+  bool _hasMoreVigentes = true;
+  int _pageVigentes = 1;
+  final ScrollController _scrollVigentes = ScrollController();
+
+  // Histórico
   List<dynamic> _avisosHistorico = [];
+  bool _isFetchingHistorico = false;
+  bool _hasMoreHistorico = true;
+  int _pageHistorico = 1;
+  final ScrollController _scrollHistorico = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _cargarAvisos();
+    _cargarAmbos();
+    
+    _scrollVigentes.addListener(() {
+      if (_scrollVigentes.position.pixels >= _scrollVigentes.position.maxScrollExtent - 200) {
+        _cargarVigentes();
+      }
+    });
+    
+    _scrollHistorico.addListener(() {
+      if (_scrollHistorico.position.pixels >= _scrollHistorico.position.maxScrollExtent - 200) {
+        _cargarHistorico();
+      }
+    });
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _scrollVigentes.dispose();
+    _scrollHistorico.dispose();
     super.dispose();
   }
 
-  Future<void> _cargarAvisos() async {
+  Future<void> _cargarAmbos() async {
     setState(() => _isLoading = true);
+    await Future.wait([
+      _cargarVigentes(refresh: true),
+      _cargarHistorico(refresh: true),
+    ]);
+    setState(() => _isLoading = false);
+  }
+
+  Future<void> _cargarVigentes({bool refresh = false}) async {
+    if (refresh) {
+      _pageVigentes = 1;
+      _hasMoreVigentes = true;
+    }
+    if (!_hasMoreVigentes || (_isFetchingVigentes && !refresh)) return;
+
+    setState(() => _isFetchingVigentes = true);
     try {
       final service = AvisosService(widget.controller);
-      final vigentes = await service.getAvisosVigentes();
-      final historico = await service.getAvisosHistorico();
-
-      if (vigentes != null && historico != null) {
+      final response = await service.getAvisosVigentes(page: _pageVigentes, pageSize: 10);
+      if (response != null) {
+        final items = response['items'] as List<dynamic>? ?? [];
         setState(() {
-          _avisosVigentes = vigentes;
-          _avisosHistorico = historico;
-          _isLoading = false;
+          if (refresh) _avisosVigentes = items;
+          else _avisosVigentes.addAll(items);
+          _pageVigentes++;
+          _hasMoreVigentes = items.length == 10;
         });
-      } else {
-        _redirigirAConstruccion('No se pudieron cargar los avisos');
       }
-    } catch (e) {
-      _redirigirAConstruccion('Error de conexión al cargar avisos');
+    } catch (_) {}
+    setState(() => _isFetchingVigentes = false);
+  }
+
+  Future<void> _cargarHistorico({bool refresh = false}) async {
+    if (refresh) {
+      _pageHistorico = 1;
+      _hasMoreHistorico = true;
     }
+    if (!_hasMoreHistorico || (_isFetchingHistorico && !refresh)) return;
+
+    setState(() => _isFetchingHistorico = true);
+    try {
+      final service = AvisosService(widget.controller);
+      final response = await service.getAvisosHistorico(page: _pageHistorico, pageSize: 10);
+      if (response != null) {
+        final items = response['items'] as List<dynamic>? ?? [];
+        setState(() {
+          if (refresh) _avisosHistorico = items;
+          else _avisosHistorico.addAll(items);
+          _pageHistorico++;
+          _hasMoreHistorico = items.length == 10;
+        });
+      }
+    } catch (_) {}
+    setState(() => _isFetchingHistorico = false);
   }
 
   void _redirigirAConstruccion(String mensaje) {
@@ -133,7 +195,7 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
         
         if (res != null) {
           widget.controller.notifyToast('Aviso creado exitosamente', success: true);
-          await _cargarAvisos();
+          await _cargarAmbos();
         } else {
           widget.controller.notifyToast('Error al crear el aviso', success: false);
           setState(() => _isLoading = false);
@@ -172,7 +234,7 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
         
         if (success) {
           widget.controller.notifyToast('Aviso eliminado exitosamente', success: true);
-          await _cargarAvisos();
+          await _cargarAmbos();
         } else {
           widget.controller.notifyToast('Error al eliminar el aviso', success: false);
           setState(() => _isLoading = false);
@@ -214,14 +276,14 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
           : TabBarView(
               controller: _tabController,
               children: [
-                _buildListaAvisos(_avisosVigentes, esVigente: true),
-                _buildListaAvisos(_avisosHistorico, esVigente: false),
+                _buildListaAvisos(_avisosVigentes, _scrollVigentes, _hasMoreVigentes, esVigente: true),
+                _buildListaAvisos(_avisosHistorico, _scrollHistorico, _hasMoreHistorico, esVigente: false),
               ],
             ),
     );
   }
 
-  Widget _buildListaAvisos(List<dynamic> avisos, {required bool esVigente}) {
+  Widget _buildListaAvisos(List<dynamic> avisos, ScrollController controller, bool hasMore, {required bool esVigente}) {
     if (avisos.isEmpty) {
       return Center(
         child: Text(
@@ -232,9 +294,19 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
     }
 
     return ListView.builder(
+      controller: controller,
       padding: const EdgeInsets.all(16),
-      itemCount: avisos.length,
+      itemCount: avisos.length + (hasMore ? 1 : 0),
       itemBuilder: (context, index) {
+        if (index == avisos.length) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+        
         final aviso = avisos[index];
         final id = aviso['id'];
         final titulo = aviso['titulo'] ?? 'Aviso';
