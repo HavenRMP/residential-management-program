@@ -148,11 +148,11 @@ public class AvisosController : ControllerBase
         {
             _logger.LogWarning("UpdateAviso: Error {Error}", error);
 
-            if (error.Contains("no encontrado", StringComparison.OrdinalIgnoreCase))
+            if (error.Contains("no encontrado", StringComparison.OrdinalIgnoreCase) || error.Contains("AV008"))
             {
                 return NotFound(new { error });
             }
-            if (error.Contains("condominio", StringComparison.OrdinalIgnoreCase))
+            if (error.Contains("condominio", StringComparison.OrdinalIgnoreCase) || error.Contains("AV009"))
             {
                 return StatusCode(403, new { error });
             }
@@ -180,11 +180,11 @@ public class AvisosController : ControllerBase
         {
             _logger.LogWarning("DeleteAviso: Error {Error}", error);
 
-            if (error != null && error.Contains("no encontrado", StringComparison.OrdinalIgnoreCase))
+            if (error != null && (error.Contains("no encontrado", StringComparison.OrdinalIgnoreCase) || error.Contains("AV008")))
             {
                 return NotFound(new { error });
             }
-            if (error != null && error.Contains("condominio", StringComparison.OrdinalIgnoreCase))
+            if (error != null && (error.Contains("condominio", StringComparison.OrdinalIgnoreCase) || error.Contains("AV009")))
             {
                 return StatusCode(403, new { error });
             }
