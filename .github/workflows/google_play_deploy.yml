@@ -94,11 +94,11 @@ jobs:
           fi
           
           curl -H "Content-Type: application/json" \
-          -d '{
-            "embeds": [{
-              "title": "'$EMOJI' CI/CD: Google Play Deploy '$STATUS'",
-              "description": "'$MSG'\n\nAtentamente: Teto Automatomation Bot",
-              "color": '$COLOR'
+          -d "{
+            \"embeds\": [{
+              \"title\": \"$EMOJI CI/CD: Google Play Deploy $STATUS\",
+              \"description\": \"$MSG\n\nAtentamente: Teto Automatomation Bot\",
+              \"color\": $COLOR
             }]
-          }' \
-          ${{ secrets.DISCORD_WEBHOOK_URL }}
+          }" \
+          "${{ secrets.DISCORD_WEBHOOK_URL }}"
