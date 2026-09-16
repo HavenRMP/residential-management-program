@@ -23,9 +23,9 @@ Los roles transversales (Scrum Master, Security Champion, QA Lead, DevOps/Releas
 | :--- | :--- | :--- |
 | **Base de datos** | PostgreSQL (Supabase) | Row Level Security, vistas `vw_*` y Stored Procedures (`rpc`) como único contrato de acceso — ver `SP_USUARIOS.md` |
 | **Auth** | Supabase Auth | JWT validado en backend vía OIDC Discovery |
-| **Backend** | C# / .NET 10 — ASP.NET Core + EF Core | `EF Core InMemory` como proveedor temporal mientras se migra a Postgres real; despliegue vía Docker (Render) |
+| **Backend** | C# / .NET 10 — ASP.NET Core + EF Core | `EF Core InMemory`; despliegue vía Docker (Render) |
 | **Web (Admin)** | Angular (standalone components + signals) | Login, guards y dashboard funcionales; desplegado en Vercel |
-| **Mobile (Residentes)** | React Native + Expo *(planeado)* | Aún no implementado en este repo |
+| **Mobile (Residentes y Admin)| Flutter + Dart |
 
 ---
 
