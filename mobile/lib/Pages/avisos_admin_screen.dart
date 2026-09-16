@@ -80,8 +80,11 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
       if (response != null) {
         final items = response['items'] as List<dynamic>? ?? [];
         setState(() {
-          if (refresh) _avisosVigentes = items;
-          else _avisosVigentes.addAll(items);
+          if (refresh) {
+            _avisosVigentes = items;
+          } else {
+            _avisosVigentes.addAll(items);
+          }
           _pageVigentes++;
           _hasMoreVigentes = items.length == 10;
         });
@@ -104,8 +107,11 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
       if (response != null) {
         final items = response['items'] as List<dynamic>? ?? [];
         setState(() {
-          if (refresh) _avisosHistorico = items;
-          else _avisosHistorico.addAll(items);
+          if (refresh) {
+            _avisosHistorico = items;
+          } else {
+            _avisosHistorico.addAll(items);
+          }
           _pageHistorico++;
           _hasMoreHistorico = items.length == 10;
         });
