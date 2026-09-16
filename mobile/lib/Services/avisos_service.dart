@@ -40,7 +40,7 @@ class AvisosService {
       }
       return null;
     } catch (e) {
-      throw Exception('Error de conexión con el servicio de avisos.');
+      return null;
     }
   }
 
@@ -67,7 +67,7 @@ class AvisosService {
       }
       return null;
     } catch (e) {
-      throw Exception('Error de conexión con el servicio de avisos.');
+      return null;
     }
   }
 
@@ -77,7 +77,7 @@ class AvisosService {
       final payload = {
         'titulo': titulo,
         'contenido': contenido,
-        'duracionDias': duracionDias,
+        'duracion_dias': duracionDias,
       };
 
       final response = await controller.httpClient.post(
@@ -94,7 +94,7 @@ class AvisosService {
       }
       return null;
     } catch (e) {
-      throw Exception('Error de conexión al crear aviso.');
+      return null;
     }
   }
 
@@ -120,7 +120,7 @@ class AvisosService {
       }
       return null;
     } catch (e) {
-      throw Exception('Error de conexión al actualizar aviso.');
+      return null;
     }
   }
 
@@ -134,7 +134,7 @@ class AvisosService {
 
       return response.statusCode >= 200 && response.statusCode < 300;
     } catch (e) {
-      throw Exception('Error de conexión al eliminar aviso.');
+      return false;
     }
   }
 }
