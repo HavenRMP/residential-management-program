@@ -1,4 +1,5 @@
 using HavenApi.Shared.Extensions;
+using Avisos.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,6 +8,8 @@ builder.Services.AddHavenJwtAuth(builder.Configuration);
 builder.Services.AddHavenExceptionHandler();
 
 builder.Services.AddAuthorization();
+
+builder.Services.AddHttpClient<ISupabaseService, SupabaseService>();
 
 builder.Services.AddControllers();
 
