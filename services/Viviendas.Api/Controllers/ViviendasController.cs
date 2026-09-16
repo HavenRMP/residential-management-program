@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using HavenApi.Shared.Exceptions;
+using HavenApi.Shared.Pagination;
 using HavenApi.Shared.Rpc;
 
 namespace Viviendas.Api.Controllers;
@@ -55,7 +56,7 @@ public class ViviendasController : ControllerBase
 
     [ProducesResponseType(StatusCodes.Status200OK)]
     [HttpGet]
-    public async Task<IActionResult> GetViviendas()
+    public async Task<IActionResult> GetViviendas([FromQuery] PaginationParams paginacion)
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                           ?? User.FindFirst("sub")?.Value;
@@ -73,11 +74,11 @@ public class ViviendasController : ControllerBase
 
         if (condominioId == null)
         {
-            return Ok(new List<object>());
+            return Ok(PagedResult<object>.Create(new List<object>(), paginacion, 0));
         }
 
-        var viviendas = await _supabaseService.GetViviendasAsync(condominioId.Value);
-        var result = viviendas.Select(v => new
+        var (items, totalCount) = await _supabaseService.GetViviendasAsync(condominioId.Value, paginacion);
+        var resultList = items.Select(v => new
         {
             id = v.Id,
             numeroCasa = v.NumeroCasa,
@@ -85,9 +86,11 @@ public class ViviendasController : ControllerBase
             condominioId = v.CondominioId,
             condominioNombre = v.CondominioNombre,
             creadoEn = v.CreadoEn
-        });
+        }).Cast<object>().ToList();
 
-        return Ok(result);
+        var pagedResult = PagedResult<object>.Create(resultList, paginacion, totalCount);
+
+        return Ok(pagedResult);
     }
 
     [ProducesResponseType(StatusCodes.Status200OK)]
