@@ -26,7 +26,17 @@ class AvisosService {
       );
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
+        if (response.body.isEmpty) return null;
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) return decoded;
+        if (decoded is List) {
+          return {
+            'items': decoded,
+            'page': 1,
+            'pageSize': decoded.length,
+            'totalCount': decoded.length,
+          };
+        }
       }
       return null;
     } catch (e) {
@@ -43,7 +53,17 @@ class AvisosService {
       );
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
+        if (response.body.isEmpty) return null;
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) return decoded;
+        if (decoded is List) {
+          return {
+            'items': decoded,
+            'page': 1,
+            'pageSize': decoded.length,
+            'totalCount': decoded.length,
+          };
+        }
       }
       return null;
     } catch (e) {
@@ -67,7 +87,10 @@ class AvisosService {
       );
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        return jsonDecode(response.body);
+        if (response.body.isEmpty) return {'success': true};
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) return decoded;
+        return {'success': true, 'data': decoded};
       }
       return null;
     } catch (e) {
@@ -90,7 +113,10 @@ class AvisosService {
       );
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        return jsonDecode(response.body);
+        if (response.body.isEmpty) return {'success': true};
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) return decoded;
+        return {'success': true, 'data': decoded};
       }
       return null;
     } catch (e) {

@@ -158,7 +158,31 @@ class HeaderBar extends StatelessWidget {
                   ),
                 ),
                 InkWell(
-                  onTap: controller.logout,
+                  onTap: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Cerrar sesión'),
+                        content: const Text('¿Seguro que quieres salir de sesión?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancelar'),
+                          ),
+                          FilledButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.red,
+                            ),
+                            child: const Text('Salir'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirm == true) {
+                      controller.logout();
+                    }
+                  },
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
                     padding: const EdgeInsets.symmetric(

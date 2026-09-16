@@ -135,7 +135,31 @@ class _PerfilScreenState extends State<PerfilScreen> {
         actions: [
           if (isEffectiveOnboarding)
             TextButton.icon(
-              onPressed: widget.controller.logout,
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Cerrar sesión'),
+                    content: const Text('¿Seguro que quieres salir de sesión?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancelar'),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
+                        child: const Text('Salir'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  widget.controller.logout();
+                }
+              },
               icon: const Icon(
                 Icons.logout,
                 size: 18,
