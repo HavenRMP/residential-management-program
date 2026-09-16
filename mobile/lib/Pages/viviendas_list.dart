@@ -112,8 +112,8 @@ class _ViviendasListScreenState extends State<ViviendasListScreen> {
                   };
 
                   final url = isEdit
-                      ? '${dotenv.env['API_BASE_URL_VIVIENDAS'] ?? ''}/api/Viviendas/${vivienda['id']}'
-                      : '${dotenv.env['API_BASE_URL_VIVIENDAS'] ?? ''}/api/Viviendas';
+                      ? '${dotenv.env['API_BASE_URL_VIVIENDAS'] ?? 'https://viviendas-api.onrender.com'}/api/Viviendas/${vivienda['id']}'
+                      : '${dotenv.env['API_BASE_URL_VIVIENDAS'] ?? 'https://viviendas-api.onrender.com'}/api/Viviendas';
 
                   try {
                     http.Response res;

@@ -7,7 +7,7 @@ class ViviendasService {
 
   ViviendasService(this.controller);
 
-  String get baseUrl => dotenv.env['API_BASE_URL_VIVIENDAS'] ?? '';
+  String get baseUrl => dotenv.env['API_BASE_URL_VIVIENDAS'] ?? 'https://viviendas-api.onrender.com';
 
   Future<Map<String, String>> _getHeaders() async {
     final token = await controller.getValidAccessToken();

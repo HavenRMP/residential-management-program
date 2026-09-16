@@ -33,7 +33,7 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
     try {
       final response = await widget.controller.httpClient.get(
         Uri.parse(
-          '${dotenv.env['API_BASE_URL_USUARIOS'] ?? ''}/api/Auth/residentes',
+          '${dotenv.env['API_BASE_URL_USUARIOS'] ?? 'https://usuarios-api-n1qi.onrender.com'}/api/Auth/residentes',
         ),
         headers: {'Authorization': 'Bearer ${widget.controller.accessToken}'},
       );
