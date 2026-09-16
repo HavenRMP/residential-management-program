@@ -19,6 +19,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Condominios.Api.Tests", "Co
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HavenApi.Shared.Tests", "HavenApi.Shared.Tests\HavenApi.Shared.Tests.csproj", "{661BA919-F7B0-417D-B56F-9BD2FF803FD8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avisos.Api", "Avisos.Api\Avisos.Api.csproj", "{CCF4E383-8968-4B8F-94F4-251E20B5C53B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -113,6 +115,18 @@ Global
 		{661BA919-F7B0-417D-B56F-9BD2FF803FD8}.Release|x64.Build.0 = Release|Any CPU
 		{661BA919-F7B0-417D-B56F-9BD2FF803FD8}.Release|x86.ActiveCfg = Release|Any CPU
 		{661BA919-F7B0-417D-B56F-9BD2FF803FD8}.Release|x86.Build.0 = Release|Any CPU
+		{CCF4E383-8968-4B8F-94F4-251E20B5C53B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CCF4E383-8968-4B8F-94F4-251E20B5C53B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CCF4E383-8968-4B8F-94F4-251E20B5C53B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{CCF4E383-8968-4B8F-94F4-251E20B5C53B}.Debug|x64.Build.0 = Debug|Any CPU
+		{CCF4E383-8968-4B8F-94F4-251E20B5C53B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{CCF4E383-8968-4B8F-94F4-251E20B5C53B}.Debug|x86.Build.0 = Debug|Any CPU
+		{CCF4E383-8968-4B8F-94F4-251E20B5C53B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CCF4E383-8968-4B8F-94F4-251E20B5C53B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CCF4E383-8968-4B8F-94F4-251E20B5C53B}.Release|x64.ActiveCfg = Release|Any CPU
+		{CCF4E383-8968-4B8F-94F4-251E20B5C53B}.Release|x64.Build.0 = Release|Any CPU
+		{CCF4E383-8968-4B8F-94F4-251E20B5C53B}.Release|x86.ActiveCfg = Release|Any CPU
+		{CCF4E383-8968-4B8F-94F4-251E20B5C53B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
