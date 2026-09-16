@@ -7,8 +7,7 @@ class AvisosService {
 
   AvisosService(this.controller);
 
-  String get baseUrl => dotenv.env['API_BASE_URL_USUARIOS'] ?? ''; 
-  // O usar una variable específica de entorno si avisos_api tiene un host distinto. Asumiremos que comparten baseUrl o ruta en el gateway si no se especifica.
+  String get baseUrl => dotenv.env['API_BASE_URL_AVISOS'] ?? 'https://avisos-api-qg5b.onrender.com';
 
   Future<Map<String, String>> _getHeaders() async {
     final token = await controller.getValidAccessToken();

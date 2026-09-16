@@ -7,7 +7,7 @@ class CondominiosService {
 
   CondominiosService(this.controller);
 
-  String get baseUrl => dotenv.env['API_BASE_URL_USUARIOS'] ?? ''; // Condominios is usually tied to Usuarios base url in this project based on earlier grep
+  String get baseUrl => dotenv.env['API_BASE_URL_CONDOMINIOS'] ?? 'https://condominios-api-vv32.onrender.com';
 
   Future<Map<String, String>> _getHeaders() async {
     final token = await controller.getValidAccessToken();
