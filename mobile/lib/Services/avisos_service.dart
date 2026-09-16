@@ -18,16 +18,16 @@ class AvisosService {
     };
   }
 
-  Future<List<dynamic>?> getAvisosVigentes() async {
+  Future<Map<String, dynamic>?> getAvisosVigentes({int page = 1, int pageSize = 10}) async {
     try {
-      final url = '$baseUrl/api/avisos';
+      final url = '$baseUrl/api/avisos?page=$page&pageSize=$pageSize';
       final response = await controller.httpClient.get(
         Uri.parse(url),
         headers: await _getHeaders(),
       );
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        return jsonDecode(response.body) as List<dynamic>;
+        return jsonDecode(response.body) as Map<String, dynamic>;
       }
       return null;
     } catch (e) {
@@ -35,16 +35,16 @@ class AvisosService {
     }
   }
 
-  Future<List<dynamic>?> getAvisosHistorico() async {
+  Future<Map<String, dynamic>?> getAvisosHistorico({int page = 1, int pageSize = 10}) async {
     try {
-      final url = '$baseUrl/api/avisos/historico';
+      final url = '$baseUrl/api/avisos/historico?page=$page&pageSize=$pageSize';
       final response = await controller.httpClient.get(
         Uri.parse(url),
         headers: await _getHeaders(),
       );
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        return jsonDecode(response.body) as List<dynamic>;
+        return jsonDecode(response.body) as Map<String, dynamic>;
       }
       return null;
     } catch (e) {
