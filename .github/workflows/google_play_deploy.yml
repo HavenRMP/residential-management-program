@@ -40,6 +40,12 @@ jobs:
         with:
           channel: 'stable'
 
+      - name: Create Firebase Configs from secrets
+        run: |
+          echo "${{ secrets.FIREBASE_OPTIONS_BASE64 }}" | base64 --decode > lib/firebase_options.dart
+          echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
+          echo "${{ secrets.FIREBASE_JSON_BASE64 }}" | base64 --decode > firebase.json
+
       - name: Install dependencies
         run: flutter pub get
 
@@ -71,3 +77,28 @@ jobs:
           releaseFiles: mobile/build/app/outputs/bundle/release/app-release.aab
           track: ${{ github.event.inputs.track }}
           status: completed
+
+      - name: Notify Discord on Deploy
+        if: always()
+        run: |
+          STATUS="${{ job.status }}"
+          TRACK="${{ github.event.inputs.track }}"
+          if [ "$STATUS" = "success" ]; then
+            EMOJI="🚀"
+            COLOR="65280"
+            MSG="Deploy completado exitosamente en Google Play ($TRACK) y listo para ser probado."
+          else
+            EMOJI="❌"
+            COLOR="16711680"
+            MSG="Falló el deploy en Google Play ($TRACK)."
+          fi
+          
+          curl -H "Content-Type: application/json" \
+          -d '{
+            "embeds": [{
+              "title": "'$EMOJI' CI/CD: Google Play Deploy '$STATUS'",
+              "description": "'$MSG'\n\nAtentamente: Teto Automatomation Bot",
+              "color": '$COLOR'
+            }]
+          }' \
+          ${{ secrets.DISCORD_WEBHOOK_URL }}
