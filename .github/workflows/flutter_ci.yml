@@ -51,6 +51,8 @@ jobs:
           echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
           echo "API_BASE_URL_USUARIOS=${{ secrets.API_BASE_URL_USUARIOS }}" >> .env
           echo "API_BASE_URL_VIVIENDAS=${{ secrets.API_BASE_URL_VIVIENDAS }}" >> .env
+          echo "API_BASE_URL_AVISOS=${{ secrets.API_BASE_URL_AVISOS }}" >> .env
+          echo "API_BASE_URL_CONDOMINIOS=${{ secrets.API_BASE_URL_CONDOMINIOS }}" >> .env
           echo "TEST_USER_EMAIL=${{ secrets.TEST_USER_EMAIL }}" >> .env
           echo "TEST_USER_PASSWORD=${{ secrets.TEST_USER_PASSWORD }}" >> .env
           echo "ADMIN_USER_EMAIL=${{ secrets.ADMIN_USER_EMAIL }}" >> .env
@@ -121,6 +123,8 @@ jobs:
           echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
           echo "API_BASE_URL_USUARIOS=${{ secrets.API_BASE_URL_USUARIOS }}" >> .env
           echo "API_BASE_URL_VIVIENDAS=${{ secrets.API_BASE_URL_VIVIENDAS }}" >> .env
+          echo "API_BASE_URL_AVISOS=${{ secrets.API_BASE_URL_AVISOS }}" >> .env
+          echo "API_BASE_URL_CONDOMINIOS=${{ secrets.API_BASE_URL_CONDOMINIOS }}" >> .env
           echo "TEST_USER_EMAIL=${{ secrets.TEST_USER_EMAIL }}" >> .env
           echo "TEST_USER_PASSWORD=${{ secrets.TEST_USER_PASSWORD }}" >> .env
           echo "ADMIN_USER_EMAIL=${{ secrets.ADMIN_USER_EMAIL }}" >> .env

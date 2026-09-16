@@ -73,15 +73,22 @@ class _AvisosResidenteScreenState extends State<AvisosResidenteScreen> {
           _isLoading = false;
           _isFetchingMore = false;
         });
-      } else if (refresh) {
-        _redirigirAConstruccion('No se pudieron cargar los avisos');
+      } else {
+        // Service returned null (connection error or empty) - show empty state
+        setState(() {
+          if (refresh) _avisos = [];
+          _isLoading = false;
+          _isFetchingMore = false;
+          _hasMore = false;
+        });
       }
     } catch (e) {
-      if (refresh) {
-        _redirigirAConstruccion('Error al cargar avisos');
-      } else {
-        setState(() => _isFetchingMore = false);
-      }
+      setState(() {
+        if (refresh) _avisos = [];
+        _isLoading = false;
+        _isFetchingMore = false;
+        _hasMore = false;
+      });
     }
   }
 
