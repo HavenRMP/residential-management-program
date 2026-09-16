@@ -84,7 +84,7 @@ public class AvisosController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [HttpGet("historico")]
-    public async Task<IActionResult> GetAvisosHistorico()
+    public async Task<IActionResult> GetAvisosHistorico([FromQuery] PaginationParams paginacion)
     {
         var (adminError, condominioId, _) = await ValidateAdminAsync();
         if (adminError != null)
@@ -92,11 +92,11 @@ public class AvisosController : ControllerBase
 
         if (condominioId == null)
         {
-            return Ok(new List<AvisoDto>());
+            return Ok(PagedResult<AvisoDto>.Create(new List<AvisoDto>(), paginacion, 0));
         }
 
-        var avisos = await _supabaseService.GetAvisosHistoricoAsync(condominioId.Value);
-        return Ok(avisos);
+        var (items, totalCount) = await _supabaseService.GetAvisosHistoricoAsync(condominioId.Value, paginacion);
+        return Ok(PagedResult<AvisoDto>.Create(items, paginacion, totalCount));
     }
 
     [ProducesResponseType(StatusCodes.Status201Created)]
