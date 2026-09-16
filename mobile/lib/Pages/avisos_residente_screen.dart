@@ -15,7 +15,6 @@ class AvisosResidenteScreen extends StatefulWidget {
 class _AvisosResidenteScreenState extends State<AvisosResidenteScreen> {
   bool _isLoading = true;
   List<dynamic> _avisos = [];
-  String? _error;
 
   @override
   void initState() {
@@ -26,7 +25,6 @@ class _AvisosResidenteScreenState extends State<AvisosResidenteScreen> {
   Future<void> _cargarAvisos() async {
     setState(() {
       _isLoading = true;
-      _error = null;
     });
 
     try {
@@ -137,8 +135,8 @@ class _AvisosResidenteScreenState extends State<AvisosResidenteScreen> {
     String fechaStr = '';
     if (aviso['fecha_publicacion'] != null) {
       try {
-        final dt = DateTime.parse(aviso['fecha_publicacion']);
-        fechaStr = '\${dt.day}/\${dt.month}/\${dt.year}';
+        final parsedDt = DateTime.parse(aviso['fecha_publicacion']);
+        fechaStr = '${parsedDt.day}/${parsedDt.month}/${parsedDt.year}';
       } catch (_) {}
     }
 

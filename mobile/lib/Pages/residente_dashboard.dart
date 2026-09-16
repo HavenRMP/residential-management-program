@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../Services/app_controller.dart';
 import '../Widgets/header_bar.dart';
 import 'perfil_screen.dart';
-import 'en_construccion_screen.dart';
 import '../Services/push_notifications_service.dart';
 import 'avisos_residente_screen.dart';
 import '../Services/condominios_service.dart';

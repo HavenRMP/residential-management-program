@@ -6,7 +6,6 @@ import 'residentes_list.dart';
 
 import 'viviendas_list.dart';
 import '../Services/condominios_service.dart';
-import 'en_construccion_screen.dart';
 import 'avisos_admin_screen.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
