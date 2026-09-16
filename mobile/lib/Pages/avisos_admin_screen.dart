@@ -87,7 +87,7 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<int>(
-                  value: duracionDias,
+                  initialValue: duracionDias,
                   items: const [
                     DropdownMenuItem(value: 3, child: Text('3 días')),
                     DropdownMenuItem(value: 7, child: Text('1 semana (7 días)')),
