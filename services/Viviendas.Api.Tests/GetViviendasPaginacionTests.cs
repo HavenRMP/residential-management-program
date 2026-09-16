@@ -1,8 +1,6 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Security.Claims;
 using System.Text.Json;
 using HavenApi.Shared.Pagination;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -16,11 +14,11 @@ using Xunit;
 
 namespace Viviendas.Api.Tests;
 
-public class GetViviendasFiltradoTests : IAsyncLifetime
+public class GetViviendasPaginacionTests : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _dbContainer;
 
-    public GetViviendasFiltradoTests()
+    public GetViviendasPaginacionTests()
     {
         Environment.SetEnvironmentVariable("Supabase__Url", "https://localhost:54321");
 
@@ -83,54 +81,106 @@ public class GetViviendasFiltradoTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetViviendas_UserWithCondominioId_ReturnsFilteredViviendas()
+    public async Task GetViviendas_WithPaginationParams_PassesParamsToService()
     {
         var userId = Guid.NewGuid();
         var token = GenerateFakeToken(userId);
         var condominioId = Guid.NewGuid();
 
         var mockSupabaseService = new Mock<ISupabaseService>();
-        
+
         mockSupabaseService.Setup(s => s.GetContextoAdminAsync(userId, It.IsAny<string>()))
             .ReturnsAsync(("Administrador", condominioId));
 
         var expectedViviendas = new List<ViviendaDto>
         {
-            new ViviendaDto { Id = 1, CondominioId = condominioId, NumeroCasa = "1A" },
-            new ViviendaDto { Id = 2, CondominioId = condominioId, NumeroCasa = "2B" }
+            new ViviendaDto { Id = 1, CondominioId = condominioId, NumeroCasa = "1A" }
         };
 
+        PaginationParams capturedParams = null!;
+
         mockSupabaseService.Setup(s => s.GetViviendasAsync(condominioId, It.IsAny<PaginationParams>()))
-            .ReturnsAsync((expectedViviendas, expectedViviendas.Count));
+            .Callback<Guid, PaginationParams>((id, p) => capturedParams = p)
+            .ReturnsAsync((expectedViviendas, 1));
 
         await using var application = BuildApplication(mockSupabaseService);
         var client = application.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var response = await client.GetAsync("/api/viviendas");
+        var response = await client.GetAsync("/api/viviendas?page=2&pageSize=5");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        
-        var content = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.True(content.TryGetProperty("items", out var itemsElement));
-        Assert.Equal(JsonValueKind.Array, itemsElement.ValueKind);
-        Assert.Equal(2, itemsElement.GetArrayLength());
-        Assert.Equal(1, itemsElement[0].GetProperty("id").GetInt32());
-        Assert.Equal("1A", itemsElement[0].GetProperty("numeroCasa").GetString());
 
         mockSupabaseService.Verify(s => s.GetViviendasAsync(condominioId, It.IsAny<PaginationParams>()), Times.Once);
+        
+        Assert.NotNull(capturedParams);
+        Assert.Equal(2, capturedParams.Page);
+        Assert.Equal(5, capturedParams.PageSize);
     }
 
     [Fact]
-    public async Task GetViviendas_UserWithoutCondominioId_ReturnsEmptyList_NeverCallsService()
+    public async Task GetViviendas_ReturnsCorrectPagedResultStructure()
     {
         var userId = Guid.NewGuid();
         var token = GenerateFakeToken(userId);
+        var condominioId = Guid.NewGuid();
 
         var mockSupabaseService = new Mock<ISupabaseService>();
-        
+
         mockSupabaseService.Setup(s => s.GetContextoAdminAsync(userId, It.IsAny<string>()))
-            .ReturnsAsync(("Administrador", (Guid?)null));
+            .ReturnsAsync(("Administrador", condominioId));
+
+        var expectedViviendas = new List<ViviendaDto>
+        {
+            new ViviendaDto { Id = 1, CondominioId = condominioId, NumeroCasa = "1A" }
+        };
+
+        mockSupabaseService.Setup(s => s.GetViviendasAsync(condominioId, It.IsAny<PaginationParams>()))
+            .ReturnsAsync((expectedViviendas, 100));
+
+        await using var application = BuildApplication(mockSupabaseService);
+        var client = application.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync("/api/viviendas?page=2&pageSize=5");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var content = await response.Content.ReadFromJsonAsync<JsonElement>();
+        
+        Assert.True(content.TryGetProperty("items", out var itemsElement));
+        Assert.Equal(JsonValueKind.Array, itemsElement.ValueKind);
+        Assert.Equal(1, itemsElement.GetArrayLength());
+        
+        Assert.True(content.TryGetProperty("page", out var pageElement));
+        Assert.Equal(2, pageElement.GetInt32());
+
+        Assert.True(content.TryGetProperty("pageSize", out var pageSizeElement));
+        Assert.Equal(5, pageSizeElement.GetInt32());
+
+        Assert.True(content.TryGetProperty("totalCount", out var totalCountElement));
+        Assert.Equal(100, totalCountElement.GetInt32());
+    }
+
+    [Fact]
+    public async Task GetViviendas_WithoutPaginationParams_UsesDefaultParams()
+    {
+        var userId = Guid.NewGuid();
+        var token = GenerateFakeToken(userId);
+        var condominioId = Guid.NewGuid();
+
+        var mockSupabaseService = new Mock<ISupabaseService>();
+
+        mockSupabaseService.Setup(s => s.GetContextoAdminAsync(userId, It.IsAny<string>()))
+            .ReturnsAsync(("Administrador", condominioId));
+
+        var expectedViviendas = new List<ViviendaDto>();
+
+        PaginationParams capturedParams = null!;
+
+        mockSupabaseService.Setup(s => s.GetViviendasAsync(condominioId, It.IsAny<PaginationParams>()))
+            .Callback<Guid, PaginationParams>((id, p) => capturedParams = p)
+            .ReturnsAsync((expectedViviendas, 0));
 
         await using var application = BuildApplication(mockSupabaseService);
         var client = application.CreateClient();
@@ -140,13 +190,10 @@ public class GetViviendasFiltradoTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var content = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.True(content.TryGetProperty("items", out var itemsElement));
-        Assert.Equal(JsonValueKind.Array, itemsElement.ValueKind);
-        Assert.Equal(0, itemsElement.GetArrayLength());
-
-        mockSupabaseService.Verify(s => s.GetViviendasAsync(It.IsAny<Guid>(), It.IsAny<PaginationParams>()), Times.Never);
+        mockSupabaseService.Verify(s => s.GetViviendasAsync(condominioId, It.IsAny<PaginationParams>()), Times.Once);
+        
+        Assert.NotNull(capturedParams);
+        Assert.Equal(1, capturedParams.Page);
+        Assert.Equal(20, capturedParams.PageSize);
     }
 }
-
-// Requerido por ReadFromJsonAsync de arriba para un test limpio, usamos JsonElement o clases genericas.
