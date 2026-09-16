@@ -21,6 +21,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HavenApi.Shared.Tests", "Ha
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avisos.Api", "Avisos.Api\Avisos.Api.csproj", "{CCF4E383-8968-4B8F-94F4-251E20B5C53B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avisos.Api.Tests", "Avisos.Api.Tests\Avisos.Api.Tests.csproj", "{EE785B72-A0D1-47D6-BDE9-217D628FF0EA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -127,6 +129,18 @@ Global
 		{CCF4E383-8968-4B8F-94F4-251E20B5C53B}.Release|x64.Build.0 = Release|Any CPU
 		{CCF4E383-8968-4B8F-94F4-251E20B5C53B}.Release|x86.ActiveCfg = Release|Any CPU
 		{CCF4E383-8968-4B8F-94F4-251E20B5C53B}.Release|x86.Build.0 = Release|Any CPU
+		{EE785B72-A0D1-47D6-BDE9-217D628FF0EA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EE785B72-A0D1-47D6-BDE9-217D628FF0EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EE785B72-A0D1-47D6-BDE9-217D628FF0EA}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{EE785B72-A0D1-47D6-BDE9-217D628FF0EA}.Debug|x64.Build.0 = Debug|Any CPU
+		{EE785B72-A0D1-47D6-BDE9-217D628FF0EA}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{EE785B72-A0D1-47D6-BDE9-217D628FF0EA}.Debug|x86.Build.0 = Debug|Any CPU
+		{EE785B72-A0D1-47D6-BDE9-217D628FF0EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EE785B72-A0D1-47D6-BDE9-217D628FF0EA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EE785B72-A0D1-47D6-BDE9-217D628FF0EA}.Release|x64.ActiveCfg = Release|Any CPU
+		{EE785B72-A0D1-47D6-BDE9-217D628FF0EA}.Release|x64.Build.0 = Release|Any CPU
+		{EE785B72-A0D1-47D6-BDE9-217D628FF0EA}.Release|x86.ActiveCfg = Release|Any CPU
+		{EE785B72-A0D1-47D6-BDE9-217D628FF0EA}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
