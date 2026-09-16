@@ -95,8 +95,8 @@ public class AvisosControllerTests : IAsyncLifetime
         _mockSupabaseService.Setup(s => s.GetUsuarioContextoAsync(userId, It.IsAny<string>()))
             .ReturnsAsync(("Residente", condominioId));
             
-        _mockSupabaseService.Setup(s => s.GetAvisosVigentesAsync(condominioId))
-            .ReturnsAsync(new List<AvisoDto> { new AvisoDto { Id = Guid.NewGuid(), Titulo = "Test Aviso" } });
+        _mockSupabaseService.Setup(s => s.GetAvisosVigentesAsync(condominioId, It.IsAny<HavenApi.Shared.Pagination.PaginationParams>()))
+            .ReturnsAsync((new List<AvisoDto> { new AvisoDto { Id = Guid.NewGuid(), Titulo = "Test Aviso" } }, 1));
 
         await using var application = CreateFactory();
         var client = application.CreateClient();
