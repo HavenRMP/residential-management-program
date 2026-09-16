@@ -107,7 +107,8 @@ public class AuthController : ControllerBase
             rol = usuario.EffectiveRol,
             email = User.FindFirst(ClaimTypes.Email)?.Value
                     ?? User.FindFirst("email")?.Value,
-            creadoEn = usuario.CreadoEn
+            creadoEn = usuario.CreadoEn,
+            condominioId = usuario.CondominioId
         });
     }
 
