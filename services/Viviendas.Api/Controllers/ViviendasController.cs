@@ -354,7 +354,7 @@ public class ViviendasController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [HttpGet("mis-viviendas")]
-    public async Task<IActionResult> GetMisViviendas()
+    public async Task<IActionResult> GetMisViviendas([FromQuery] PaginationParams paginacion)
     {
         var accessToken = HttpContext.Request.Headers["Authorization"]
             .ToString().Replace("Bearer ", "");
@@ -365,18 +365,20 @@ public class ViviendasController : ControllerBase
             return Unauthorized(new { error = "Token invalido o ausente" });
         }
 
-        var viviendas = await _supabaseService.GetMisViviendasAsync(accessToken);
+        var (items, totalCount) = await _supabaseService.GetMisViviendasAsync(accessToken, paginacion);
         
-        var result = viviendas.Select(v => new
+        var resultList = items.Select(v => new
         {
             viviendaId = v.ViviendaId,
             numeroCasa = v.NumeroCasa,
             tipo = v.Tipo,
             activo = v.Activo,
             creadoEn = v.CreadoEn
-        });
+        }).Cast<object>().ToList();
 
-        return Ok(result);
+        var pagedResult = PagedResult<object>.Create(resultList, paginacion, totalCount);
+
+        return Ok(pagedResult);
     }
 
     [ProducesResponseType(StatusCodes.Status200OK)]
