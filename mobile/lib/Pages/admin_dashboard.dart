@@ -44,11 +44,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       }
 
       int residentesCount = 0;
+      final token = await widget.controller.getValidAccessToken();
       final res = await widget.controller.httpClient.get(
         Uri.parse(
           '${dotenv.env['API_BASE_URL_USUARIOS'] ?? 'https://usuarios-api-n1qi.onrender.com'}/api/Auth/residentes',
         ),
-        headers: {'Authorization': 'Bearer ${widget.controller.accessToken}'},
+        headers: {'Authorization': 'Bearer $token'},
       );
       if (res.statusCode >= 200 && res.statusCode < 300) {
         final decoded = jsonDecode(res.body);
@@ -498,55 +499,37 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-              GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 1.15,
-                children: [
-                  _buildMetricCard(
-                    title: 'VIVIENDAS',
-                    value: _totalViviendas.toString(),
-                    subtitle: 'Ver catálogo completo',
-                    icon: Icons.home_work_outlined,
-                    color: const Color(0xFF111C99),
-                    onTap: () => setState(() => _currentIndex = 2),
-                  ),
-                  _buildMetricCard(
-                    title: 'PADRÓN',
-                    value: _totalResidentes.toString(),
-                    subtitle: 'Directorio residentes',
-                    icon: Icons.people_outline,
-                    color: const Color(0xFF4F46E5),
-                    onTap: () => setState(() => _currentIndex = 1),
-                  ),
-                  _buildMetricCard(
-                    title: 'OCUPACIÓN',
-                    value: _totalViviendas > 0
-                        ? '${((_viviendasOcupadas / _totalViviendas) * 100).round()}%'
-                        : '0%',
-                    subtitle: '$_viviendasOcupadas de $_totalViviendas viv.',
-                    icon: Icons.bar_chart_rounded,
-                    color: const Color(0xFF059669),
-                    onTap: () => setState(() => _currentIndex = 2),
-                  ),
-                  _buildMetricCard(
-                    title: 'SISTEMA',
-                    value: 'En línea',
-                    subtitle: 'Supabase Auth & API v1',
-                    icon: Icons.verified_user_outlined,
-                    color: const Color(0xFF0F172A),
-                    onTap: () {
-                      widget.controller.notifyToast(
-                        'API v1 Running - Supabase Auth DB v2.0.6',
-                        success: true,
-                      );
-                    },
-                  ),
-                ],
+              SizedBox(
+                height: 90,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  children: [
+                    _buildSmallInsight('Viviendas', _totalViviendas.toString(), Icons.home_work_outlined, const Color(0xFF111C99)),
+                    const SizedBox(width: 12),
+                    _buildSmallInsight('Padrón', _totalResidentes.toString(), Icons.people_outline, const Color(0xFF4F46E5)),
+                    const SizedBox(width: 12),
+                    _buildSmallInsight('Ocupación', _totalViviendas > 0 ? '${((_viviendasOcupadas / _totalViviendas) * 100).round()}%' : '0%', Icons.bar_chart_rounded, const Color(0xFF059669)),
+                    const SizedBox(width: 12),
+                    _buildSmallInsight('Sistema', 'En línea', Icons.verified_user_outlined, const Color(0xFF0F172A)),
+                  ],
+                ),
               ),
+              const SizedBox(height: 24),
+              const Text(
+                'Acciones Rápidas',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildActionButton('Gestión de Viviendas', Icons.home_work_outlined, () => setState(() => _currentIndex = 2)),
+              const SizedBox(height: 12),
+              _buildActionButton('Directorio de Residentes', Icons.people_outline, () => setState(() => _currentIndex = 1)),
+              const SizedBox(height: 12),
+              _buildActionButton('Gestión de Avisos', Icons.campaign_outlined, () => setState(() => _currentIndex = 3)),
             ],
           ),
         ),
@@ -554,90 +537,95 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildMetricCard({
-    required String title,
-    required String value,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildSmallInsight(String title, String value, IconData icon, Color color) {
+    return Container(
+      width: 120,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x02000000),
+            blurRadius: 4,
+            offset: Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  title.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF64748B),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton(String title, IconData icon, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         decoration: BoxDecoration(
           color: Colors.white,
-          border: Border.all(color: const Color(0xFFE2E8F0)),
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: const [
             BoxShadow(
-              color: Color(0x05000000),
-              blurRadius: 10,
-              offset: Offset(0, 2),
+              color: Color(0x02000000),
+              blurRadius: 4,
+              offset: Offset(0, 1),
             ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Row(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF64748B),
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.08),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, color: color, size: 16),
-                ),
-              ],
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEEF2FF),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: const Color(0xFF111C99), size: 24),
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF0F172A),
-                    height: 1.1,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A),
                 ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: color,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Icon(Icons.arrow_forward_rounded, size: 10, color: color),
-                  ],
-                ),
-              ],
+              ),
             ),
             const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
           ],

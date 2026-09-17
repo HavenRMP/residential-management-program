@@ -80,8 +80,10 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
     // Intentar redimir como código de condominio primero
     try {
       final resCond = await condService.redimirCodigo(codigo, usuarioId: userId);
-      if (resCond != null) {
+      if (resCond != null && resCond['success'] == true) {
         exitoso = true;
+      } else if (resCond != null && resCond['error'] != null) {
+        errorMsg = resCond['error'];
       }
     } catch (_) {}
 
@@ -89,8 +91,11 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
     if (!exitoso) {
       try {
         final resViv = await vivService.redimirCodigo(codigo, usuarioId: userId);
-        if (resViv != null) {
+        if (resViv != null && resViv['success'] == true) {
           exitoso = true;
+        } else if (resViv != null && resViv['error'] != null) {
+          // Priority to the vivienda error if it failed here too
+          errorMsg = resViv['error'];
         }
       } catch (_) {}
     }
@@ -100,6 +105,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
     if (exitoso) {
       widget.controller.notifyToast('¡Código validado exitosamente!', success: true);
       _codigoController.clear();
+      await widget.controller.forceRefreshSession();
       _cargarMisViviendas();
     } else {
       widget.controller.notifyToast(errorMsg, success: false);

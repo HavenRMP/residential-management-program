@@ -13,18 +13,20 @@ import '../main.dart';
 
 class AppController extends ChangeNotifier {
   AppController(this._supabaseClient, {http.Client? client})
-      : _available = true,
-        httpClient = client ?? http.Client();
+    : _available = true,
+      httpClient = client ?? http.Client();
 
   /// Creates a controller for when Supabase failed to initialize.
   /// Immediately transitions out of splash/loading so the user sees the login.
   AppController.unavailable([String? error])
-      : _supabaseClient = null,
-        _available = false,
-        httpClient = http.Client(),
-        _isInitializing = false,
-        _isLoading = false,
-        _errorMessage = error != null ? 'Error init: $error' : 'Servicio no disponible. Reinicia la app.';
+    : _supabaseClient = null,
+      _available = false,
+      httpClient = http.Client(),
+      _isInitializing = false,
+      _isLoading = false,
+      _errorMessage = error != null
+          ? 'Error init: $error'
+          : 'Servicio no disponible. Reinicia la app.';
 
   final SupabaseClient? _supabaseClient;
   final bool _available;
@@ -72,8 +74,9 @@ class AppController extends ChangeNotifier {
       if (session.isExpired) {
         needsRefresh = true;
       } else if (session.expiresAt != null) {
-        final expiry =
-            DateTime.fromMillisecondsSinceEpoch(session.expiresAt! * 1000);
+        final expiry = DateTime.fromMillisecondsSinceEpoch(
+          session.expiresAt! * 1000,
+        );
         // Si falta menos de 60 segundos para expirar, renovar preventivamente
         if (DateTime.now().isAfter(
           expiry.subtract(const Duration(seconds: 60)),
@@ -85,17 +88,37 @@ class AppController extends ChangeNotifier {
 
     if (needsRefresh && _supabaseClient != null) {
       try {
-        debugPrint('[AppController] Token expirado o próximo a expirar. Renovando...');
+        debugPrint(
+          '[AppController] Token expirado o próximo a expirar. Renovando...',
+        );
         final res = await _supabaseClient.auth.refreshSession();
         if (res.session != null) {
           _session = res.session;
         }
       } catch (e) {
-        debugPrint('[AppController] Error al renovar sesión en getValidAccessToken: $e');
+        debugPrint(
+          '[AppController] Error al renovar sesión en getValidAccessToken: $e',
+        );
       }
     }
 
     return _session?.accessToken;
+  }
+
+  /// Fuerza la renovación del token de Supabase. Útil tras asignar vivienda.
+  Future<void> forceRefreshSession() async {
+    if (_supabaseClient != null) {
+      try {
+        debugPrint('[AppController] Forzando renovación de sesión...');
+        final res = await _supabaseClient.auth.refreshSession();
+        if (res.session != null) {
+          _session = res.session;
+          notifyListeners();
+        }
+      } catch (e) {
+        debugPrint('[AppController] Error forzando renovación: $e');
+      }
+    }
   }
 
   Future<void> bootstrap() async {
@@ -125,9 +148,7 @@ class AppController extends ChangeNotifier {
 
   Future<void> _doBootstrap() async {
     final client = _supabaseClient!;
-    _authSubscription = client.auth.onAuthStateChange.listen((
-      event,
-    ) async {
+    _authSubscription = client.auth.onAuthStateChange.listen((event) async {
       _session = event.session;
       if (event.session == null) {
         _currentUser = null;
@@ -143,7 +164,9 @@ class AppController extends ChangeNotifier {
         try {
           await _refreshProfile();
         } catch (e) {
-          debugPrint('[AppController] Error in onAuthStateChange _refreshProfile: $e');
+          debugPrint(
+            '[AppController] Error in onAuthStateChange _refreshProfile: $e',
+          );
         }
       }
     });
@@ -502,20 +525,24 @@ class AppController extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> _getJson(String endpoint) async {
-    final baseUrl = dotenv.env['API_BASE_URL_USUARIOS'] ?? 'https://usuarios-api-n1qi.onrender.com';
+    final baseUrl =
+        dotenv.env['API_BASE_URL_USUARIOS'] ??
+        'https://usuarios-api-n1qi.onrender.com';
     final uri = Uri.parse('$baseUrl$endpoint');
-    
+
     var token = await getValidAccessToken();
     final headers = <String, String>{};
     if (token != null && token.isNotEmpty) {
       headers['Authorization'] = 'Bearer $token';
     }
 
-    var response = await httpClient.get(uri, headers: headers).timeout(
-      const Duration(seconds: 15),
-    );
+    var response = await httpClient
+        .get(uri, headers: headers)
+        .timeout(const Duration(seconds: 15));
     if (response.statusCode == 401) {
-      debugPrint('[AppController] 401 recibido en $endpoint. Intentando renovar sesión...');
+      debugPrint(
+        '[AppController] 401 recibido en $endpoint. Intentando renovar sesión...',
+      );
       try {
         if (_supabaseClient == null) throw Exception('Supabase client is null');
         final refreshRes = await _supabaseClient.auth.refreshSession();
@@ -525,9 +552,9 @@ class AppController extends ChangeNotifier {
           if (token != null && token.isNotEmpty) {
             headers['Authorization'] = 'Bearer $token';
           }
-          response = await httpClient.get(uri, headers: headers).timeout(
-            const Duration(seconds: 15),
-          );
+          response = await httpClient
+              .get(uri, headers: headers)
+              .timeout(const Duration(seconds: 15));
         }
       } catch (e) {
         debugPrint('[AppController] Error al renovar sesión tras 401: $e');
@@ -732,7 +759,9 @@ class AppController extends ChangeNotifier {
     final token = await getValidAccessToken();
     if (token == null || token.isEmpty) return [];
 
-    final baseUrl = dotenv.env['API_BASE_URL_VIVIENDAS'] ?? 'https://viviendas-api.onrender.com';
+    final baseUrl =
+        dotenv.env['API_BASE_URL_VIVIENDAS'] ??
+        'https://viviendas-api.onrender.com';
     final url = '$baseUrl/api/Viviendas/mis-viviendas';
 
     try {

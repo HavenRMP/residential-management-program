@@ -19,7 +19,7 @@ class AvisosService {
 
   Future<Map<String, dynamic>?> getAvisosVigentes({int page = 1, int pageSize = 10}) async {
     try {
-      final url = '$baseUrl/api/avisos/vigentes?page=$page&pageSize=$pageSize';
+      final url = '$baseUrl/api/avisos?page=$page&pageSize=$pageSize';
       final response = await controller.httpClient.get(
         Uri.parse(url),
         headers: await _getHeaders(),

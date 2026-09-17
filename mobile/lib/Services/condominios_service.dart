@@ -35,14 +35,29 @@ class CondominiosService {
     final url = '$baseUrl/api/codigos/condominio/redimir';
     final payload = {'codigo': codigo};
     if (usuarioId != null) payload['usuarioId'] = usuarioId;
-    final response = await controller.httpClient.post(
-      Uri.parse(url),
-      headers: await _getHeaders(),
-      body: jsonEncode(payload),
-    );
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return jsonDecode(response.body);
+    
+    try {
+      final response = await controller.httpClient.post(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+        body: jsonEncode(payload),
+      );
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        if (response.body.isEmpty) return {'success': true};
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) return decoded;
+        return {'success': true, 'data': decoded};
+      } else {
+        try {
+          final errDecoded = jsonDecode(response.body);
+          if (errDecoded is Map && errDecoded['error'] != null) {
+            return {'error': errDecoded['error']};
+          }
+        } catch (_) {}
+        return {'error': 'Error HTTP ${response.statusCode}'};
+      }
+    } catch (e) {
+      return {'error': e.toString()};
     }
-    return null;
   }
 }
