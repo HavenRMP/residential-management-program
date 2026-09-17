@@ -1,7 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { tap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
+import { CacheService } from './cache.service';
 
 export type MicroserviceName = 'usuarios' | 'viviendas' | 'condominios' | 'avisos' | 'default';
 
@@ -10,6 +12,7 @@ export type MicroserviceName = 'usuarios' | 'viviendas' | 'condominios' | 'aviso
 })
 export class ApiService {
   private readonly http = inject(HttpClient);
+  private readonly cacheService = inject(CacheService);
 
   /**
    * Resuelve automáticamente el endpoint contra el microservicio correspondiente
@@ -51,19 +54,27 @@ export class ApiService {
   }
 
   post<T>(endpoint: string, body: any, headers?: HttpHeaders, service?: MicroserviceName): Observable<T> {
-    return this.http.post<T>(this.resolveUrl(endpoint, service), body, { headers });
+    return this.http.post<T>(this.resolveUrl(endpoint, service), body, { headers }).pipe(
+      tap(() => this.cacheService.invalidateForEndpoint(endpoint))
+    );
   }
 
   put<T>(endpoint: string, body: any, headers?: HttpHeaders, service?: MicroserviceName): Observable<T> {
-    return this.http.put<T>(this.resolveUrl(endpoint, service), body, { headers });
+    return this.http.put<T>(this.resolveUrl(endpoint, service), body, { headers }).pipe(
+      tap(() => this.cacheService.invalidateForEndpoint(endpoint))
+    );
   }
 
   patch<T>(endpoint: string, body: any, headers?: HttpHeaders, service?: MicroserviceName): Observable<T> {
-    return this.http.patch<T>(this.resolveUrl(endpoint, service), body, { headers });
+    return this.http.patch<T>(this.resolveUrl(endpoint, service), body, { headers }).pipe(
+      tap(() => this.cacheService.invalidateForEndpoint(endpoint))
+    );
   }
 
   delete<T>(endpoint: string, headers?: HttpHeaders, service?: MicroserviceName): Observable<T> {
-    return this.http.delete<T>(this.resolveUrl(endpoint, service), { headers });
+    return this.http.delete<T>(this.resolveUrl(endpoint, service), { headers }).pipe(
+      tap(() => this.cacheService.invalidateForEndpoint(endpoint))
+    );
   }
 }
 
