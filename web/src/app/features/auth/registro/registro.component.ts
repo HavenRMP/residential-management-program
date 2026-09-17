@@ -78,11 +78,14 @@ export const passwordMatchValidator: ValidatorFn = (control: AbstractControl): V
                   id="nombre"
                   type="text"
                   formControlName="nombre"
+                  (keypress)="permitirSoloLetras($event)"
+                  (input)="filtrarSoloTexto($event, 'nombre')"
                   placeholder="Ej. Juan Carlos"
                   class="w-full px-3.5 py-2.5 bg-white border border-[#e2e8f0] rounded-lg text-[#0f172a] text-sm placeholder-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#111C99]/20 focus:border-[#111C99] transition-all"
                 />
                 <div *ngIf="registroForm.get('nombre')?.touched && registroForm.get('nombre')?.invalid" class="mt-1 text-xs text-red-500 font-medium">
-                  El nombre es requerido.
+                  <span *ngIf="registroForm.get('nombre')?.errors?.['required']">El nombre es requerido.</span>
+                  <span *ngIf="registroForm.get('nombre')?.errors?.['pattern']">Solo se permiten letras y espacios.</span>
                 </div>
               </div>
 
@@ -94,11 +97,14 @@ export const passwordMatchValidator: ValidatorFn = (control: AbstractControl): V
                   id="apellidos"
                   type="text"
                   formControlName="apellidos"
+                  (keypress)="permitirSoloLetras($event)"
+                  (input)="filtrarSoloTexto($event, 'apellidos')"
                   placeholder="Ej. Pérez Gómez"
                   class="w-full px-3.5 py-2.5 bg-white border border-[#e2e8f0] rounded-lg text-[#0f172a] text-sm placeholder-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#111C99]/20 focus:border-[#111C99] transition-all"
                 />
                 <div *ngIf="registroForm.get('apellidos')?.touched && registroForm.get('apellidos')?.invalid" class="mt-1 text-xs text-red-500 font-medium">
-                  Los apellidos son requeridos.
+                  <span *ngIf="registroForm.get('apellidos')?.errors?.['required']">Los apellidos son requeridos.</span>
+                  <span *ngIf="registroForm.get('apellidos')?.errors?.['pattern']">Solo se permiten letras y espacios.</span>
                 </div>
               </div>
             </div>
@@ -258,8 +264,8 @@ export class RegistroComponent implements OnInit {
   readonly emailConfirmationSent = signal(false);
 
   registroForm: FormGroup = this.fb.group({
-    nombre: ['', Validators.required],
-    apellidos: ['', Validators.required],
+    nombre: ['', [Validators.required, Validators.pattern(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/)]],
+    apellidos: ['', [Validators.required, Validators.pattern(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/)]],
     telefono: ['', [Validators.required, Validators.pattern('^[0-9]{10}$')]],
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(6)]],
@@ -340,6 +346,30 @@ export class RegistroComponent implements OnInit {
     } catch (err: any) {
       this.errorMessage.set(err?.message || 'Error inesperado al conectar con Google.');
       this.isSubmittingGoogle.set(false);
+    }
+  }
+
+  permitirSoloLetras(event: KeyboardEvent): void {
+    if (['Backspace', 'Tab', 'ArrowLeft', 'ArrowRight', 'Delete', 'Enter'].includes(event.key)) {
+      return;
+    }
+    if (event.ctrlKey || event.metaKey) {
+      return;
+    }
+    const regex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]$/;
+    if (!regex.test(event.key)) {
+      event.preventDefault();
+    }
+  }
+
+  filtrarSoloTexto(event: Event, controlName: 'nombre' | 'apellidos'): void {
+    const input = event.target as HTMLInputElement;
+    if (input) {
+      const limpio = input.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
+      if (input.value !== limpio) {
+        input.value = limpio;
+      }
+      this.registroForm.get(controlName)?.setValue(limpio, { emitEvent: true });
     }
   }
 }

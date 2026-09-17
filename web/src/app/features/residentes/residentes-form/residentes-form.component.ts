@@ -102,12 +102,15 @@ import Swal from 'sweetalert2';
                     id="nombre"
                     type="text"
                     formControlName="nombre"
+                    (keypress)="permitirSoloLetras($event)"
+                    (input)="filtrarSoloTexto($event, 'nombre')"
                     placeholder="Ej. Juan Carlos"
                     class="w-full pl-10 pr-3.5 py-2.5 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-900 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#111C99]/10 focus:border-[#111C99] transition-all"
                   />
                 </div>
                 <div *ngIf="residenteForm.get('nombre')?.touched && residenteForm.get('nombre')?.invalid" class="mt-1 text-xs text-red-500 font-medium">
                   <span *ngIf="residenteForm.get('nombre')?.errors?.['required']">El nombre es requerido.</span>
+                  <span *ngIf="residenteForm.get('nombre')?.errors?.['pattern']">Solo se permiten letras y espacios.</span>
                   <span *ngIf="residenteForm.get('nombre')?.errors?.['backend']">{{ residenteForm.get('nombre')?.errors?.['backend'] }}</span>
                 </div>
               </div>
@@ -127,12 +130,15 @@ import Swal from 'sweetalert2';
                     id="apellidos"
                     type="text"
                     formControlName="apellidos"
+                    (keypress)="permitirSoloLetras($event)"
+                    (input)="filtrarSoloTexto($event, 'apellidos')"
                     placeholder="Ej. Pérez García"
                     class="w-full pl-10 pr-3.5 py-2.5 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-900 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#111C99]/10 focus:border-[#111C99] transition-all"
                   />
                 </div>
                 <div *ngIf="residenteForm.get('apellidos')?.touched && residenteForm.get('apellidos')?.invalid" class="mt-1 text-xs text-red-500 font-medium">
                   <span *ngIf="residenteForm.get('apellidos')?.errors?.['required']">Los apellidos son requeridos.</span>
+                  <span *ngIf="residenteForm.get('apellidos')?.errors?.['pattern']">Solo se permiten letras y espacios.</span>
                   <span *ngIf="residenteForm.get('apellidos')?.errors?.['backend']">{{ residenteForm.get('apellidos')?.errors?.['backend'] }}</span>
                 </div>
               </div>
@@ -325,8 +331,8 @@ export class ResidentesFormComponent implements OnInit, OnDestroy {
   private formSubscription: Subscription | null = null;
 
   residenteForm: FormGroup = this.fb.group({
-    nombre: ['', [Validators.required]],
-    apellidos: ['', [Validators.required]],
+    nombre: ['', [Validators.required, Validators.pattern(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/)]],
+    apellidos: ['', [Validators.required, Validators.pattern(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/)]],
     telefono: ['', [Validators.required, Validators.pattern(/^[0-9\s\-+()]{10,15}$/)]],
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(8)]]
@@ -535,6 +541,30 @@ export class ResidentesFormComponent implements OnInit, OnDestroy {
       }
 
       this.errorMessage.set(msg);
+    }
+  }
+
+  permitirSoloLetras(event: KeyboardEvent): void {
+    if (['Backspace', 'Tab', 'ArrowLeft', 'ArrowRight', 'Delete', 'Enter'].includes(event.key)) {
+      return;
+    }
+    if (event.ctrlKey || event.metaKey) {
+      return;
+    }
+    const regex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]$/;
+    if (!regex.test(event.key)) {
+      event.preventDefault();
+    }
+  }
+
+  filtrarSoloTexto(event: Event, controlName: 'nombre' | 'apellidos'): void {
+    const input = event.target as HTMLInputElement;
+    if (input) {
+      const limpio = input.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
+      if (input.value !== limpio) {
+        input.value = limpio;
+      }
+      this.residenteForm.get(controlName)?.setValue(limpio, { emitEvent: true });
     }
   }
 
