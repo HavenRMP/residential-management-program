@@ -14,7 +14,7 @@ export class ViviendasService {
   private readonly apiService = inject(ApiService);
   private readonly cacheService = inject(CacheService);
 
-  async listar(page?: number, pageSize?: number, forceRefresh: boolean = false): Promise<Vivienda[]> {
+  async listar(page?: number, pageSize: number = 100, forceRefresh: boolean = false): Promise<Vivienda[]> {
     const cacheKey = `viviendas_list_${page || 0}_${pageSize || 0}`;
     if (!forceRefresh) {
       const cached = this.cacheService.get<Vivienda[]>(cacheKey);
@@ -22,11 +22,9 @@ export class ViviendasService {
     }
 
     try {
-      let params: HttpParams | undefined;
-      if (page || pageSize) {
-        params = new HttpParams();
-        if (page) params = params.set('page', page.toString());
-        if (pageSize) params = params.set('pageSize', pageSize.toString());
+      let params = new HttpParams().set('pageSize', (pageSize || 100).toString());
+      if (page) {
+        params = params.set('page', page.toString());
       }
       const resp = await firstValueFrom(this.apiService.get<any>('/api/viviendas', params));
       const items = extractPagedItems<Vivienda>(resp);
@@ -92,7 +90,8 @@ export class ViviendasService {
       if (cached) return cached;
     }
     try {
-      const resp = await firstValueFrom(this.apiService.get<any>('/api/viviendas/mis-viviendas'));
+      const params = new HttpParams().set('pageSize', '100');
+      const resp = await firstValueFrom(this.apiService.get<any>('/api/viviendas/mis-viviendas', params));
       const items = extractPagedItems<any>(resp);
       const mapped = items.map(item => ({
         id: item.viviendaId ?? item.id,
