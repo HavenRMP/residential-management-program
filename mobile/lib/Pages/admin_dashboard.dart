@@ -211,7 +211,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       body: IndexedStack(index: _currentIndex, children: pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
-        onDestinationSelected: (index) => setState(() => _currentIndex = index),
+        onDestinationSelected: (index) {
+          if (index == 0 && _currentIndex != 0) {
+            _fetchStats();
+          }
+          setState(() => _currentIndex = index);
+        },
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
         indicatorColor: const Color(0xFFEEF2FF),

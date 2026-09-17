@@ -106,8 +106,15 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
     if (exitoso) {
       widget.controller.notifyToast('¡Código validado exitosamente!', success: true);
       _codigoController.clear();
+      // Allow backend trigger to apply changes
+      await Future.delayed(const Duration(milliseconds: 800));
       await widget.controller.forceRefreshSession();
-      _cargarMisViviendas();
+      // Wait for profile and state to settle
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted) {
+        _checkUnreadAvisos();
+        _cargarMisViviendas();
+      }
     } else {
       widget.controller.notifyToast(errorMsg, success: false);
     }
@@ -146,7 +153,14 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
 
     final List<Widget> pages = [
       _buildHomePage(nombre, user),
-      if (hasCondominio) AvisosResidenteScreen(controller: widget.controller),
+      if (hasCondominio) AvisosResidenteScreen(
+        controller: widget.controller,
+        onAvisoRead: () {
+          if (mounted && _unreadAvisosCount > 0) {
+            setState(() => _unreadAvisosCount--);
+          }
+        },
+      ),
       PerfilScreen(controller: widget.controller),
     ];
 

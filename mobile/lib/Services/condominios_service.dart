@@ -45,7 +45,10 @@ class CondominiosService {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (response.body.isEmpty) return {'success': true};
         final decoded = jsonDecode(response.body);
-        if (decoded is Map<String, dynamic>) return decoded;
+        if (decoded is Map<String, dynamic>) {
+          if (!decoded.containsKey('success')) decoded['success'] = true;
+          return decoded;
+        }
         return {'success': true, 'data': decoded};
       } else {
         try {
