@@ -72,3 +72,21 @@ CREATE INDEX IF NOT EXISTS idx_avisos_bitacora_registro ON public.avisos_bitacor
 CREATE INDEX IF NOT EXISTS idx_avisos_bitacora_fecha ON public.avisos_bitacora(modificado_en);
 
 REVOKE ALL ON public.avisos_bitacora FROM authenticated, anon, service_role;
+
+-- ==============================================================================
+-- 4. TRIGGERS DE AUDITORÍA CONECTADOS A fn_auditoria()
+-- ==============================================================================
+DROP TRIGGER IF EXISTS trg_avisos_auditoria_insert ON public.avisos;
+CREATE TRIGGER trg_avisos_auditoria_insert
+    AFTER INSERT ON public.avisos
+    FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+
+DROP TRIGGER IF EXISTS trg_avisos_auditoria_update ON public.avisos;
+CREATE TRIGGER trg_avisos_auditoria_update
+    BEFORE UPDATE ON public.avisos
+    FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+
+DROP TRIGGER IF EXISTS trg_avisos_auditoria_delete ON public.avisos;
+CREATE TRIGGER trg_avisos_auditoria_delete
+    BEFORE DELETE ON public.avisos
+    FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
