@@ -43,8 +43,12 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
         final decoded = jsonDecode(response.body);
         if (decoded is List) {
           _residentes = decoded;
-        } else if (decoded is Map && decoded['data'] is List) {
-          _residentes = decoded['data'];
+        } else if (decoded is Map) {
+          if (decoded['items'] is List) {
+            _residentes = decoded['items'];
+          } else if (decoded['data'] is List) {
+            _residentes = decoded['data'];
+          }
         }
       } else {
         _errorMessage = 'Error de conexión';
