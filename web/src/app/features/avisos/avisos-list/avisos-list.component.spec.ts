@@ -126,6 +126,22 @@ describe('AvisosListComponent', () => {
       component.filtroPrioridad = 'informativo';
       expect(component.avisosFiltrados().length).toBe(1);
     });
+
+    it('no debe mostrar el mensaje de que no hay avisos mientras este cargando', () => {
+      mockAvisosService.isLoading.set(true);
+      mockAvisosService.vigentes.set([]);
+      fixture.detectChanges();
+      const text = fixture.nativeElement.textContent;
+      expect(text).not.toContain('No hay avisos vigentes en este momento');
+    });
+
+    it('debe mostrar el empty state cuando no esta cargando y la lista esta vacia', () => {
+      mockAvisosService.isLoading.set(false);
+      mockAvisosService.vigentes.set([]);
+      fixture.detectChanges();
+      const text = fixture.nativeElement.textContent;
+      expect(text).toContain('No hay avisos vigentes en este momento');
+    });
   });
 
   describe('Acciones de editar y eliminar (#136)', () => {
