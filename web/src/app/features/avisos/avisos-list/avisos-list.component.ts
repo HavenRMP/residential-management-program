@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -242,59 +242,6 @@ import { Aviso, AvisoPrioridad, CrearAvisoDto } from '../../../core/models/aviso
             />
           </div>
 
-          <!-- Prioridad (Spartan Segmented Control) -->
-          <div>
-            <label class="block text-xs font-semibold text-slate-800 mb-1">
-              Prioridad
-            </label>
-            <div class="grid grid-cols-4 gap-1.5 p-1 bg-slate-100 rounded-lg">
-              <button
-                type="button"
-                (click)="formAviso.prioridad = 'informativo'"
-                [class.bg-white]="formAviso.prioridad === 'informativo'"
-                [class.text-slate-900]="formAviso.prioridad === 'informativo'"
-                [class.shadow-2xs]="formAviso.prioridad === 'informativo'"
-                [class.font-semibold]="formAviso.prioridad === 'informativo'"
-                class="py-1 rounded-md text-[11px] text-slate-700 text-center transition-all cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
-              >
-                Informativo
-              </button>
-              <button
-                type="button"
-                (click)="formAviso.prioridad = 'urgente'"
-                [class.bg-white]="formAviso.prioridad === 'urgente'"
-                [class.text-rose-800]="formAviso.prioridad === 'urgente'"
-                [class.shadow-2xs]="formAviso.prioridad === 'urgente'"
-                [class.font-semibold]="formAviso.prioridad === 'urgente'"
-                class="py-1 rounded-md text-[11px] text-slate-700 text-center transition-all cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
-              >
-                Urgente
-              </button>
-              <button
-                type="button"
-                (click)="formAviso.prioridad = 'mantenimiento'"
-                [class.bg-white]="formAviso.prioridad === 'mantenimiento'"
-                [class.text-amber-800]="formAviso.prioridad === 'mantenimiento'"
-                [class.shadow-2xs]="formAviso.prioridad === 'mantenimiento'"
-                [class.font-semibold]="formAviso.prioridad === 'mantenimiento'"
-                class="py-1 rounded-md text-[11px] text-slate-700 text-center transition-all cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
-              >
-                Mantenim.
-              </button>
-              <button
-                type="button"
-                (click)="formAviso.prioridad = 'evento'"
-                [class.bg-white]="formAviso.prioridad === 'evento'"
-                [class.text-indigo-800]="formAviso.prioridad === 'evento'"
-                [class.shadow-2xs]="formAviso.prioridad === 'evento'"
-                [class.font-semibold]="formAviso.prioridad === 'evento'"
-                class="py-1 rounded-md text-[11px] text-slate-700 text-center transition-all cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
-              >
-                Evento
-              </button>
-            </div>
-          </div>
-
           <!-- Contenido -->
           <div>
             <label class="block text-xs font-semibold text-slate-800 mb-1">
@@ -337,10 +284,14 @@ import { Aviso, AvisoPrioridad, CrearAvisoDto } from '../../../core/models/aviso
             </button>
             <button
               type="submit"
-              [disabled]="!formAviso.titulo || !formAviso.contenido"
-              class="h-8 px-3.5 bg-[#111C99] hover:bg-[#0d1577] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#111C99] text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+              [disabled]="isSaving() || !formAviso.titulo || !formAviso.contenido"
+              class="h-8 px-3.5 bg-[#111C99] hover:bg-[#0d1577] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#111C99] text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5"
             >
-              {{ modoEdicion() ? 'Guardar' : 'Publicar' }}
+              <svg *ngIf="isSaving()" class="animate-spin -ml-0.5 mr-1 h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span>{{ isSaving() ? 'Guardando...' : (modoEdicion() ? 'Guardar' : 'Publicar') }}</span>
             </button>
           </div>
         </form>
@@ -374,7 +325,15 @@ export class AvisosListComponent implements OnInit {
 
   modalAbierto = signal<boolean>(false);
   modoEdicion = signal<boolean>(false);
+  readonly isSaving = signal<boolean>(false);
   avisoEditandoId: string | null = null;
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (this.modalAbierto() && !this.isSaving()) {
+      this.cerrarModal();
+    }
+  }
 
   formAviso: CrearAvisoDto = {
     titulo: '',
@@ -397,11 +356,14 @@ export class AvisosListComponent implements OnInit {
       ? this.avisosService.vigentes()
       : this.avisosService.expirados();
 
-    const q = this.busqueda.trim().toLowerCase();
+    const normalizar = (texto: string) =>
+      texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+
+    const q = normalizar(this.busqueda);
     const prio = this.filtroPrioridad;
 
     return lista.filter(a => {
-      const matchTexto = !q || a.titulo.toLowerCase().includes(q) || a.contenido.toLowerCase().includes(q);
+      const matchTexto = !q || normalizar(a.titulo).includes(q) || normalizar(a.contenido).includes(q);
       const matchPrio = prio === 'todas' || a.prioridad === prio;
       return matchTexto && matchPrio;
     });
@@ -426,7 +388,7 @@ export class AvisosListComponent implements OnInit {
       titulo: aviso.titulo,
       contenido: aviso.contenido,
       prioridad: aviso.prioridad,
-      diasVigencia: 7
+      diasVigencia: aviso.duracionDias || 7
     };
     this.modalAbierto.set(true);
   }
@@ -436,8 +398,9 @@ export class AvisosListComponent implements OnInit {
   }
 
   async guardarAviso(): Promise<void> {
-    if (!this.formAviso.titulo || !this.formAviso.contenido) return;
+    if (this.isSaving() || !this.formAviso.titulo || !this.formAviso.contenido) return;
 
+    this.isSaving.set(true);
     try {
       if (this.modoEdicion() && this.avisoEditandoId) {
         await this.avisosService.actualizar(this.avisoEditandoId, {
@@ -478,6 +441,8 @@ export class AvisosListComponent implements OnInit {
         text: msg,
         confirmButtonColor: '#111C99'
       });
+    } finally {
+      this.isSaving.set(false);
     }
   }
 
