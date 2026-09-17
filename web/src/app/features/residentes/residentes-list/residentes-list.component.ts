@@ -4,6 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { ResidentesService } from '../../../core/services/residentes.service';
 import { Residente } from '../../../core/models/residente.model';
+import { ViviendasService } from '../../../core/services/viviendas.service';
+import { Vivienda } from '../../../core/models/vivienda.model';
 import { ResidentesDetalleComponent } from '../residentes-detalle/residentes-detalle.component';
 import { getInitials } from '../../../core/utils/iniciales.util';
 
@@ -135,7 +137,7 @@ import { getInitials } from '../../../core/utils/iniciales.util';
             type="text"
             [ngModel]="searchQuery()"
             (ngModelChange)="onSearchChange($event)"
-            placeholder="Buscar por nombre, correo o teléfono..."
+            placeholder="Buscar por nombre, correo, teléfono o vivienda..."
             class="w-full h-8 pl-8 pr-8 text-xs bg-slate-50/70 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#111C99]/10 focus:border-[#111C99] transition-all"
           />
           <button
@@ -230,13 +232,16 @@ import { getInitials } from '../../../core/utils/iniciales.util';
                   Residente
                 </th>
                 <th class="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Vivienda(s)
+                </th>
+                <th class="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Contacto
                 </th>
                 <th class="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Teléfono
                 </th>
                 <th class="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  {{ tabActiva() === 'sin-vivienda' ? 'Estado de Vivienda' : 'Fecha de Alta' }}
+                  Fecha de Alta
                 </th>
               </tr>
             </thead>
@@ -265,6 +270,27 @@ import { getInitials } from '../../../core/utils/iniciales.util';
                   </div>
                 </td>
 
+                <!-- Vivienda(s) Asignada(s) -->
+                <td class="px-6 py-4.5 whitespace-nowrap">
+                  <div *ngIf="obtenerViviendasDeResidente(r.id).length > 0; else sinVivBadge" class="flex flex-wrap items-center gap-1.5">
+                    <span
+                      *ngFor="let v of obtenerViviendasDeResidente(r.id)"
+                      class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-2xs"
+                    >
+                      <svg class="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                      </svg>
+                      <span>{{ formatearNumeroCasa(v.numeroCasa) }}</span>
+                    </span>
+                  </div>
+                  <ng-template #sinVivBadge>
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                      <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                      Sin vivienda
+                    </span>
+                  </ng-template>
+                </td>
+
                 <!-- Email -->
                 <td class="px-6 py-4.5 whitespace-nowrap">
                   <div class="inline-flex items-center gap-2 text-sm text-slate-600">
@@ -285,22 +311,14 @@ import { getInitials } from '../../../core/utils/iniciales.util';
                   </div>
                 </td>
 
-                <!-- Created Date or Status Badge -->
+                <!-- Created Date -->
                 <td class="px-6 py-4.5 whitespace-nowrap">
-                  <ng-container *ngIf="tabActiva() === 'sin-vivienda'; else fechaNormal">
-                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                      <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                      Sin vivienda
-                    </span>
-                  </ng-container>
-                  <ng-template #fechaNormal>
-                    <div class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-100/80 px-2.5 py-1 rounded-md">
-                      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      <span>{{ r.creadoEn ? (r.creadoEn | date:'dd/MM/yyyy') : '—' }}</span>
-                    </div>
-                  </ng-template>
+                  <div class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-100/80 px-2.5 py-1 rounded-md">
+                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span>{{ r.creadoEn ? (r.creadoEn | date:'dd/MM/yyyy') : '—' }}</span>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -379,7 +397,7 @@ import { getInitials } from '../../../core/utils/iniciales.util';
         *ngIf="isDetalleOpen()"
         (click)="cerrarDetalle()"
         aria-hidden="true"
-        class="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-[1.5px] transition-opacity duration-300 animate-fade-in"
+        class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs transition-opacity duration-300 animate-fade-in cursor-pointer"
       ></div>
 
       <aside
@@ -387,10 +405,11 @@ import { getInitials } from '../../../core/utils/iniciales.util';
         role="dialog"
         aria-modal="true"
         aria-label="Detalle del residente"
-        class="fixed inset-y-0 right-0 z-50 w-full sm:max-w-md md:max-w-lg lg:max-w-xl bg-white shadow-2xl flex flex-col border-l border-slate-200 overflow-y-auto transform transition-transform duration-300 ease-out animate-slide-left"
+        class="fixed inset-y-0 right-0 z-[60] w-full sm:max-w-md md:max-w-lg lg:max-w-xl bg-white shadow-2xl flex flex-col border-l border-slate-200 overflow-y-auto transform transition-transform duration-300 ease-out animate-slide-left"
       >
         <app-residentes-detalle
           [residente]="residenteSeleccionado()"
+          [viviendas]="residenteSeleccionado() ? obtenerViviendasDeResidente(residenteSeleccionado()!.id) : []"
           (cerrado)="cerrarDetalle()"
         ></app-residentes-detalle>
       </aside>
@@ -400,10 +419,12 @@ import { getInitials } from '../../../core/utils/iniciales.util';
 })
 export class ResidentesListComponent implements OnInit {
   private readonly residentesService = inject(ResidentesService);
+  private readonly viviendasService = inject(ViviendasService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
   readonly residentes = signal<Residente[]>([]);
+  readonly viviendasMap = signal<Map<string, Vivienda[]>>(new Map());
   readonly searchQuery = signal<string>('');
   readonly isLoading = signal<boolean>(true);
   readonly errorMessage = signal<string | null>(null);
@@ -427,11 +448,14 @@ export class ResidentesListComponent implements OnInit {
     const list = this.residentes();
     if (!query) return list;
 
+    const mapa = this.viviendasMap();
     return list.filter(r => {
       const nombreCompleto = `${r.nombre || ''} ${r.apellidos || ''}`.toLowerCase();
       const email = (r.email || '').toLowerCase();
       const telefono = (r.telefono || '').toLowerCase();
-      return nombreCompleto.includes(query) || email.includes(query) || telefono.includes(query);
+      const vivs = mapa.get(r.id) || [];
+      const vivMatch = vivs.some(v => (v.numeroCasa || '').toLowerCase().includes(query));
+      return nombreCompleto.includes(query) || email.includes(query) || telefono.includes(query) || vivMatch;
     });
   });
 
@@ -502,8 +526,12 @@ export class ResidentesListComponent implements OnInit {
     const soloSinVivienda = this.tabActiva() === 'sin-vivienda';
 
     try {
-      const data = await this.residentesService.listar(soloSinVivienda);
+      const [data, mapa] = await Promise.all([
+        this.residentesService.listar(soloSinVivienda),
+        this.viviendasService.obtenerMapaViviendasPorResidente()
+      ]);
       this.residentes.set(data || []);
+      this.viviendasMap.set(mapa);
 
       if (!soloSinVivienda) {
         this.totalResidentesRegistrados.set((data || []).length);
@@ -521,6 +549,15 @@ export class ResidentesListComponent implements OnInit {
     }
   }
 
+  obtenerViviendasDeResidente(residenteId: string): Vivienda[] {
+    return this.viviendasMap().get(residenteId) || [];
+  }
+
+  formatearNumeroCasa(numeroCasa: string): string {
+    if (!numeroCasa) return 'Unidad';
+    return numeroCasa.toLowerCase().startsWith('casa') ? numeroCasa : `Casa #${numeroCasa}`;
+  }
+
   verDetalle(r: Residente): void {
     this.residenteSeleccionado.set(r);
     this.isDetalleOpen.set(true);
@@ -530,3 +567,4 @@ export class ResidentesListComponent implements OnInit {
     this.isDetalleOpen.set(false);
   }
 }
+

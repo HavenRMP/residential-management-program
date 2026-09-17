@@ -17,7 +17,7 @@ import Swal from 'sweetalert2';
     <div
       *ngIf="isOpen"
       (click)="cerrar()"
-      class="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-[1.5px] transition-opacity duration-300"
+      class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs transition-opacity duration-300 cursor-pointer"
       aria-hidden="true"
     ></div>
 
@@ -27,7 +27,7 @@ import Swal from 'sweetalert2';
       role="dialog"
       aria-modal="true"
       aria-labelledby="detalle-vivienda-title"
-      class="fixed inset-y-0 right-0 z-50 max-w-lg w-full bg-white shadow-2xl flex flex-col transform transition-transform duration-300 ease-in-out border-l border-slate-200"
+      class="fixed inset-y-0 right-0 z-[60] max-w-lg w-full bg-white shadow-2xl flex flex-col transform transition-transform duration-300 ease-in-out border-l border-slate-200"
     >
       <!-- Top Sticky Bar -->
       <div class="sticky top-0 z-10 bg-white/95 backdrop-blur-md px-6 py-4 border-b border-slate-100 flex items-center justify-between">

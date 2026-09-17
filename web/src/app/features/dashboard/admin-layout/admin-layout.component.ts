@@ -48,7 +48,7 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
 
       <!-- Persistent Sidebar (Desktop & Mobile Drawer) -->
       <aside
-        class="fixed inset-y-0 left-0 z-50 bg-white border-r border-slate-200 flex flex-col justify-between transition-all duration-300 ease-in-out lg:translate-x-0 lg:static lg:h-screen lg:shrink-0 overflow-hidden"
+        class="fixed inset-y-0 left-0 z-50 bg-white border-r border-slate-200 flex flex-col justify-between transition-all duration-300 ease-in-out lg:translate-x-0 lg:relative lg:h-screen lg:shrink-0 lg:z-10 overflow-hidden"
         [class.w-64]="!sidebarCollapsed()"
         [class.w-16]="sidebarCollapsed()"
         [class.translate-x-0]="mobileMenuOpen()"
@@ -270,7 +270,7 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
       </aside>
 
       <!-- Main Scrollable Content Area -->
-      <main class="flex-1 min-w-0 lg:h-screen lg:overflow-y-auto">
+      <main class="flex-1 min-w-0 lg:h-screen lg:overflow-y-auto relative z-20">
         <router-outlet />
       </main>
 

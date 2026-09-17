@@ -267,8 +267,12 @@ export class ResidenteDashboardComponent implements OnInit {
 
   codigoInput = '';
 
-  async ngOnInit(): Promise<void> {
-    await this.cargarDatosResidente();
+  ngOnInit(): void {
+    const condId = this.currentUser()?.condominioId;
+    if (condId) {
+      this.avisosService.cargarAvisos(condId);
+    }
+    this.cargarDatosResidente();
   }
 
   async cargarDatosResidente(): Promise<void> {
@@ -299,9 +303,9 @@ export class ResidenteDashboardComponent implements OnInit {
         }
       }
 
-      // 2. Si tiene condominio, cargar sus avisos oficiales
+      // 2. Si tiene condominio y no se había cargado aún, cargar sus avisos oficiales
       const finalCondId = condId || this.currentUser()?.condominioId;
-      if (finalCondId) {
+      if (finalCondId && finalCondId !== this.currentUser()?.condominioId) {
         await this.avisosService.cargarAvisos(finalCondId);
       }
     } catch (err) {
@@ -327,11 +331,11 @@ export class ResidenteDashboardComponent implements OnInit {
 
   getBadgeClass(prioridad: AvisoPrioridad): string {
     switch (prioridad) {
-      case 'urgente': return 'bg-rose-50 text-rose-800 border-rose-300';
-      case 'mantenimiento': return 'bg-amber-50 text-amber-800 border-amber-300';
-      case 'evento': return 'bg-indigo-50 text-indigo-800 border-indigo-300';
+      case 'urgente': return 'bg-rose-50 text-rose-700 border-rose-200';
+      case 'mantenimiento': return 'bg-amber-50 text-amber-700 border-amber-200';
+      case 'evento': return 'bg-indigo-50 text-indigo-700 border-indigo-200';
       case 'informativo':
-      default: return 'bg-slate-100 text-slate-800 border-slate-300';
+      default: return 'bg-slate-100 text-slate-800 border-slate-200';
     }
   }
 
