@@ -106,20 +106,8 @@ import { Aviso, AvisoPrioridad, CrearAvisoDto } from '../../../core/models/aviso
           </button>
         </div>
 
-        <!-- Filters -->
+        <!-- Search -->
         <div class="flex items-center gap-2">
-          <select
-            [(ngModel)]="filtroPrioridad"
-            aria-label="Filtrar por prioridad"
-            class="h-9 text-xs rounded-lg border border-slate-300 bg-white px-2.5 text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
-          >
-            <option value="todas">Todas las prioridades</option>
-            <option value="urgente">Urgente</option>
-            <option value="mantenimiento">Mantenimiento</option>
-            <option value="informativo">Informativo</option>
-            <option value="evento">Evento</option>
-          </select>
-
           <div class="relative">
             <input
               type="text"
@@ -143,11 +131,11 @@ import { Aviso, AvisoPrioridad, CrearAvisoDto } from '../../../core/models/aviso
         >
           <div>
             <div class="flex items-center justify-between gap-2 mb-2">
-              <span
-                class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border"
-                [ngClass]="getBadgeClass(aviso.prioridad)"
-              >
-                {{ getPrioridadLabel(aviso.prioridad) }}
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                <svg class="w-3 h-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                </svg>
+                <span>Comunicado</span>
               </span>
 
               <div class="flex items-center gap-1">
