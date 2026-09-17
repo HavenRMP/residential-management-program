@@ -4,9 +4,10 @@ import '../Services/app_controller.dart';
 import '../Services/avisos_service.dart';
 
 class AvisosResidenteScreen extends StatefulWidget {
-  const AvisosResidenteScreen({super.key, required this.controller});
+  const AvisosResidenteScreen({super.key, required this.controller, this.onAvisoRead});
   
   final AppController controller;
+  final VoidCallback? onAvisoRead;
 
   @override
   State<AvisosResidenteScreen> createState() => _AvisosResidenteScreenState();
@@ -221,6 +222,9 @@ class _AvisosResidenteScreenState extends State<AvisosResidenteScreen> {
             setState(() {
               _readAvisos = updated;
             });
+            if (widget.onAvisoRead != null) {
+              widget.onAvisoRead!();
+            }
           }
         }
       },
