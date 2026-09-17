@@ -275,6 +275,7 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
             >
               <div class="flex items-center gap-2.5">
                 <svg class="w-4 h-4 text-slate-500 group-hover:text-slate-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
                 </svg>
                 <span>Tablón de avisos</span>
@@ -338,14 +339,20 @@ export class AdminDashboardComponent implements OnInit {
       this.totalResidentes.set(residentes.length);
 
       if (viviendas.length > 0) {
-        // Consultar el estado de asignación real de las viviendas en paralelo (aprovechando caché reactiva)
-        const asignaciones = await Promise.all(
-          viviendas.map(v => this.viviendasService.obtenerResidentesVivienda(v.id, forceRefresh).catch(() => []))
-        );
+        // Consultar el estado de asignación en lotes concurrentes (chunks de 6) para no saturar el pool de red
+        const chunkSize = 6;
+        const asignaciones: Residente[][] = [];
+        for (let i = 0; i < viviendas.length; i += chunkSize) {
+          const chunk = viviendas.slice(i, i + chunkSize);
+          const chunkResults = await Promise.all(
+            chunk.map(v => this.viviendasService.obtenerResidentesVivienda(v.id, forceRefresh).catch(() => []))
+          );
+          asignaciones.push(...chunkResults);
+        }
 
         let totalOcupadas = 0;
         const viviendasConEstado = viviendas.map((v, i) => {
-          const res = asignaciones[i];
+          const res = asignaciones[i] || [];
           const itemsRes = extractPagedItems<Residente>(res);
           const tieneResidentes = itemsRes.length > 0;
           if (tieneResidentes) {
