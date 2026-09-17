@@ -1,7 +1,7 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { ResidentesService } from '../../../core/services/residentes.service';
 import { Residente } from '../../../core/models/residente.model';
 import { ResidentesDetalleComponent } from '../residentes-detalle/residentes-detalle.component';
@@ -62,6 +62,69 @@ import { getInitials } from '../../../core/utils/iniciales.util';
         </div>
       </div>
 
+      <!-- Segmented Subpage Switcher (Todos vs Sin Vivienda) -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex items-center gap-1.5 p-1 bg-slate-100 rounded-lg w-fit border border-slate-200/80">
+          <button
+            type="button"
+            (click)="cambiarTab('todos')"
+            [class.bg-white]="tabActiva() === 'todos'"
+            [class.text-slate-900]="tabActiva() === 'todos'"
+            [class.shadow-2xs]="tabActiva() === 'todos'"
+            [class.font-semibold]="tabActiva() === 'todos'"
+            class="px-3 py-1.5 rounded-md text-xs text-slate-600 transition-all cursor-pointer flex items-center gap-2"
+          >
+            <span>Todos los residentes</span>
+            <span
+              class="text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold"
+              [class.bg-indigo-50]="tabActiva() === 'todos'"
+              [class.text-indigo-700]="tabActiva() === 'todos'"
+              [class.bg-slate-200]="tabActiva() !== 'todos'"
+              [class.text-slate-600]="tabActiva() !== 'todos'"
+            >
+              {{ totalResidentesRegistrados() }}
+            </span>
+          </button>
+          <button
+            type="button"
+            (click)="cambiarTab('sin-vivienda')"
+            [class.bg-white]="tabActiva() === 'sin-vivienda'"
+            [class.text-slate-900]="tabActiva() === 'sin-vivienda'"
+            [class.shadow-2xs]="tabActiva() === 'sin-vivienda'"
+            [class.font-semibold]="tabActiva() === 'sin-vivienda'"
+            class="px-3 py-1.5 rounded-md text-xs text-slate-600 transition-all cursor-pointer flex items-center gap-2"
+          >
+            <span class="flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+              <span>Sin vivienda asignada</span>
+            </span>
+            <span *ngIf="conteoSinVivienda() !== null" class="text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold bg-amber-100 text-amber-800">
+              {{ conteoSinVivienda() }}
+            </span>
+          </button>
+        </div>
+
+        <div class="text-xs text-slate-400 font-medium">
+          {{ tabActiva() === 'todos' ? 'Padrón general del condominio' : 'Subpágina: Residentes pendientes de vincular' }}
+        </div>
+      </div>
+
+      <!-- Banner Informativo Subpágina Sin Vivienda -->
+      <div
+        *ngIf="tabActiva() === 'sin-vivienda'"
+        class="p-3.5 rounded-lg bg-amber-50/80 border border-amber-200 text-amber-900 flex items-start gap-3 shadow-2xs"
+      >
+        <svg class="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div class="text-xs">
+          <p class="font-bold text-amber-900">Residentes registrados sin vivienda en el condominio</p>
+          <p class="text-amber-700 mt-0.5 leading-relaxed">
+            Estos usuarios completaron su alta en el sistema pero aún no tienen una unidad habitacional asignada. Puedes seleccionarlos para consultar su información o vincularlos a su casa correspondiente.
+          </p>
+        </div>
+      </div>
+
       <!-- Live Search & Control Toolbar -->
       <div class="bg-white border border-slate-200 rounded-lg p-2.5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div class="relative flex-1 max-w-md">
@@ -71,13 +134,13 @@ import { getInitials } from '../../../core/utils/iniciales.util';
           <input
             type="text"
             [ngModel]="searchQuery()"
-            (ngModelChange)="searchQuery.set($event)"
+            (ngModelChange)="onSearchChange($event)"
             placeholder="Buscar por nombre, correo o teléfono..."
             class="w-full h-8 pl-8 pr-8 text-xs bg-slate-50/70 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#111C99]/10 focus:border-[#111C99] transition-all"
           />
           <button
             *ngIf="searchQuery()"
-            (click)="searchQuery.set('')"
+            (click)="onSearchChange('')"
             class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
             title="Limpiar búsqueda"
           >
@@ -89,7 +152,7 @@ import { getInitials } from '../../../core/utils/iniciales.util';
 
         <div class="flex items-center justify-between sm:justify-end gap-3 text-xs text-slate-500 font-medium px-2">
           <span>
-            Mostrando <strong class="text-slate-800">{{ residentesFiltrados().length }}</strong> de {{ residentes().length }}
+            Mostrando <strong class="text-slate-800">{{ indiceInicio() }}-{{ indiceFin() }}</strong> de {{ totalFiltrados() }}
           </span>
         </div>
       </div>
@@ -132,9 +195,11 @@ import { getInitials } from '../../../core/utils/iniciales.util';
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
         </div>
-        <h3 class="text-lg font-bold text-slate-900">No hay residentes registrados</h3>
+        <h3 class="text-lg font-bold text-slate-900">
+          {{ tabActiva() === 'sin-vivienda' ? '¡Excelente! No hay residentes sin vivienda' : 'No hay residentes registrados' }}
+        </h3>
         <p class="text-sm text-slate-500 max-w-sm mt-1">
-          Los residentes se registran directamente desde la aplicación móvil o el portal de registro.
+          {{ tabActiva() === 'sin-vivienda' ? 'Todos los residentes dados de alta en este condominio cuentan con una vivienda asignada.' : 'Los residentes se registran directamente desde la aplicación móvil o el portal de registro.' }}
         </p>
       </div>
 
@@ -145,7 +210,7 @@ import { getInitials } from '../../../core/utils/iniciales.util';
       >
         <p class="text-xs text-slate-500">No se encontraron residentes con ese criterio de búsqueda.</p>
         <button
-          (click)="searchQuery.set('')"
+          (click)="onSearchChange('')"
           class="mt-2 text-xs font-semibold text-[#111C99] hover:underline cursor-pointer"
         >
           Limpiar búsqueda
@@ -171,13 +236,13 @@ import { getInitials } from '../../../core/utils/iniciales.util';
                   Teléfono
                 </th>
                 <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Fecha de Alta
+                  {{ tabActiva() === 'sin-vivienda' ? 'Estado de Vivienda' : 'Fecha de Alta' }}
                 </th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 bg-white">
               <tr
-                *ngFor="let r of residentesFiltrados()"
+                *ngFor="let r of residentesPaginados()"
                 (click)="verDetalle(r)"
                 (keydown.enter)="verDetalle(r)"
                 tabindex="0"
@@ -220,19 +285,93 @@ import { getInitials } from '../../../core/utils/iniciales.util';
                   </div>
                 </td>
 
-                <!-- Created Date -->
+                <!-- Created Date or Status Badge -->
                 <td class="px-6 py-4.5 whitespace-nowrap">
-                  <div class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-100/80 px-2.5 py-1 rounded-md">
-                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <span>{{ r.creadoEn ? (r.creadoEn | date:'dd/MM/yyyy') : '—' }}</span>
-                  </div>
+                  <ng-container *ngIf="tabActiva() === 'sin-vivienda'; else fechaNormal">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                      <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                      Sin vivienda
+                    </span>
+                  </ng-container>
+                  <ng-template #fechaNormal>
+                    <div class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-100/80 px-2.5 py-1 rounded-md">
+                      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span>{{ r.creadoEn ? (r.creadoEn | date:'dd/MM/yyyy') : '—' }}</span>
+                    </div>
+                  </ng-template>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
+
+        <!-- Pagination Control Bar Spartan UI -->
+        <div class="px-4 py-3 border-t border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div class="flex items-center gap-3 text-slate-500">
+            <span>
+              Mostrando <strong class="text-slate-800 font-semibold">{{ indiceInicio() }}</strong> a <strong class="text-slate-800 font-semibold">{{ indiceFin() }}</strong> de <strong class="text-slate-800 font-semibold">{{ totalFiltrados() }}</strong> residentes
+            </span>
+
+            <div class="flex items-center gap-1.5 pl-3 border-l border-slate-200">
+              <span class="text-slate-400">Por página:</span>
+              <select
+                [ngModel]="elementosPorPagina()"
+                (ngModelChange)="cambiarElementosPorPagina($event)"
+                class="h-7 px-1.5 text-xs bg-white border border-slate-200 rounded font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#111C99] cursor-pointer"
+              >
+                <option *ngFor="let opt of opcionesPaginacion" [value]="opt">{{ opt }}</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Page Buttons -->
+          <div class="flex items-center gap-1 self-end sm:self-auto">
+            <button
+              type="button"
+              (click)="irAPagina(1)"
+              [disabled]="paginaActual() === 1"
+              title="Primera página"
+              class="px-2 py-1 bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            >
+              «
+            </button>
+            <button
+              type="button"
+              (click)="irAPagina(paginaActual() - 1)"
+              [disabled]="paginaActual() === 1"
+              title="Página anterior"
+              class="px-2.5 py-1 bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            >
+              Anterior
+            </button>
+
+            <span class="px-3 py-1 font-semibold text-slate-800">
+              {{ paginaActual() }} / {{ totalPaginas() }}
+            </span>
+
+            <button
+              type="button"
+              (click)="irAPagina(paginaActual() + 1)"
+              [disabled]="paginaActual() >= totalPaginas()"
+              title="Página siguiente"
+              class="px-2.5 py-1 bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            >
+              Siguiente
+            </button>
+            <button
+              type="button"
+              (click)="irAPagina(totalPaginas())"
+              [disabled]="paginaActual() >= totalPaginas()"
+              title="Última página"
+              class="px-2 py-1 bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            >
+              »
+            </button>
+          </div>
+        </div>
+
       </div>
 
       <!-- Slide-Over Drawer de Detalle Residente -->
@@ -261,6 +400,8 @@ import { getInitials } from '../../../core/utils/iniciales.util';
 })
 export class ResidentesListComponent implements OnInit {
   private readonly residentesService = inject(ResidentesService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   readonly residentes = signal<Residente[]>([]);
   readonly searchQuery = signal<string>('');
@@ -268,6 +409,16 @@ export class ResidentesListComponent implements OnInit {
   readonly errorMessage = signal<string | null>(null);
   readonly residenteSeleccionado = signal<Residente | null>(null);
   readonly isDetalleOpen = signal<boolean>(false);
+
+  // Subpágina / Tabs: 'todos' o 'sin-vivienda'
+  readonly tabActiva = signal<'todos' | 'sin-vivienda'>('todos');
+  readonly totalResidentesRegistrados = signal<number>(0);
+  readonly conteoSinVivienda = signal<number | null>(null);
+
+  // Paginación reactiva
+  readonly paginaActual = signal<number>(1);
+  readonly elementosPorPagina = signal<number>(10);
+  readonly opcionesPaginacion = [5, 10, 25, 50];
 
   readonly getInitials = getInitials;
 
@@ -284,16 +435,85 @@ export class ResidentesListComponent implements OnInit {
     });
   });
 
+  readonly totalFiltrados = computed(() => this.residentesFiltrados().length);
+
+  readonly totalPaginas = computed(() => {
+    return Math.max(1, Math.ceil(this.totalFiltrados() / this.elementosPorPagina()));
+  });
+
+  readonly residentesPaginados = computed(() => {
+    const lista = this.residentesFiltrados();
+    const inicio = (this.paginaActual() - 1) * this.elementosPorPagina();
+    const fin = inicio + this.elementosPorPagina();
+    return lista.slice(inicio, fin);
+  });
+
+  readonly indiceInicio = computed(() => {
+    if (this.totalFiltrados() === 0) return 0;
+    return (this.paginaActual() - 1) * this.elementosPorPagina() + 1;
+  });
+
+  readonly indiceFin = computed(() => {
+    return Math.min(this.paginaActual() * this.elementosPorPagina(), this.totalFiltrados());
+  });
+
   async ngOnInit(): Promise<void> {
+    const filtroParam = this.route.snapshot.queryParamMap.get('filtro') || this.route.snapshot.queryParamMap.get('tab');
+    if (filtroParam === 'sin-vivienda') {
+      this.tabActiva.set('sin-vivienda');
+    }
     await this.cargarResidentes();
+  }
+
+  onSearchChange(val: string): void {
+    this.searchQuery.set(val);
+    this.paginaActual.set(1);
+  }
+
+  async cambiarTab(tab: 'todos' | 'sin-vivienda'): Promise<void> {
+    if (this.tabActiva() === tab) return;
+    this.tabActiva.set(tab);
+    this.paginaActual.set(1);
+    this.searchQuery.set('');
+
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { filtro: tab === 'sin-vivienda' ? 'sin-vivienda' : null },
+      queryParamsHandling: 'merge'
+    });
+
+    await this.cargarResidentes();
+  }
+
+  irAPagina(pagina: number): void {
+    if (pagina >= 1 && pagina <= this.totalPaginas()) {
+      this.paginaActual.set(pagina);
+    }
+  }
+
+  cambiarElementosPorPagina(cantidad: number): void {
+    this.elementosPorPagina.set(Number(cantidad));
+    this.paginaActual.set(1);
   }
 
   async cargarResidentes(): Promise<void> {
     this.isLoading.set(true);
     this.errorMessage.set(null);
+    const soloSinVivienda = this.tabActiva() === 'sin-vivienda';
+
     try {
-      const data = await this.residentesService.listar();
+      const data = await this.residentesService.listar(soloSinVivienda);
       this.residentes.set(data || []);
+
+      if (!soloSinVivienda) {
+        this.totalResidentesRegistrados.set((data || []).length);
+        // Consultar en segundo plano la cantidad sin vivienda para actualizar el badge de la subpágina
+        this.residentesService.listar(true).then(sinV => {
+          this.conteoSinVivienda.set(sinV.length);
+        }).catch(() => {});
+      } else {
+        this.conteoSinVivienda.set((data || []).length);
+      }
     } catch {
       this.errorMessage.set('No fue posible cargar la lista de residentes desde el servidor.');
     } finally {
