@@ -60,6 +60,34 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
         </div>
       </div>
 
+      <!-- Error State Banner Spartan UI con Reintento -->
+      <div
+        *ngIf="!loading() && errorMessage()"
+        class="p-4 rounded-lg bg-rose-50 border border-rose-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-rose-900 shadow-2xs"
+      >
+        <div class="flex items-start gap-3">
+          <div class="p-1.5 bg-rose-100 rounded-md text-rose-600 shrink-0 mt-0.5 sm:mt-0">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-rose-900">Error de conexión con el servidor</h3>
+            <p class="text-xs text-rose-700 mt-0.5">{{ errorMessage() }}</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          (click)="cargarMetricas(true)"
+          class="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium transition-colors shadow-2xs cursor-pointer shrink-0"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span>Reintentar conexión</span>
+        </button>
+      </div>
+
       <!-- KPI Stat Cards (4 Clean Spartan Cards) -->
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         
@@ -72,7 +100,7 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
             </svg>
           </div>
           <p class="text-2xl font-bold tracking-tight text-slate-900 mt-2">
-            {{ loading() ? '—' : totalViviendas() }}
+            {{ (loading() || errorMessage()) ? '—' : totalViviendas() }}
           </p>
           <p class="text-[11px] text-slate-500 mt-1">
             Inmuebles en catálogo
@@ -88,7 +116,7 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
             </svg>
           </div>
           <p class="text-2xl font-bold tracking-tight text-slate-900 mt-2">
-            {{ loading() ? '—' : totalResidentes() }}
+            {{ (loading() || errorMessage()) ? '—' : totalResidentes() }}
           </p>
           <p class="text-[11px] text-slate-500 mt-1">
             Padrón registrado
@@ -100,14 +128,14 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
           <div class="flex items-center justify-between">
             <span class="text-xs font-medium text-slate-500">Ocupación</span>
             <span class="text-xs font-mono font-semibold" [ngClass]="colorTextoOcupacion()">
-              {{ loading() ? '—' : porcentajeOcupacion() + '%' }}
+              {{ (loading() || errorMessage()) ? '—' : porcentajeOcupacion() + '%' }}
             </span>
           </div>
           <p class="text-2xl font-bold tracking-tight text-slate-900 mt-2">
-            {{ loading() ? '—' : porcentajeOcupacion() + '%' }}
+            {{ (loading() || errorMessage()) ? '—' : porcentajeOcupacion() + '%' }}
           </p>
           <div class="w-full h-1.5 bg-slate-100 rounded-full mt-2 overflow-hidden">
-            <div class="h-full rounded-full transition-all duration-500" [ngClass]="colorBarraOcupacion()" [style.width.%]="porcentajeOcupacion()"></div>
+            <div class="h-full rounded-full transition-all duration-500" [ngClass]="colorBarraOcupacion()" [style.width.%]="errorMessage() ? 0 : porcentajeOcupacion()"></div>
           </div>
         </div>
 
@@ -116,11 +144,11 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
           <div class="flex items-center justify-between">
             <span class="text-xs font-medium text-slate-500">Disponibilidad</span>
             <span class="text-xs font-medium text-slate-600">
-              {{ loading() ? '—' : viviendasAsignadas() + ' ocupadas' }}
+              {{ errorMessage() ? 'Sin conexión' : (loading() ? '—' : viviendasAsignadas() + ' ocupadas') }}
             </span>
           </div>
           <p class="text-2xl font-bold tracking-tight text-slate-900 mt-2">
-            {{ loading() ? '—' : viviendasDisponibles() }}
+            {{ (loading() || errorMessage()) ? '—' : viviendasDisponibles() }}
           </p>
           <p class="text-[11px] text-slate-500 mt-1">
             Viviendas disponibles
@@ -144,7 +172,22 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
             </a>
           </div>
 
-          <div *ngIf="viviendasResumen().length > 0; else sinViviendas" class="divide-y divide-slate-100">
+          <!-- Estado de carga -->
+          <div *ngIf="loading()" class="p-8 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
+            <svg class="animate-spin w-5 h-5 text-[#111C99]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>Sincronizando estado de viviendas...</span>
+          </div>
+
+          <!-- Estado de error -->
+          <div *ngIf="!loading() && errorMessage()" class="p-8 text-center text-xs text-rose-600 space-y-1">
+            <p class="font-medium">No se pudo cargar el listado de viviendas.</p>
+            <p class="text-[11px] text-slate-500">Comprueba la conexión con el servidor e intenta nuevamente.</p>
+          </div>
+
+          <!-- Lista de viviendas -->
+          <div *ngIf="!loading() && !errorMessage() && viviendasResumen().length > 0" class="divide-y divide-slate-100">
             <div *ngFor="let v of viviendasResumen()" class="p-3.5 hover:bg-slate-50/70 transition-colors flex items-center justify-between">
               <div class="flex items-center gap-3">
                 <div class="h-8 min-w-8 px-2 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-mono font-bold text-slate-800">
@@ -183,11 +226,14 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
             </div>
           </div>
 
-          <ng-template #sinViviendas>
-            <div class="p-6 text-center text-xs text-slate-500">
-              No hay viviendas registradas aún.
-            </div>
-          </ng-template>
+          <!-- Empty State Legítimo (Catálogo vacío real) -->
+          <div *ngIf="!loading() && !errorMessage() && viviendasResumen().length === 0" class="p-8 text-center text-xs text-slate-500 space-y-2">
+            <svg class="w-8 h-8 text-slate-300 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            <p class="font-medium text-slate-600">No hay viviendas registradas aún.</p>
+            <p class="text-[11px] text-slate-400">Puedes comenzar registrando la primera vivienda en el catálogo.</p>
+          </div>
         </div>
 
         <!-- Columna Lateral (1/3): Accesos Directos -->
@@ -205,7 +251,7 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
                 </svg>
                 <span>Directorio de viviendas</span>
               </div>
-              <span class="text-[11px] text-slate-400 font-mono">{{ totalViviendas() }}</span>
+              <span class="text-[11px] text-slate-400 font-mono">{{ (loading() || errorMessage()) ? '—' : totalViviendas() }}</span>
             </a>
 
             <a
@@ -218,7 +264,7 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
                 </svg>
                 <span>Directorio de residentes</span>
               </div>
-              <span class="text-[11px] text-slate-400 font-mono">{{ totalResidentes() }}</span>
+              <span class="text-[11px] text-slate-400 font-mono">{{ (loading() || errorMessage()) ? '—' : totalResidentes() }}</span>
             </a>
 
             <a
@@ -265,6 +311,7 @@ export class AdminDashboardComponent implements OnInit {
   readonly viviendasAsignadas = signal<number>(0);
   readonly viviendasResumen = signal<(Vivienda & { asignada?: boolean })[]>([]);
   readonly loading = signal<boolean>(true);
+  readonly errorMessage = signal<string | null>(null);
   readonly isGeneratingCode = signal<boolean>(false);
 
   ngOnInit(): void {
@@ -275,10 +322,11 @@ export class AdminDashboardComponent implements OnInit {
 
   async cargarMetricas(forceRefresh: boolean = false): Promise<void> {
     this.loading.set(true);
+    this.errorMessage.set(null);
     try {
       const [viviendasRaw, residentesRaw] = await Promise.all([
-        this.viviendasService.listar(undefined, undefined, forceRefresh).catch(() => []),
-        this.residentesService.listar(false, forceRefresh).catch(() => [])
+        this.viviendasService.listar(undefined, undefined, forceRefresh),
+        this.residentesService.listar(false, forceRefresh)
       ]);
 
       const viviendas = extractPagedItems<Vivienda>(viviendasRaw);
@@ -314,6 +362,7 @@ export class AdminDashboardComponent implements OnInit {
       }
     } catch (err) {
       console.warn('[AdminDashboard] Error al cargar métricas:', err);
+      this.errorMessage.set('No se pudo establecer conexión con los servicios del servidor. Por favor, reintenta en unos momentos.');
       this.totalViviendas.set(0);
       this.totalResidentes.set(0);
       this.viviendasAsignadas.set(0);
