@@ -14,7 +14,7 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
 @Component({
   selector: 'app-residente-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterLink, FormsModule, UserMenuComponent],
+  imports: [CommonModule, FormsModule, UserMenuComponent],
   template: `
     <div class="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans antialiased">
       
@@ -32,6 +32,7 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
           </div>
 
           <div class="flex items-center gap-2">
+            <!-- Acceso a sub-usuarios/notificaciones temporalmente deshabilitado
             <a
               routerLink="/dashboard/residente/notificaciones"
               class="h-9 w-9 inline-flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors relative cursor-pointer"
@@ -41,6 +42,7 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
             </a>
+            -->
 
             <app-user-menu [user]="currentUser()" (logout)="onLogout()" />
           </div>
@@ -61,6 +63,7 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
             </p>
           </div>
 
+          <!-- Acceso a Sub-usuarios temporalmente deshabilitado
           <a
             routerLink="/dashboard/residente/notificaciones"
             class="h-8 px-3 inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition-colors shadow-2xs self-start sm:self-auto"
@@ -70,6 +73,7 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
             </svg>
             <span>Sub-usuarios</span>
           </a>
+          -->
         </div>
 
         <!-- Estado de Carga -->

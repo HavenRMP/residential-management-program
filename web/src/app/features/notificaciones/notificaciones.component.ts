@@ -50,6 +50,29 @@ import { UserMenuComponent } from '../../core/components/user-menu/user-menu.com
           <span class="text-slate-900">Sub-usuarios</span>
         </nav>
 
+        <!-- Módulo de sub-usuarios deshabilitado temporalmente -->
+        <div class="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-2xs space-y-3">
+          <div class="w-12 h-12 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-1">
+            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          </div>
+          <h2 class="text-base font-semibold text-slate-900">Módulo en desarrollo</h2>
+          <p class="text-xs text-slate-500 max-w-md mx-auto">
+            La funcionalidad de sub-usuarios ha sido desactivada temporalmente.
+          </p>
+          <div class="pt-2">
+            <a
+              routerLink="/dashboard/residente"
+              class="h-8 px-4 inline-flex items-center justify-center rounded-md bg-[#111C99] hover:bg-[#0d1577] text-white text-xs font-medium transition-colors shadow-2xs"
+            >
+              Volver al portal
+            </a>
+          </div>
+        </div>
+
+        <!-- COMENTADO TEMPORALMENTE: Secciones de Sub-usuarios -->
+        <ng-container *ngIf="false">
         <!-- Sección 1: Sub-usuarios Autorizados -->
         <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-2xs space-y-4">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
@@ -207,10 +230,12 @@ import { UserMenuComponent } from '../../core/components/user-menu/user-menu.com
 
           </div>
         </section>
+        </ng-container>
 
       </main>
 
-      <!-- Modal Invitar Spartan UI Dialog -->
+      <!-- Modal Invitar Spartan UI Dialog (Comentado/Oculto) -->
+      <ng-container *ngIf="false">
       <div
         *ngIf="modalInvitarAbierto()"
         class="fixed inset-0 z-50 overflow-y-auto bg-black/40 backdrop-blur-xs flex items-center justify-center p-4"
@@ -291,6 +316,7 @@ import { UserMenuComponent } from '../../core/components/user-menu/user-menu.com
           </form>
         </div>
       </div>
+      </ng-container>
 
     </div>
   `
