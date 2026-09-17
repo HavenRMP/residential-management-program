@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { ApiService } from './api.service';
 import { Residente } from '../models/residente.model';
+import { extractPagedItems } from '../models/pagination.model';
 import { firstValueFrom } from 'rxjs';
 
 @Injectable({
@@ -9,8 +10,13 @@ import { firstValueFrom } from 'rxjs';
 export class ResidentesService {
   private readonly apiService = inject(ApiService);
 
-  listar(): Promise<Residente[]> {
-    return firstValueFrom(this.apiService.get<Residente[]>('/api/auth/residentes'));
+  async listar(): Promise<Residente[]> {
+    try {
+      const resp = await firstValueFrom(this.apiService.get<any>('/api/auth/residentes'));
+      return extractPagedItems<Residente>(resp);
+    } catch {
+      return [];
+    }
   }
 
   crear(payload: {
