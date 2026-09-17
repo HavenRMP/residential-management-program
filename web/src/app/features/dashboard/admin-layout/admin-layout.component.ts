@@ -98,9 +98,9 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
             </button>
           </div>
 
-          <!-- Spartan UI Workspace Switcher Style -->
+          <!-- Spartan UI Condominio Info (Estático) -->
           <div *ngIf="showText()" class="px-3 pt-3 pb-2 fade-in-direct">
-            <div class="flex items-center gap-2.5 p-2 rounded-lg border border-slate-200/90 bg-slate-50/70 hover:bg-slate-100/70 transition-colors shadow-2xs">
+            <div class="flex items-center gap-2.5 p-2 rounded-lg border border-slate-200/80 bg-slate-50/60 shadow-2xs">
               <div class="flex size-7 shrink-0 items-center justify-center rounded-md bg-slate-900 text-white font-semibold text-xs shadow-2xs">
                 <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -108,14 +108,9 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
               </div>
               <div class="grid flex-1 text-left min-w-0">
                 <span class="truncate text-xs font-semibold text-slate-900 leading-tight" [title]="condominioActual()?.nombre || 'Condominio'">
-                  {{ condominioActual()?.nombre || 'Condominio Plata' }}
+                  {{ condominioActual()?.nombre || 'Condominio Residencial' }}
                 </span>
                 <span class="truncate text-[10px] text-slate-500 font-medium leading-tight">Condominio activo</span>
-              </div>
-              <div class="shrink-0 text-slate-400">
-                <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
-                </svg>
               </div>
             </div>
           </div>
