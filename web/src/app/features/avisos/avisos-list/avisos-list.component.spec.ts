@@ -110,6 +110,14 @@ describe('AvisosListComponent', () => {
       component.setTab('historial');
       expect(component.avisosFiltrados().length).toBe(0);
     });
+
+    it('debe filtrar avisos por prioridad seleccionada', () => {
+      component.prioridadSeleccionada.set('urgente');
+      expect(component.avisosFiltrados().length).toBe(0);
+
+      component.prioridadSeleccionada.set('informativo');
+      expect(component.avisosFiltrados().length).toBe(1);
+    });
   });
 
   describe('Acciones de editar y eliminar (#136)', () => {
