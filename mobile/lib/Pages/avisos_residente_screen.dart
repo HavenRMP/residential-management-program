@@ -74,7 +74,11 @@ class _AvisosResidenteScreenState extends State<AvisosResidenteScreen> {
       final response = await service.getAvisosVigentes(page: _currentPage, pageSize: 10);
       
       if (response != null) {
-        final items = response['items'] as List<dynamic>? ?? [];
+        final rawItems = response['items'] as List<dynamic>? ?? [];
+        final items = rawItems.where((a) {
+          final isVigente = a['vigente'] == true || a['activo'] == true || a['estado'] == 'activo';
+          return isVigente;
+        }).toList();
         
         setState(() {
           if (refresh) {

@@ -34,9 +34,10 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
     try {
       final baseUrl = dotenv.env['API_BASE_URL_USUARIOS'] ?? 'https://usuarios-api-n1qi.onrender.com';
       final query = _soloSinVivienda ? '?sinVivienda=true' : '';
+      final token = await widget.controller.getValidAccessToken();
       final response = await widget.controller.httpClient.get(
         Uri.parse('$baseUrl/api/Auth/residentes$query'),
-        headers: {'Authorization': 'Bearer ${widget.controller.accessToken}'},
+        headers: {'Authorization': 'Bearer $token'},
       );
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -74,6 +75,15 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
       } catch (_) {
         fechaAlta = rawFecha.toString();
       }
+    }
+
+    String viviendaStr = 'Sin vivienda vinculada';
+    if (r['viviendas'] != null && r['viviendas'] is List && (r['viviendas'] as List).isNotEmpty) {
+      viviendaStr = (r['viviendas'] as List).map((v) => v['numeroCasa'] ?? 'S/N').join(', ');
+    } else if (r['vivienda'] != null && r['vivienda'] is Map) {
+      viviendaStr = r['vivienda']['numeroCasa']?.toString() ?? 'Vinculada';
+    } else if (r['numeroCasa'] != null) {
+      viviendaStr = r['numeroCasa'].toString();
     }
 
     showModalBottomSheet(
@@ -225,6 +235,12 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
                               label: 'FECHA DE ALTA',
                               value: fechaAlta,
                               icon: Icons.calendar_today_outlined,
+                            ),
+                            const Divider(height: 24, color: Color(0xFFE2E8F0)),
+                            _buildDetalleRow(
+                              label: 'VIVIENDA',
+                              value: viviendaStr,
+                              icon: Icons.home_outlined,
                             ),
                           ],
                         ),

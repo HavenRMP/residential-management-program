@@ -202,11 +202,11 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
                 try {
                   final url =
                       '${dotenv.env['API_BASE_URL_USUARIOS'] ?? 'https://usuarios-api-n1qi.onrender.com'}/api/Auth/residentes';
+                  final token = await widget.controller.getValidAccessToken();
                   final res = await widget.controller.httpClient.get(
                     Uri.parse(url),
                     headers: {
-                      'Authorization':
-                          'Bearer ${widget.controller.accessToken}',
+                      'Authorization': 'Bearer $token',
                     },
                   );
                   if (res.statusCode >= 200 && res.statusCode < 300) {
