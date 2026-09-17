@@ -81,7 +81,7 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
       }
     }
 
-    String viviendaStr = 'Sin vivienda vinculada';
+    String viviendaStr = 'Información no cargada en directorio';
     if (r['viviendas'] != null && r['viviendas'] is List && (r['viviendas'] as List).isNotEmpty) {
       viviendaStr = (r['viviendas'] as List).map((v) => v['numeroCasa'] ?? 'S/N').join(', ');
     } else if (r['vivienda'] != null && r['vivienda'] is Map) {

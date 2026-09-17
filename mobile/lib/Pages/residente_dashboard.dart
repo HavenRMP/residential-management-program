@@ -6,6 +6,7 @@ import '../Services/push_notifications_service.dart';
 import '../Services/condominios_service.dart';
 import '../Services/viviendas_service.dart';
 import '../Services/avisos_service.dart';
+import '../Models/auth_user.dart';
 import 'avisos_residente_screen.dart';
 import 'perfil_screen.dart';
 
@@ -141,10 +142,11 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
   Widget build(BuildContext context) {
     final user = widget.controller.currentUser;
     final nombre = user?.nombre ?? 'Residente';
+    final hasCondominio = user?.condominioId != null && user?.condominioId!.isNotEmpty == true;
 
     final List<Widget> pages = [
-      _buildHomePage(nombre),
-      AvisosResidenteScreen(controller: widget.controller),
+      _buildHomePage(nombre, user),
+      if (hasCondominio) AvisosResidenteScreen(controller: widget.controller),
       PerfilScreen(controller: widget.controller),
     ];
 
@@ -233,47 +235,57 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
         index: _currentIndex,
         children: pages,
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-            if (index == 1) {
-               // When switching to Avisos, we can check again or it will be marked inside AvisosResidenteScreen
-               _checkUnreadAvisos();
-            }
-          });
-        },
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        indicatorColor: const Color(0xFFEEF2FF),
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        destinations: [
-          const NavigationDestination(
-            icon: Icon(Icons.home_outlined, color: Color(0xFF64748B)),
-            selectedIcon: Icon(Icons.home_rounded, color: Color(0xFF111C99)),
-            label: 'Inicio',
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(
+              color: const Color(0xFFE2E8F0),
+              width: 1,
+            ),
           ),
-          NavigationDestination(
-            icon: _unreadAvisosCount > 0 
-              ? Badge(label: Text('$_unreadAvisosCount'), child: const Icon(Icons.campaign_outlined, color: Color(0xFF64748B)))
-              : const Icon(Icons.campaign_outlined, color: Color(0xFF64748B)),
-            selectedIcon: _unreadAvisosCount > 0
-              ? Badge(label: Text('$_unreadAvisosCount'), child: const Icon(Icons.campaign_rounded, color: Color(0xFF111C99)))
-              : const Icon(Icons.campaign_rounded, color: Color(0xFF111C99)),
-            label: 'Avisos',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.person_outline_rounded, color: Color(0xFF64748B)),
-            selectedIcon: Icon(Icons.person_rounded, color: Color(0xFF111C99)),
-            label: 'Perfil',
-          ),
-        ],
+        ),
+        child: NavigationBar(
+          selectedIndex: _currentIndex,
+          onDestinationSelected: (index) {
+            setState(() {
+              _currentIndex = index;
+              if (hasCondominio && index == 1) {
+                 _checkUnreadAvisos();
+              }
+            });
+          },
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.white,
+          indicatorColor: const Color(0xFFEEF2FF),
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          destinations: [
+            const NavigationDestination(
+              icon: Icon(Icons.home_outlined, color: Color(0xFF64748B)),
+              selectedIcon: Icon(Icons.home_rounded, color: Color(0xFF111C99)),
+              label: 'Inicio',
+            ),
+            if (hasCondominio)
+              NavigationDestination(
+                icon: _unreadAvisosCount > 0 
+                  ? Badge(label: Text('$_unreadAvisosCount'), child: const Icon(Icons.campaign_outlined, color: Color(0xFF64748B)))
+                  : const Icon(Icons.campaign_outlined, color: Color(0xFF64748B)),
+                selectedIcon: _unreadAvisosCount > 0
+                  ? Badge(label: Text('$_unreadAvisosCount'), child: const Icon(Icons.campaign_rounded, color: Color(0xFF111C99)))
+                  : const Icon(Icons.campaign_rounded, color: Color(0xFF111C99)),
+                label: 'Avisos',
+              ),
+            const NavigationDestination(
+              icon: Icon(Icons.person_outline_rounded, color: Color(0xFF64748B)),
+              selectedIcon: Icon(Icons.person_rounded, color: Color(0xFF111C99)),
+              label: 'Perfil',
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildHomePage(String nombre) {
+  Widget _buildHomePage(String nombre, AuthUser? user) {
     return RefreshIndicator(
       color: const Color(0xFF111C99),
       onRefresh: _cargarMisViviendas,
@@ -316,6 +328,32 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                           letterSpacing: -0.5,
                         ),
                       ),
+                      if (user?.condominioId != null) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.business, size: 12, color: Colors.white),
+                              const SizedBox(width: 4),
+                              const Text(
+                                'Condominio Vinculado',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 8),
                       const Text(
                         'Bienvenido a tu portal condominal.',

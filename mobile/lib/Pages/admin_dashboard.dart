@@ -26,6 +26,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _viviendasOcupadas = 0;
   bool _isLoadingStats = true;
   bool _isSystemOnline = false;
+  String _dbVersionText = 'Base de datos operativa';
 
   @override
   void initState() {
@@ -37,10 +38,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     try {
       final viviendasSrv = ViviendasService(widget.controller);
       final viviendas = await viviendasSrv.listar();
+      
       int ocupadas = 0;
-      for (var v in viviendas) {
-        if (v['residente'] != null || v['habitante'] != null) {
-          ocupadas++;
+      if (viviendas.isNotEmpty) {
+        final asignaciones = await Future.wait(
+          viviendas.map((v) => viviendasSrv.obtenerResidentesVivienda(v['id']).catchError((_) => <dynamic>[]))
+        );
+
+        for (int i = 0; i < viviendas.length; i++) {
+          final res = asignaciones[i];
+          if (res.isNotEmpty) {
+            ocupadas++;
+          }
+          // We can also attach the asignada state to the map if we want
+          viviendas[i]['asignada'] = res.isNotEmpty;
         }
       }
 
@@ -66,17 +77,27 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       }
 
       bool isOnline = false;
+      String dbVersionTxt = 'Base de datos operativa';
       try {
         final healthRes = await widget.controller.httpClient.get(
-          Uri.parse('${dotenv.env['API_BASE_URL_CONDOMINIOS'] ?? 'https://condominios-api.onrender.com'}/api/health/public')
+          Uri.parse('${dotenv.env['API_BASE_URL_USUARIOS'] ?? 'https://usuarios-api-n1qi.onrender.com'}/api/Auth/ping')
         ).timeout(const Duration(seconds: 5));
         isOnline = healthRes.statusCode == 200;
+        if (isOnline) {
+          try {
+            final body = jsonDecode(healthRes.body);
+            if (body is Map && body['dbVersion'] != null) {
+              dbVersionTxt = 'BD v${body['dbVersion']}';
+            }
+          } catch (_) {}
+        }
       } catch (_) {
         isOnline = false;
       }
 
       if (mounted) {
         setState(() {
+          _dbVersionText = dbVersionTxt;
           _totalViviendas = viviendas.length;
           _viviendasOcupadas = ocupadas;
           _totalResidentes = residentesCount;
@@ -595,7 +616,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 icon: Icons.dns_outlined,
                 onTap: () async {
                   if (_isSystemOnline) {
-                    widget.controller.notifyToast('API v1.0.0 (En línea) - Base de datos operativa', success: true);
+                    widget.controller.notifyToast('API en línea - $_dbVersionText', success: true);
                   } else {
                     widget.controller.notifyToast('Sistema fuera de línea o con problemas', success: false);
                   }
