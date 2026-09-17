@@ -9,6 +9,7 @@ import {
   ActualizarAvisoDto,
   mapAvisoApiToAviso
 } from '../models/aviso.model';
+import { extractPagedItems } from '../models/pagination.model';
 
 @Injectable({
   providedIn: 'root'
@@ -23,10 +24,10 @@ export class AvisosService {
   readonly isLoading = signal<boolean>(false);
   readonly errorMessage = signal<string | null>(null);
 
-  private currentCondominioId = signal<string | null>(null);
+  readonly currentCondominioId = signal<string | null>(null);
 
   /**
-   * Consulta los avisos en el microservicio Avisos.Api.
+   * Carga los avisos vigentes desde Avisos.Api (/api/avisos).
    * Si es administrador, también consulta el histórico.
    */
   async cargarAvisos(condominioId?: string | null): Promise<Aviso[]> {
@@ -40,15 +41,16 @@ export class AvisosService {
     try {
       // 1. Obtener avisos vigentes desde Avisos.Api (GET /api/avisos)
       const resVigentes = await firstValueFrom(
-        this.apiService.get<AvisoApi[]>('/api/avisos')
+        this.apiService.get<any>('/api/avisos')
       ).catch(err => {
         console.warn('[AvisosService] Error al obtener /api/avisos:', err);
         return null;
       });
 
+      const itemsApiVigentes = extractPagedItems<AvisoApi>(resVigentes);
       let itemsVigentes: Aviso[] = [];
-      if (Array.isArray(resVigentes)) {
-        itemsVigentes = resVigentes.map(a => mapAvisoApiToAviso(a));
+      if (itemsApiVigentes.length > 0) {
+        itemsVigentes = itemsApiVigentes.map(a => mapAvisoApiToAviso(a));
         this.vigentes.set(itemsVigentes);
       }
 
@@ -58,14 +60,15 @@ export class AvisosService {
 
       if (rol === 'administrador') {
         const resHistorico = await firstValueFrom(
-          this.apiService.get<AvisoApi[]>('/api/avisos/historico')
+          this.apiService.get<any>('/api/avisos/historico')
         ).catch(err => {
           console.warn('[AvisosService] Error al obtener /api/avisos/historico:', err);
           return null;
         });
 
-        if (Array.isArray(resHistorico)) {
-          itemsHistorico = resHistorico.map(a => mapAvisoApiToAviso(a));
+        const itemsApiHistorico = extractPagedItems<AvisoApi>(resHistorico);
+        if (itemsApiHistorico.length > 0) {
+          itemsHistorico = itemsApiHistorico.map(a => mapAvisoApiToAviso(a));
           const ahora = Date.now();
           const itemsExp = itemsHistorico.filter(a => {
             const expTime = new Date(a.fechaExpiracion).getTime();
@@ -78,7 +81,7 @@ export class AvisosService {
 
       // Si obtuvimos datos del backend, guardamos respaldo en cache
       const todosAvisos = itemsHistorico.length > 0 ? itemsHistorico : itemsVigentes;
-      if (todosAvisos.length > 0 || Array.isArray(resVigentes)) {
+      if (todosAvisos.length > 0 || resVigentes !== null) {
         this.guardarEnStorage(condId, todosAvisos);
         if (itemsHistorico.length === 0) {
           this.avisos.set(itemsVigentes);
