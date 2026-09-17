@@ -422,8 +422,12 @@ export class ViviendasDetalleComponent implements OnChanges {
 
   @HostListener('document:keydown.escape')
   onEsc(): void {
-    if (this.isOpen) {
-      this.cerrar();
+    if (this.isOpen && !this.procesandoVinculacion) {
+      if (this.mostrarFormularioVinculacion) {
+        this.cancelarFormularioVinculacion();
+      } else {
+        this.cerrar();
+      }
     }
   }
 
@@ -478,11 +482,14 @@ export class ViviendasDetalleComponent implements OnChanges {
 
   get residentesFiltrados(): Residente[] {
     if (!this.busquedaResidente.trim()) return this.catalogoResidentes;
-    const query = this.busquedaResidente.toLowerCase().trim();
-    return this.catalogoResidentes.filter(r =>
-      `${r.nombre} ${r.apellidos}`.toLowerCase().includes(query) ||
-      (r.email && r.email.toLowerCase().includes(query))
-    );
+    const normalizar = (texto: string) =>
+      texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    const query = normalizar(this.busquedaResidente);
+    return this.catalogoResidentes.filter(r => {
+      const nom = normalizar(`${r.nombre} ${r.apellidos}`);
+      const em = normalizar(r.email || '');
+      return nom.includes(query) || em.includes(query);
+    });
   }
 
   seleccionarResidente(residente: Residente): void {
@@ -498,6 +505,9 @@ export class ViviendasDetalleComponent implements OnChanges {
 
       this.mostrarFormularioVinculacion = false;
       this.residenteSeleccionadoId = null;
+      if (this.vivienda) {
+        this.vivienda = { ...this.vivienda, ocupada: true };
+      }
 
       await Swal.fire({
         title: '¡Residente Vinculado!',
@@ -516,6 +526,9 @@ export class ViviendasDetalleComponent implements OnChanges {
       if (errorMsg.includes('ya está asignado a esta vivienda') || err?.status === 409) {
         this.mostrarFormularioVinculacion = false;
         this.residenteSeleccionadoId = null;
+        if (this.vivienda) {
+          this.vivienda = { ...this.vivienda, ocupada: true };
+        }
 
         await Swal.fire({
           title: 'Asignación Existente',
@@ -562,6 +575,9 @@ export class ViviendasDetalleComponent implements OnChanges {
     try {
       await this.viviendasService.desvincularResidente(this.vivienda.id, this.residenteAsignado.id);
       this.residenteAsignado = null;
+      if (this.vivienda) {
+        this.vivienda = { ...this.vivienda, ocupada: false };
+      }
 
       await Swal.fire({
         title: 'Desvinculado',
