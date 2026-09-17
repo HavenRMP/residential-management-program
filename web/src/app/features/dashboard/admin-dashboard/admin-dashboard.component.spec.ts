@@ -39,7 +39,9 @@ describe('AdminDashboardComponent', () => {
 
     mockViviendasService = {
       listar: jasmine.createSpy('listar').and.returnValue(Promise.resolve(mockViviendas)),
-      obtenerResidentesVivienda: jasmine.createSpy('obtenerResidentesVivienda').and.returnValue(Promise.resolve(mockResidentes))
+      obtenerResidentesVivienda: jasmine.createSpy('obtenerResidentesVivienda').and.callFake((id: number) => {
+        return Promise.resolve(id === 1 ? mockResidentes : []);
+      })
     };
 
     mockResidentesService = {

@@ -336,26 +336,24 @@ export class AdminDashboardComponent implements OnInit {
       this.totalResidentes.set(residentes.length);
 
       if (viviendas.length > 0) {
-        // Consultar únicamente las viviendas del resumen visual para eliminar cuellos de botella N+1
-        const primerasViviendas = viviendas.slice(0, 5);
+        // Consultar el estado de asignación real de las viviendas en paralelo (aprovechando caché reactiva)
         const asignaciones = await Promise.all(
-          primerasViviendas.map(v => this.viviendasService.obtenerResidentesVivienda(v.id, forceRefresh).catch(() => []))
+          viviendas.map(v => this.viviendasService.obtenerResidentesVivienda(v.id, forceRefresh).catch(() => []))
         );
 
-        let asignadasEnMuestra = 0;
-        const resumen = primerasViviendas.map((v, i) => {
+        let totalOcupadas = 0;
+        const viviendasConEstado = viviendas.map((v, i) => {
           const res = asignaciones[i];
           const itemsRes = extractPagedItems<Residente>(res);
           const tieneResidentes = itemsRes.length > 0;
           if (tieneResidentes) {
-            asignadasEnMuestra++;
+            totalOcupadas++;
           }
           return { ...v, asignada: tieneResidentes };
         });
 
-        const ocupadasEstimadas = Math.min(Math.max(asignadasEnMuestra, residentes.length), viviendas.length);
-        this.viviendasAsignadas.set(ocupadasEstimadas);
-        this.viviendasResumen.set(resumen);
+        this.viviendasAsignadas.set(totalOcupadas);
+        this.viviendasResumen.set(viviendasConEstado.slice(0, 5));
       } else {
         this.viviendasAsignadas.set(0);
         this.viviendasResumen.set([]);
