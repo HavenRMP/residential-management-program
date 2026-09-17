@@ -18,6 +18,7 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   List<dynamic> _residentes = [];
+  bool _soloSinVivienda = false;
 
   @override
   void initState() {
@@ -31,10 +32,10 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
       _errorMessage = null;
     });
     try {
+      final baseUrl = dotenv.env['API_BASE_URL_USUARIOS'] ?? 'https://usuarios-api-n1qi.onrender.com';
+      final query = _soloSinVivienda ? '?sinVivienda=true' : '';
       final response = await widget.controller.httpClient.get(
-        Uri.parse(
-          '${dotenv.env['API_BASE_URL_USUARIOS'] ?? 'https://usuarios-api-n1qi.onrender.com'}/api/Auth/residentes',
-        ),
+        Uri.parse('$baseUrl/api/Auth/residentes$query'),
         headers: {'Authorization': 'Bearer ${widget.controller.accessToken}'},
       );
       if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -435,6 +436,30 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Checkbox(
+                                        value: _soloSinVivienda,
+                                        activeColor: const Color(0xFF111C99),
+                                        onChanged: (val) {
+                                          if (val != null) {
+                                            setState(() => _soloSinVivienda = val);
+                                            _fetchResidentes();
+                                          }
+                                        },
+                                      ),
+                                      const Text(
+                                        'Solo sin vivienda',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF334155),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(width: 16),
                                   IconButton(
                                     onPressed: _isLoading
                                         ? null

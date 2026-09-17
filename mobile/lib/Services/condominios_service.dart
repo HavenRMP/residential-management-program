@@ -31,9 +31,10 @@ class CondominiosService {
     return null;
   }
 
-  Future<Map<String, dynamic>?> redimirCodigo(String codigo) async {
+  Future<Map<String, dynamic>?> redimirCodigo(String codigo, {String? usuarioId}) async {
     final url = '$baseUrl/api/codigos/condominio/redimir';
     final payload = {'codigo': codigo};
+    if (usuarioId != null) payload['usuarioId'] = usuarioId;
     final response = await controller.httpClient.post(
       Uri.parse(url),
       headers: await _getHeaders(),

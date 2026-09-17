@@ -26,6 +26,7 @@ class ViviendaDetalleScreen extends StatefulWidget {
 class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
   late Map<String, dynamic> _vivienda;
   bool _isDeleting = false;
+  bool _isGeneratingCode = false;
   Map<String, dynamic>? _habitanteAsignado;
   bool _isActionHabitanteLoading = false;
 
@@ -200,7 +201,7 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
               () async {
                 try {
                   final url =
-                      '${dotenv.env['API_BASE_URL_USUARIOS'] ?? 'https://usuarios-api-n1qi.onrender.com'}/api/Auth/residentes?sinVivienda=true';
+                      '${dotenv.env['API_BASE_URL_USUARIOS'] ?? 'https://usuarios-api-n1qi.onrender.com'}/api/Auth/residentes';
                   final res = await widget.controller.httpClient.get(
                     Uri.parse(url),
                     headers: {
@@ -721,19 +722,78 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
                     ),
                     const SizedBox(width: 8),
                     FilledButton.icon(
-                      onPressed: () async {
+                      onPressed: _isGeneratingCode ? null : () async {
+                        setState(() => _isGeneratingCode = true);
                         final srv = ViviendasService(widget.controller);
                         final res = await srv.generarCodigo(_vivienda['id'], minutosVigencia: 1440);
-                        if (res != null) {
-                          widget.controller.notifyToast('Código: ${res['codigo']}', success: true, subtitle: 'Expira en 24 horas');
+                        
+                        if (mounted) {
+                          setState(() => _isGeneratingCode = false);
+                        }
+                        
+                        if (res != null && mounted) {
+                          final codigo = res['codigo'] ?? res['code'] ?? '—';
+                          showDialog(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: Row(
+                                children: const [
+                                  Icon(Icons.qr_code_2_rounded, color: Color(0xFF0F172A)),
+                                  SizedBox(width: 12),
+                                  Text('Código Generado'),
+                                ],
+                              ),
+                              content: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF8FAFC),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: const Color(0xFF0F172A).withValues(alpha: 0.3)),
+                                    ),
+                                    child: SelectableText(
+                                      codigo.toString(),
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        fontSize: 32,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 6,
+                                        color: Color(0xFF0F172A),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  const Text(
+                                    'Comparte este código con el residente.\nExpira en 24 horas y es de un solo uso.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                              actions: [
+                                FilledButton(
+                                  onPressed: () => Navigator.pop(ctx),
+                                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F172A)),
+                                  child: const Text('Entendido'),
+                                ),
+                              ],
+                            ),
+                          );
                         } else {
-                          widget.controller.notifyToast('Error al generar código', success: false);
+                          if (context.mounted) {
+                            widget.controller.notifyToast('Error al generar código', success: false);
+                          }
                         }
                       },
-                      icon: const Icon(Icons.qr_code_2_rounded, size: 18),
-                      label: const Text(
-                        'Código',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      icon: _isGeneratingCode 
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.qr_code_2_rounded, size: 18),
+                      label: Text(
+                        _isGeneratingCode ? 'Generando...' : 'Código',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                       ),
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFF0F172A),
