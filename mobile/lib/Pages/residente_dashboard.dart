@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../Services/app_controller.dart';
 import '../Services/push_notifications_service.dart';
 import '../Services/condominios_service.dart';
 import '../Services/viviendas_service.dart';
+import '../Services/avisos_service.dart';
 import 'avisos_residente_screen.dart';
 import 'perfil_screen.dart';
 
@@ -21,12 +23,38 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
   int _currentIndex = 0;
   List<Map<String, dynamic>> _misViviendas = [];
   bool _isLoadingViviendas = true;
+  int _unreadAvisosCount = 0;
 
   @override
   void initState() {
     super.initState();
     _cargarMisViviendas();
     _solicitarPermisos();
+    _checkUnreadAvisos();
+  }
+
+  Future<void> _checkUnreadAvisos() async {
+    try {
+      final srv = AvisosService(widget.controller);
+      final res = await srv.getAvisosVigentes(page: 1, pageSize: 50);
+      if (res != null) {
+        final items = res['items'] as List<dynamic>? ?? [];
+        final prefs = await SharedPreferences.getInstance();
+        final readIds = prefs.getStringList('read_avisos') ?? <String>[];
+        
+        int unread = 0;
+        for (var aviso in items) {
+          final id = aviso['id']?.toString() ?? '';
+          if (id.isNotEmpty && !readIds.contains(id)) {
+            unread++;
+          }
+        }
+        
+        if (mounted) {
+          setState(() => _unreadAvisosCount = unread);
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _solicitarPermisos() async {
@@ -45,12 +73,13 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
     final vivService = ViviendasService(widget.controller);
     final condService = CondominiosService(widget.controller);
     
+    final userId = widget.controller.currentUser?.id;
     bool exitoso = false;
     String errorMsg = 'Código inválido o expirado';
 
     // Intentar redimir como código de condominio primero
     try {
-      final resCond = await condService.redimirCodigo(codigo);
+      final resCond = await condService.redimirCodigo(codigo, usuarioId: userId);
       if (resCond != null) {
         exitoso = true;
       }
@@ -59,7 +88,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
     // Si no funcionó como condominio, intentar como vivienda
     if (!exitoso) {
       try {
-        final resViv = await vivService.redimirCodigo(codigo);
+        final resViv = await vivService.redimirCodigo(codigo, usuarioId: userId);
         if (resViv != null) {
           exitoso = true;
         }
@@ -119,45 +148,50 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
         elevation: 0,
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: const Color(0xFF059669),
-              child: Text(
-                nombre.isNotEmpty ? nombre[0].toUpperCase() : 'R',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
+        title: GestureDetector(
+          onTap: () {
+            setState(() => _currentIndex = 2);
+          },
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: const Color(0xFF059669),
+                child: Text(
+                  nombre.isNotEmpty ? nombre[0].toUpperCase() : 'R',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    nombre,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF0F172A),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      nombre,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F172A),
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const Text(
-                    'Residente',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF64748B),
+                    const Text(
+                      'Residente',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF64748B),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           IconButton(
@@ -195,23 +229,35 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
-        onDestinationSelected: (index) => setState(() => _currentIndex = index),
+        onDestinationSelected: (index) {
+          setState(() {
+            _currentIndex = index;
+            if (index == 1) {
+               // When switching to Avisos, we can check again or it will be marked inside AvisosResidenteScreen
+               _checkUnreadAvisos();
+            }
+          });
+        },
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
         indicatorColor: const Color(0xFFEEF2FF),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: Icon(Icons.home_outlined, color: Color(0xFF64748B)),
             selectedIcon: Icon(Icons.home_rounded, color: Color(0xFF111C99)),
             label: 'Inicio',
           ),
           NavigationDestination(
-            icon: Icon(Icons.campaign_outlined, color: Color(0xFF64748B)),
-            selectedIcon: Icon(Icons.campaign_rounded, color: Color(0xFF111C99)),
+            icon: _unreadAvisosCount > 0 
+              ? Badge(label: Text('$_unreadAvisosCount'), child: const Icon(Icons.campaign_outlined, color: Color(0xFF64748B)))
+              : const Icon(Icons.campaign_outlined, color: Color(0xFF64748B)),
+            selectedIcon: _unreadAvisosCount > 0
+              ? Badge(label: Text('$_unreadAvisosCount'), child: const Icon(Icons.campaign_rounded, color: Color(0xFF111C99)))
+              : const Icon(Icons.campaign_rounded, color: Color(0xFF111C99)),
             label: 'Avisos',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.person_outline_rounded, color: Color(0xFF64748B)),
             selectedIcon: Icon(Icons.person_rounded, color: Color(0xFF111C99)),
             label: 'Perfil',
