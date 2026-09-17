@@ -239,3 +239,106 @@ BEGIN
     RETURN v_resultado;
 END;
 $$;
+-- B) CAMBIO AVISO
+DROP FUNCTION IF EXISTS public.cambio_aviso(UUID, UUID, VARCHAR, TEXT, INTEGER, TIMESTAMPTZ);
+CREATE OR REPLACE FUNCTION public.cambio_aviso(
+    p_id UUID,
+    p_actor_id UUID,
+    p_titulo VARCHAR(200) DEFAULT NULL,
+    p_contenido TEXT DEFAULT NULL,
+    p_duracion_dias INTEGER DEFAULT NULL,
+    p_fecha_expiracion TIMESTAMPTZ DEFAULT NULL
+)
+RETURNS JSONB
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_aviso RECORD;
+    v_admin RECORD;
+    v_nuevo_duracion_dias INTEGER;
+    v_nueva_fecha_manual TIMESTAMPTZ;
+    v_resultado JSONB;
+BEGIN
+    -- 1. Validar que el aviso exista
+    SELECT id, condominio_id, duracion_dias, fecha_expiracion_manual, activo
+    INTO v_aviso
+    FROM public.avisos
+    WHERE id = p_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'El aviso con ID % no existe.', p_id USING ERRCODE = 'AV008';
+    END IF;
+
+    -- 2. Validar que el actor sea Administrador activo del mismo condominio
+    SELECT id, condominio_id, rol_id, activo
+    INTO v_admin
+    FROM public.usuarios
+    WHERE id = p_actor_id;
+
+    IF NOT FOUND OR NOT v_admin.activo THEN
+        RAISE EXCEPTION 'El usuario administrador no existe o está inactivo.' USING ERRCODE = 'AV001';
+    END IF;
+
+    IF v_admin.rol_id != 1 THEN
+        RAISE EXCEPTION 'El actor no cuenta con privilegios de Administrador.' USING ERRCODE = 'AV002';
+    END IF;
+
+    IF v_admin.condominio_id IS NULL OR v_admin.condominio_id != v_aviso.condominio_id THEN
+        RAISE EXCEPTION 'El administrador no pertenece al mismo condominio del aviso.' USING ERRCODE = 'AV009';
+    END IF;
+
+    -- 3. Regla de vigencia: fecha exacta gana sobre duración y viceversa; si no mandan ninguna, se mantiene
+    IF p_fecha_expiracion IS NOT NULL THEN
+        IF p_fecha_expiracion <= now() THEN
+            RAISE EXCEPTION 'La fecha de expiración manual debe ser posterior a la fecha actual.' USING ERRCODE = 'AV006';
+        END IF;
+        v_nueva_fecha_manual := p_fecha_expiracion;
+        v_nuevo_duracion_dias := NULL;
+    ELSIF p_duracion_dias IS NOT NULL THEN
+        IF p_duracion_dias <= 0 THEN
+            RAISE EXCEPTION 'La duración en días debe ser mayor a 0.' USING ERRCODE = 'AV007';
+        END IF;
+        v_nuevo_duracion_dias := p_duracion_dias;
+        v_nueva_fecha_manual := NULL;
+    ELSE
+        -- Mantener la vigencia anterior
+        v_nuevo_duracion_dias := v_aviso.duracion_dias;
+        v_nueva_fecha_manual := v_aviso.fecha_expiracion_manual;
+    END IF;
+
+    -- 4. Actualización dinámica
+    UPDATE public.avisos
+    SET
+        titulo = COALESCE(NULLIF(TRIM(p_titulo), ''), titulo),
+        contenido = COALESCE(NULLIF(TRIM(p_contenido), ''), contenido),
+        duracion_dias = v_nuevo_duracion_dias,
+        fecha_expiracion_manual = v_nueva_fecha_manual
+    WHERE id = p_id;
+
+    -- 5. Construcción del JSON de retorno
+    SELECT jsonb_build_object(
+        'id', a.id,
+        'condominio_id', a.condominio_id,
+        'condominio_nombre', c.nombre,
+        'titulo', a.titulo,
+        'contenido', a.contenido,
+        'duracion_dias', a.duracion_dias,
+        'fecha_expiracion_manual', a.fecha_expiracion_manual,
+        'fecha_publicacion', a.fecha_publicacion,
+        'fecha_expiracion', a.fecha_expiracion,
+        'activo', a.activo,
+        'creado_por', a.creado_por,
+        'creado_por_nombre', u.nombre || ' ' || u.apellidos,
+        'creado_en', a.creado_en
+    )
+    INTO v_resultado
+    FROM public.avisos a
+    JOIN public.condominio c ON c.id = a.condominio_id
+    JOIN public.usuarios u ON u.id = a.creado_por
+    WHERE a.id = p_id;
+
+    RETURN v_resultado;
+END;
+$$;
