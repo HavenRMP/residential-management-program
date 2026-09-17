@@ -412,3 +412,22 @@ GRANT EXECUTE ON FUNCTION public.baja_aviso(UUID, UUID) TO service_role;
 
 -- Recarga de esquema PostgREST
 NOTIFY pgrst, 'reload schema';
+
+-- ==============================================================================
+-- 8. INCREMENTO SEMÁNTICO DE VERSIÓN (SemVer)
+-- ==============================================================================
+UPDATE public.version 
+SET 
+    numero_version = CASE 
+        WHEN numero_version ~ '^[0-9]+\.[0-9]+(\.[0-9]+)?$' THEN
+            split_part(numero_version, '.', 1) || '.' || 
+            ((split_part(numero_version, '.', 2)::integer) + 1)::text || 
+            CASE 
+                WHEN split_part(numero_version, '.', 3) <> '' THEN '.' || split_part(numero_version, '.', 3) 
+                ELSE '' 
+            END
+        WHEN numero_version ~ '^[0-9]+$' THEN
+            ((numero_version::integer) + 1)::text
+        ELSE numero_version || '.1'
+    END,
+    updated_at = now();
