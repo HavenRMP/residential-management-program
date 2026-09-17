@@ -245,21 +245,93 @@ import { Aviso, AvisoPrioridad, CrearAvisoDto } from '../../../core/models/aviso
             ></textarea>
           </div>
 
-          <!-- Vigencia -->
-          <div>
-            <label class="block text-xs font-semibold text-slate-800 mb-1">
-              Vigencia
-            </label>
-            <select
-              [(ngModel)]="formAviso.diasVigencia"
-              name="diasVigencia"
-              class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-2.5 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
-            >
-              <option [ngValue]="3">3 días</option>
-              <option [ngValue]="7">7 días (1 semana)</option>
-              <option [ngValue]="15">15 días</option>
-              <option [ngValue]="30">30 días</option>
-            </select>
+          <!-- Vigencia del comunicado -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="block text-xs font-semibold text-slate-800">
+                Vigencia del comunicado
+              </label>
+              <!-- Selector de modo: Por días vs Fecha exacta -->
+              <div class="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200" role="group" aria-label="Modo de vigencia">
+                <button
+                  type="button"
+                  (click)="seleccionarModoVigencia('dias')"
+                  [class.bg-white]="formAviso.tipoVigencia === 'dias'"
+                  [class.text-[#111C99]]="formAviso.tipoVigencia === 'dias'"
+                  [class.shadow-2xs]="formAviso.tipoVigencia === 'dias'"
+                  [class.font-semibold]="formAviso.tipoVigencia === 'dias'"
+                  [class.text-slate-600]="formAviso.tipoVigencia !== 'dias'"
+                  class="px-2.5 py-1 text-[11px] rounded-md transition-all cursor-pointer"
+                >
+                  Por días
+                </button>
+                <button
+                  type="button"
+                  (click)="seleccionarModoVigencia('fecha')"
+                  [class.bg-white]="formAviso.tipoVigencia === 'fecha'"
+                  [class.text-[#111C99]]="formAviso.tipoVigencia === 'fecha'"
+                  [class.shadow-2xs]="formAviso.tipoVigencia === 'fecha'"
+                  [class.font-semibold]="formAviso.tipoVigencia === 'fecha'"
+                  [class.text-slate-600]="formAviso.tipoVigencia !== 'fecha'"
+                  class="px-2.5 py-1 text-[11px] rounded-md transition-all cursor-pointer"
+                >
+                  Fecha en calendario
+                </button>
+              </div>
+            </div>
+
+            <!-- Modo 1: Por días -->
+            <div *ngIf="formAviso.tipoVigencia === 'dias'" class="space-y-2">
+              <div class="grid grid-cols-4 gap-1.5">
+                <button
+                  *ngFor="let d of [3, 7, 15, 30]"
+                  type="button"
+                  (click)="setPresetDias(d)"
+                  [class.bg-[#111C99]]="!formAviso.esDiasPersonalizado && formAviso.diasVigencia === d"
+                  [class.text-white]="!formAviso.esDiasPersonalizado && formAviso.diasVigencia === d"
+                  [class.border-[#111C99]]="!formAviso.esDiasPersonalizado && formAviso.diasVigencia === d"
+                  [class.bg-slate-50]="formAviso.esDiasPersonalizado || formAviso.diasVigencia !== d"
+                  [class.text-slate-700]="formAviso.esDiasPersonalizado || formAviso.diasVigencia !== d"
+                  [class.border-slate-200]="formAviso.esDiasPersonalizado || formAviso.diasVigencia !== d"
+                  class="py-1.5 px-2 rounded-lg border text-xs font-medium transition-all text-center cursor-pointer hover:border-slate-300"
+                >
+                  {{ d }} días
+                </button>
+              </div>
+
+              <!-- Duración personalizada -->
+              <div class="flex items-center gap-2 pt-0.5">
+                <label class="text-[11px] text-slate-500 whitespace-nowrap">O duración exacta:</label>
+                <div class="relative flex-1">
+                  <input
+                    type="number"
+                    min="1"
+                    max="365"
+                    [(ngModel)]="formAviso.diasVigencia"
+                    (input)="formAviso.esDiasPersonalizado = true"
+                    name="diasVigenciaNum"
+                    placeholder="1 - 365"
+                    class="h-8 w-full text-xs rounded-lg border border-slate-300 bg-white px-2.5 pr-12 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+                  />
+                  <span class="absolute right-2.5 top-2 text-[11px] text-slate-400 pointer-events-none">días</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Modo 2: Fecha calendario -->
+            <div *ngIf="formAviso.tipoVigencia === 'fecha'" class="space-y-1.5">
+              <input
+                type="date"
+                [(ngModel)]="formAviso.fechaExpiracion"
+                [min]="minFechaExpiracion"
+                name="fechaExpiracion"
+                required
+                class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-2.5 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+              />
+              <p class="text-[11px] text-slate-500 leading-tight">
+                El comunicado se mantendrá activo hasta las 23:59 hrs del día seleccionado (permite desde hoy en adelante).
+              </p>
+            </div>
           </div>
 
           <div class="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
@@ -272,7 +344,7 @@ import { Aviso, AvisoPrioridad, CrearAvisoDto } from '../../../core/models/aviso
             </button>
             <button
               type="submit"
-              [disabled]="isSaving() || !formAviso.titulo || !formAviso.contenido"
+              [disabled]="isSaving() || !isFormValido"
               class="h-8 px-3.5 bg-[#111C99] hover:bg-[#0d1577] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#111C99] text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5"
             >
               <svg *ngIf="isSaving()" class="animate-spin -ml-0.5 mr-1 h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
@@ -323,12 +395,44 @@ export class AvisosListComponent implements OnInit {
     }
   }
 
-  formAviso: CrearAvisoDto = {
+  formAviso = {
     titulo: '',
     contenido: '',
-    prioridad: 'informativo',
-    diasVigencia: 7
+    prioridad: 'informativo' as AvisoPrioridad,
+    tipoVigencia: 'dias' as 'dias' | 'fecha',
+    diasVigencia: 7,
+    esDiasPersonalizado: false,
+    fechaExpiracion: ''
   };
+
+  get minFechaExpiracion(): string {
+    const hoy = new Date();
+    const y = hoy.getFullYear();
+    const m = String(hoy.getMonth() + 1).padStart(2, '0');
+    const d = String(hoy.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  get isFormValido(): boolean {
+    if (!this.formAviso.titulo?.trim() || !this.formAviso.contenido?.trim()) return false;
+    if (this.formAviso.tipoVigencia === 'fecha') {
+      return !!this.formAviso.fechaExpiracion && this.formAviso.fechaExpiracion >= this.minFechaExpiracion;
+    }
+    const d = Number(this.formAviso.diasVigencia);
+    return !isNaN(d) && d >= 1 && d <= 365;
+  }
+
+  seleccionarModoVigencia(modo: 'dias' | 'fecha'): void {
+    this.formAviso.tipoVigencia = modo;
+    if (modo === 'fecha' && !this.formAviso.fechaExpiracion) {
+      this.formAviso.fechaExpiracion = this.minFechaExpiracion;
+    }
+  }
+
+  setPresetDias(dias: number): void {
+    this.formAviso.diasVigencia = dias;
+    this.formAviso.esDiasPersonalizado = false;
+  }
 
   ngOnInit(): void {
     this.recargar();
@@ -364,7 +468,10 @@ export class AvisosListComponent implements OnInit {
       titulo: '',
       contenido: '',
       prioridad: 'informativo',
-      diasVigencia: 7
+      tipoVigencia: 'dias',
+      diasVigencia: 7,
+      esDiasPersonalizado: false,
+      fechaExpiracion: this.minFechaExpiracion
     };
     this.modalAbierto.set(true);
   }
@@ -372,12 +479,30 @@ export class AvisosListComponent implements OnInit {
   abrirModalEditar(aviso: Aviso): void {
     this.modoEdicion.set(true);
     this.avisoEditandoId = aviso.id;
-    this.formAviso = {
-      titulo: aviso.titulo,
-      contenido: aviso.contenido,
-      prioridad: aviso.prioridad,
-      diasVigencia: aviso.duracionDias || 7
-    };
+
+    if (aviso.duracionDias) {
+      const presets = [3, 7, 15, 30];
+      this.formAviso = {
+        titulo: aviso.titulo,
+        contenido: aviso.contenido,
+        prioridad: aviso.prioridad,
+        tipoVigencia: 'dias',
+        diasVigencia: aviso.duracionDias,
+        esDiasPersonalizado: !presets.includes(aviso.duracionDias),
+        fechaExpiracion: aviso.fechaExpiracion ? aviso.fechaExpiracion.split('T')[0] : this.minFechaExpiracion
+      };
+    } else {
+      const fechaStr = aviso.fechaExpiracion ? aviso.fechaExpiracion.split('T')[0] : this.minFechaExpiracion;
+      this.formAviso = {
+        titulo: aviso.titulo,
+        contenido: aviso.contenido,
+        prioridad: aviso.prioridad,
+        tipoVigencia: 'fecha',
+        diasVigencia: 7,
+        esDiasPersonalizado: false,
+        fechaExpiracion: fechaStr
+      };
+    }
     this.modalAbierto.set(true);
   }
 
@@ -386,16 +511,72 @@ export class AvisosListComponent implements OnInit {
   }
 
   async guardarAviso(): Promise<void> {
-    if (this.isSaving() || !this.formAviso.titulo || !this.formAviso.contenido) return;
+    if (this.isSaving() || !this.isFormValido) return;
+
+    let payload: { titulo: string; contenido: string; duracion_dias?: number; fecha_expiracion?: string };
+
+    if (this.formAviso.tipoVigencia === 'fecha') {
+      if (!this.formAviso.fechaExpiracion) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Fecha requerida',
+          text: 'Por favor selecciona la fecha de expiración del aviso.',
+          confirmButtonColor: '#111C99'
+        });
+        return;
+      }
+
+      if (this.formAviso.fechaExpiracion < this.minFechaExpiracion) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Fecha no válida',
+          text: 'No es posible seleccionar una fecha anterior al día de hoy.',
+          confirmButtonColor: '#111C99'
+        });
+        return;
+      }
+
+      const [y, m, d] = this.formAviso.fechaExpiracion.split('-').map(Number);
+      const finDia = new Date(y, m - 1, d, 23, 59, 59, 999);
+
+      if (finDia.getTime() <= Date.now()) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Fecha no válida',
+          text: 'La fecha y hora de expiración debe ser posterior al momento actual.',
+          confirmButtonColor: '#111C99'
+        });
+        return;
+      }
+
+      payload = {
+        titulo: this.formAviso.titulo.trim(),
+        contenido: this.formAviso.contenido.trim(),
+        fecha_expiracion: finDia.toISOString()
+      };
+    } else {
+      const dias = Number(this.formAviso.diasVigencia);
+      if (!dias || dias < 1 || dias > 365) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Días no válidos',
+          text: 'La vigencia en días debe ser un número entero entre 1 y 365.',
+          confirmButtonColor: '#111C99'
+        });
+        return;
+      }
+
+      payload = {
+        titulo: this.formAviso.titulo.trim(),
+        contenido: this.formAviso.contenido.trim(),
+        duracion_dias: Math.floor(dias)
+      };
+    }
 
     this.isSaving.set(true);
     try {
       if (this.modoEdicion() && this.avisoEditandoId) {
-        await this.avisosService.actualizar(this.avisoEditandoId, {
-          titulo: this.formAviso.titulo,
-          contenido: this.formAviso.contenido,
-          duracion_dias: this.formAviso.diasVigencia || 7
-        });
+        await this.avisosService.actualizar(this.avisoEditandoId, payload);
         Swal.fire({
           icon: 'success',
           title: 'Aviso actualizado',
@@ -405,11 +586,7 @@ export class AvisosListComponent implements OnInit {
         });
       } else {
         const cond = this.condominioActual();
-        await this.avisosService.crear({
-          titulo: this.formAviso.titulo,
-          contenido: this.formAviso.contenido,
-          duracion_dias: this.formAviso.diasVigencia || 7
-        }, cond?.id);
+        await this.avisosService.crear(payload, cond?.id);
         Swal.fire({
           icon: 'success',
           title: 'Aviso publicado',
