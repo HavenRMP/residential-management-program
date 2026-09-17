@@ -34,19 +34,5 @@ export class ResidentesService {
       throw err;
     }
   }
-
-  async crear(payload: {
-    nombre: string;
-    apellidos: string;
-    telefono: string;
-    email: string;
-    password: string;
-    rol: string;
-  }): Promise<Residente> {
-    const result = await firstValueFrom(this.apiService.post<Residente>('/api/auth/register', payload));
-    this.cacheService.invalidateTag('residentes');
-    this.cacheService.invalidateTag('viviendas');
-    return result;
-  }
 }
 
