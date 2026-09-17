@@ -38,6 +38,17 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
           </div>
 
           <div class="flex items-center gap-2">
+            <!-- Acceso a sub-usuarios/notificaciones temporalmente deshabilitado
+            <a
+              routerLink="/dashboard/residente/notificaciones"
+              class="h-9 w-9 inline-flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors relative cursor-pointer"
+              title="Notificaciones y sub-usuarios"
+            >
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+            </a>
+            -->
             <app-user-menu [user]="currentUser()" (logout)="onLogout()" />
           </div>
         </div>
@@ -61,6 +72,18 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
               <span>{{ nombreCondominio() }}</span>
             </p>
           </div>
+
+          <!-- Acceso a Sub-usuarios temporalmente deshabilitado
+          <a
+            routerLink="/dashboard/residente/notificaciones"
+            class="h-8 px-3 inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition-colors shadow-2xs self-start sm:self-auto"
+          >
+            <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+            <span>Sub-usuarios</span>
+          </a>
+          -->
         </div>
 
         <!-- Estado de Carga -->

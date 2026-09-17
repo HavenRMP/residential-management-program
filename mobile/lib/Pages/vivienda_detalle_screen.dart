@@ -39,6 +39,30 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
     } else if (_vivienda['habitante'] is Map) {
       _habitanteAsignado = Map<String, dynamic>.from(_vivienda['habitante']);
     }
+    _loadResidenteIfNeeded();
+  }
+
+  Future<void> _loadResidenteIfNeeded() async {
+    if (widget.vivienda['residente'] != null) return;
+    
+    // Siempre intentamos obtener los residentes si no vienen adjuntos
+    setState(() => _isActionHabitanteLoading = true);
+    try {
+      final srv = ViviendasService(widget.controller);
+      final resList = await srv.obtenerResidentesVivienda(_vivienda['id']);
+      if (resList.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _habitanteAsignado = Map<String, dynamic>.from(resList.first);
+            _vivienda['residente'] = _habitanteAsignado;
+          });
+        }
+      }
+    } catch (_) {
+      // Ignorar error y dejarlo como vacante temporalmente
+    } finally {
+      if (mounted) setState(() => _isActionHabitanteLoading = false);
+    }
   }
 
   Future<void> _vincularResidente(Map<String, dynamic> residente) async {
@@ -213,9 +237,11 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
                     final decoded = jsonDecode(res.body);
                     final list = decoded is List
                         ? decoded
-                        : (decoded is Map && decoded['data'] is List
-                              ? decoded['data']
-                              : []);
+                        : (decoded is Map && decoded['items'] is List
+                            ? decoded['items']
+                            : (decoded is Map && decoded['data'] is List
+                                ? decoded['data']
+                                : []));
                     setModalState(() {
                       allResidents = list;
                       filteredResidents = list;

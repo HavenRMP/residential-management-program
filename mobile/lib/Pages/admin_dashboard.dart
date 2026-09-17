@@ -25,6 +25,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _totalResidentes = 0;
   int _viviendasOcupadas = 0;
   bool _isLoadingStats = true;
+  bool _isSystemOnline = false;
+  String _dbVersionText = 'Base de datos operativa';
 
   @override
   void initState() {
@@ -36,10 +38,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     try {
       final viviendasSrv = ViviendasService(widget.controller);
       final viviendas = await viviendasSrv.listar();
+      
       int ocupadas = 0;
-      for (var v in viviendas) {
-        if (v['residente'] != null || v['habitante'] != null) {
-          ocupadas++;
+      if (viviendas.isNotEmpty) {
+        final asignaciones = await Future.wait(
+          viviendas.map((v) => viviendasSrv.obtenerResidentesVivienda(v['id']).catchError((_) => <dynamic>[]))
+        );
+
+        for (int i = 0; i < viviendas.length; i++) {
+          final res = asignaciones[i];
+          if (res.isNotEmpty) {
+            ocupadas++;
+          }
+          // We can also attach the asignada state to the map if we want
+          viviendas[i]['asignada'] = res.isNotEmpty;
         }
       }
 
@@ -64,11 +76,32 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         }
       }
 
+      bool isOnline = false;
+      String dbVersionTxt = 'Base de datos operativa';
+      try {
+        final healthRes = await widget.controller.httpClient.get(
+          Uri.parse('${dotenv.env['API_BASE_URL_USUARIOS'] ?? 'https://usuarios-api-n1qi.onrender.com'}/api/Auth/ping')
+        ).timeout(const Duration(seconds: 5));
+        isOnline = healthRes.statusCode == 200;
+        if (isOnline) {
+          try {
+            final body = jsonDecode(healthRes.body);
+            if (body is Map && body['dbVersion'] != null) {
+              dbVersionTxt = 'BD v${body['dbVersion']}';
+            }
+          } catch (_) {}
+        }
+      } catch (_) {
+        isOnline = false;
+      }
+
       if (mounted) {
         setState(() {
+          _dbVersionText = dbVersionTxt;
           _totalViviendas = viviendas.length;
           _viviendasOcupadas = ocupadas;
           _totalResidentes = residentesCount;
+          _isSystemOnline = isOnline;
           _isLoadingStats = false;
         });
       }
@@ -581,25 +614,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               _buildActionCard(
                 title: 'Estado del Sistema',
                 icon: Icons.dns_outlined,
-                onTap: () {
-                  widget.controller.notifyToast('API v1.0.0 (En línea) - Base de datos operativa', success: true);
+                onTap: () async {
+                  if (_isSystemOnline) {
+                    widget.controller.notifyToast('API en línea - $_dbVersionText', success: true);
+                  } else {
+                    widget.controller.notifyToast('Sistema fuera de línea o con problemas', success: false);
+                  }
                 },
                 insight: Row(
                   children: [
                     Container(
                       width: 8,
                       height: 8,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF10B981), // Emerald 500
+                      decoration: BoxDecoration(
+                        color: _isSystemOnline ? const Color(0xFF10B981) : const Color(0xFFEF4444), // Emerald 500 or Red 500
                         shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(width: 8),
-                    const Text(
-                      'En línea y operativo',
+                    Text(
+                      _isSystemOnline ? 'En línea y operativo' : 'Fuera de línea',
                       style: TextStyle(
                         fontSize: 13,
-                        color: Color(0xFF047857), // Emerald 700
+                        color: _isSystemOnline ? const Color(0xFF047857) : const Color(0xFFB91C1C), // Emerald 700 or Red 700
                         fontWeight: FontWeight.w600,
                       ),
                     ),
