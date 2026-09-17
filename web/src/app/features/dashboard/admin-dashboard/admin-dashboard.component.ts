@@ -7,6 +7,8 @@ import { ViviendasService } from '../../../core/services/viviendas.service';
 import { ResidentesService } from '../../../core/services/residentes.service';
 import { CondominiosService } from '../../../core/services/condominios.service';
 import { Vivienda } from '../../../core/models/vivienda.model';
+import { Residente } from '../../../core/models/residente.model';
+import { extractPagedItems } from '../../../core/models/pagination.model';
 
 @Component({
   selector: 'app-admin-dashboard',
@@ -97,7 +99,9 @@ import { Vivienda } from '../../../core/models/vivienda.model';
         <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-2xs">
           <div class="flex items-center justify-between">
             <span class="text-xs font-medium text-slate-500">Ocupación</span>
-            <span class="text-xs font-mono font-semibold" [ngClass]="colorTextoOcupacion()">{{ porcentajeOcupacion() }}%</span>
+            <span class="text-xs font-mono font-semibold" [ngClass]="colorTextoOcupacion()">
+              {{ loading() ? '—' : porcentajeOcupacion() + '%' }}
+            </span>
           </div>
           <p class="text-2xl font-bold tracking-tight text-slate-900 mt-2">
             {{ loading() ? '—' : porcentajeOcupacion() + '%' }}
@@ -111,7 +115,9 @@ import { Vivienda } from '../../../core/models/vivienda.model';
         <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-2xs">
           <div class="flex items-center justify-between">
             <span class="text-xs font-medium text-slate-500">Disponibilidad</span>
-            <span class="text-xs font-medium text-slate-600">{{ viviendasAsignadas() }} ocupadas</span>
+            <span class="text-xs font-medium text-slate-600">
+              {{ loading() ? '—' : viviendasAsignadas() + ' ocupadas' }}
+            </span>
           </div>
           <p class="text-2xl font-bold tracking-tight text-slate-900 mt-2">
             {{ loading() ? '—' : viviendasDisponibles() }}
@@ -270,10 +276,13 @@ export class AdminDashboardComponent implements OnInit {
   async cargarMetricas(): Promise<void> {
     this.loading.set(true);
     try {
-      const [viviendas, residentes] = await Promise.all([
+      const [viviendasRaw, residentesRaw] = await Promise.all([
         this.viviendasService.listar().catch(() => []),
         this.residentesService.listar().catch(() => [])
       ]);
+
+      const viviendas = extractPagedItems<Vivienda>(viviendasRaw);
+      const residentes = extractPagedItems<Residente>(residentesRaw);
 
       this.totalViviendas.set(viviendas.length);
       this.totalResidentes.set(residentes.length);
@@ -287,7 +296,8 @@ export class AdminDashboardComponent implements OnInit {
         let asignadasCount = 0;
         const resumen = viviendas.map((v, i) => {
           const res = asignaciones[i];
-          const tieneResidentes = Array.isArray(res) && res.length > 0;
+          const itemsRes = extractPagedItems<Residente>(res);
+          const tieneResidentes = itemsRes.length > 0;
           if (tieneResidentes) {
             asignadasCount++;
           }
@@ -302,13 +312,19 @@ export class AdminDashboardComponent implements OnInit {
       }
     } catch (err) {
       console.warn('[AdminDashboard] Error al cargar métricas:', err);
+      this.totalViviendas.set(0);
+      this.totalResidentes.set(0);
+      this.viviendasAsignadas.set(0);
+      this.viviendasResumen.set([]);
     } finally {
       this.loading.set(false);
     }
   }
 
   viviendasDisponibles(): number {
-    return Math.max(0, this.totalViviendas() - this.viviendasAsignadas());
+    const total = Number(this.totalViviendas()) || 0;
+    const asignadas = Number(this.viviendasAsignadas()) || 0;
+    return Math.max(0, total - asignadas);
   }
 
   formatearNombre(numeroCasa: string): string {
@@ -322,10 +338,11 @@ export class AdminDashboardComponent implements OnInit {
   }
 
   porcentajeOcupacion(): number {
-    const total = this.totalViviendas();
-    const asignadas = this.viviendasAsignadas();
-    if (total === 0) return 0;
-    return Math.min(Math.round((asignadas / total) * 100), 100);
+    const total = Number(this.totalViviendas()) || 0;
+    const asignadas = Number(this.viviendasAsignadas()) || 0;
+    if (total <= 0) return 0;
+    const ratio = Math.round((asignadas / total) * 100);
+    return isNaN(ratio) ? 0 : Math.min(Math.max(ratio, 0), 100);
   }
 
   colorBarraOcupacion(): string {
