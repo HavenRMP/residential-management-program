@@ -211,7 +211,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       body: IndexedStack(index: _currentIndex, children: pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
-        onDestinationSelected: (index) => setState(() => _currentIndex = index),
+        onDestinationSelected: (index) {
+          if (index == 0 && _currentIndex != 0) {
+            _fetchStats();
+          }
+          setState(() => _currentIndex = index);
+        },
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
         indicatorColor: const Color(0xFFEEF2FF),
@@ -615,8 +620,35 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 title: 'Estado del Sistema',
                 icon: Icons.dns_outlined,
                 onTap: () async {
-                  if (_isSystemOnline) {
-                    widget.controller.notifyToast('API en línea - $_dbVersionText', success: true);
+                  widget.controller.notifyToast('Comprobando estado del sistema...', success: true);
+                  bool isOnline = false;
+                  String dbVersionTxt = 'Base de datos operativa';
+                  try {
+                    final healthRes = await widget.controller.httpClient.get(
+                      Uri.parse('${dotenv.env['API_BASE_URL_USUARIOS'] ?? 'https://usuarios-api-n1qi.onrender.com'}/api/Auth/ping')
+                    ).timeout(const Duration(seconds: 5));
+                    isOnline = healthRes.statusCode == 200;
+                    if (isOnline) {
+                      try {
+                        final body = jsonDecode(healthRes.body);
+                        if (body is Map && body['dbVersion'] != null) {
+                          dbVersionTxt = 'BD v${body['dbVersion']}';
+                        }
+                      } catch (_) {}
+                    }
+                  } catch (_) {
+                    isOnline = false;
+                  }
+                  
+                  if (mounted) {
+                    setState(() {
+                      _isSystemOnline = isOnline;
+                      _dbVersionText = dbVersionTxt;
+                    });
+                  }
+
+                  if (isOnline) {
+                    widget.controller.notifyToast('API en línea - $dbVersionTxt', success: true);
                   } else {
                     widget.controller.notifyToast('Sistema fuera de línea o con problemas', success: false);
                   }

@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../Services/app_controller.dart';
+import '../Services/viviendas_service.dart';
 
 class ResidentesListScreen extends StatefulWidget {
   const ResidentesListScreen({super.key, required this.controller});
@@ -50,6 +51,37 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
             _residentes = decoded['data'];
           }
         }
+
+        try {
+          final viviendasSrv = ViviendasService(widget.controller);
+          final viviendas = await viviendasSrv.listar();
+          if (viviendas.isNotEmpty) {
+            final asignaciones = await Future.wait(
+              viviendas.map((v) => viviendasSrv.obtenerResidentesVivienda(v['id']).catchError((_) => <dynamic>[]))
+            );
+            
+            final Map<String, dynamic> residenteViviendaMap = {};
+            for (int i = 0; i < viviendas.length; i++) {
+              final v = viviendas[i];
+              final res = asignaciones[i];
+              for (var r in res) {
+                final rId = r['id'] ?? r['usuarioId'];
+                if (rId != null) {
+                  residenteViviendaMap[rId.toString()] = v;
+                }
+              }
+            }
+            
+            for (var i = 0; i < _residentes.length; i++) {
+              final rId = _residentes[i]['id']?.toString();
+              if (rId != null && residenteViviendaMap.containsKey(rId)) {
+                if (_residentes[i] is Map) {
+                  _residentes[i]['vivienda'] = residenteViviendaMap[rId];
+                }
+              }
+            }
+          }
+        } catch (_) {}
       } else {
         _errorMessage = 'Error de conexión';
       }
@@ -81,7 +113,7 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
       }
     }
 
-    String viviendaStr = 'Información no cargada en directorio';
+    String viviendaStr = 'Sin vivienda asignada';
     if (r['viviendas'] != null && r['viviendas'] is List && (r['viviendas'] as List).isNotEmpty) {
       viviendaStr = (r['viviendas'] as List).map((v) => v['numeroCasa'] ?? 'S/N').join(', ');
     } else if (r['vivienda'] != null && r['vivienda'] is Map) {
