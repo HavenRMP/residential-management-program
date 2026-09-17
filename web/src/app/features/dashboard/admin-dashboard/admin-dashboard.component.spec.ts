@@ -67,16 +67,16 @@ describe('AdminDashboardComponent', () => {
 
     fixture = TestBed.createComponent(AdminDashboardComponent);
     component = fixture.componentInstance;
+    fixture.detectChanges();
   });
 
   it('debe inicializar el componente de dashboard administrativo', () => {
-    fixture.detectChanges();
     expect(component).toBeTruthy();
   });
 
   it('debe cargar las métricas y calcular ocupación correctamente al iniciar', async () => {
+    await component.cargarMetricas();
     fixture.detectChanges();
-    await fixture.whenStable();
 
     expect(mockViviendasService.listar).toHaveBeenCalled();
     expect(mockResidentesService.listar).toHaveBeenCalled();
@@ -103,15 +103,15 @@ describe('AdminDashboardComponent', () => {
 
   it('debe activar el estado de error y banner cuando falla la conexión con el servidor', async () => {
     mockViviendasService.listar.and.returnValue(Promise.reject(new Error('Network error')));
+
+    await component.cargarMetricas();
     fixture.detectChanges();
-    await fixture.whenStable();
 
     expect(component.errorMessage()).toBeTruthy();
     expect(component.errorMessage()).toContain('No se pudo establecer conexión');
     expect(component.totalViviendas()).toBe(0);
     expect(component.loading()).toBeFalse();
 
-    fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
     const banner = compiled.querySelector('.bg-rose-50');
     expect(banner).toBeTruthy();
@@ -120,8 +120,7 @@ describe('AdminDashboardComponent', () => {
 
   it('debe permitir reintentar con forceRefresh cuando se pulsa el botón de reintento', async () => {
     mockViviendasService.listar.and.returnValue(Promise.reject(new Error('500 Server Error')));
-    fixture.detectChanges();
-    await fixture.whenStable();
+    await component.cargarMetricas();
     expect(component.errorMessage()).toBeTruthy();
 
     // Simular que el servidor ya responde
@@ -140,8 +139,8 @@ describe('AdminDashboardComponent', () => {
     mockViviendasService.listar.and.returnValue(Promise.resolve([]));
     mockResidentesService.listar.and.returnValue(Promise.resolve([]));
 
+    await component.cargarMetricas();
     fixture.detectChanges();
-    await fixture.whenStable();
 
     expect(component.errorMessage()).toBeNull();
     expect(component.viviendasResumen().length).toBe(0);
