@@ -41,7 +41,7 @@ import { Aviso, AvisoPrioridad, CrearAvisoDto } from '../../../core/models/aviso
         <div class="flex items-center gap-2 shrink-0">
           <button
             type="button"
-            (click)="recargar()"
+            (click)="recargar(true)"
             [disabled]="avisosService.isLoading()"
             title="Actualizar"
             class="h-9 w-9 inline-flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer disabled:opacity-50"
@@ -382,9 +382,9 @@ export class AvisosListComponent implements OnInit {
     this.recargar();
   }
 
-  async recargar(): Promise<void> {
+  async recargar(forceRefresh: boolean = false): Promise<void> {
     const cond = this.condominioActual();
-    await this.avisosService.cargarAvisos(cond?.id);
+    await this.avisosService.cargarAvisos(cond?.id, forceRefresh);
   }
 
   readonly avisosFiltrados = computed(() => {

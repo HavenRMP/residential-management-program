@@ -50,7 +50,7 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
           <div class="flex items-center gap-3 shrink-0">
             <!-- Refresh Button -->
             <button
-              (click)="cargarViviendas()"
+              (click)="cargarViviendas(true)"
               [disabled]="isLoading()"
               title="Actualizar datos"
               class="p-2 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-200 text-slate-600 rounded-lg transition-all shadow-2xs cursor-pointer disabled:opacity-50"
@@ -633,11 +633,11 @@ export class ViviendasListComponent implements OnInit {
     }
   }
 
-  async cargarViviendas(): Promise<void> {
+  async cargarViviendas(forceRefresh: boolean = false): Promise<void> {
     this.isLoading.set(true);
     this.errorMessage.set(null);
     try {
-      const data = await this.viviendasService.listar();
+      const data = await this.viviendasService.listar(undefined, undefined, forceRefresh);
       this.viviendas.set(data || []);
     } catch {
       this.errorMessage.set('No fue posible cargar la lista de viviendas desde el servidor.');

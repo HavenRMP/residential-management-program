@@ -36,7 +36,7 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
         <div class="flex items-center gap-2 shrink-0">
           <button
             type="button"
-            (click)="cargarMetricas()"
+            (click)="cargarMetricas(true)"
             [disabled]="loading()"
             title="Actualizar datos"
             class="h-9 w-9 inline-flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer disabled:opacity-50"
@@ -273,12 +273,12 @@ export class AdminDashboardComponent implements OnInit {
     this.cargarMetricas();
   }
 
-  async cargarMetricas(): Promise<void> {
+  async cargarMetricas(forceRefresh: boolean = false): Promise<void> {
     this.loading.set(true);
     try {
       const [viviendasRaw, residentesRaw] = await Promise.all([
-        this.viviendasService.listar().catch(() => []),
-        this.residentesService.listar().catch(() => [])
+        this.viviendasService.listar(undefined, undefined, forceRefresh).catch(() => []),
+        this.residentesService.listar(false, forceRefresh).catch(() => [])
       ]);
 
       const viviendas = extractPagedItems<Vivienda>(viviendasRaw);
@@ -288,24 +288,26 @@ export class AdminDashboardComponent implements OnInit {
       this.totalResidentes.set(residentes.length);
 
       if (viviendas.length > 0) {
-        // Consultar residentes por vivienda para determinar con exactitud las asignadas
+        // Consultar únicamente las viviendas del resumen visual para eliminar cuellos de botella N+1
+        const primerasViviendas = viviendas.slice(0, 5);
         const asignaciones = await Promise.all(
-          viviendas.map(v => this.viviendasService.obtenerResidentesVivienda(v.id).catch(() => []))
+          primerasViviendas.map(v => this.viviendasService.obtenerResidentesVivienda(v.id, forceRefresh).catch(() => []))
         );
 
-        let asignadasCount = 0;
-        const resumen = viviendas.map((v, i) => {
+        let asignadasEnMuestra = 0;
+        const resumen = primerasViviendas.map((v, i) => {
           const res = asignaciones[i];
           const itemsRes = extractPagedItems<Residente>(res);
           const tieneResidentes = itemsRes.length > 0;
           if (tieneResidentes) {
-            asignadasCount++;
+            asignadasEnMuestra++;
           }
           return { ...v, asignada: tieneResidentes };
         });
 
-        this.viviendasAsignadas.set(asignadasCount);
-        this.viviendasResumen.set(resumen.slice(0, 5));
+        const ocupadasEstimadas = Math.min(Math.max(asignadasEnMuestra, residentes.length), viviendas.length);
+        this.viviendasAsignadas.set(ocupadasEstimadas);
+        this.viviendasResumen.set(resumen);
       } else {
         this.viviendasAsignadas.set(0);
         this.viviendasResumen.set([]);
