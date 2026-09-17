@@ -2,6 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from './api.service';
 import { AuthService } from './auth.service';
+import { CacheService } from './cache.service';
 import {
   Aviso,
   AvisoApi,
@@ -17,6 +18,7 @@ import { extractPagedItems } from '../models/pagination.model';
 export class AvisosService {
   private readonly apiService = inject(ApiService);
   private readonly authService = inject(AuthService);
+  private readonly cacheService = inject(CacheService);
 
   readonly avisos = signal<Aviso[]>([]);
   readonly vigentes = signal<Aviso[]>([]);
@@ -30,9 +32,21 @@ export class AvisosService {
    * Carga los avisos vigentes desde Avisos.Api (/api/avisos).
    * Si es administrador, también consulta el histórico.
    */
-  async cargarAvisos(condominioId?: string | null): Promise<Aviso[]> {
+  async cargarAvisos(condominioId?: string | null, forceRefresh: boolean = false): Promise<Aviso[]> {
     const condId = condominioId || this.authService.currentUser()?.condominioId || 'global';
     this.currentCondominioId.set(condId);
+
+    const cacheKey = `avisos_full_${condId}`;
+    if (!forceRefresh) {
+      const cached = this.cacheService.get<{ todos: Aviso[]; vigentes: Aviso[]; expirados: Aviso[] }>(cacheKey);
+      if (cached) {
+        this.avisos.set(cached.todos);
+        this.vigentes.set(cached.vigentes);
+        this.expirados.set(cached.expirados);
+        return cached.todos;
+      }
+    }
+
     this.isLoading.set(true);
     this.errorMessage.set(null);
 
@@ -86,6 +100,11 @@ export class AvisosService {
         if (itemsHistorico.length === 0) {
           this.avisos.set(itemsVigentes);
         }
+        this.cacheService.set(cacheKey, {
+          todos: this.avisos(),
+          vigentes: this.vigentes(),
+          expirados: this.expirados()
+        }, 'avisos');
         return todosAvisos;
       }
 
@@ -133,6 +152,7 @@ export class AvisosService {
 
       const condId = condominioId || this.currentCondominioId() || 'global';
       this.guardarEnStorage(condId, actualizadosTodos);
+      this.cacheService.invalidateTag('avisos');
 
       return nuevoAviso;
     } catch (err: any) {
@@ -180,6 +200,7 @@ export class AvisosService {
 
       const condId = this.currentCondominioId() || 'global';
       this.guardarEnStorage(condId, todos);
+      this.cacheService.invalidateTag('avisos');
 
       return modificado;
     } catch (err: any) {
@@ -217,6 +238,7 @@ export class AvisosService {
 
       const condId = this.currentCondominioId() || 'global';
       this.guardarEnStorage(condId, this.avisos());
+      this.cacheService.invalidateTag('avisos');
 
       return true;
     } catch (err: any) {
