@@ -2,6 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { HttpParams } from '@angular/common/http';
 import { ApiService } from './api.service';
 import { Condominio } from '../models/condominio.model';
+import { extractPagedItems } from '../models/pagination.model';
 import { firstValueFrom } from 'rxjs';
 
 @Injectable({
@@ -22,8 +23,8 @@ export class CondominiosService {
       if (nombre && nombre.trim().length > 0) {
         params = new HttpParams().set('nombre', nombre.trim());
       }
-      const data = await firstValueFrom(this.apiService.get<Condominio[]>('/api/condominios', params));
-      return Array.isArray(data) ? data : [];
+      const data = await firstValueFrom(this.apiService.get<any>('/api/condominios', params));
+      return extractPagedItems<Condominio>(data);
     } catch (err) {
       console.warn('[CondominiosService] Error al listar condominios:', err);
       return [];

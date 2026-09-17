@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { ApiService } from './api.service';
 import { Vivienda } from '../models/vivienda.model';
 import { Residente } from '../models/residente.model';
+import { extractPagedItems } from '../models/pagination.model';
 import { firstValueFrom } from 'rxjs';
 
 @Injectable({
@@ -10,8 +11,14 @@ import { firstValueFrom } from 'rxjs';
 export class ViviendasService {
   private readonly apiService = inject(ApiService);
 
-  listar(): Promise<Vivienda[]> {
-    return firstValueFrom(this.apiService.get<Vivienda[]>('/api/viviendas'));
+  async listar(): Promise<Vivienda[]> {
+    try {
+      const resp = await firstValueFrom(this.apiService.get<any>('/api/viviendas'));
+      return extractPagedItems<Vivienda>(resp);
+    } catch (err) {
+      console.warn('[ViviendasService] Error al listar viviendas:', err);
+      return [];
+    }
   }
 
   crear(payload: { numeroCasa: string; tipo?: string | null; condominioId?: string }): Promise<Vivienda> {
@@ -28,8 +35,8 @@ export class ViviendasService {
 
   async obtenerResidentesVivienda(viviendaId: number): Promise<Residente[]> {
     try {
-      const resp = await firstValueFrom(this.apiService.get<Residente[]>(`/api/viviendas/${viviendaId}/residentes`));
-      return Array.isArray(resp) ? resp : [];
+      const resp = await firstValueFrom(this.apiService.get<any>(`/api/viviendas/${viviendaId}/residentes`));
+      return extractPagedItems<Residente>(resp);
     } catch {
       return [];
     }
@@ -45,9 +52,9 @@ export class ViviendasService {
 
   async obtenerMisViviendas(): Promise<Vivienda[]> {
     try {
-      const resp = await firstValueFrom(this.apiService.get<any[]>('/api/viviendas/mis-viviendas'));
-      if (!resp || !Array.isArray(resp)) return [];
-      return resp.map(item => ({
+      const resp = await firstValueFrom(this.apiService.get<any>('/api/viviendas/mis-viviendas'));
+      const items = extractPagedItems<any>(resp);
+      return items.map(item => ({
         id: item.viviendaId ?? item.id,
         numeroCasa: item.numeroCasa,
         tipo: item.tipo,
