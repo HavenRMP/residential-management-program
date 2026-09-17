@@ -148,4 +148,78 @@ describe('AvisosListComponent', () => {
       expect(component.confirmarEliminar).toBeDefined();
     });
   });
+
+  describe('Vigencia flexible y fecha en calendario', () => {
+    it('debe calcular minFechaExpiracion como la fecha local de hoy', () => {
+      const hoy = new Date();
+      const expected = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+      expect(component.minFechaExpiracion).toBe(expected);
+    });
+
+    it('debe alternar modos de vigencia correctamente', () => {
+      component.seleccionarModoVigencia('fecha');
+      expect(component.formAviso.tipoVigencia).toBe('fecha');
+      expect(component.formAviso.fechaExpiracion).toBe(component.minFechaExpiracion);
+
+      component.seleccionarModoVigencia('dias');
+      expect(component.formAviso.tipoVigencia).toBe('dias');
+    });
+
+    it('debe permitir seleccionar presets de días', () => {
+      component.formAviso.esDiasPersonalizado = true;
+      component.setPresetDias(15);
+      expect(component.formAviso.diasVigencia).toBe(15);
+      expect(component.formAviso.esDiasPersonalizado).toBeFalse();
+    });
+
+    it('debe validar formulario con días personalizados', async () => {
+      component.abrirModalCrear();
+      component.formAviso.titulo = 'Aviso Días Custom';
+      component.formAviso.contenido = 'Contenido válido';
+      component.formAviso.diasVigencia = 45;
+      component.formAviso.esDiasPersonalizado = true;
+
+      expect(component.isFormValido).toBeTrue();
+      await component.guardarAviso();
+
+      expect(mockAvisosService.crear).toHaveBeenCalledWith(
+        jasmine.objectContaining({
+          titulo: 'Aviso Días Custom',
+          contenido: 'Contenido válido',
+          duracion_dias: 45
+        }),
+        'cond-1'
+      );
+    });
+
+    it('debe validar formulario con fecha en calendario y permitir el mismo día', async () => {
+      component.abrirModalCrear();
+      component.formAviso.titulo = 'Aviso Mismo Día';
+      component.formAviso.contenido = 'Expira hoy en la noche';
+      component.seleccionarModoVigencia('fecha');
+      component.formAviso.fechaExpiracion = component.minFechaExpiracion;
+
+      expect(component.isFormValido).toBeTrue();
+      await component.guardarAviso();
+
+      expect(mockAvisosService.crear).toHaveBeenCalledWith(
+        jasmine.objectContaining({
+          titulo: 'Aviso Mismo Día',
+          contenido: 'Expira hoy en la noche',
+          fecha_expiracion: jasmine.stringMatching(/T23:59:59|T.*:59:59/)
+        }),
+        'cond-1'
+      );
+    });
+
+    it('debe invalidar el formulario si se ingresa una fecha anterior a hoy', () => {
+      component.abrirModalCrear();
+      component.formAviso.titulo = 'Aviso Fecha Pasada';
+      component.formAviso.contenido = 'No permitido';
+      component.seleccionarModoVigencia('fecha');
+      component.formAviso.fechaExpiracion = '2020-01-01';
+
+      expect(component.isFormValido).toBeFalse();
+    });
+  });
 });
