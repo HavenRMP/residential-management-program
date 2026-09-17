@@ -29,8 +29,9 @@ export class ResidentesService {
       const items = extractPagedItems<Residente>(resp);
       this.cacheService.set(cacheKey, items, 'residentes');
       return items;
-    } catch {
-      return [];
+    } catch (err) {
+      console.warn('[ResidentesService] Error al listar residentes:', err);
+      throw err;
     }
   }
 
