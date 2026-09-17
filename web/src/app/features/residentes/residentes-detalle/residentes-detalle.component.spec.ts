@@ -86,6 +86,26 @@ describe('ResidentesDetalleComponent', () => {
     expect(compiled.textContent).toContain('Sin vivienda vinculada');
   });
 
+  it('no debe llamar al servicio si el padre ya suministró una lista de viviendas vacía', async () => {
+    component.residente = mockResidente;
+    component.viviendas = [];
+    await component.ngOnChanges({
+      residente: new SimpleChange(null, mockResidente, true)
+    });
+
+    expect(mockViviendasService.obtenerViviendasDeResidente).not.toHaveBeenCalled();
+  });
+
+  it('debe llamar al servicio si el residente cambia y viviendas es null/undefined', async () => {
+    component.residente = mockResidente;
+    (component as any).viviendas = null;
+    await component.ngOnChanges({
+      residente: new SimpleChange(null, mockResidente, true)
+    });
+
+    expect(mockViviendasService.obtenerViviendasDeResidente).toHaveBeenCalledWith('res-123');
+  });
+
   it('debe emitir el evento cerrado al hacer click en el botón cerrar o presionar Escape', () => {
     spyOn(component.cerrado, 'emit');
 

@@ -8,6 +8,7 @@ import { ViviendasService } from '../../../core/services/viviendas.service';
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { ResidentesDetalleComponent } from '../residentes-detalle/residentes-detalle.component';
 import { getInitials } from '../../../core/utils/iniciales.util';
+import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
 
 @Component({
   selector: 'app-residentes-list',
@@ -404,7 +405,7 @@ import { getInitials } from '../../../core/utils/iniciales.util';
         *ngIf="isDetalleOpen()"
         role="dialog"
         aria-modal="true"
-        aria-label="Detalle del residente"
+        aria-labelledby="detalle-residente-title"
         class="fixed inset-y-0 right-0 z-[60] w-full sm:max-w-md md:max-w-lg lg:max-w-xl bg-white shadow-2xl flex flex-col border-l border-slate-200 overflow-y-auto transform transition-transform duration-300 ease-out animate-slide-left"
       >
         <app-residentes-detalle
@@ -553,10 +554,7 @@ export class ResidentesListComponent implements OnInit {
     return this.viviendasMap().get(residenteId) || [];
   }
 
-  formatearNumeroCasa(numeroCasa: string): string {
-    if (!numeroCasa) return 'Unidad';
-    return numeroCasa.toLowerCase().startsWith('casa') ? numeroCasa : `Casa #${numeroCasa}`;
-  }
+  readonly formatearNumeroCasa = formatearNumeroCasa;
 
   verDetalle(r: Residente): void {
     this.residenteSeleccionado.set(r);

@@ -4,6 +4,7 @@ import { Residente } from '../../../core/models/residente.model';
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { ViviendasService } from '../../../core/services/viviendas.service';
 import { getInitials } from '../../../core/utils/iniciales.util';
+import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
 
 @Component({
   selector: 'app-residentes-detalle',
@@ -16,7 +17,7 @@ import { getInitials } from '../../../core/utils/iniciales.util';
         <div class="w-8 h-8 rounded-lg bg-[#111C99] text-white flex items-center justify-center font-bold text-xs shadow-2xs">
           {{ getInitials(residente?.nombre, residente?.apellidos) }}
         </div>
-        <span class="text-sm font-bold text-slate-900 tracking-tight">Detalle del Residente</span>
+        <span id="detalle-residente-title" class="text-sm font-bold text-slate-900 tracking-tight">Detalle del Residente</span>
       </div>
 
       <!-- Close Button -->
@@ -178,6 +179,7 @@ export class ResidentesDetalleComponent implements OnChanges {
   readonly cargandoViviendas = signal<boolean>(false);
   readonly viviendasAsignadas = signal<Vivienda[]>([]);
   readonly getInitials = getInitials;
+  readonly formatearNumeroCasa = formatearNumeroCasa;
 
   @HostListener('window:keydown.escape')
   handleEscape(): void {
@@ -190,7 +192,9 @@ export class ResidentesDetalleComponent implements OnChanges {
     }
 
     if (changes['residente'] && this.residente) {
-      if (this.viviendas && this.viviendas.length > 0) {
+      // Si el componente padre ya suministró las viviendas (incluso si la lista está vacía []),
+      // confiamos en ella y evitamos disparar una petición de red redundante.
+      if (this.viviendas !== undefined && this.viviendas !== null) {
         this.viviendasAsignadas.set(this.viviendas);
       } else {
         await this.cargarViviendasResidente();
@@ -213,11 +217,6 @@ export class ResidentesDetalleComponent implements OnChanges {
     } finally {
       this.cargandoViviendas.set(false);
     }
-  }
-
-  formatearNumeroCasa(numeroCasa: string): string {
-    if (!numeroCasa) return 'Unidad';
-    return numeroCasa.toLowerCase().startsWith('casa') ? numeroCasa : `Casa #${numeroCasa}`;
   }
 
   cerrar(): void {

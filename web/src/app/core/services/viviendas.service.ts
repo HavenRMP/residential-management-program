@@ -156,9 +156,16 @@ export class ViviendasService {
     try {
       const viviendas = await this.listar(undefined, undefined, forceRefresh);
       if (viviendas && viviendas.length > 0) {
-        const asignaciones = await Promise.all(
-          viviendas.map(v => this.obtenerResidentesVivienda(v.id, forceRefresh).catch(() => []))
-        );
+        // Ejecutar en lotes concurrentes (chunks de 6) para proteger el pool de red y evitar saturación
+        const chunkSize = 6;
+        const asignaciones: Residente[][] = [];
+        for (let i = 0; i < viviendas.length; i += chunkSize) {
+          const chunk = viviendas.slice(i, i + chunkSize);
+          const chunkResults = await Promise.all(
+            chunk.map(v => this.obtenerResidentesVivienda(v.id, forceRefresh).catch(() => []))
+          );
+          asignaciones.push(...chunkResults);
+        }
 
         viviendas.forEach((v, index) => {
           const residentes = asignaciones[index] || [];

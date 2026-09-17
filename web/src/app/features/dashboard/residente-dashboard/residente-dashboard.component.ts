@@ -10,6 +10,7 @@ import { CacheService } from '../../../core/services/cache.service';
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { Aviso, AvisoPrioridad } from '../../../core/models/aviso.model';
 import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.component';
+import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
 
 @Component({
   selector: 'app-residente-dashboard',
@@ -127,7 +128,7 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div *ngFor="let v of misViviendas()" class="p-4 rounded-lg bg-slate-50 border border-slate-200">
               <span class="text-[11px] uppercase font-bold text-slate-600 tracking-wider block">Unidad</span>
-              <p class="text-xl font-bold text-slate-900 mt-0.5">{{ formatearIdentificador(v.numeroCasa) }}</p>
+              <p class="text-xl font-bold text-slate-900 mt-0.5">{{ formatearNumeroCasa(v.numeroCasa) }}</p>
               <p class="text-xs text-slate-600 mt-1">Tipo: <span class="font-semibold text-slate-800">{{ v.tipo || 'Residencial' }}</span></p>
             </div>
           </div>
@@ -319,14 +320,10 @@ export class ResidenteDashboardComponent implements OnInit {
     this.mostrarFormularioVinculacion.update(v => !v);
   }
 
+  readonly formatearNumeroCasa = formatearNumeroCasa;
+
   formatearIdentificador(numeroCasa: string): string {
-    if (!numeroCasa) return 'Unidad';
-    let clean = numeroCasa.trim();
-    // Normaliza prefijos redundantes (ej. "Casa #Casa 204B", "Casa Casa 204B", "#Casa 204B")
-    clean = clean.replace(/^#?\s*casa\s*#?\s*(casa)?\s*/i, 'Casa ');
-    // Si todavía tiene un '#' inicial suelto (ej. '#204B' o '# 204B')
-    clean = clean.replace(/^#\s*/, '');
-    return clean.trim() || 'Unidad';
+    return formatearNumeroCasa(numeroCasa);
   }
 
   getBadgeClass(prioridad: AvisoPrioridad): string {
