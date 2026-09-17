@@ -62,6 +62,12 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/viviendas/viviendas-list/viviendas-list.component')
             .then(m => m.ViviendasListComponent)
+      },
+      {
+        path: 'avisos',
+        loadComponent: () =>
+          import('./features/avisos/avisos-list/avisos-list.component')
+            .then(m => m.AvisosListComponent)
       }
     ]
   },
@@ -71,6 +77,13 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/dashboard/residente-dashboard/residente-dashboard.component')
         .then(m => m.ResidenteDashboardComponent)
+  },
+  {
+    path: 'dashboard/residente/notificaciones',
+    canActivate: [authGuard, roleGuard(['residente'])],
+    loadComponent: () =>
+      import('./features/notificaciones/notificaciones.component')
+        .then(m => m.NotificacionesComponent)
   },
   {
     path: 'dashboard/vigilante',
