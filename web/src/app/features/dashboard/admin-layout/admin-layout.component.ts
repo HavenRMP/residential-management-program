@@ -110,6 +110,21 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
 
           <!-- Navigation Links -->
           <nav class="p-2 space-y-1 overflow-y-auto flex-1 custom-scrollbar w-full select-none">
+            <!-- Botón Expandir Menú (Solo Desktop Colapsado) -->
+            <div *ngIf="!showText()" class="hidden lg:flex justify-center pb-2 mb-1 border-b border-slate-100">
+              <button
+                type="button"
+                (click)="toggleSidebar()"
+                class="size-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
+                title="Expandir menú"
+                aria-label="Expandir menú"
+              >
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+
             <p
               *ngIf="showText()"
               class="px-3 pt-2 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap fade-in-direct"
