@@ -351,8 +351,21 @@ export class AvisosListComponent implements OnInit {
   readonly condominioActual = this.condominiosService.condominioActual;
 
   tabActiva = signal<'vigentes' | 'historial'>('vigentes');
-  busqueda = '';
-  filtroPrioridad = 'todas';
+  readonly _filtroPrioridad = signal<string>('todas');
+  get filtroPrioridad(): string {
+    return this._filtroPrioridad();
+  }
+  set filtroPrioridad(val: string) {
+    this._filtroPrioridad.set(val);
+  }
+
+  readonly _busqueda = signal<string>('');
+  get busqueda(): string {
+    return this._busqueda();
+  }
+  set busqueda(val: string) {
+    this._busqueda.set(val);
+  }
 
   modalAbierto = signal<boolean>(false);
   modoEdicion = signal<boolean>(false);
