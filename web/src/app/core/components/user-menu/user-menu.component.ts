@@ -2,6 +2,7 @@ import { Component, Input, Output, EventEmitter, signal, inject, HostListener } 
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthUser } from '../../models/auth-user.model';
 
 
@@ -91,7 +92,10 @@ export class UserMenuComponent {
   constructor() {
     // Cerrar automáticamente el menú al navegar a cualquier otra ruta
     this.router?.events
-      .pipe(filter(event => event instanceof NavigationEnd))
+      .pipe(
+        filter(event => event instanceof NavigationEnd),
+        takeUntilDestroyed()
+      )
       .subscribe(() => {
         this.closeMenu();
       });
