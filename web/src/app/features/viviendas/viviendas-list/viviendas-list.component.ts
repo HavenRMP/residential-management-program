@@ -92,13 +92,13 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
             <input
               type="text"
               [ngModel]="searchQuery()"
-              (ngModelChange)="searchQuery.set($event)"
+              (ngModelChange)="onSearchChange($event)"
               placeholder="Buscar por número o identificador..."
               class="w-full h-8 pl-8 pr-8 text-xs bg-slate-50/70 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#111C99]/10 focus:border-[#111C99] transition-all"
             />
             <button
               *ngIf="searchQuery()"
-              (click)="searchQuery.set('')"
+              (click)="onSearchChange('')"
               class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
               title="Limpiar búsqueda"
             >
@@ -111,7 +111,7 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
           <!-- Selector de Tipo -->
           <select
             [ngModel]="filtroTipo()"
-            (ngModelChange)="filtroTipo.set($event)"
+            (ngModelChange)="onTipoChange($event)"
             class="h-8 px-2 text-xs bg-slate-50/70 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#111C99]/10 focus:border-[#111C99] transition-all cursor-pointer shrink-0"
           >
             <option value="todos">Todos los tipos</option>
@@ -121,7 +121,7 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
 
         <div class="flex items-center justify-between sm:justify-end gap-3 text-xs text-slate-500 font-medium px-2">
           <span>
-            Mostrando <strong class="text-slate-800">{{ viviendasFiltradas().length }}</strong> de {{ viviendas().length }}
+            Mostrando <strong class="text-slate-800">{{ viviendasPaginadas().length }}</strong> de {{ totalFiltrados() }} (Total: {{ viviendas().length }})
           </span>
         </div>
       </div>
@@ -218,7 +218,7 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
             </thead>
             <tbody class="divide-y divide-slate-100 bg-white">
               <tr
-                *ngFor="let v of viviendasFiltradas()"
+                *ngFor="let v of viviendasPaginadas()"
                 (click)="abrirDetalle(v)"
                 class="group hover:bg-blue-50/40 transition-colors cursor-pointer"
               >
@@ -296,6 +296,71 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- Pagination Control Bar Spartan UI -->
+        <div class="px-4 py-3 border-t border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div class="flex items-center gap-3 text-slate-500">
+            <span>
+              Mostrando <strong class="text-slate-800 font-semibold">{{ indiceInicio() }}</strong> a <strong class="text-slate-800 font-semibold">{{ indiceFin() }}</strong> de <strong class="text-slate-800 font-semibold">{{ totalFiltrados() }}</strong> viviendas
+            </span>
+
+            <div class="flex items-center gap-1.5 pl-3 border-l border-slate-200">
+              <span class="text-slate-400">Por página:</span>
+              <select
+                [ngModel]="elementosPorPagina()"
+                (ngModelChange)="cambiarElementosPorPagina($event)"
+                class="h-7 px-1.5 text-xs bg-white border border-slate-200 rounded font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#111C99] cursor-pointer"
+              >
+                <option *ngFor="let opt of opcionesPaginacion" [value]="opt">{{ opt }}</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Page Buttons -->
+          <div class="flex items-center gap-1 self-end sm:self-auto">
+            <button
+              type="button"
+              (click)="irAPagina(1)"
+              [disabled]="paginaActual() === 1"
+              title="Primera página"
+              class="px-2 py-1 bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            >
+              «
+            </button>
+            <button
+              type="button"
+              (click)="irAPagina(paginaActual() - 1)"
+              [disabled]="paginaActual() === 1"
+              title="Página anterior"
+              class="px-2.5 py-1 bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            >
+              Anterior
+            </button>
+
+            <span class="px-3 py-1 font-semibold text-slate-800">
+              {{ paginaActual() }} / {{ totalPaginas() }}
+            </span>
+
+            <button
+              type="button"
+              (click)="irAPagina(paginaActual() + 1)"
+              [disabled]="paginaActual() >= totalPaginas()"
+              title="Página siguiente"
+              class="px-2.5 py-1 bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            >
+              Siguiente
+            </button>
+            <button
+              type="button"
+              (click)="irAPagina(totalPaginas())"
+              [disabled]="paginaActual() >= totalPaginas()"
+              title="Última página"
+              class="px-2 py-1 bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            >
+              »
+            </button>
+          </div>
         </div>
       </div>
 
@@ -500,6 +565,54 @@ export class ViviendasListComponent implements OnInit {
       return matchQuery && matchTipo;
     });
   });
+
+  // Paginación reactiva
+  readonly paginaActual = signal<number>(1);
+  readonly elementosPorPagina = signal<number>(10);
+  readonly opcionesPaginacion = [5, 10, 25, 50];
+
+  readonly totalFiltrados = computed(() => this.viviendasFiltradas().length);
+
+  readonly totalPaginas = computed(() => {
+    return Math.max(1, Math.ceil(this.totalFiltrados() / this.elementosPorPagina()));
+  });
+
+  readonly viviendasPaginadas = computed(() => {
+    const lista = this.viviendasFiltradas();
+    const inicio = (this.paginaActual() - 1) * this.elementosPorPagina();
+    const fin = inicio + this.elementosPorPagina();
+    return lista.slice(inicio, fin);
+  });
+
+  readonly indiceInicio = computed(() => {
+    if (this.totalFiltrados() === 0) return 0;
+    return (this.paginaActual() - 1) * this.elementosPorPagina() + 1;
+  });
+
+  readonly indiceFin = computed(() => {
+    return Math.min(this.paginaActual() * this.elementosPorPagina(), this.totalFiltrados());
+  });
+
+  onSearchChange(val: string): void {
+    this.searchQuery.set(val);
+    this.paginaActual.set(1);
+  }
+
+  onTipoChange(val: string): void {
+    this.filtroTipo.set(val);
+    this.paginaActual.set(1);
+  }
+
+  irAPagina(pagina: number): void {
+    if (pagina >= 1 && pagina <= this.totalPaginas()) {
+      this.paginaActual.set(pagina);
+    }
+  }
+
+  cambiarElementosPorPagina(cantidad: number): void {
+    this.elementosPorPagina.set(Number(cantidad));
+    this.paginaActual.set(1);
+  }
 
   async ngOnInit(): Promise<void> {
     await Promise.all([

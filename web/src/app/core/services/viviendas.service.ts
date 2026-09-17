@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import { HttpParams } from '@angular/common/http';
 import { ApiService } from './api.service';
 import { Vivienda } from '../models/vivienda.model';
 import { Residente } from '../models/residente.model';
@@ -11,9 +12,15 @@ import { firstValueFrom } from 'rxjs';
 export class ViviendasService {
   private readonly apiService = inject(ApiService);
 
-  async listar(): Promise<Vivienda[]> {
+  async listar(page?: number, pageSize?: number): Promise<Vivienda[]> {
     try {
-      const resp = await firstValueFrom(this.apiService.get<any>('/api/viviendas'));
+      let params: HttpParams | undefined;
+      if (page || pageSize) {
+        params = new HttpParams();
+        if (page) params = params.set('page', page.toString());
+        if (pageSize) params = params.set('pageSize', pageSize.toString());
+      }
+      const resp = await firstValueFrom(this.apiService.get<any>('/api/viviendas', params));
       return extractPagedItems<Vivienda>(resp);
     } catch (err) {
       console.warn('[ViviendasService] Error al listar viviendas:', err);
