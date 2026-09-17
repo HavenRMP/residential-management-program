@@ -45,6 +45,7 @@ describe('ResidenteDashboardComponent', () => {
     };
 
     mockCondominiosService = {
+      obtenerPorId: jasmine.createSpy('obtenerPorId').and.returnValue(Promise.resolve({ id: 'cond-1', nombre: 'Condominio Demo' })),
       redimirCodigo: jasmine.createSpy('redimirCodigo').and.returnValue(Promise.resolve(null))
     };
 

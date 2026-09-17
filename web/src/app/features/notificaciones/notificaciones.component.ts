@@ -335,7 +335,7 @@ export class NotificacionesComponent implements OnInit {
   };
 
   ngOnInit(): void {
-    this.subusuariosService.cargar();
+    // this.subusuariosService.cargar();
   }
 
   abrirModalInvitacion(): void {

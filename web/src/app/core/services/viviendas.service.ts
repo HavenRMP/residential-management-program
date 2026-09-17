@@ -138,5 +138,64 @@ export class ViviendasService {
       this.apiService.post<any>('/api/codigos/vivienda/redimir', payload)
     );
   }
+
+  /**
+   * Obtiene el mapa de viviendas indexado por el ID del residente asignado.
+   * Utiliza caché inteligente invalidada cuando cambian viviendas o residentes.
+   */
+  async obtenerMapaViviendasPorResidente(forceRefresh: boolean = false): Promise<Map<string, Vivienda[]>> {
+    const cacheKey = 'mapa_viviendas_por_residente';
+    if (!forceRefresh) {
+      const cached = this.cacheService.get<Record<string, Vivienda[]>>(cacheKey);
+      if (cached) {
+        return new Map(Object.entries(cached));
+      }
+    }
+
+    const mapa = new Map<string, Vivienda[]>();
+    try {
+      const viviendas = await this.listar(undefined, undefined, forceRefresh);
+      if (viviendas && viviendas.length > 0) {
+        // Ejecutar en lotes concurrentes (chunks de 6) para proteger el pool de red y evitar saturación
+        const chunkSize = 6;
+        const asignaciones: Residente[][] = [];
+        for (let i = 0; i < viviendas.length; i += chunkSize) {
+          const chunk = viviendas.slice(i, i + chunkSize);
+          const chunkResults = await Promise.all(
+            chunk.map(v => this.obtenerResidentesVivienda(v.id, forceRefresh).catch(() => []))
+          );
+          asignaciones.push(...chunkResults);
+        }
+
+        viviendas.forEach((v, index) => {
+          const residentes = asignaciones[index] || [];
+          residentes.forEach(r => {
+            if (r && r.id) {
+              const current = mapa.get(r.id) || [];
+              current.push(v);
+              mapa.set(r.id, current);
+            }
+          });
+        });
+      }
+
+      const serializable: Record<string, Vivienda[]> = {};
+      mapa.forEach((val, key) => { serializable[key] = val; });
+      this.cacheService.set(cacheKey, serializable, 'viviendas');
+      return mapa;
+    } catch (err) {
+      console.warn('[ViviendasService] Error al obtener mapa de viviendas por residente:', err);
+      return mapa;
+    }
+  }
+
+  /**
+   * Obtiene las viviendas asignadas a un residente específico por su ID.
+   */
+  async obtenerViviendasDeResidente(residenteId: string, forceRefresh: boolean = false): Promise<Vivienda[]> {
+    const mapa = await this.obtenerMapaViviendasPorResidente(forceRefresh);
+    return mapa.get(residenteId) || [];
+  }
 }
+
 

@@ -10,7 +10,7 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
   standalone: true,
   imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, UserMenuComponent],
   template: `
-    <div class="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans antialiased flex flex-col lg:flex-row">
+    <div class="min-h-screen bg-slate-100 text-slate-900 font-sans antialiased flex flex-col lg:flex-row">
       
       <!-- Mobile Top Bar -->
       <header class="lg:hidden bg-white border-b border-slate-200 sticky top-0 z-40 px-4 h-16 flex items-center justify-between shadow-2xs">
@@ -48,7 +48,7 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
 
       <!-- Persistent Sidebar (Desktop & Mobile Drawer) -->
       <aside
-        class="fixed inset-y-0 left-0 z-50 bg-white border-r border-slate-200 flex flex-col justify-between transition-all duration-300 ease-in-out lg:translate-x-0 lg:static lg:h-screen lg:shrink-0 overflow-hidden"
+        class="fixed inset-y-0 left-0 z-50 bg-white border-r border-slate-200 flex flex-col justify-between transition-all duration-300 ease-in-out lg:translate-x-0 lg:relative lg:h-screen lg:shrink-0 lg:z-10 overflow-hidden"
         [class.w-64]="!sidebarCollapsed()"
         [class.w-16]="sidebarCollapsed()"
         [class.translate-x-0]="mobileMenuOpen()"
@@ -102,7 +102,7 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
               routerLink="/dashboard/admin"
               [routerLinkActiveOptions]="{ exact: true }"
               routerLinkActive="bg-[#111C99] text-white font-semibold shadow-xs"
-              class="flex items-center h-10 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer group whitespace-nowrap"
+              class="flex items-center h-10 rounded-lg text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer group whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111C99]"
               [class.px-3]="!sidebarCollapsed()"
               [class.px-0]="sidebarCollapsed()"
               [class.justify-center]="sidebarCollapsed()"
@@ -125,7 +125,7 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
               routerLink="/dashboard/admin/residentes"
               [routerLinkActiveOptions]="{ exact: false }"
               routerLinkActive="bg-[#111C99] text-white font-semibold shadow-xs"
-              class="flex items-center h-10 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer group whitespace-nowrap"
+              class="flex items-center h-10 rounded-lg text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer group whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111C99]"
               [class.px-3]="!sidebarCollapsed()"
               [class.px-0]="sidebarCollapsed()"
               [class.justify-center]="sidebarCollapsed()"
@@ -148,7 +148,7 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
               routerLink="/dashboard/admin/viviendas"
               [routerLinkActiveOptions]="{ exact: false }"
               routerLinkActive="bg-[#111C99] text-white font-semibold shadow-xs"
-              class="flex items-center h-10 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer group whitespace-nowrap"
+              class="flex items-center h-10 rounded-lg text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer group whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111C99]"
               [class.px-3]="!sidebarCollapsed()"
               [class.px-0]="sidebarCollapsed()"
               [class.justify-center]="sidebarCollapsed()"
@@ -171,7 +171,7 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
               routerLink="/dashboard/admin/avisos"
               [routerLinkActiveOptions]="{ exact: false }"
               routerLinkActive="bg-[#111C99] text-white font-semibold shadow-xs"
-              class="flex items-center h-10 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer group whitespace-nowrap"
+              class="flex items-center h-10 rounded-lg text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer group whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111C99]"
               [class.px-3]="!sidebarCollapsed()"
               [class.px-0]="sidebarCollapsed()"
               [class.justify-center]="sidebarCollapsed()"
@@ -270,7 +270,7 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
       </aside>
 
       <!-- Main Scrollable Content Area -->
-      <main class="flex-1 min-w-0 lg:h-screen lg:overflow-y-auto">
+      <main class="flex-1 min-w-0 lg:h-screen lg:overflow-y-auto relative z-20">
         <router-outlet />
       </main>
 
