@@ -97,25 +97,26 @@ describe('AvisosListComponent', () => {
   describe('Historial de comunicados (#135)', () => {
     it('debe alternar entre la pestaña de vigentes e historial', () => {
       expect(component.tabActiva()).toBe('vigentes');
-      component.setTab('historial');
+      component.tabActiva.set('historial');
       expect(component.tabActiva()).toBe('historial');
-      component.setTab('vigentes');
+      component.tabActiva.set('vigentes');
       expect(component.tabActiva()).toBe('vigentes');
     });
 
     it('debe filtrar correctamente los avisos según la pestaña activa', () => {
-      component.setTab('vigentes');
+      component.tabActiva.set('vigentes');
       expect(component.avisosFiltrados().length).toBe(1);
 
-      component.setTab('historial');
+      component.tabActiva.set('historial');
       expect(component.avisosFiltrados().length).toBe(0);
     });
 
     it('debe filtrar avisos por prioridad seleccionada', () => {
-      component.prioridadSeleccionada.set('urgente');
+      component.tabActiva.set('vigentes');
+      component.filtroPrioridad = 'urgente';
       expect(component.avisosFiltrados().length).toBe(0);
 
-      component.prioridadSeleccionada.set('informativo');
+      component.filtroPrioridad = 'informativo';
       expect(component.avisosFiltrados().length).toBe(1);
     });
   });
