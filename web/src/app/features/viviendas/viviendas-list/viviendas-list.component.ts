@@ -348,25 +348,20 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
               <span>{{ formError() }}</span>
             </div>
 
-            <!-- Campo: Condominio (GET de condominios) -->
+            <!-- Campo: Condominio (Asignación Automática al Condominio del Administrador) -->
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Condominio <span class="text-red-500">*</span>
+                Condominio
               </label>
-              <select
-                name="condominioId"
-                [(ngModel)]="formCondominioId"
-                class="w-full text-sm bg-slate-50/70 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#111C99]/10 focus:border-[#111C99] transition-all cursor-pointer"
-              >
-                <option *ngFor="let c of listaCondominios()" [value]="c.id">
-                  {{ c.nombre }} {{ c.id === condominioActual()?.id ? '(Tu condominio)' : '' }}
-                </option>
-                <option *ngIf="listaCondominios().length === 0" [value]="condominioActual()?.id || 'a0000000-0000-0000-0000-000000000001'">
-                  {{ condominioActual()?.nombre || 'Condominio Residencial Principal' }}
-                </option>
-              </select>
+              <div class="flex items-center gap-2.5 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                <span class="font-medium truncate">{{ condominioActual()?.nombre || 'Tu condominio administrado' }}</span>
+                <span class="ml-auto text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
+                  Asignación automática
+                </span>
+              </div>
               <p class="text-[11px] text-slate-400 mt-1">
-                Condominio al que pertenece la vivienda (obtenido del sistema).
+                La vivienda se vinculará directamente a tu condominio administrado.
               </p>
             </div>
 
@@ -411,6 +406,8 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
                 type="text"
                 name="tipo"
                 [(ngModel)]="formTipo"
+                (keypress)="permitirSoloLetras($event)"
+                (input)="filtrarSoloTextoTipo($event)"
                 placeholder="Ej. Casa, Departamento, Townhouse..."
                 class="w-full text-sm bg-slate-50/70 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#111C99]/10 focus:border-[#111C99] transition-all"
                 maxlength="50"
@@ -598,12 +595,11 @@ export class ViviendasListComponent implements OnInit {
       } else {
         await this.viviendasService.crear({
           numeroCasa,
-          tipo: this.formTipo.trim() || null,
-          condominioId: this.formCondominioId || undefined
+          tipo: this.formTipo.trim() || null
         });
         await Swal.fire({
           title: '¡Vivienda Creada!',
-          text: 'La vivienda se ha registrado correctamente en el condominio.',
+          text: 'La vivienda se ha registrado correctamente en tu condominio.',
           icon: 'success',
           confirmButtonText: 'Aceptar',
           confirmButtonColor: '#111C99'
@@ -655,6 +651,30 @@ export class ViviendasListComponent implements OnInit {
           confirmButtonColor: '#111C99'
         });
       }
+    }
+  }
+
+  permitirSoloLetras(event: KeyboardEvent): void {
+    if (['Backspace', 'Tab', 'ArrowLeft', 'ArrowRight', 'Delete', 'Enter'].includes(event.key)) {
+      return;
+    }
+    if (event.ctrlKey || event.metaKey) {
+      return;
+    }
+    const regex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]$/;
+    if (!regex.test(event.key)) {
+      event.preventDefault();
+    }
+  }
+
+  filtrarSoloTextoTipo(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (input) {
+      const limpio = input.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
+      if (input.value !== limpio) {
+        input.value = limpio;
+      }
+      this.formTipo = limpio;
     }
   }
 }

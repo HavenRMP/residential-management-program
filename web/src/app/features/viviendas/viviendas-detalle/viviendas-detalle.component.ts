@@ -101,18 +101,34 @@ import Swal from 'sweetalert2';
               </span>
             </div>
 
-            <!-- Boton para abrir formulario si no esta asignado y no esta en modo form -->
-            <button
-              *ngIf="!residenteAsignado && !mostrarFormularioVinculacion"
-              type="button"
-              (click)="abrirFormularioVinculacion()"
-              class="text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors flex items-center gap-1 cursor-pointer"
-            >
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-              </svg>
-              Vincular
-            </button>
+            <div class="flex items-center gap-2">
+              <!-- Boton Generar Codigo de Invitacion para la Vivienda -->
+              <button
+                type="button"
+                (click)="generarCodigoVivienda()"
+                [disabled]="isGeneratingCode"
+                class="text-xs font-semibold text-slate-700 hover:text-[#111C99] bg-slate-100 hover:bg-slate-200/80 px-2.5 py-1.5 rounded-lg border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="Generar código de invitación para esta vivienda específica"
+              >
+                <svg class="w-3.5 h-3.5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                </svg>
+                <span>{{ isGeneratingCode ? 'Generando...' : 'Generar Código' }}</span>
+              </button>
+
+              <!-- Boton para abrir formulario si no esta asignado y no esta en modo form -->
+              <button
+                *ngIf="!residenteAsignado && !mostrarFormularioVinculacion"
+                type="button"
+                (click)="abrirFormularioVinculacion()"
+                class="text-xs font-bold text-[#111C99] hover:text-[#0d1577] bg-indigo-50 hover:bg-indigo-100/80 px-2.5 py-1.5 rounded-lg border border-indigo-200 transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Vincular
+              </button>
+            </div>
           </div>
 
           <!-- Spinner cargando estado -->
@@ -345,6 +361,64 @@ export class ViviendasDetalleComponent implements OnChanges {
   busquedaResidente = '';
   residenteSeleccionadoId: string | null = null;
   procesandoVinculacion = false;
+  isGeneratingCode = false;
+
+  async generarCodigoVivienda(): Promise<void> {
+    if (!this.vivienda) return;
+    this.isGeneratingCode = true;
+    try {
+      const res = await this.viviendasService.generarCodigo(this.vivienda.id, 1440);
+      if (res && res.codigo) {
+        await Swal.fire({
+          title: `Código para Casa #${this.vivienda.numeroCasa}`,
+          html: `
+            <div class="text-center space-y-3 p-2">
+              <p class="text-xs text-slate-500">Comparte este código con el residente para vincularse a esta vivienda:</p>
+              <div class="p-3 bg-slate-100 rounded-xl border border-slate-200 inline-block tracking-widest font-mono text-3xl font-black text-[#111C99]">
+                ${res.codigo}
+              </div>
+              <p class="text-[11px] text-slate-400">⏱️ Válido durante 24 horas.</p>
+            </div>
+          `,
+          icon: 'success',
+          showCancelButton: true,
+          confirmButtonText: 'Copiar Código',
+          cancelButtonText: 'Cerrar',
+          confirmButtonColor: '#111C99',
+          cancelButtonColor: '#64748B'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            navigator.clipboard.writeText(res.codigo);
+            Swal.fire({
+              toast: true,
+              position: 'top-end',
+              icon: 'success',
+              title: 'Código copiado al portapapeles',
+              showConfirmButton: false,
+              timer: 2500
+            });
+          }
+        });
+      } else {
+        await Swal.fire({
+          icon: 'error',
+          title: 'Error al generar código',
+          text: 'No se pudo generar el código para la vivienda.',
+          confirmButtonColor: '#111C99'
+        });
+      }
+    } catch (err: any) {
+      console.error('Error generando código de vivienda:', err);
+      await Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: err?.error?.error || 'Ocurrió un problema al solicitar el código.',
+        confirmButtonColor: '#111C99'
+      });
+    } finally {
+      this.isGeneratingCode = false;
+    }
+  }
 
   @HostListener('document:keydown.escape')
   onEsc(): void {
