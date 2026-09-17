@@ -775,22 +775,31 @@ class AppController extends ChangeNotifier {
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
+        List<dynamic> list = [];
         if (decoded is List) {
-          return List<Map<String, dynamic>>.from(
-            decoded.map((item) {
-              if (item is Map) {
-                return {
-                  'id': item['viviendaId'] ?? item['id'],
-                  'numeroCasa': item['numeroCasa']?.toString() ?? '',
-                  'tipo': item['tipo']?.toString(),
-                  'activo': item['activo'] ?? true,
-                  'creadoEn': item['creadoEn'],
-                };
-              }
-              return <String, dynamic>{};
-            }),
-          );
+          list = decoded;
+        } else if (decoded is Map) {
+          if (decoded['items'] is List) {
+            list = decoded['items'];
+          } else if (decoded['data'] is List) {
+            list = decoded['data'];
+          }
         }
+        
+        return List<Map<String, dynamic>>.from(
+          list.map((item) {
+            if (item is Map) {
+              return {
+                'id': item['viviendaId'] ?? item['vivienda_id'] ?? item['id'],
+                'numeroCasa': item['numeroCasa']?.toString() ?? item['numero_casa']?.toString() ?? '',
+                'tipo': item['tipo']?.toString(),
+                'activo': item['activo'] ?? true,
+                'creadoEn': item['creadoEn'] ?? item['creado_en'],
+              };
+            }
+            return <String, dynamic>{};
+          }),
+        );
       }
       return [];
     } catch (e) {

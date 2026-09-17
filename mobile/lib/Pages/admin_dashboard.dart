@@ -25,6 +25,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _totalResidentes = 0;
   int _viviendasOcupadas = 0;
   bool _isLoadingStats = true;
+  bool _isSystemOnline = false;
 
   @override
   void initState() {
@@ -64,11 +65,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         }
       }
 
+      bool isOnline = false;
+      try {
+        final healthRes = await widget.controller.httpClient.get(
+          Uri.parse('${dotenv.env['API_BASE_URL_CONDOMINIOS'] ?? 'https://condominios-api.onrender.com'}/api/health/public')
+        ).timeout(const Duration(seconds: 5));
+        isOnline = healthRes.statusCode == 200;
+      } catch (_) {
+        isOnline = false;
+      }
+
       if (mounted) {
         setState(() {
           _totalViviendas = viviendas.length;
           _viviendasOcupadas = ocupadas;
           _totalResidentes = residentesCount;
+          _isSystemOnline = isOnline;
           _isLoadingStats = false;
         });
       }
@@ -581,25 +593,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               _buildActionCard(
                 title: 'Estado del Sistema',
                 icon: Icons.dns_outlined,
-                onTap: () {
-                  widget.controller.notifyToast('API v1.0.0 (En línea) - Base de datos operativa', success: true);
+                onTap: () async {
+                  if (_isSystemOnline) {
+                    widget.controller.notifyToast('API v1.0.0 (En línea) - Base de datos operativa', success: true);
+                  } else {
+                    widget.controller.notifyToast('Sistema fuera de línea o con problemas', success: false);
+                  }
                 },
                 insight: Row(
                   children: [
                     Container(
                       width: 8,
                       height: 8,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF10B981), // Emerald 500
+                      decoration: BoxDecoration(
+                        color: _isSystemOnline ? const Color(0xFF10B981) : const Color(0xFFEF4444), // Emerald 500 or Red 500
                         shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(width: 8),
-                    const Text(
-                      'En línea y operativo',
+                    Text(
+                      _isSystemOnline ? 'En línea y operativo' : 'Fuera de línea',
                       style: TextStyle(
                         fontSize: 13,
-                        color: Color(0xFF047857), // Emerald 700
+                        color: _isSystemOnline ? const Color(0xFF047857) : const Color(0xFFB91C1C), // Emerald 700 or Red 700
                         fontWeight: FontWeight.w600,
                       ),
                     ),

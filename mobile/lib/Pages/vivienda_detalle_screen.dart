@@ -39,6 +39,29 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
     } else if (_vivienda['habitante'] is Map) {
       _habitanteAsignado = Map<String, dynamic>.from(_vivienda['habitante']);
     }
+    _loadResidenteIfNeeded();
+  }
+
+  Future<void> _loadResidenteIfNeeded() async {
+    if (_habitanteAsignado != null) return;
+    
+    setState(() => _isActionHabitanteLoading = true);
+    try {
+      final srv = ViviendasService(widget.controller);
+      final resList = await srv.obtenerResidentesVivienda(_vivienda['id']);
+      if (resList.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _habitanteAsignado = Map<String, dynamic>.from(resList.first);
+            _vivienda['residente'] = _habitanteAsignado;
+          });
+        }
+      }
+    } catch (_) {
+      // Ignorar error y dejarlo como vacante temporalmente
+    } finally {
+      if (mounted) setState(() => _isActionHabitanteLoading = false);
+    }
   }
 
   Future<void> _vincularResidente(Map<String, dynamic> residente) async {
