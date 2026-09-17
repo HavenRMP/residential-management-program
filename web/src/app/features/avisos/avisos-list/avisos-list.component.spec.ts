@@ -135,5 +135,9 @@ describe('AvisosListComponent', () => {
       await component.guardarAviso();
       expect(mockAvisosService.crear).toHaveBeenCalled();
     });
+
+    it('debe solicitar confirmación al invocar eliminar aviso', () => {
+      expect(component.confirmarEliminar).toBeDefined();
+    });
   });
 });
