@@ -24,11 +24,11 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
             <h1 class="text-2xl font-bold tracking-tight text-slate-900">
               Panel general
             </h1>
-            <span *ngIf="condominioActual()" class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+            <span *ngIf="condominioActual()" class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-200 text-slate-800 border border-slate-300">
               {{ condominioActual()?.nombre }}
             </span>
           </div>
-          <p class="text-xs text-slate-500 mt-1">
+          <p class="text-xs text-slate-600 mt-1 font-medium">
             Resumen operativo y estado general de las viviendas y residentes.
           </p>
         </div>
@@ -39,7 +39,8 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
             (click)="cargarMetricas(true)"
             [disabled]="loading()"
             title="Actualizar datos"
-            class="h-9 w-9 inline-flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer disabled:opacity-50"
+            class="h-9 w-9 inline-flex items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99] transition-colors cursor-pointer disabled:opacity-50"
+            aria-label="Actualizar datos del panel"
           >
             <svg [class.animate-spin]="loading()" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -50,7 +51,7 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
             type="button"
             (click)="generarCodigoCondominio()"
             [disabled]="isGeneratingCode()"
-            class="h-9 px-3.5 inline-flex items-center gap-2 rounded-md bg-[#111C99] hover:bg-[#0d1577] text-white text-xs font-medium transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+            class="h-9 px-3.5 inline-flex items-center gap-2 rounded-md bg-[#111C99] hover:bg-[#0d1577] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#111C99] text-white text-xs font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
           >
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
@@ -92,65 +93,65 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         
         <!-- Total Viviendas -->
-        <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-2xs">
+        <div class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-medium text-slate-500">Total viviendas</span>
-            <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <span class="text-xs font-semibold text-slate-600">Total viviendas</span>
+            <svg class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
             </svg>
           </div>
           <p class="text-2xl font-bold tracking-tight text-slate-900 mt-2">
             {{ (loading() || errorMessage()) ? '—' : totalViviendas() }}
           </p>
-          <p class="text-[11px] text-slate-500 mt-1">
+          <p class="text-[11px] font-medium text-slate-600 mt-1">
             Inmuebles en catálogo
           </p>
         </div>
 
         <!-- Residentes -->
-        <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-2xs">
+        <div class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-medium text-slate-500">Residentes</span>
-            <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <span class="text-xs font-semibold text-slate-600">Residentes</span>
+            <svg class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           </div>
           <p class="text-2xl font-bold tracking-tight text-slate-900 mt-2">
             {{ (loading() || errorMessage()) ? '—' : totalResidentes() }}
           </p>
-          <p class="text-[11px] text-slate-500 mt-1">
+          <p class="text-[11px] font-medium text-slate-600 mt-1">
             Padrón registrado
           </p>
         </div>
 
         <!-- Ocupación % -->
-        <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-2xs">
+        <div class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-medium text-slate-500">Ocupación</span>
-            <span class="text-xs font-mono font-semibold" [ngClass]="colorTextoOcupacion()">
+            <span class="text-xs font-semibold text-slate-600">Ocupación</span>
+            <span class="text-xs font-mono font-bold" [ngClass]="colorTextoOcupacion()">
               {{ (loading() || errorMessage()) ? '—' : porcentajeOcupacion() + '%' }}
             </span>
           </div>
           <p class="text-2xl font-bold tracking-tight text-slate-900 mt-2">
             {{ (loading() || errorMessage()) ? '—' : porcentajeOcupacion() + '%' }}
           </p>
-          <div class="w-full h-1.5 bg-slate-100 rounded-full mt-2 overflow-hidden">
+          <div class="w-full h-1.5 bg-slate-200 rounded-full mt-2 overflow-hidden">
             <div class="h-full rounded-full transition-all duration-500" [ngClass]="colorBarraOcupacion()" [style.width.%]="errorMessage() ? 0 : porcentajeOcupacion()"></div>
           </div>
         </div>
 
         <!-- Viviendas Libres -->
-        <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-2xs">
+        <div class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-medium text-slate-500">Disponibilidad</span>
-            <span class="text-xs font-medium text-slate-600">
+            <span class="text-xs font-semibold text-slate-600">Disponibilidad</span>
+            <span class="text-xs font-semibold text-slate-700">
               {{ errorMessage() ? 'Sin conexión' : (loading() ? '—' : viviendasAsignadas() + ' ocupadas') }}
             </span>
           </div>
           <p class="text-2xl font-bold tracking-tight text-slate-900 mt-2">
             {{ (loading() || errorMessage()) ? '—' : viviendasDisponibles() }}
           </p>
-          <p class="text-[11px] text-slate-500 mt-1">
+          <p class="text-[11px] font-medium text-slate-600 mt-1">
             Viviendas disponibles
           </p>
         </div>
@@ -161,43 +162,43 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
         
         <!-- Columna Principal (2/3): Resumen de Viviendas -->
-        <div class="lg:col-span-2 rounded-lg border border-slate-200 bg-white shadow-2xs">
-          <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+        <div class="lg:col-span-2 rounded-xl border border-slate-200/90 bg-white shadow-xs">
+          <div class="p-4 border-b border-slate-200 flex items-center justify-between">
             <div>
               <h2 class="text-sm font-semibold text-slate-900">Estado de viviendas</h2>
-              <p class="text-[11px] text-slate-500">Distribución de unidades habitacionales</p>
+              <p class="text-[11px] font-medium text-slate-600">Distribución de unidades habitacionales</p>
             </div>
-            <a routerLink="/dashboard/admin/viviendas" class="text-xs font-medium text-[#111C99] hover:underline">
+            <a routerLink="/dashboard/admin/viviendas" class="text-xs font-semibold text-[#111C99] hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99] rounded">
               Ver directorio completo
             </a>
           </div>
 
           <!-- Estado de carga -->
-          <div *ngIf="loading()" class="p-8 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
+          <div *ngIf="loading()" class="p-8 text-center text-xs text-slate-600 flex flex-col items-center justify-center gap-2">
             <svg class="animate-spin w-5 h-5 text-[#111C99]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            <span>Sincronizando estado de viviendas...</span>
+            <span class="font-medium">Sincronizando estado de viviendas...</span>
           </div>
 
           <!-- Estado de error -->
           <div *ngIf="!loading() && errorMessage()" class="p-8 text-center text-xs text-rose-600 space-y-1">
-            <p class="font-medium">No se pudo cargar el listado de viviendas.</p>
-            <p class="text-[11px] text-slate-500">Comprueba la conexión con el servidor e intenta nuevamente.</p>
+            <p class="font-semibold">No se pudo cargar el listado de viviendas.</p>
+            <p class="text-[11px] text-slate-600">Comprueba la conexión con el servidor e intenta nuevamente.</p>
           </div>
 
           <!-- Lista de viviendas -->
           <div *ngIf="!loading() && !errorMessage() && viviendasResumen().length > 0" class="divide-y divide-slate-100">
-            <div *ngFor="let v of viviendasResumen()" class="p-3.5 hover:bg-slate-50/70 transition-colors flex items-center justify-between">
+            <div *ngFor="let v of viviendasResumen()" class="p-3.5 hover:bg-slate-50/90 transition-colors flex items-center justify-between">
               <div class="flex items-center gap-3">
-                <div class="h-8 min-w-8 px-2 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-mono font-bold text-slate-800">
+                <div class="h-8 min-w-8 px-2 rounded-md bg-slate-100 border border-slate-300 flex items-center justify-center text-xs font-mono font-bold text-slate-900">
                   {{ formatearBadge(v.numeroCasa) }}
                 </div>
                 <div>
                   <h3 class="text-xs font-semibold text-slate-900">
                     {{ formatearNombre(v.numeroCasa) }}
                   </h3>
-                  <p class="text-[11px] text-slate-500">
+                  <p class="text-[11px] font-medium text-slate-600">
                     {{ v.tipo || 'Residencial' }}
                   </p>
                 </div>
@@ -205,20 +206,21 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
 
               <div class="flex items-center gap-3">
                 <span
-                  class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border"
+                  class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border"
                   [class.bg-emerald-50]="v.asignada"
-                  [class.text-emerald-700]="v.asignada"
-                  [class.border-emerald-200]="v.asignada"
-                  [class.bg-slate-50]="!v.asignada"
-                  [class.text-slate-600]="!v.asignada"
-                  [class.border-slate-200]="!v.asignada"
+                  [class.text-emerald-800]="v.asignada"
+                  [class.border-emerald-300]="v.asignada"
+                  [class.bg-slate-100]="!v.asignada"
+                  [class.text-slate-700]="!v.asignada"
+                  [class.border-slate-300]="!v.asignada"
                 >
                   {{ v.asignada ? 'Asignada' : 'Disponible' }}
                 </span>
 
                 <a
                   [routerLink]="['/dashboard/admin/viviendas']"
-                  class="text-xs font-medium text-slate-400 hover:text-slate-800 transition-colors"
+                  class="text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors p-1 rounded focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
+                  aria-label="Ver detalles de la vivienda"
                 >
                   →
                 </a>
@@ -227,57 +229,57 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
           </div>
 
           <!-- Empty State Legítimo (Catálogo vacío real) -->
-          <div *ngIf="!loading() && !errorMessage() && viviendasResumen().length === 0" class="p-8 text-center text-xs text-slate-500 space-y-2">
-            <svg class="w-8 h-8 text-slate-300 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div *ngIf="!loading() && !errorMessage() && viviendasResumen().length === 0" class="p-8 text-center text-xs text-slate-600 space-y-2">
+            <svg class="w-8 h-8 text-slate-400 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
             </svg>
-            <p class="font-medium text-slate-600">No hay viviendas registradas aún.</p>
-            <p class="text-[11px] text-slate-400">Puedes comenzar registrando la primera vivienda en el catálogo.</p>
+            <p class="font-semibold text-slate-700">No hay viviendas registradas aún.</p>
+            <p class="text-[11px] text-slate-500">Puedes comenzar registrando la primera vivienda en el catálogo.</p>
           </div>
         </div>
 
         <!-- Columna Lateral (1/3): Accesos Directos -->
-        <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-2xs space-y-3 h-fit">
+        <div class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3 h-fit">
           <h2 class="text-sm font-semibold text-slate-900">Accesos directos</h2>
           
           <div class="space-y-1.5">
             <a
               routerLink="/dashboard/admin/viviendas"
-              class="flex items-center justify-between p-2.5 rounded-md hover:bg-slate-50 border border-slate-100 text-xs font-medium text-slate-800 transition-colors cursor-pointer group"
+              class="flex items-center justify-between p-2.5 rounded-lg hover:bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800 transition-colors cursor-pointer group focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
             >
               <div class="flex items-center gap-2.5">
-                <svg class="w-4 h-4 text-slate-400 group-hover:text-slate-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg class="w-4 h-4 text-slate-500 group-hover:text-slate-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                 </svg>
                 <span>Directorio de viviendas</span>
               </div>
-              <span class="text-[11px] text-slate-400 font-mono">{{ (loading() || errorMessage()) ? '—' : totalViviendas() }}</span>
+              <span class="text-[11px] text-slate-600 font-mono font-bold">{{ (loading() || errorMessage()) ? '—' : totalViviendas() }}</span>
             </a>
 
             <a
               routerLink="/dashboard/admin/residentes"
-              class="flex items-center justify-between p-2.5 rounded-md hover:bg-slate-50 border border-slate-100 text-xs font-medium text-slate-800 transition-colors cursor-pointer group"
+              class="flex items-center justify-between p-2.5 rounded-lg hover:bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800 transition-colors cursor-pointer group focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
             >
               <div class="flex items-center gap-2.5">
-                <svg class="w-4 h-4 text-slate-400 group-hover:text-slate-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg class="w-4 h-4 text-slate-500 group-hover:text-slate-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
                 <span>Directorio de residentes</span>
               </div>
-              <span class="text-[11px] text-slate-400 font-mono">{{ (loading() || errorMessage()) ? '—' : totalResidentes() }}</span>
+              <span class="text-[11px] text-slate-600 font-mono font-bold">{{ (loading() || errorMessage()) ? '—' : totalResidentes() }}</span>
             </a>
 
             <a
               routerLink="/dashboard/admin/avisos"
-              class="flex items-center justify-between p-2.5 rounded-md hover:bg-slate-50 border border-slate-100 text-xs font-medium text-slate-800 transition-colors cursor-pointer group"
+              class="flex items-center justify-between p-2.5 rounded-lg hover:bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800 transition-colors cursor-pointer group focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
             >
               <div class="flex items-center gap-2.5">
-                <svg class="w-4 h-4 text-slate-400 group-hover:text-slate-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg class="w-4 h-4 text-slate-500 group-hover:text-slate-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
                 </svg>
                 <span>Tablón de avisos</span>
               </div>
-              <span class="text-xs text-slate-400">→</span>
+              <span class="text-xs text-slate-500 font-bold">→</span>
             </a>
           </div>
 
@@ -285,7 +287,7 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
             <button
               type="button"
               (click)="generarCodigoCondominio()"
-              class="w-full h-8 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-md transition-colors cursor-pointer"
+              class="w-full h-8 text-xs font-semibold text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
             >
               Nuevo código de acceso
             </button>

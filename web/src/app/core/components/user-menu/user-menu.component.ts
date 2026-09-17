@@ -23,7 +23,7 @@ import { AuthUser } from '../../models/auth-user.model';
           <span class="text-sm font-semibold text-slate-800 group-hover:text-slate-900">
             {{ user?.nombre || 'Usuario' }} {{ user?.apellidos || '' }}
           </span>
-          <span class="text-xs text-slate-500">{{ user?.email }}</span>
+          <span class="text-xs text-slate-600 font-medium">{{ user?.email }}</span>
         </div>
         <div
           class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 border border-white shadow-xs transition-transform group-hover:scale-105"
@@ -50,14 +50,14 @@ import { AuthUser } from '../../models/auth-user.model';
       >
         <div class="px-4 py-3 border-b border-slate-100 sm:hidden">
           <p class="text-sm font-semibold text-slate-800">{{ user?.nombre || 'Usuario' }} {{ user?.apellidos || '' }}</p>
-          <p class="text-xs text-slate-500 truncate">{{ user?.email }}</p>
+          <p class="text-xs text-slate-600 font-medium truncate">{{ user?.email }}</p>
         </div>
 
         <a
           routerLink="/perfil"
           role="menuitem"
           (click)="closeMenu()"
-          class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none transition-colors cursor-pointer"
+          class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-50 focus:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99] transition-colors cursor-pointer"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -69,9 +69,9 @@ import { AuthUser } from '../../models/auth-user.model';
           type="button"
           role="menuitem"
           (click)="onLogoutClick()"
-          class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 focus:bg-red-50 focus:outline-none transition-colors border-t border-slate-100 cursor-pointer text-left"
+          class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-semibold text-rose-700 hover:bg-rose-50 focus:bg-rose-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-rose-600 transition-colors border-t border-slate-100 cursor-pointer text-left"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
           </svg>
           Cerrar sesión
