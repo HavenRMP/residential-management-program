@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using HavenApi.Shared.Filters;
+using HavenApi.Shared.Pagination;
 namespace Usuarios.Api.Controllers;
 
 [ApiController]
@@ -118,7 +119,7 @@ public class AuthController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [Authorize]
     [HttpGet("residentes")]
-    public async Task<IActionResult> GetResidentes([FromQuery] bool sinVivienda = false)
+    public async Task<IActionResult> GetResidentes([FromQuery] PaginationParams paginacion, [FromQuery] bool sinVivienda = false)
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                           ?? User.FindFirst("sub")?.Value;
@@ -148,25 +149,22 @@ public class AuthController : ControllerBase
 
         if (usuario.CondominioId == null)
         {
-            return Ok(new List<object>());
+            return Ok(PagedResult<object>.Create(new List<object>(), paginacion, 0));
         }
 
-        var residentes = await _supabaseService.GetResidentesAsync(usuario.CondominioId.Value);
+        List<UsuarioDto>? items;
+        int? totalCount;
 
         if (sinVivienda)
         {
-            var viviendas = await _supabaseService.GetViviendasResidentesAsync();
-            var residentesConViviendaIds = viviendas
-                .SelectMany(v => v.Residentes)
-                .Select(r => r.Id)
-                .ToHashSet();
-
-            residentes = residentes
-                .Where(r => !residentesConViviendaIds.Contains(r.Id))
-                .ToList();
+            (items, totalCount) = await _supabaseService.GetResidentesSinViviendaAsync(usuario.CondominioId.Value, paginacion);
+        }
+        else
+        {
+            (items, totalCount) = await _supabaseService.GetResidentesAsync(usuario.CondominioId.Value, paginacion);
         }
 
-        var result = residentes.Select(r => new
+        var resultItems = (items ?? new List<UsuarioDto>()).Select(r => new
         {
             id = r.Id,
             nombre = r.Nombre,
@@ -174,9 +172,9 @@ public class AuthController : ControllerBase
             telefono = r.Telefono,
             email = r.Email,
             creadoEn = r.CreadoEn
-        });
+        }).Cast<object>().ToList();
 
-        return Ok(result);
+        return Ok(PagedResult<object>.Create(resultItems, paginacion, totalCount));
     }
 
     [ProducesResponseType(StatusCodes.Status200OK)]
