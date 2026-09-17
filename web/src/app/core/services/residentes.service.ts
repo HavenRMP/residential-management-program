@@ -21,7 +21,7 @@ export class ResidentesService {
     }
 
     try {
-      let params = new HttpParams();
+      let params = new HttpParams().set('pageSize', '100');
       if (sinVivienda) {
         params = params.set('sinVivienda', 'true');
       }
