@@ -12,7 +12,7 @@ export interface CacheEntry<T> {
 })
 export class CacheService {
   private readonly cache = new Map<string, CacheEntry<any>>();
-  private readonly DEFAULT_TTL_MS = 60_000; // 60 segundos por defecto
+  private readonly DEFAULT_TTL_MS = 10_000; // 10 segundos para frescura de datos en tiempo casi real
 
   /**
    * Obtiene un elemento en caché si existe y no ha expirado.
