@@ -5,4 +5,5 @@ export interface Vivienda {
   condominioId?: string;
   condominioNombre?: string;
   creadoEn?: string;
+  ocupada?: boolean;
 }
