@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, HostListener } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink, ActivatedRoute, Router } from '@angular/router';
@@ -454,20 +454,29 @@ export class ResidentesListComponent implements OnInit {
   readonly getInitials = getInitials;
 
   readonly residentesFiltrados = computed(() => {
-    const query = this.searchQuery().trim().toLowerCase();
+    const normalizar = (texto: string) =>
+      texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    const query = normalizar(this.searchQuery());
     const list = this.residentes();
     if (!query) return list;
 
     const mapa = this.viviendasMap();
     return list.filter(r => {
-      const nombreCompleto = `${r.nombre || ''} ${r.apellidos || ''}`.toLowerCase();
-      const email = (r.email || '').toLowerCase();
-      const telefono = (r.telefono || '').toLowerCase();
+      const nombreCompleto = normalizar(`${r.nombre || ''} ${r.apellidos || ''}`);
+      const email = normalizar(r.email || '');
+      const telefono = normalizar(r.telefono || '');
       const vivs = mapa.get(r.id) || [];
-      const vivMatch = vivs.some(v => (v.numeroCasa || '').toLowerCase().includes(query));
+      const vivMatch = vivs.some(v => normalizar(v.numeroCasa || '').includes(query));
       return nombreCompleto.includes(query) || email.includes(query) || telefono.includes(query) || vivMatch;
     });
   });
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (this.isDetalleOpen()) {
+      this.cerrarDetalle();
+    }
+  }
 
   readonly totalFiltrados = computed(() => this.residentesFiltrados().length);
 
