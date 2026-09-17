@@ -104,5 +104,9 @@ describe('ResidenteDashboardComponent', () => {
       expect(component.avisosService.vigentes().length).toBe(1);
       expect(component.avisosService.vigentes()[0].titulo).toBe('Mantenimiento de bomba');
     });
+
+    it('debe permitir abrir el diálogo con el detalle completo del comunicado', () => {
+      expect(component.verDetalleAviso).toBeDefined();
+    });
   });
 });
