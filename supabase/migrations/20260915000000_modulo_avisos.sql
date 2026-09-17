@@ -342,3 +342,56 @@ BEGIN
     RETURN v_resultado;
 END;
 $$;
+-- C) BAJA AVISO
+DROP FUNCTION IF EXISTS public.baja_aviso(UUID, UUID);
+CREATE OR REPLACE FUNCTION public.baja_aviso(
+    p_id UUID,
+    p_actor_id UUID
+)
+RETURNS BOOLEAN
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_aviso RECORD;
+    v_admin RECORD;
+    v_filas_afectadas INTEGER;
+BEGIN
+    -- 1. Validar existencia del aviso
+    SELECT id, condominio_id, activo
+    INTO v_aviso
+    FROM public.avisos
+    WHERE id = p_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'El aviso con ID % no existe.', p_id USING ERRCODE = 'AV008';
+    END IF;
+
+    -- 2. Validar que el actor sea Administrador del mismo condominio
+    SELECT id, condominio_id, rol_id, activo
+    INTO v_admin
+    FROM public.usuarios
+    WHERE id = p_actor_id;
+
+    IF NOT FOUND OR NOT v_admin.activo THEN
+        RAISE EXCEPTION 'El usuario administrador no existe o está inactivo.' USING ERRCODE = 'AV001';
+    END IF;
+
+    IF v_admin.rol_id != 1 THEN
+        RAISE EXCEPTION 'El actor no cuenta con privilegios de Administrador.' USING ERRCODE = 'AV002';
+    END IF;
+
+    IF v_admin.condominio_id IS NULL OR v_admin.condominio_id != v_aviso.condominio_id THEN
+        RAISE EXCEPTION 'El administrador no pertenece al mismo condominio del aviso.' USING ERRCODE = 'AV009';
+    END IF;
+
+    -- 3. Baja lógica
+    UPDATE public.avisos
+    SET activo = false
+    WHERE id = p_id AND activo = true;
+
+    GET DIAGNOSTICS v_filas_afectadas = ROW_COUNT;
+    RETURN v_filas_afectadas > 0;
+END;
+$$;
