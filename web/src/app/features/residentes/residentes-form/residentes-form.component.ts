@@ -210,6 +210,7 @@ import Swal from 'sweetalert2';
                   <button
                     type="button"
                     (click)="generarPassword()"
+                    aria-label="Generar contraseña segura aleatoria"
                     class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors cursor-pointer"
                     title="Generar contraseña segura aleatoria"
                   >
@@ -224,6 +225,7 @@ import Swal from 'sweetalert2';
                     type="button"
                     *ngIf="residenteForm.get('password')?.value"
                     (click)="copiarPassword()"
+                    aria-label="Copiar contraseña al portapapeles"
                     [class]="copiedPassword() ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'"
                     class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md border transition-colors cursor-pointer"
                     title="Copiar contraseña al portapapeles"
@@ -255,6 +257,7 @@ import Swal from 'sweetalert2';
                 <button
                   type="button"
                   (click)="showPassword.set(!showPassword())"
+                  [attr.aria-label]="showPassword() ? 'Ocultar contraseña' : 'Ver contraseña'"
                   class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
                   [title]="showPassword() ? 'Ocultar contraseña' : 'Ver contraseña'"
                 >
