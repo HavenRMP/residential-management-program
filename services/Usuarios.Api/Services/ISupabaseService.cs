@@ -1,5 +1,7 @@
 using Usuarios.Api.DTOs;
 
+using HavenApi.Shared.Pagination;
+
 namespace Usuarios.Api.Services;
 
 public interface ISupabaseService
@@ -8,7 +10,7 @@ public interface ISupabaseService
     Task<string?> GetDbVersionAsync();
     Task<(UsuarioDto? usuario, string? error)> RegisterAdminAsync(RegisterRequestDto datos, Guid? actorId = null);
     Task<(UsuarioDto? usuario, string? error)> CompletarPerfilAsync(Guid userId, CompletarPerfilRequestDto datos, string accessToken, Guid actorId);
-    Task<List<UsuarioDto>> GetResidentesAsync(Guid condominioId);
-    Task<List<ViviendaResidentesDto>> GetViviendasResidentesAsync();
+    Task<(List<UsuarioDto>? Items, int? TotalCount)> GetResidentesAsync(Guid condominioId, PaginationParams paginacion);
+    Task<(List<UsuarioDto>? Items, int? TotalCount)> GetResidentesSinViviendaAsync(Guid condominioId, PaginationParams paginacion);
     Task<(UsuarioDto? usuario, string? error)> AsignarCondominioAdminAsync(Guid adminId, Guid condominioId);
 }
