@@ -196,36 +196,36 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
       <!-- Modern, Spacious Table (Estilo amigable aprobado) -->
       <div
         *ngIf="!isLoading() && !errorMessage() && viviendasFiltradas().length > 0"
-        class="bg-white border border-slate-200 rounded-lg shadow-xs overflow-hidden"
+        class="bg-white border border-slate-200/90 rounded-xl shadow-xs overflow-hidden"
       >
         <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-slate-100">
+          <table class="min-w-full divide-y divide-slate-200">
             <thead>
-              <tr class="bg-slate-50/80">
-                <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+              <tr class="bg-slate-50 border-b border-slate-200">
+                <th class="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Vivienda
                 </th>
-                <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <th class="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Tipo de Unidad
                 </th>
-                <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <th class="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Fecha de Alta
                 </th>
-                <th class="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <th class="px-6 py-4 text-right text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Acciones
                 </th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100 bg-white">
+            <tbody class="divide-y divide-slate-200 bg-white">
               <tr
                 *ngFor="let v of viviendasPaginadas()"
                 (click)="abrirDetalle(v)"
-                class="group hover:bg-blue-50/40 transition-colors cursor-pointer"
+                class="group hover:bg-slate-50/80 transition-colors cursor-pointer"
               >
                 <!-- Numero Casa / Avatar -->
                 <td class="px-6 py-4.5 whitespace-nowrap">
                   <div class="flex items-center gap-3.5">
-                    <div class="w-10 h-10 rounded-full bg-[#eff6ff] text-[#111C99] flex items-center justify-center shadow-2xs ring-1 ring-blue-100 group-hover:scale-105 transition-transform shrink-0">
+                    <div class="w-10 h-10 rounded-full bg-blue-50 text-[#111C99] flex items-center justify-center shadow-2xs ring-1 ring-blue-200/60 group-hover:scale-105 transition-transform shrink-0">
                       <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-[#111C99]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                       </svg>
@@ -240,15 +240,15 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
 
                 <!-- Tipo -->
                 <td class="px-6 py-4.5 whitespace-nowrap">
-                  <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                  <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200">
                     {{ v.tipo || 'Sin especificar' }}
                   </span>
                 </td>
 
                 <!-- Fecha de Alta -->
                 <td class="px-6 py-4.5 whitespace-nowrap">
-                  <div class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-100/80 px-2.5 py-1 rounded-md">
-                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                    <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                     <span class="font-mono text-xs">{{ v.creadoEn ? (v.creadoEn | date:'dd/MM/yyyy') : '—' }}</span>
@@ -299,18 +299,18 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
         </div>
 
         <!-- Pagination Control Bar Spartan UI -->
-        <div class="px-4 py-3 border-t border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-          <div class="flex items-center gap-3 text-slate-500">
+        <div class="px-4 py-3 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div class="flex items-center gap-3 text-slate-600 font-medium">
             <span>
-              Mostrando <strong class="text-slate-800 font-semibold">{{ indiceInicio() }}</strong> a <strong class="text-slate-800 font-semibold">{{ indiceFin() }}</strong> de <strong class="text-slate-800 font-semibold">{{ totalFiltrados() }}</strong> viviendas
+              Mostrando <strong class="text-slate-900 font-bold">{{ indiceInicio() }}</strong> a <strong class="text-slate-900 font-bold">{{ indiceFin() }}</strong> de <strong class="text-slate-900 font-bold">{{ totalFiltrados() }}</strong> viviendas
             </span>
 
             <div class="flex items-center gap-1.5 pl-3 border-l border-slate-200">
-              <span class="text-slate-400">Por página:</span>
+              <span class="text-slate-600 font-medium">Por página:</span>
               <select
                 [ngModel]="elementosPorPagina()"
                 (ngModelChange)="cambiarElementosPorPagina($event)"
-                class="h-7 px-1.5 text-xs bg-white border border-slate-200 rounded font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#111C99] cursor-pointer"
+                class="h-7 px-2 text-xs bg-white border border-slate-300 rounded font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#111C99]/20 focus:border-[#111C99] cursor-pointer"
               >
                 <option *ngFor="let opt of opcionesPaginacion" [value]="opt">{{ opt }}</option>
               </select>
@@ -324,7 +324,7 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
               (click)="irAPagina(1)"
               [disabled]="paginaActual() === 1"
               title="Primera página"
-              class="px-2 py-1 bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              class="px-2 py-1 bg-white border border-slate-300 rounded text-slate-700 font-semibold hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111C99]"
             >
               «
             </button>
@@ -333,12 +333,12 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
               (click)="irAPagina(paginaActual() - 1)"
               [disabled]="paginaActual() === 1"
               title="Página anterior"
-              class="px-2.5 py-1 bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              class="px-2.5 py-1 bg-white border border-slate-300 rounded text-slate-700 font-semibold hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111C99]"
             >
               Anterior
             </button>
 
-            <span class="px-3 py-1 font-semibold text-slate-800">
+            <span class="px-3 py-1 font-bold text-slate-900">
               {{ paginaActual() }} / {{ totalPaginas() }}
             </span>
 
@@ -347,7 +347,7 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
               (click)="irAPagina(paginaActual() + 1)"
               [disabled]="paginaActual() >= totalPaginas()"
               title="Página siguiente"
-              class="px-2.5 py-1 bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              class="px-2.5 py-1 bg-white border border-slate-300 rounded text-slate-700 font-semibold hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111C99]"
             >
               Siguiente
             </button>
@@ -356,7 +356,7 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
               (click)="irAPagina(totalPaginas())"
               [disabled]="paginaActual() >= totalPaginas()"
               title="Última página"
-              class="px-2 py-1 bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              class="px-2 py-1 bg-white border border-slate-300 rounded text-slate-700 font-semibold hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111C99]"
             >
               »
             </button>

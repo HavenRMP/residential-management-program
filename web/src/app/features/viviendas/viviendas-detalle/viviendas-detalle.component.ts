@@ -17,7 +17,7 @@ import Swal from 'sweetalert2';
     <div
       *ngIf="isOpen"
       (click)="cerrar()"
-      class="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-300"
+      class="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-[1.5px] transition-opacity duration-300"
       aria-hidden="true"
     ></div>
 

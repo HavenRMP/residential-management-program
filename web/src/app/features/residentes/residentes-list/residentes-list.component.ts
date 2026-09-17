@@ -220,27 +220,27 @@ import { getInitials } from '../../../core/utils/iniciales.util';
       <!-- Modern, Spacious Residents Table (Estilo amigable aprobado) -->
       <div
         *ngIf="!isLoading() && !errorMessage() && residentesFiltrados().length > 0"
-        class="bg-white border border-slate-200 rounded-lg shadow-xs overflow-hidden"
+        class="bg-white border border-slate-200/90 rounded-xl shadow-xs overflow-hidden"
       >
         <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-slate-100">
+          <table class="min-w-full divide-y divide-slate-200">
             <thead>
-              <tr class="bg-slate-50/80">
-                <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+              <tr class="bg-slate-50 border-b border-slate-200">
+                <th class="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Residente
                 </th>
-                <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <th class="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Contacto
                 </th>
-                <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <th class="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Teléfono
                 </th>
-                <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <th class="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
                   {{ tabActiva() === 'sin-vivienda' ? 'Estado de Vivienda' : 'Fecha de Alta' }}
                 </th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100 bg-white">
+            <tbody class="divide-y divide-slate-200 bg-white">
               <tr
                 *ngFor="let r of residentesPaginados()"
                 (click)="verDetalle(r)"
@@ -379,7 +379,7 @@ import { getInitials } from '../../../core/utils/iniciales.util';
         *ngIf="isDetalleOpen()"
         (click)="cerrarDetalle()"
         aria-hidden="true"
-        class="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-xs transition-opacity duration-300 animate-fade-in"
+        class="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-[1.5px] transition-opacity duration-300 animate-fade-in"
       ></div>
 
       <aside
