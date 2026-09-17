@@ -82,4 +82,30 @@ export class CondominiosService {
     this.condominioActual.set(fallback);
     return fallback;
   }
+
+  /**
+   * Genera un código de vinculación para un condominio (Admin).
+   */
+  async generarCodigo(condominioId: string, minutosVigencia: number = 1440): Promise<{ codigo: string; expiraEn?: string } | null> {
+    try {
+      const payload = { minutosVigencia };
+      return await firstValueFrom(
+        this.apiService.post<{ codigo: string; expiraEn?: string }>(`/api/condominios/${condominioId}/codigo`, payload)
+      );
+    } catch (err) {
+      console.error(`[CondominiosService] Error al generar código para condominio ${condominioId}:`, err);
+      return null;
+    }
+  }
+
+  /**
+   * Redime un código de invitación de condominio para el usuario actual.
+   */
+  async redimirCodigo(codigo: string): Promise<any | null> {
+    const payload = { codigo: codigo.trim().toUpperCase() };
+    return await firstValueFrom(
+      this.apiService.post<any>('/api/codigos/condominio/redimir', payload)
+    );
+  }
 }
+
