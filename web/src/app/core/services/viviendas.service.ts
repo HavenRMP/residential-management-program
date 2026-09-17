@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpParams } from '@angular/common/http';
 import { ApiService } from './api.service';
+import { CacheService } from './cache.service';
 import { Vivienda } from '../models/vivienda.model';
 import { Residente } from '../models/residente.model';
 import { extractPagedItems } from '../models/pagination.model';
@@ -11,8 +12,15 @@ import { firstValueFrom } from 'rxjs';
 })
 export class ViviendasService {
   private readonly apiService = inject(ApiService);
+  private readonly cacheService = inject(CacheService);
 
-  async listar(page?: number, pageSize?: number): Promise<Vivienda[]> {
+  async listar(page?: number, pageSize?: number, forceRefresh: boolean = false): Promise<Vivienda[]> {
+    const cacheKey = `viviendas_list_${page || 0}_${pageSize || 0}`;
+    if (!forceRefresh) {
+      const cached = this.cacheService.get<Vivienda[]>(cacheKey);
+      if (cached) return cached;
+    }
+
     try {
       let params: HttpParams | undefined;
       if (page || pageSize) {
@@ -21,53 +29,80 @@ export class ViviendasService {
         if (pageSize) params = params.set('pageSize', pageSize.toString());
       }
       const resp = await firstValueFrom(this.apiService.get<any>('/api/viviendas', params));
-      return extractPagedItems<Vivienda>(resp);
+      const items = extractPagedItems<Vivienda>(resp);
+      this.cacheService.set(cacheKey, items, 'viviendas');
+      return items;
     } catch (err) {
       console.warn('[ViviendasService] Error al listar viviendas:', err);
       return [];
     }
   }
 
-  crear(payload: { numeroCasa: string; tipo?: string | null; condominioId?: string }): Promise<Vivienda> {
-    return firstValueFrom(this.apiService.post<Vivienda>('/api/viviendas', payload));
+  async crear(payload: { numeroCasa: string; tipo?: string | null; condominioId?: string }): Promise<Vivienda> {
+    const result = await firstValueFrom(this.apiService.post<Vivienda>('/api/viviendas', payload));
+    this.cacheService.invalidateTag('viviendas');
+    return result;
   }
 
-  actualizar(id: number, payload: { numeroCasa: string; tipo?: string | null; condominioId?: string }): Promise<Vivienda> {
-    return firstValueFrom(this.apiService.put<Vivienda>(`/api/viviendas/${id}`, payload));
+  async actualizar(id: number, payload: { numeroCasa: string; tipo?: string | null; condominioId?: string }): Promise<Vivienda> {
+    const result = await firstValueFrom(this.apiService.put<Vivienda>(`/api/viviendas/${id}`, payload));
+    this.cacheService.invalidateTag('viviendas');
+    return result;
   }
 
-  eliminar(id: number): Promise<void> {
-    return firstValueFrom(this.apiService.delete<void>(`/api/viviendas/${id}`));
+  async eliminar(id: number): Promise<void> {
+    await firstValueFrom(this.apiService.delete<void>(`/api/viviendas/${id}`));
+    this.cacheService.invalidateTag('viviendas');
   }
 
-  async obtenerResidentesVivienda(viviendaId: number): Promise<Residente[]> {
+  async obtenerResidentesVivienda(viviendaId: number, forceRefresh: boolean = false): Promise<Residente[]> {
+    const cacheKey = `vivienda_${viviendaId}_residentes`;
+    if (!forceRefresh) {
+      const cached = this.cacheService.get<Residente[]>(cacheKey);
+      if (cached) return cached;
+    }
+
     try {
       const resp = await firstValueFrom(this.apiService.get<any>(`/api/viviendas/${viviendaId}/residentes`));
-      return extractPagedItems<Residente>(resp);
+      const items = extractPagedItems<Residente>(resp);
+      this.cacheService.set(cacheKey, items, 'viviendas');
+      return items;
     } catch {
       return [];
     }
   }
 
-  vincularResidente(viviendaId: number, usuarioId: string): Promise<any> {
-    return firstValueFrom(this.apiService.post<any>(`/api/viviendas/${viviendaId}/residentes`, { usuarioId }));
+  async vincularResidente(viviendaId: number, usuarioId: string): Promise<any> {
+    const result = await firstValueFrom(this.apiService.post<any>(`/api/viviendas/${viviendaId}/residentes`, { usuarioId }));
+    this.cacheService.invalidateTag('viviendas');
+    this.cacheService.invalidateTag('residentes');
+    return result;
   }
 
-  desvincularResidente(viviendaId: number, usuarioId: string): Promise<void> {
-    return firstValueFrom(this.apiService.delete<void>(`/api/viviendas/${viviendaId}/residentes/${usuarioId}`));
+  async desvincularResidente(viviendaId: number, usuarioId: string): Promise<void> {
+    await firstValueFrom(this.apiService.delete<void>(`/api/viviendas/${viviendaId}/residentes/${usuarioId}`));
+    this.cacheService.invalidateTag('viviendas');
+    this.cacheService.invalidateTag('residentes');
   }
 
-  async obtenerMisViviendas(): Promise<Vivienda[]> {
+  async obtenerMisViviendas(forceRefresh: boolean = false): Promise<Vivienda[]> {
+    const cacheKey = 'viviendas_mis_viviendas';
+    if (!forceRefresh) {
+      const cached = this.cacheService.get<Vivienda[]>(cacheKey);
+      if (cached) return cached;
+    }
     try {
       const resp = await firstValueFrom(this.apiService.get<any>('/api/viviendas/mis-viviendas'));
       const items = extractPagedItems<any>(resp);
-      return items.map(item => ({
+      const mapped = items.map(item => ({
         id: item.viviendaId ?? item.id,
         numeroCasa: item.numeroCasa,
         tipo: item.tipo,
         activo: item.activo,
         creadoEn: item.creadoEn
       }));
+      this.cacheService.set(cacheKey, mapped, 'viviendas');
+      return mapped;
     } catch (err) {
       console.warn('[ViviendasService] Error al obtener mis-viviendas:', err);
       return [];
