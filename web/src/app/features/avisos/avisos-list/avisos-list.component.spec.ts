@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { AvisosListComponent } from './avisos-list.component';
 import { AvisosService } from '../../../core/services/avisos.service';
 import { AuthService } from '../../../core/services/auth.service';
@@ -46,15 +47,21 @@ describe('AvisosListComponent', () => {
     };
 
     mockCondominiosService = {
+      condominioActual: signal({
+        id: 'cond-1',
+        nombre: 'Condominio Central'
+      }),
       condominioSeleccionado: signal({
         id: 'cond-1',
         nombre: 'Condominio Central'
-      })
+      }),
+      cargarCondominioUsuario: jasmine.createSpy('cargarCondominioUsuario').and.returnValue(Promise.resolve(null))
     };
 
     await TestBed.configureTestingModule({
       imports: [AvisosListComponent],
       providers: [
+        provideRouter([]),
         { provide: AvisosService, useValue: mockAvisosService },
         { provide: AuthService, useValue: mockAuthService },
         { provide: CondominiosService, useValue: mockCondominiosService }
