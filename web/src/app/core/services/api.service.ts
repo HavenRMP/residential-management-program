@@ -3,7 +3,7 @@ import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
-export type MicroserviceName = 'usuarios' | 'viviendas' | 'condominios' | 'default';
+export type MicroserviceName = 'usuarios' | 'viviendas' | 'condominios' | 'avisos' | 'default';
 
 @Injectable({
   providedIn: 'root'
@@ -23,8 +23,8 @@ export class ApiService {
     const services = environment.services;
 
     // 1. Servicio explícito
-    if (service && services[service]) {
-      return `${services[service]}${endpoint}`;
+    if (service && (services as any)[service]) {
+      return `${(services as any)[service]}${endpoint}`;
     }
 
     // 2. Enrutamiento automático por convención de ruta
@@ -32,11 +32,14 @@ export class ApiService {
     if (lower.startsWith('/api/auth') || lower.startsWith('/api/usuarios')) {
       return `${services.usuarios}${endpoint}`;
     }
-    if (lower.startsWith('/api/viviendas')) {
+    if (lower.startsWith('/api/viviendas') || lower.startsWith('/api/codigos/vivienda')) {
       return `${services.viviendas}${endpoint}`;
     }
-    if (lower.startsWith('/api/condominios')) {
+    if (lower.startsWith('/api/condominios') || lower.startsWith('/api/codigos/condominio')) {
       return `${services.condominios}${endpoint}`;
+    }
+    if (lower.startsWith('/api/avisos')) {
+      return `${(services as any).avisos}${endpoint}`;
     }
 
     // 3. Fallback al servicio default (monolito)
