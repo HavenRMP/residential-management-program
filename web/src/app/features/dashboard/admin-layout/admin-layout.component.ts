@@ -81,19 +81,6 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
               </div>
             </div>
 
-            <!-- Botón Colapsar Sidebar (Desktop) -->
-            <button
-              *ngIf="showText()"
-              type="button"
-              (click)="toggleSidebar()"
-              class="hidden lg:flex p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer shrink-0"
-              title="Colapsar menú"
-            >
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-              </svg>
-            </button>
-
             <!-- Botón Cerrar Drawer (Móvil) -->
             <button
               *ngIf="showText()"
@@ -108,30 +95,8 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
             </button>
           </div>
 
-          <!-- Navigation Links -->
+          <!-- Navigation Links (Altura e inicio invariantes en colapsado y expandido) -->
           <nav class="p-2 space-y-1 overflow-y-auto flex-1 custom-scrollbar w-full select-none">
-            <!-- Botón Expandir Menú (Solo Desktop Colapsado) -->
-            <div *ngIf="!showText()" class="hidden lg:flex justify-center pb-2 mb-1 border-b border-slate-100">
-              <button
-                type="button"
-                (click)="toggleSidebar()"
-                class="size-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
-                title="Expandir menú"
-                aria-label="Expandir menú"
-              >
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-
-            <p
-              *ngIf="showText()"
-              class="px-3 pt-2 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap fade-in-direct"
-            >
-              Gestión General
-            </p>
-
             <!-- Panel Principal -->
             <a
               routerLink="/dashboard/admin"
@@ -226,62 +191,81 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
           </nav>
         </div>
 
-        <!-- Sidebar User Footer -->
-        <div class="p-2 border-t border-slate-100 bg-slate-50/40 shrink-0 w-full overflow-hidden">
-          <!-- Expanded View -->
-          <div *ngIf="showText()" class="flex items-center justify-between gap-1 fade-in-direct">
-            <a
-              routerLink="/perfil"
-              (click)="mobileMenuOpen.set(false)"
-              routerLinkActive="bg-indigo-50/80 border-indigo-200 text-[#111C99]"
-              class="flex items-center p-1.5 rounded-lg hover:bg-slate-100 transition-colors group cursor-pointer border border-transparent whitespace-nowrap overflow-hidden flex-1 min-w-0"
-              title="Ver mi perfil de administrador"
+        <!-- Sidebar Footer Container (Altura estrictamente fija e idéntica en ambos estados) -->
+        <div class="border-t border-slate-100 bg-slate-50/40 shrink-0 w-full select-none p-2 space-y-1">
+          <!-- 1. Botón Toggle Colapsar/Expandir (Desktop) -->
+          <button
+            type="button"
+            (click)="toggleSidebar()"
+            class="hidden lg:flex items-center h-9 w-full rounded-lg text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer group"
+            [class.justify-center]="sidebarCollapsed()"
+            [class.px-2.5]="!sidebarCollapsed()"
+            [title]="sidebarCollapsed() ? 'Expandir menú' : 'Colapsar menú'"
+            [attr.aria-label]="sidebarCollapsed() ? 'Expandir menú' : 'Colapsar menú'"
+          >
+            <svg
+              class="w-4 h-4 shrink-0 text-slate-400 group-hover:text-slate-700 transition-transform group-hover:scale-110"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
             >
-              <div class="w-7 h-7 rounded-md bg-[#111C99] text-white font-bold text-[10px] flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
-                {{ userInitials }}
-              </div>
-              <div class="ml-2.5 truncate">
-                <p class="text-[11px] font-bold text-slate-900 group-hover:text-[#111C99] transition-colors leading-tight truncate">
-                  {{ currentUser()?.nombre || 'Administrador' }}
-                </p>
-              </div>
-            </a>
+              <path
+                *ngIf="sidebarCollapsed()"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M13 5l7 7-7 7M5 5l7 7-7 7"
+              />
+              <path
+                *ngIf="!sidebarCollapsed()"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
+              />
+            </svg>
+            <span *ngIf="showText()" class="ml-2.5 whitespace-nowrap text-xs font-medium text-slate-600 group-hover:text-slate-900 fade-in-direct">
+              Colapsar menú
+            </span>
+          </button>
 
-            <button
-              type="button"
-              (click)="onLogout()"
-              title="Cerrar sesión"
-              class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer shrink-0"
-            >
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-            </button>
-          </div>
-
-          <!-- Collapsed View (Only icons, centered) -->
-          <div *ngIf="!showText()" class="flex flex-col items-center gap-2 py-1">
-            <a
-              routerLink="/perfil"
-              (click)="mobileMenuOpen.set(false)"
-              routerLinkActive="ring-2 ring-indigo-500 ring-offset-1"
-              class="w-8 h-8 rounded-lg bg-[#111C99] text-white font-bold text-[11px] flex items-center justify-center shadow-xs hover:scale-105 transition-transform cursor-pointer"
-              [title]="'Perfil: ' + (currentUser()?.nombre || 'Administrador')"
-            >
+          <!-- 2. Perfil de Usuario -->
+          <a
+            routerLink="/perfil"
+            (click)="mobileMenuOpen.set(false)"
+            routerLinkActive="bg-indigo-50/80 border-indigo-200 text-[#111C99]"
+            class="flex items-center h-9 w-full rounded-lg hover:bg-slate-100 transition-colors group cursor-pointer border border-transparent whitespace-nowrap overflow-hidden"
+            [class.justify-center]="sidebarCollapsed()"
+            [class.px-2]="!sidebarCollapsed()"
+            [title]="sidebarCollapsed() ? ('Perfil: ' + (currentUser()?.nombre || 'Administrador')) : ''"
+          >
+            <div class="w-7 h-7 rounded-md bg-[#111C99] text-white font-bold text-[10px] flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
               {{ userInitials }}
-            </a>
+            </div>
+            <div *ngIf="showText()" class="ml-2.5 truncate fade-in-direct">
+              <p class="text-[11px] font-bold text-slate-900 group-hover:text-[#111C99] transition-colors leading-tight truncate">
+                {{ currentUser()?.nombre || 'Administrador' }}
+              </p>
+            </div>
+          </a>
 
-            <button
-              type="button"
-              (click)="onLogout()"
-              title="Cerrar sesión"
-              class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-            >
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-            </button>
-          </div>
+          <!-- 3. Botón Cerrar Sesión -->
+          <button
+            type="button"
+            (click)="onLogout()"
+            class="flex items-center h-9 w-full rounded-lg text-xs font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer group"
+            [class.justify-center]="sidebarCollapsed()"
+            [class.px-2.5]="!sidebarCollapsed()"
+            title="Cerrar sesión"
+            aria-label="Cerrar sesión"
+          >
+            <svg class="w-4 h-4 shrink-0 text-slate-400 group-hover:text-rose-600 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            <span *ngIf="showText()" class="ml-2.5 whitespace-nowrap text-xs font-medium text-slate-600 group-hover:text-rose-600 fade-in-direct">
+              Cerrar sesión
+            </span>
+          </button>
         </div>
       </aside>
 
