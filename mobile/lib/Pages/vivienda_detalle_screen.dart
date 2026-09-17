@@ -43,8 +43,9 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
   }
 
   Future<void> _loadResidenteIfNeeded() async {
-    if (_habitanteAsignado != null) return;
+    if (widget.vivienda['residente'] != null) return;
     
+    // Siempre intentamos obtener los residentes si no vienen adjuntos
     setState(() => _isActionHabitanteLoading = true);
     try {
       final srv = ViviendasService(widget.controller);
@@ -236,9 +237,11 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
                     final decoded = jsonDecode(res.body);
                     final list = decoded is List
                         ? decoded
-                        : (decoded is Map && decoded['data'] is List
-                              ? decoded['data']
-                              : []);
+                        : (decoded is Map && decoded['items'] is List
+                            ? decoded['items']
+                            : (decoded is Map && decoded['data'] is List
+                                ? decoded['data']
+                                : []));
                     setModalState(() {
                       allResidents = list;
                       filteredResidents = list;
