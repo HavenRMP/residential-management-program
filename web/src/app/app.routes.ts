@@ -53,11 +53,6 @@ export const routes: Routes = [
             .then(m => m.ResidentesListComponent)
       },
       {
-        path: 'residentes/nuevo',
-        redirectTo: 'residentes',
-        pathMatch: 'full'
-      },
-      {
         path: 'viviendas',
         loadComponent: () =>
           import('./features/viviendas/viviendas-list/viviendas-list.component')
