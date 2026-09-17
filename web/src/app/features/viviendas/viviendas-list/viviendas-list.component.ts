@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, HostListener } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -555,16 +555,27 @@ export class ViviendasListComponent implements OnInit {
   });
 
   readonly viviendasFiltradas = computed(() => {
-    const query = this.searchQuery().trim().toLowerCase();
+    const normalizar = (texto: string) =>
+      texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    const query = normalizar(this.searchQuery());
     const tipo = this.filtroTipo();
     const list = this.viviendas();
 
     return list.filter(v => {
-      const matchQuery = !query || (v.numeroCasa && v.numeroCasa.toLowerCase().includes(query));
+      const matchQuery = !query || (v.numeroCasa && normalizar(v.numeroCasa).includes(query));
       const matchTipo = tipo === 'todos' || (v.tipo && v.tipo.trim().toLowerCase() === tipo.toLowerCase());
       return matchQuery && matchTipo;
     });
   });
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (this.showModal() && !this.isSaving()) {
+      this.cerrarModal();
+    } else if (this.isDetalleOpen()) {
+      this.cerrarDetalle();
+    }
+  }
 
   // Paginación reactiva
   readonly paginaActual = signal<number>(1);
@@ -660,7 +671,7 @@ export class ViviendasListComponent implements OnInit {
     this.editingId.set(null);
     this.formNumeroCasa = '';
     this.formTipo = '';
-    this.formCondominioId = this.condominioActual()?.id || (this.listaCondominios().length > 0 ? this.listaCondominios()[0].id : 'a0000000-0000-0000-0000-000000000001');
+    this.formCondominioId = this.condominioActual()?.id || (this.listaCondominios().length > 0 ? this.listaCondominios()[0].id : '');
     this.formError.set(null);
     this.showModal.set(true);
   }
@@ -745,6 +756,9 @@ export class ViviendasListComponent implements OnInit {
     if (result.isConfirmed) {
       try {
         await this.viviendasService.eliminar(vivienda.id);
+        if (this.viviendaSeleccionada()?.id === vivienda.id) {
+          this.cerrarDetalle();
+        }
         await Swal.fire({
           title: '¡Eliminada!',
           text: 'La vivienda ha sido eliminada del sistema.',
