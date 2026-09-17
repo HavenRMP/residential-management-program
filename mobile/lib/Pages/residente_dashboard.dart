@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../Services/app_controller.dart';
-import '../Widgets/header_bar.dart';
-import 'perfil_screen.dart';
-import 'en_construccion_screen.dart';
+import '../Services/push_notifications_service.dart';
 import '../Services/condominios_service.dart';
 import '../Services/viviendas_service.dart';
+import 'avisos_residente_screen.dart';
+import 'perfil_screen.dart';
 
 class ResidenteDashboardScreen extends StatefulWidget {
   const ResidenteDashboardScreen({super.key, required this.controller});
@@ -18,6 +18,7 @@ class ResidenteDashboardScreen extends StatefulWidget {
 }
 
 class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
+  int _currentIndex = 0;
   List<Map<String, dynamic>> _misViviendas = [];
   bool _isLoadingViviendas = true;
 
@@ -25,6 +26,11 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
   void initState() {
     super.initState();
     _cargarMisViviendas();
+    _solicitarPermisos();
+  }
+
+  Future<void> _solicitarPermisos() async {
+    await PushNotificationsService.requestPermission();
   }
 
   bool _isRedeeming = false;
@@ -36,23 +42,28 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
 
     setState(() => _isRedeeming = true);
     
-    // Intentar redimir como vivienda primero, luego condominio
     final vivService = ViviendasService(widget.controller);
     final condService = CondominiosService(widget.controller);
     
     bool exitoso = false;
     String errorMsg = 'Código inválido o expirado';
 
+    // Intentar redimir como código de condominio primero
     try {
-      final resViv = await vivService.redimirCodigo(codigo);
-      if (resViv != null) exitoso = true;
-    } catch (_) {
-      try {
-        final resCond = await condService.redimirCodigo(codigo);
-        if (resCond != null) exitoso = true;
-      } catch (e) {
-        errorMsg = e.toString();
+      final resCond = await condService.redimirCodigo(codigo);
+      if (resCond != null) {
+        exitoso = true;
       }
+    } catch (_) {}
+
+    // Si no funcionó como condominio, intentar como vivienda
+    if (!exitoso) {
+      try {
+        final resViv = await vivService.redimirCodigo(codigo);
+        if (resViv != null) {
+          exitoso = true;
+        }
+      } catch (_) {}
     }
 
     setState(() => _isRedeeming = false);
@@ -91,6 +102,196 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
     return tel != null && tel.trim().length >= 10 && tel != 'No registrado';
   }
 
+  @override
+  Widget build(BuildContext context) {
+    final user = widget.controller.currentUser;
+    final nombre = user?.nombre ?? 'Residente';
+
+    final List<Widget> pages = [
+      _buildHomePage(nombre),
+      AvisosResidenteScreen(controller: widget.controller),
+      PerfilScreen(controller: widget.controller),
+    ];
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        elevation: 0,
+        title: Row(
+          children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: const Color(0xFF059669),
+              child: Text(
+                nombre.isNotEmpty ? nombre[0].toUpperCase() : 'R',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    nombre,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F172A),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const Text(
+                    'Residente',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            onPressed: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Cerrar sesión'),
+                  content: const Text('¿Seguro que quieres salir de sesión?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancelar'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                      child: const Text('Salir'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirm == true) {
+                widget.controller.logout();
+              }
+            },
+            icon: const Icon(Icons.logout_rounded, color: Color(0xFF64748B)),
+            tooltip: 'Cerrar sesión',
+          ),
+        ],
+      ),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: pages,
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (index) => setState(() => _currentIndex = index),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        indicatorColor: const Color(0xFFEEF2FF),
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined, color: Color(0xFF64748B)),
+            selectedIcon: Icon(Icons.home_rounded, color: Color(0xFF111C99)),
+            label: 'Inicio',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.campaign_outlined, color: Color(0xFF64748B)),
+            selectedIcon: Icon(Icons.campaign_rounded, color: Color(0xFF111C99)),
+            label: 'Avisos',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline_rounded, color: Color(0xFF64748B)),
+            selectedIcon: Icon(Icons.person_rounded, color: Color(0xFF111C99)),
+            label: 'Perfil',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHomePage(String nombre) {
+    return RefreshIndicator(
+      color: const Color(0xFF111C99),
+      onRefresh: _cargarMisViviendas,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Hero de Bienvenida
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF059669), Color(0xFF047857)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF059669).withValues(alpha: 0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '¡Hola, $nombre!',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Bienvenido a tu portal condominal.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Módulo "Mi Vivienda"
+                if (_isLoadingViviendas)
+                  _buildLoadingVivienda()
+                else if (_misViviendas.isNotEmpty)
+                  _buildViviendasAsignadas()
+                else
+                  _buildViviendaPendiente(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildLoadingVivienda() {
     return Container(
       padding: const EdgeInsets.all(28),
@@ -98,13 +299,6 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
         color: Colors.white,
         border: Border.all(color: const Color(0xFFE2E8F0)),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x05000000),
-            blurRadius: 6,
-            offset: Offset(0, 2),
-          ),
-        ],
       ),
       child: const Center(
         child: Padding(
@@ -117,75 +311,63 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
 
   Widget _buildViviendasAsignadas() {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border.all(color: const Color(0xFFE2E8F0)),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x05000000),
-            blurRadius: 6,
-            offset: Offset(0, 2),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.home_work_rounded,
+                  color: Color(0xFF111C99),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 14),
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.home_work_rounded,
-                      color: Color(0xFF111C99),
-                      size: 24,
+                  Text(
+                    'Mi Vivienda',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F172A),
                     ),
                   ),
-                  const SizedBox(width: 14),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      Text(
-                        'Mi Vivienda',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F172A),
-                        ),
-                      ),
-                      Text(
-                        'Unidades residenciales asociadas a tu cuenta',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF64748B),
-                        ),
-                      ),
-                    ],
+                  Text(
+                    'Unidades asociadas a tu cuenta',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                    ),
                   ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           ..._misViviendas.map((v) {
             final numCasa = (v['numeroCasa'] ?? 'S/N').toString();
             final tipo = (v['tipo'] ?? 'Residencial').toString();
 
             return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(18),
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
               child: Column(
@@ -194,20 +376,16 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'UNIDAD FÍSICA',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF64748B),
-                          letterSpacing: 0.8,
+                      Text(
+                        'Casa #$numCasa',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
                           color: const Color(0xFFECFDF5),
                           borderRadius: BorderRadius.circular(12),
@@ -224,45 +402,10 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Casa #$numCasa',
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF0F172A),
-                    ),
-                  ),
                   const SizedBox(height: 4),
                   Text(
                     'Tipo: $tipo',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF475569),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: const [
-                      Text(
-                        'Haven Condominio',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF64748B),
-                        ),
-                      ),
-                      Text(
-                        'Residente Oficial',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF111C99),
-                        ),
-                      ),
-                    ],
+                    style: const TextStyle(fontSize: 13, color: Color(0xFF475569)),
                   ),
                 ],
               ),
@@ -278,18 +421,11 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
     final telefono = user?.telefono ?? 'No registrado';
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border.all(color: const Color(0xFFE2E8F0)),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x05000000),
-            blurRadius: 6,
-            offset: Offset(0, 2),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -323,22 +459,19 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFFBEB),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: const Color(0xFFFDE68A)),
                 ),
-                child: Row(
+                child: const Row(
                   mainAxisSize: MainAxisSize.min,
-                  children: const [
+                  children: [
                     Icon(Icons.schedule, size: 12, color: Color(0xFFB45309)),
                     SizedBox(width: 4),
                     Text(
-                      'Pendiente de Asignación',
+                      'Pendiente',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
@@ -362,7 +495,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Asignación de unidad física en proceso',
+                  'Asignación de unidad en proceso',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -371,7 +504,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'La administración de Haven verificará tu número de teléfono registrado y asociará tu vivienda correspondiente. Una vez completado, verás aquí el número de casa, visitas programadas y accesos.',
+                  'La administración verificará tu número de teléfono y asociará tu vivienda correspondiente.',
                   style: TextStyle(
                     fontSize: 13,
                     color: Color(0xFF64748B),
@@ -382,7 +515,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                 const Divider(height: 1, color: Color(0xFFE2E8F0)),
                 const SizedBox(height: 14),
                 _buildStatusItem(
-                  title: 'Cuenta de Residente Haven',
+                  title: 'Cuenta de Residente',
                   subtitle: user?.email ?? 'Activo',
                   isDone: true,
                 ),
@@ -395,7 +528,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                 const SizedBox(height: 10),
                 _buildStatusItem(
                   title: 'Vivienda Condominal',
-                  subtitle: 'En espera de vinculación por el administrador',
+                  subtitle: 'En espera de vinculación',
                   isDone: false,
                 ),
               ],
@@ -405,17 +538,10 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => PerfilScreen(controller: widget.controller),
-                  ),
-                );
-              },
+              onPressed: () => setState(() => _currentIndex = 2),
               icon: const Icon(Icons.person_outline, size: 18),
               label: const Text(
-                'Ver y actualizar mi perfil de contacto',
+                'Actualizar mi perfil de contacto',
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
               style: OutlinedButton.styleFrom(
@@ -476,181 +602,6 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildAvisosMock() {
-    return Container(
-      margin: const EdgeInsets.only(top: 24),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x05000000),
-            blurRadius: 6,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFEF2F2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.campaign_rounded,
-                  color: Color(0xFFDC2626),
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 14),
-              const Text(
-                'Avisos Recientes',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0F172A),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const EnConstruccionScreen(titulo: 'Avisos'),
-                ),
-              );
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Row(
-                children: const [
-                  Icon(Icons.construction_rounded, color: Color(0xFF94A3B8)),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'El tablón de avisos estará disponible pronto. Estamos trabajando en esta funcionalidad.',
-                      style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final user = widget.controller.currentUser;
-    final nombre = user?.nombre ?? 'Residente';
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      body: SafeArea(
-        child: Column(
-          children: [
-            HeaderBar(
-              controller: widget.controller,
-              title: 'Residente',
-              subtitle: 'Portal Residente',
-              avatarColor: const Color(0xFF059669),
-            ),
-            Expanded(
-              child: RefreshIndicator(
-                color: const Color(0xFF111C99),
-                onRefresh: _cargarMisViviendas,
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(16),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 800),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // Hero de Bienvenida
-                          Container(
-                            padding: const EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              border: Border.all(
-                                color: const Color(0xFFE2E8F0),
-                              ),
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x05000000),
-                                  blurRadius: 6,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '¡Hola, $nombre!',
-                                  style: const TextStyle(
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.w900,
-                                    color: Color(0xFF0F172A),
-                                    letterSpacing: -0.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                const Text(
-                                  'Bienvenido a tu portal condominal.',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    color: Color(0xFF64748B),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-
-                          // Módulo "Mi Vivienda" (Cargando / Asignada / Pendiente)
-                          if (_isLoadingViviendas)
-                            _buildLoadingVivienda()
-                          else if (_misViviendas.isNotEmpty)
-                            _buildViviendasAsignadas()
-                          else
-                            _buildViviendaPendiente(),
-                            
-                          // Avisos UI
-                          _buildAvisosMock(),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

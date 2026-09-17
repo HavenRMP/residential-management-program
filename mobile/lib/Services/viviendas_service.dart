@@ -7,7 +7,7 @@ class ViviendasService {
 
   ViviendasService(this.controller);
 
-  String get baseUrl => dotenv.env['API_BASE_URL_VIVIENDAS'] ?? '';
+  String get baseUrl => dotenv.env['API_BASE_URL_VIVIENDAS'] ?? 'https://viviendas-api.onrender.com';
 
   Future<Map<String, String>> _getHeaders() async {
     final token = await controller.getValidAccessToken();
@@ -18,17 +18,22 @@ class ViviendasService {
   }
 
   Future<List<dynamic>> listar() async {
-    final url = '$baseUrl/api/Viviendas';
-    final response = await controller.httpClient.get(
-      Uri.parse(url),
-      headers: await _getHeaders(),
-    );
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      final decoded = jsonDecode(response.body);
-      if (decoded is List) return decoded;
-      if (decoded is Map && decoded['data'] is List) return decoded['data'];
+    try {
+      final url = '$baseUrl/api/Viviendas';
+      final response = await controller.httpClient.get(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      );
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded['items'] is List) return decoded['items'];
+        if (decoded is List) return decoded;
+        if (decoded is Map && decoded['data'] is List) return decoded['data'];
+      }
+      return [];
+    } catch (_) {
+      return [];
     }
-    return [];
   }
 
   Future<Map<String, dynamic>?> crear({required String numeroCasa, String? tipo}) async {

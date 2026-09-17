@@ -45,7 +45,7 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
     final viviendaId = _vivienda['id'];
     final usuarioId = residente['id'];
     final url =
-        '${dotenv.env['API_BASE_URL_VIVIENDAS'] ?? ''}/api/Viviendas/$viviendaId/residentes';
+        '${dotenv.env['API_BASE_URL_VIVIENDAS'] ?? 'https://viviendas-api.onrender.com'}/api/Viviendas/$viviendaId/residentes';
 
     try {
       final res = await widget.controller.httpClient.post(
@@ -126,7 +126,7 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
     final viviendaId = _vivienda['id'];
     final usuarioId = _habitanteAsignado!['id'];
     final url =
-        '${dotenv.env['API_BASE_URL_VIVIENDAS'] ?? ''}/api/Viviendas/$viviendaId/residentes/$usuarioId';
+        '${dotenv.env['API_BASE_URL_VIVIENDAS'] ?? 'https://viviendas-api.onrender.com'}/api/Viviendas/$viviendaId/residentes/$usuarioId';
 
     try {
       final res = await widget.controller.httpClient.delete(
@@ -200,7 +200,7 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
               () async {
                 try {
                   final url =
-                      '${dotenv.env['API_BASE_URL_USUARIOS'] ?? ''}/api/Auth/residentes?sinVivienda=true';
+                      '${dotenv.env['API_BASE_URL_USUARIOS'] ?? 'https://usuarios-api-n1qi.onrender.com'}/api/Auth/residentes?sinVivienda=true';
                   final res = await widget.controller.httpClient.get(
                     Uri.parse(url),
                     headers: {
@@ -787,7 +787,7 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
       final id = _vivienda['id'];
       final response = await widget.controller.httpClient.delete(
         Uri.parse(
-          '${dotenv.env['API_BASE_URL_VIVIENDAS'] ?? ''}/api/Viviendas/$id',
+          '${dotenv.env['API_BASE_URL_VIVIENDAS'] ?? 'https://viviendas-api.onrender.com'}/api/Viviendas/$id',
         ),
         headers: {'Authorization': 'Bearer ${widget.controller.accessToken}'},
       );
@@ -871,7 +871,7 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
                   };
                   final id = _vivienda['id'];
                   final url =
-                      '${dotenv.env['API_BASE_URL_VIVIENDAS'] ?? ''}/api/Viviendas/$id';
+                      '${dotenv.env['API_BASE_URL_VIVIENDAS'] ?? 'https://viviendas-api.onrender.com'}/api/Viviendas/$id';
 
                   try {
                     final res = await widget.controller.httpClient.put(

@@ -4,6 +4,7 @@ using HavenApi.Shared.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using HavenApi.Shared.Pagination;
 using HavenApi.Shared.Exceptions;
 using HavenApi.Shared.Rpc;
 
@@ -25,7 +26,7 @@ public class CondominiosController : ControllerBase
 
     [ProducesResponseType(StatusCodes.Status200OK)]
     [HttpGet]
-    public async Task<IActionResult> GetCondominios()
+    public async Task<IActionResult> GetCondominios([FromQuery] PaginationParams paginacion)
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                           ?? User.FindFirst("sub")?.Value;
@@ -42,19 +43,19 @@ public class CondominiosController : ControllerBase
 
         if (condominioId == null)
         {
-            return Ok(new List<object>());
+            return Ok(PagedResult<object>.Create(new List<object>(), paginacion, 0));
         }
 
         var condominios = await _supabaseService.GetCondominiosAsync(condominioId.Value);
-        var result = condominios.Select(c => new
+        var result = condominios.Select(c => (object)new
         {
             id = c.Id,
             nombre = c.Nombre,
             activo = c.Activo,
             creadoEn = c.CreadoEn
-        });
+        }).ToList();
 
-        return Ok(result);
+        return Ok(PagedResult<object>.Create(result, paginacion, result.Count));
     }
 
     [Authorize]

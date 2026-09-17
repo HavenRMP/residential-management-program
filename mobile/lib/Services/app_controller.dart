@@ -190,7 +190,7 @@ class AppController extends ChangeNotifier {
       final response = await httpClient
           .get(
             Uri.parse(
-              '${dotenv.env['API_BASE_URL_USUARIOS'] ?? ''}/api/Auth/ping',
+              '${dotenv.env['API_BASE_URL_USUARIOS'] ?? 'https://usuarios-api-n1qi.onrender.com'}/api/Auth/ping',
             ),
           )
           .timeout(const Duration(seconds: 45));
@@ -502,7 +502,7 @@ class AppController extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> _getJson(String endpoint) async {
-    final baseUrl = dotenv.env['API_BASE_URL_USUARIOS'] ?? '';
+    final baseUrl = dotenv.env['API_BASE_URL_USUARIOS'] ?? 'https://usuarios-api-n1qi.onrender.com';
     final uri = Uri.parse('$baseUrl$endpoint');
     
     var token = await getValidAccessToken();
@@ -656,7 +656,7 @@ class AppController extends ChangeNotifier {
       final token = await getValidAccessToken();
       final response = await httpClient.patch(
         Uri.parse(
-          '${dotenv.env['API_BASE_URL_USUARIOS'] ?? ''}/api/Auth/completar-perfil',
+          '${dotenv.env['API_BASE_URL_USUARIOS'] ?? 'https://usuarios-api-n1qi.onrender.com'}/api/Auth/completar-perfil',
         ),
         headers: {
           'Authorization': 'Bearer $token',
@@ -732,7 +732,7 @@ class AppController extends ChangeNotifier {
     final token = await getValidAccessToken();
     if (token == null || token.isEmpty) return [];
 
-    final baseUrl = dotenv.env['API_BASE_URL_VIVIENDAS'] ?? '';
+    final baseUrl = dotenv.env['API_BASE_URL_VIVIENDAS'] ?? 'https://viviendas-api.onrender.com';
     final url = '$baseUrl/api/Viviendas/mis-viviendas';
 
     try {
