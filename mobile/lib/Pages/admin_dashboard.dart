@@ -55,8 +55,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         final decoded = jsonDecode(res.body);
         if (decoded is List) {
           residentesCount = decoded.length;
-        } else if (decoded is Map && decoded['data'] is List) {
-          residentesCount = (decoded['data'] as List).length;
+        } else if (decoded is Map) {
+          if (decoded['items'] is List) {
+            residentesCount = (decoded['items'] as List).length;
+          } else if (decoded['data'] is List) {
+            residentesCount = (decoded['data'] as List).length;
+          }
         }
       }
 
@@ -456,7 +460,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'Indicadores y Acceso',
+                    'Acciones Rápidas',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -498,38 +502,110 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                 ],
               ),
+              const SizedBox(height: 16),
+              _buildActionCard(
+                title: 'Gestión de Viviendas',
+                icon: Icons.home_work_outlined,
+                onTap: () => setState(() => _currentIndex = 2),
+                insight: _totalViviendas > 0
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Ocupación',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF64748B),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                '${((_viviendasOcupadas / _totalViviendas) * 100).round()}%',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF0F172A),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          LinearProgressIndicator(
+                            value: _viviendasOcupadas / _totalViviendas,
+                            backgroundColor: const Color(0xFFF1F5F9),
+                            color: const Color(0xFF059669),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '$_viviendasOcupadas de $_totalViviendas viviendas ocupadas',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ],
+                      )
+                    : const Text(
+                        '0 viviendas registradas',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+              ),
               const SizedBox(height: 12),
-              SizedBox(
-                height: 90,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
+              _buildActionCard(
+                title: 'Directorio de Residentes',
+                icon: Icons.people_outline,
+                onTap: () => setState(() => _currentIndex = 1),
+                insight: Text(
+                  '$_totalResidentes residentes en el padrón',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildActionCard(
+                title: 'Gestión de Avisos',
+                icon: Icons.campaign_outlined,
+                onTap: () => setState(() => _currentIndex = 3),
+              ),
+              const SizedBox(height: 12),
+              _buildActionCard(
+                title: 'Estado del Sistema',
+                icon: Icons.dns_outlined,
+                onTap: () {
+                  widget.controller.notifyToast('API v1.0.0 (En línea) - Base de datos operativa', success: true);
+                },
+                insight: Row(
                   children: [
-                    _buildSmallInsight('Viviendas', _totalViviendas.toString(), Icons.home_work_outlined, const Color(0xFF111C99)),
-                    const SizedBox(width: 12),
-                    _buildSmallInsight('Padrón', _totalResidentes.toString(), Icons.people_outline, const Color(0xFF4F46E5)),
-                    const SizedBox(width: 12),
-                    _buildSmallInsight('Ocupación', _totalViviendas > 0 ? '${((_viviendasOcupadas / _totalViviendas) * 100).round()}%' : '0%', Icons.bar_chart_rounded, const Color(0xFF059669)),
-                    const SizedBox(width: 12),
-                    _buildSmallInsight('Sistema', 'En línea', Icons.verified_user_outlined, const Color(0xFF0F172A)),
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF10B981), // Emerald 500
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'En línea y operativo',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF047857), // Emerald 700
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
-              const Text(
-                'Acciones Rápidas',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0F172A),
-                ),
-              ),
-              const SizedBox(height: 12),
-              _buildActionButton('Gestión de Viviendas', Icons.home_work_outlined, () => setState(() => _currentIndex = 2)),
-              const SizedBox(height: 12),
-              _buildActionButton('Directorio de Residentes', Icons.people_outline, () => setState(() => _currentIndex = 1)),
-              const SizedBox(height: 12),
-              _buildActionButton('Gestión de Avisos', Icons.campaign_outlined, () => setState(() => _currentIndex = 3)),
             ],
           ),
         ),
@@ -537,97 +613,62 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildSmallInsight(String title, String value, IconData icon, Color color) {
-    return Container(
-      width: 120,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x02000000),
-            blurRadius: 4,
-            offset: Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 14, color: color),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  title.toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF64748B),
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButton(String title, IconData icon, VoidCallback onTap) {
+  Widget _buildActionCard({
+    required String title,
+    required IconData icon,
+    required VoidCallback onTap,
+    Widget? insight,
+  }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: const [
             BoxShadow(
-              color: Color(0x02000000),
-              blurRadius: 4,
-              offset: Offset(0, 1),
+              color: Color(0x04000000),
+              blurRadius: 8,
+              offset: Offset(0, 2),
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEEF2FF),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: const Color(0xFF111C99), size: 24),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0F172A),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEEF2FF),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: const Color(0xFF111C99), size: 24),
                 ),
-              ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
+              ],
             ),
-            const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
+            if (insight != null) ...[
+              const SizedBox(height: 16),
+              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+              const SizedBox(height: 16),
+              insight,
+            ],
           ],
         ),
       ),
