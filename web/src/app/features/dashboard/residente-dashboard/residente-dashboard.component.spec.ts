@@ -91,6 +91,12 @@ describe('ResidenteDashboardComponent', () => {
     it('debe llamar a cargarAvisos con el condominioId en ngOnInit', () => {
       expect(mockAvisosService.cargarAvisos).toHaveBeenCalledWith('cond-1');
     });
+
+    it('debe mantener orden cronológico en los avisos del feed', () => {
+      const lista = component.avisosService.vigentes();
+      expect(lista.length).toBeGreaterThan(0);
+      expect(new Date(lista[0].creadoEn).getTime()).toBeLessThanOrEqual(Date.now());
+    });
   });
 
   describe('Integración en dashboard de inicio (#140)', () => {
