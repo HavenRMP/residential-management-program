@@ -45,7 +45,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
           <div class="flex items-center gap-3 shrink-0">
             <!-- Refresh Button -->
             <button
-              (click)="cargarResidentes()"
+              (click)="cargarResidentes(true)"
               [disabled]="isLoading()"
               title="Actualizar datos"
               class="p-2 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-200 text-slate-600 rounded-lg transition-all shadow-2xs cursor-pointer disabled:opacity-50"
@@ -539,15 +539,15 @@ export class ResidentesListComponent implements OnInit {
     this.paginaActual.set(1);
   }
 
-  async cargarResidentes(): Promise<void> {
+  async cargarResidentes(forceRefresh: boolean = false): Promise<void> {
     this.isLoading.set(true);
     this.errorMessage.set(null);
     const soloSinVivienda = this.tabActiva() === 'sin-vivienda';
 
     try {
       const [data, mapa] = await Promise.all([
-        this.residentesService.listar(soloSinVivienda),
-        this.viviendasService.obtenerMapaViviendasPorResidente()
+        this.residentesService.listar(soloSinVivienda, forceRefresh),
+        this.viviendasService.obtenerMapaViviendasPorResidente(forceRefresh)
       ]);
       this.residentes.set(data || []);
       this.viviendasMap.set(mapa);
@@ -555,7 +555,7 @@ export class ResidentesListComponent implements OnInit {
       if (!soloSinVivienda) {
         this.totalResidentesRegistrados.set((data || []).length);
         // Consultar en segundo plano la cantidad sin vivienda para actualizar el badge de la subpágina
-        this.residentesService.listar(true).then(sinV => {
+        this.residentesService.listar(true, forceRefresh).then(sinV => {
           this.conteoSinVivienda.set(sinV.length);
         }).catch(() => {});
       } else {
