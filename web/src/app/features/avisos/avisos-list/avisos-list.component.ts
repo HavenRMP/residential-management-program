@@ -123,8 +123,27 @@ import { Aviso, AvisoPrioridad, CrearAvisoDto } from '../../../core/models/aviso
         </div>
       </div>
 
+      <!-- Loading State Skeletons -->
+      <div *ngIf="avisosService.isLoading()" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div *ngFor="let s of [1, 2, 3]" class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs animate-pulse flex flex-col justify-between min-h-[160px]">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <div class="h-5 w-24 bg-slate-200 rounded-md"></div>
+              <div class="h-4 w-12 bg-slate-100 rounded"></div>
+            </div>
+            <div class="h-4 w-3/4 bg-slate-200 rounded mb-2"></div>
+            <div class="h-3 w-full bg-slate-100 rounded mb-1.5"></div>
+            <div class="h-3 w-2/3 bg-slate-100 rounded"></div>
+          </div>
+          <div class="mt-4 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+            <div class="h-3 w-20 bg-slate-100 rounded"></div>
+            <div class="h-3 w-16 bg-slate-100 rounded"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- Card Grid Spartan UI -->
-      <div *ngIf="avisosFiltrados().length > 0; else emptyState" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div *ngIf="!avisosService.isLoading() && avisosFiltrados().length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         <div
           *ngFor="let aviso of avisosFiltrados()"
           class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs hover:border-slate-300 transition-colors flex flex-col justify-between"
@@ -181,14 +200,15 @@ import { Aviso, AvisoPrioridad, CrearAvisoDto } from '../../../core/models/aviso
         </div>
       </div>
 
-      <!-- Empty State -->
-      <ng-template #emptyState>
-        <div class="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
-          <p class="text-xs font-semibold text-slate-600">
-            {{ tabActiva() === 'vigentes' ? 'No hay avisos vigentes en este momento.' : 'No hay avisos en el historial.' }}
-          </p>
-        </div>
-      </ng-template>
+      <!-- Empty State (solo cuando no está cargando y no hay avisos) -->
+      <div
+        *ngIf="!avisosService.isLoading() && avisosFiltrados().length === 0"
+        class="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center"
+      >
+        <p class="text-xs font-semibold text-slate-600">
+          {{ tabActiva() === 'vigentes' ? 'No hay avisos vigentes en este momento.' : 'No hay avisos en el historial.' }}
+        </p>
+      </div>
 
     </div>
 

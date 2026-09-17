@@ -51,6 +51,7 @@ describe('ResidenteDashboardComponent', () => {
 
     mockAvisosService = {
       vigentes: signal<Aviso[]>([avisoMock]),
+      isLoading: signal<boolean>(false),
       cargarAvisos: jasmine.createSpy('cargarAvisos').and.returnValue(Promise.resolve([avisoMock]))
     };
 

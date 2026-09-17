@@ -211,7 +211,19 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
             </span>
           </div>
 
-          <div *ngIf="avisosService.vigentes().length > 0; else noAvisos" class="divide-y divide-slate-100">
+          <!-- Loading State Skeletons -->
+          <div *ngIf="avisosService.isLoading()" class="divide-y divide-slate-100">
+            <div *ngFor="let s of [1, 2]" class="p-4 animate-pulse space-y-2">
+              <div class="flex items-center justify-between">
+                <div class="h-4 w-20 bg-slate-200 rounded"></div>
+                <div class="h-3 w-16 bg-slate-100 rounded"></div>
+              </div>
+              <div class="h-3.5 w-1/2 bg-slate-200 rounded"></div>
+              <div class="h-3 w-3/4 bg-slate-100 rounded"></div>
+            </div>
+          </div>
+
+          <div *ngIf="!avisosService.isLoading() && avisosService.vigentes().length > 0" class="divide-y divide-slate-100">
             <div
               *ngFor="let a of avisosService.vigentes()"
               (click)="verDetalleAviso(a)"
@@ -239,11 +251,9 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
             </div>
           </div>
 
-          <ng-template #noAvisos>
-            <div class="p-6 text-center text-xs text-slate-600 font-medium">
-              No hay avisos vigentes en este momento.
-            </div>
-          </ng-template>
+          <div *ngIf="!avisosService.isLoading() && avisosService.vigentes().length === 0" class="p-6 text-center text-xs text-slate-600 font-medium">
+            No hay avisos vigentes en este momento.
+          </div>
         </div>
 
       </main>
