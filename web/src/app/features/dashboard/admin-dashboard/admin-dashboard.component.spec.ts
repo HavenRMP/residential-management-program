@@ -104,14 +104,14 @@ describe('AdminDashboardComponent', () => {
   it('debe activar el estado de error y banner cuando falla la conexión con el servidor', async () => {
     mockViviendasService.listar.and.returnValue(Promise.reject(new Error('Network error')));
     fixture.detectChanges();
-    await component.cargarMetricas();
-    fixture.detectChanges();
+    await fixture.whenStable();
 
     expect(component.errorMessage()).toBeTruthy();
     expect(component.errorMessage()).toContain('No se pudo establecer conexión');
     expect(component.totalViviendas()).toBe(0);
     expect(component.loading()).toBeFalse();
 
+    fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
     const banner = compiled.querySelector('.bg-rose-50');
     expect(banner).toBeTruthy();
@@ -120,7 +120,8 @@ describe('AdminDashboardComponent', () => {
 
   it('debe permitir reintentar con forceRefresh cuando se pulsa el botón de reintento', async () => {
     mockViviendasService.listar.and.returnValue(Promise.reject(new Error('500 Server Error')));
-    await component.cargarMetricas();
+    fixture.detectChanges();
+    await fixture.whenStable();
     expect(component.errorMessage()).toBeTruthy();
 
     // Simular que el servidor ya responde
@@ -128,6 +129,8 @@ describe('AdminDashboardComponent', () => {
     mockResidentesService.listar.and.returnValue(Promise.resolve(mockResidentes));
 
     await component.cargarMetricas(true);
+    fixture.detectChanges();
+
     expect(mockViviendasService.listar).toHaveBeenCalledWith(undefined, undefined, true);
     expect(component.errorMessage()).toBeNull();
     expect(component.totalViviendas()).toBe(2);
@@ -137,11 +140,12 @@ describe('AdminDashboardComponent', () => {
     mockViviendasService.listar.and.returnValue(Promise.resolve([]));
     mockResidentesService.listar.and.returnValue(Promise.resolve([]));
 
-    await component.cargarMetricas();
     fixture.detectChanges();
+    await fixture.whenStable();
 
     expect(component.errorMessage()).toBeNull();
     expect(component.viviendasResumen().length).toBe(0);
+    expect(component.loading()).toBeFalse();
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.textContent).toContain('No hay viviendas registradas aún.');
   });
