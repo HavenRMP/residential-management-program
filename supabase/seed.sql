@@ -78,3 +78,79 @@ ON CONFLICT (condominio_id, numero_casa) DO NOTHING;
 INSERT INTO public.vivienda_residente (vivienda_id, usuario_id) VALUES
   (1, '6754a566-e529-40fb-8610-bd136ec77fd5')
 ON CONFLICT (vivienda_id, usuario_id) DO NOTHING;
+-- ============================================================================
+-- 8. AVISOS DE PRUEBA (Vigentes e Históricos)
+-- ============================================================================
+INSERT INTO public.avisos (
+    id,
+    condominio_id,
+    titulo,
+    contenido,
+    duracion_dias,
+    fecha_expiracion_manual,
+    fecha_publicacion,
+    activo,
+    creado_por,
+    creado_en
+) VALUES
+  -- 1. Vigente estándar (7 días de vigencia por defecto)
+  (
+    'b0000000-0000-0000-0000-000000000001',
+    'a0000000-0000-0000-0000-000000000001',
+    'Mantenimiento en alberca y áreas verdes',
+    'Se informa que el día viernes las amenidades estarán cerradas por trabajos de limpieza profunda.',
+    7,
+    NULL,
+    timezone('utc'::text, now()),
+    true,
+    '6754a566-e529-40fb-8610-bd136ec77fd5',
+    timezone('utc'::text, now())
+  ),
+
+  -- 2. Vigente con fecha manual futura (15 días)
+  (
+    'b0000000-0000-0000-0000-000000000002',
+    'a0000000-0000-0000-0000-000000000001',
+    'Asamblea General Ordinaria',
+    'Reunión anual de condóminos en el salón de eventos. Favor de confirmar asistencia y revisar orden del día.',
+    NULL,
+    timezone('utc'::text, now() + interval '15 days'),
+    timezone('utc'::text, now()),
+    true,
+    '6754a566-e529-40fb-8610-bd136ec77fd5',
+    timezone('utc'::text, now())
+  ),
+
+  -- 3. Histórico: Expirado naturalmente (Publicado hace 10 días, duró 3)
+  (
+    'b0000000-0000-0000-0000-000000000003',
+    'a0000000-0000-0000-0000-000000000001',
+    'Corte temporal de suministro de agua',
+    'Corte programado por reparación de tubería general en el sector poniente.',
+    3,
+    NULL,
+    timezone('utc'::text, now() - interval '10 days'),
+    true,
+    '6754a566-e529-40fb-8610-bd136ec77fd5',
+    timezone('utc'::text, now() - interval '10 days')
+  ),
+
+  -- 4. Histórico: Eliminado lógicamente (activo = false)
+  (
+    'b0000000-0000-0000-0000-000000000004',
+    'a0000000-0000-0000-0000-000000000001',
+    'Aviso cancelado por error tipográfico',
+    'Este comunicado fue revocado administrativamente tras detectarse un error en los horarios.',
+    5,
+    NULL,
+    timezone('utc'::text, now() - interval '2 days'),
+    false,
+    '6754a566-e529-40fb-8610-bd136ec77fd5',
+    timezone('utc'::text, now() - interval '2 days')
+  )
+ON CONFLICT (id) DO UPDATE 
+SET titulo = EXCLUDED.titulo,
+    contenido = EXCLUDED.contenido,
+    duracion_dias = EXCLUDED.duracion_dias,
+    fecha_expiracion_manual = EXCLUDED.fecha_expiracion_manual,
+    activo = EXCLUDED.activo;
