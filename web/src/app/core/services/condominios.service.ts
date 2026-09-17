@@ -37,7 +37,7 @@ export class CondominiosService {
       return items;
     } catch (err) {
       console.warn('[CondominiosService] Error al listar condominios:', err);
-      return [];
+      throw err;
     }
   }
 

@@ -34,7 +34,7 @@ export class ViviendasService {
       return items;
     } catch (err) {
       console.warn('[ViviendasService] Error al listar viviendas:', err);
-      return [];
+      throw err;
     }
   }
 
