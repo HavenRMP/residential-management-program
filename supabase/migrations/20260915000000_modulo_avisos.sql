@@ -395,3 +395,20 @@ BEGIN
     RETURN v_filas_afectadas > 0;
 END;
 $$;
+-- ==============================================================================
+-- 7. PERMISOS Y RECARGA DE POSTGREST
+-- ==============================================================================
+-- Revocación total sobre tablas físicas
+REVOKE ALL ON public.avisos FROM authenticated, anon, service_role;
+
+-- Vistas
+GRANT SELECT ON public.vw_avisos_vigentes TO authenticated, service_role;
+GRANT SELECT ON public.vw_avisos_historico TO service_role;
+
+-- RPCs
+GRANT EXECUTE ON FUNCTION public.alta_aviso(UUID, VARCHAR, TEXT, INTEGER, TIMESTAMPTZ) TO service_role;
+GRANT EXECUTE ON FUNCTION public.cambio_aviso(UUID, UUID, VARCHAR, TEXT, INTEGER, TIMESTAMPTZ) TO service_role;
+GRANT EXECUTE ON FUNCTION public.baja_aviso(UUID, UUID) TO service_role;
+
+-- Recarga de esquema PostgREST
+NOTIFY pgrst, 'reload schema';
