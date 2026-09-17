@@ -273,15 +273,24 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
 
                 <!-- Vivienda(s) Asignada(s) -->
                 <td class="px-6 py-4.5 whitespace-nowrap">
-                  <div *ngIf="obtenerViviendasDeResidente(r.id).length > 0; else sinVivBadge" class="flex flex-wrap items-center gap-1.5">
+                  <div *ngIf="obtenerViviendasDeResidente(r.id).length > 0; else sinVivBadge" class="inline-flex items-center gap-1.5">
+                    <!-- Primera vivienda asignada -->
                     <span
-                      *ngFor="let v of obtenerViviendasDeResidente(r.id)"
-                      class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-2xs"
+                      class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/90 shadow-2xs"
                     >
-                      <svg class="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg class="w-3.5 h-3.5 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                       </svg>
-                      <span>{{ formatearNumeroCasa(v.numeroCasa) }}</span>
+                      <span>{{ formatearNumeroCasa(obtenerViviendasDeResidente(r.id)[0].numeroCasa) }}</span>
+                    </span>
+
+                    <!-- Indicador si cuenta con viviendas adicionales (+N más) -->
+                    <span
+                      *ngIf="obtenerViviendasDeResidente(r.id).length > 1"
+                      [title]="obtenerTooltipViviendas(r.id)"
+                      class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200/90 hover:bg-slate-200/80 transition-colors cursor-help shadow-2xs"
+                    >
+                      +{{ obtenerViviendasDeResidente(r.id).length - 1 }} más
                     </span>
                   </div>
                   <ng-template #sinVivBadge>
@@ -398,7 +407,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
         *ngIf="isDetalleOpen()"
         (click)="cerrarDetalle()"
         aria-hidden="true"
-        class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs transition-opacity duration-300 animate-fade-in cursor-pointer"
+        class="fixed inset-0 z-50 !m-0 bg-slate-900/50 backdrop-blur-xs transition-opacity duration-300 animate-fade-in cursor-pointer"
       ></div>
 
       <aside
@@ -406,7 +415,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
         role="dialog"
         aria-modal="true"
         aria-labelledby="detalle-residente-title"
-        class="fixed inset-y-0 right-0 z-[60] w-full sm:max-w-md md:max-w-lg lg:max-w-xl bg-white shadow-2xl flex flex-col border-l border-slate-200 overflow-y-auto transform transition-transform duration-300 ease-out animate-slide-left"
+        class="fixed inset-y-0 right-0 z-[60] !m-0 w-full sm:max-w-md md:max-w-lg lg:max-w-xl bg-white shadow-2xl flex flex-col border-l border-slate-200 overflow-y-auto transform transition-transform duration-300 ease-out animate-slide-left"
       >
         <app-residentes-detalle
           [residente]="residenteSeleccionado()"
@@ -552,6 +561,13 @@ export class ResidentesListComponent implements OnInit {
 
   obtenerViviendasDeResidente(residenteId: string): Vivienda[] {
     return this.viviendasMap().get(residenteId) || [];
+  }
+
+  obtenerTooltipViviendas(residenteId: string): string {
+    const vivs = this.obtenerViviendasDeResidente(residenteId);
+    if (vivs.length === 0) return '';
+    const casas = vivs.map(v => formatearNumeroCasa(v.numeroCasa)).join(', ');
+    return `Viviendas asignadas (${vivs.length}): ${casas}`;
   }
 
   readonly formatearNumeroCasa = formatearNumeroCasa;

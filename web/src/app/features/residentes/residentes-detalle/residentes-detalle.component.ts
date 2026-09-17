@@ -82,7 +82,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
           </div>
 
           <!-- Lista de viviendas vinculadas -->
-          <div *ngIf="!cargandoViviendas() && viviendasAsignadas().length > 0" class="space-y-2 pt-1">
+          <div *ngIf="!cargandoViviendas() && viviendasAsignadas().length > 0" class="space-y-2 pt-1 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
             <div
               *ngFor="let v of viviendasAsignadas()"
               class="flex items-center justify-between p-3 rounded-lg bg-slate-50/80 border border-slate-200 hover:bg-slate-100/70 transition-colors"

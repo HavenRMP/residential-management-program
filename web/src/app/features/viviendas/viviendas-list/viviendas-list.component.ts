@@ -367,7 +367,7 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
       <!-- Modal de Creación / Edición Compacto -->
       <div
         *ngIf="showModal()"
-        class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+        class="fixed inset-0 z-50 !m-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
       >
         <div
           class="bg-white rounded-lg shadow-xl border border-slate-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150"
