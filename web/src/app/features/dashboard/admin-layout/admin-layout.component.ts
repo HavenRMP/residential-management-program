@@ -55,19 +55,29 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
         [class.-translate-x-full]="!mobileMenuOpen()"
       >
         <div class="flex-1 overflow-hidden flex flex-col">
-          <!-- Sidebar Brand Header -->
+          <!-- Sidebar Brand Header (Logo Estático y Destacado) -->
           <div
-            class="h-16 border-b border-slate-100 flex items-center shrink-0 w-full transition-all duration-300"
+            class="h-16 border-b border-slate-100 flex items-center shrink-0 w-full transition-all duration-300 select-none"
             [class.px-4]="!sidebarCollapsed()"
             [class.px-2]="sidebarCollapsed()"
             [class.justify-between]="!sidebarCollapsed()"
             [class.justify-center]="sidebarCollapsed()"
           >
             <div class="flex items-center gap-3 overflow-hidden" [class.justify-center]="sidebarCollapsed()">
-              <img src="/haven-logo.png" alt="Haven" class="w-8 h-8 rounded-lg object-contain shadow-2xs shrink-0" />
+              <!-- Logo Container Destacado pero 100% No Clicable -->
+              <div class="relative size-9 rounded-xl bg-gradient-to-br from-indigo-50/80 via-slate-50 to-blue-50/40 p-1.5 border border-slate-200/80 shadow-2xs flex items-center justify-center shrink-0 pointer-events-none">
+                <img src="/haven-logo.png" alt="Haven" class="w-full h-full object-contain" />
+              </div>
+
+              <!-- Textos de Marca -->
               <div *ngIf="showText()" class="whitespace-nowrap fade-in-direct">
-                <span class="font-bold text-base tracking-tight text-slate-900 block leading-none">Haven</span>
-                <span class="text-[10px] text-slate-400 font-medium mt-0.5 block">Gestión Residencial</span>
+                <div class="flex items-center gap-1.5">
+                  <span class="font-extrabold text-base tracking-tight text-slate-900 leading-none">Haven</span>
+                  <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-indigo-50 text-[#111C99] border border-indigo-100/80">
+                    Admin
+                  </span>
+                </div>
+                <span class="text-[10px] text-slate-400 font-medium mt-0.5 block tracking-normal">Gestión Residencial</span>
               </div>
             </div>
 
@@ -94,37 +104,6 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
             >
               <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          <!-- Spartan UI Condominio Info (Estático) -->
-          <div *ngIf="showText()" class="px-3 pt-3 pb-2 fade-in-direct">
-            <div class="flex items-center gap-2.5 p-2 rounded-lg border border-slate-200/80 bg-slate-50/60 shadow-2xs">
-              <div class="flex size-7 shrink-0 items-center justify-center rounded-md bg-slate-900 text-white font-semibold text-xs shadow-2xs">
-                <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-              </div>
-              <div class="grid flex-1 text-left min-w-0">
-                <span class="truncate text-xs font-semibold text-slate-900 leading-tight" [title]="condominioActual()?.nombre || 'Condominio'">
-                  {{ condominioActual()?.nombre || 'Condominio Residencial' }}
-                </span>
-                <span class="truncate text-[10px] text-slate-500 font-medium leading-tight">Condominio activo</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Icono de Condominio cuando el Sidebar está colapsado -->
-          <div *ngIf="!showText()" class="py-2.5 flex flex-col items-center border-b border-slate-100">
-            <button
-              type="button"
-              (click)="toggleSidebar()"
-              class="size-8 rounded-lg bg-slate-900 text-white flex items-center justify-center shadow-2xs cursor-pointer hover:bg-slate-800 transition-colors"
-              [title]="'Condominio: ' + (condominioActual()?.nombre || 'Condominio')"
-            >
-              <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
               </svg>
             </button>
           </div>
