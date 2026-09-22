@@ -69,10 +69,9 @@ export class AvisosService {
       }
 
       // 2. Si el usuario es administrador, consultar el histórico (GET /api/avisos/historico)
-      const rol = this.authService.currentUser()?.rol;
       let itemsHistorico: Aviso[] = [];
 
-      if (rol === 'administrador') {
+      if (this.authService.isAdmin()) {
         const resHistorico = await firstValueFrom(
           this.apiService.get<any>('/api/avisos/historico')
         ).catch(err => {
