@@ -273,4 +273,37 @@ public class AvisosControllerTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         _mockSupabaseService.Verify(s => s.UpdateAvisoAsync(avisoId, userId, It.Is<UpdateAvisoRequestDto>(x => x.Prioridad == "urgente")), Times.Once);
     }
+    [Fact]
+    public async Task UpdateAviso_SoloTituloYContenido_NoEnviaVigenciaAlServicio()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var avisoId = Guid.NewGuid();
+        var token = GenerateMockJwt(userId);
+        var avisoDto = new AvisoDto { Id = avisoId, Titulo = "T2", Contenido = "C2" };
+        
+        _mockSupabaseService.Setup(s => s.GetUsuarioContextoAsync(userId, It.IsAny<string>()))
+            .ReturnsAsync(("Administrador", condominioId));
+            
+        UpdateAvisoRequestDto capturedDto = null;
+        _mockSupabaseService.Setup(s => s.UpdateAvisoAsync(avisoId, userId, It.IsAny<UpdateAvisoRequestDto>()))
+            .Callback<Guid, Guid, UpdateAvisoRequestDto>((aId, uId, dto) => capturedDto = dto)
+            .ReturnsAsync((avisoDto, null));
+
+        await using var application = CreateFactory();
+        var client = application.CreateClient();
+        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
+
+        var dto = new UpdateAvisoRequestDto { Titulo = "T2", Contenido = "C2" };
+
+        // Act
+        var response = await client.PutAsJsonAsync($"/api/avisos/{avisoId}", dto);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(capturedDto);
+        Assert.Null(capturedDto.DuracionDias);
+        Assert.Null(capturedDto.FechaExpiracion);
+    }
 }
