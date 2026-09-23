@@ -214,4 +214,63 @@ public class AvisosControllerTests : IAsyncLifetime
         // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
+
+    [Fact]
+    public async Task CreateAviso_SinPrioridad_EnviaInformativoPorDefecto()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = GenerateMockJwt(userId);
+        var avisoDto = new AvisoDto { Id = Guid.NewGuid(), Titulo = "T", Contenido = "C" };
+        
+        _mockSupabaseService.Setup(s => s.GetUsuarioContextoAsync(userId, It.IsAny<string>()))
+            .ReturnsAsync(("Administrador", condominioId));
+            
+        _mockSupabaseService.Setup(s => s.CreateAvisoAsync(userId, It.IsAny<CreateAvisoRequestDto>()))
+            .ReturnsAsync((avisoDto, null));
+
+        await using var application = CreateFactory();
+        var client = application.CreateClient();
+        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
+
+        var dto = new CreateAvisoRequestDto { Titulo = "T", Contenido = "C" };
+
+        // Act
+        var response = await client.PostAsJsonAsync("/api/avisos", dto);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        _mockSupabaseService.Verify(s => s.CreateAvisoAsync(userId, It.Is<CreateAvisoRequestDto>(x => x.Prioridad == null)), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateAviso_ConPrioridad_PasaElValorAlServicio()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var avisoId = Guid.NewGuid();
+        var token = GenerateMockJwt(userId);
+        var avisoDto = new AvisoDto { Id = avisoId, Titulo = "T", Contenido = "C", Prioridad = "urgente" };
+        
+        _mockSupabaseService.Setup(s => s.GetUsuarioContextoAsync(userId, It.IsAny<string>()))
+            .ReturnsAsync(("Administrador", condominioId));
+            
+        _mockSupabaseService.Setup(s => s.UpdateAvisoAsync(avisoId, userId, It.IsAny<UpdateAvisoRequestDto>()))
+            .ReturnsAsync((avisoDto, null));
+
+        await using var application = CreateFactory();
+        var client = application.CreateClient();
+        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
+
+        var dto = new UpdateAvisoRequestDto { Prioridad = "urgente" };
+
+        // Act
+        var response = await client.PutAsJsonAsync($"/api/avisos/{avisoId}", dto);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        _mockSupabaseService.Verify(s => s.UpdateAvisoAsync(avisoId, userId, It.Is<UpdateAvisoRequestDto>(x => x.Prioridad == "urgente")), Times.Once);
+    }
 }
