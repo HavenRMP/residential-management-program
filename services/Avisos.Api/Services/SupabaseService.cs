@@ -31,6 +31,7 @@ public class SupabaseService : ISupabaseService
     private const string ParamContenido = "p_contenido";
     private const string ParamDuracionDias = "p_duracion_dias";
     private const string ParamFechaExpiracion = "p_fecha_expiracion";
+    private const string ParamPrioridad = "p_prioridad";
     // --------------------------------------------------------------------------------------
 
     public SupabaseService(HttpClient httpClient, IConfiguration configuration, ILogger<SupabaseService> logger)
@@ -186,6 +187,7 @@ public class SupabaseService : ISupabaseService
 
         if (dto.DuracionDias.HasValue) payload[ParamDuracionDias] = dto.DuracionDias.Value;
         if (dto.FechaExpiracion.HasValue) payload[ParamFechaExpiracion] = dto.FechaExpiracion.Value;
+        payload[ParamPrioridad] = string.IsNullOrWhiteSpace(dto.Prioridad) ? "informativo" : dto.Prioridad;
 
         var request = new HttpRequestMessage(HttpMethod.Post, requestUrl);
         request.Headers.Add("apikey", _serviceRoleKey);
@@ -193,6 +195,7 @@ public class SupabaseService : ISupabaseService
         request.Headers.Add("x-actor-id", actorId.ToString());
         request.Content = JsonContent.Create(payload);
 
+        // TODO: requiere que las RPCs alta_aviso/cambio_aviso acepten p_prioridad (pendiente DBA)
         var response = await SendRequestAsync(request);
 
         if (!response.IsSuccessStatusCode)
@@ -230,6 +233,7 @@ public class SupabaseService : ISupabaseService
         if (dto.Contenido != null) payload[ParamContenido] = dto.Contenido;
         if (dto.DuracionDias.HasValue) payload[ParamDuracionDias] = dto.DuracionDias.Value;
         if (dto.FechaExpiracion.HasValue) payload[ParamFechaExpiracion] = dto.FechaExpiracion.Value;
+        if (dto.Prioridad != null) payload[ParamPrioridad] = dto.Prioridad;
 
         var request = new HttpRequestMessage(HttpMethod.Post, requestUrl);
         request.Headers.Add("apikey", _serviceRoleKey);
@@ -237,6 +241,7 @@ public class SupabaseService : ISupabaseService
         request.Headers.Add("x-actor-id", actorId.ToString());
         request.Content = JsonContent.Create(payload);
 
+        // TODO: requiere que las RPCs alta_aviso/cambio_aviso acepten p_prioridad (pendiente DBA)
         var response = await SendRequestAsync(request);
 
         if (!response.IsSuccessStatusCode)
