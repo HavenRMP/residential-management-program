@@ -180,6 +180,41 @@ public class AvisosPaginacionTests : IAsyncLifetime
         _mockSupabaseService.Verify(s => s.GetAvisosVigentesAsync(It.IsAny<Guid>(), It.IsAny<PaginationParams>()), Times.Never);
     }
 
+    [Fact]
+    public async Task GetAvisos_SinQueryParams_UsaPageUnoYPageSizeVeinte()
+    {
+        var userId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = GenerateMockJwt(userId);
+        
+        _mockSupabaseService.Setup(s => s.GetUsuarioContextoAsync(userId, It.IsAny<string>()))
+            .ReturnsAsync(("Residente", condominioId));
+            
+        PaginationParams capturedParams = null!;
+        _mockSupabaseService.Setup(s => s.GetAvisosVigentesAsync(condominioId, It.IsAny<PaginationParams>()))
+            .Callback<Guid, PaginationParams>((id, p) => capturedParams = p)
+            .ReturnsAsync((new List<AvisoDto>(), 0));
+
+        await using var application = CreateFactory();
+        var client = application.CreateClient();
+        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
+
+        var response = await client.GetAsync("/api/avisos");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        _mockSupabaseService.Verify(s => s.GetAvisosVigentesAsync(condominioId, It.IsAny<PaginationParams>()), Times.Once);
+        Assert.NotNull(capturedParams);
+        Assert.Equal(1, capturedParams.Page);
+        Assert.Equal(20, capturedParams.PageSize);
+
+        var content = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(content.TryGetProperty("page", out var pageElement));
+        Assert.Equal(1, pageElement.GetInt32());
+        
+        Assert.True(content.TryGetProperty("pageSize", out var pageSizeElement));
+        Assert.Equal(20, pageSizeElement.GetInt32());
+    }
+
     // ==========================================
     // TESTS PARA GET /api/avisos/historico
     // ==========================================
