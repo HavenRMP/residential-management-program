@@ -19,6 +19,9 @@ public class UpdateAvisoRequestDto : IValidatableObject
     [JsonPropertyName("fecha_expiracion")]
     public DateTimeOffset? FechaExpiracion { get; set; }
 
+    [JsonPropertyName("prioridad")]
+    public string? Prioridad { get; set; }
+
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         if (DuracionDias.HasValue && FechaExpiracion.HasValue)
