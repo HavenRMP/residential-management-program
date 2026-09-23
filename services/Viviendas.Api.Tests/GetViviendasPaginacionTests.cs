@@ -196,4 +196,46 @@ public class GetViviendasPaginacionTests : IAsyncLifetime
         Assert.Equal(1, capturedParams.Page);
         Assert.Equal(20, capturedParams.PageSize);
     }
+
+    [Fact]
+    public async Task GetViviendas_SinQueryParams_UsaPageUnoYPageSizeVeinte()
+    {
+        var userId = Guid.NewGuid();
+        var token = GenerateFakeToken(userId);
+        var condominioId = Guid.NewGuid();
+
+        var mockSupabaseService = new Mock<ISupabaseService>();
+
+        mockSupabaseService.Setup(s => s.GetContextoAdminAsync(userId, It.IsAny<string>()))
+            .ReturnsAsync(("Administrador", condominioId));
+
+        var expectedViviendas = new List<ViviendaDto>();
+
+        PaginationParams capturedParams = null!;
+
+        mockSupabaseService.Setup(s => s.GetViviendasAsync(condominioId, It.IsAny<PaginationParams>()))
+            .Callback<Guid, PaginationParams>((id, p) => capturedParams = p)
+            .ReturnsAsync((expectedViviendas, 0));
+
+        await using var application = BuildApplication(mockSupabaseService);
+        var client = application.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync("/api/viviendas");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        mockSupabaseService.Verify(s => s.GetViviendasAsync(condominioId, It.IsAny<PaginationParams>()), Times.Once);
+        
+        Assert.NotNull(capturedParams);
+        Assert.Equal(1, capturedParams.Page);
+        Assert.Equal(20, capturedParams.PageSize);
+
+        var content = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(content.TryGetProperty("page", out var pageElement));
+        Assert.Equal(1, pageElement.GetInt32());
+        
+        Assert.True(content.TryGetProperty("pageSize", out var pageSizeElement));
+        Assert.Equal(20, pageSizeElement.GetInt32());
+    }
 }

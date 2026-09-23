@@ -233,4 +233,46 @@ public class AuthControllerResidentesTests : IAsyncLifetime
         mockSupabaseService.Verify(s => s.GetResidentesAsync(condominioId, It.IsAny<PaginationParams>()), Times.Once);
         mockSupabaseService.Verify(s => s.GetResidentesSinViviendaAsync(It.IsAny<Guid>(), It.IsAny<PaginationParams>()), Times.Never);
     }
+
+    [Fact]
+    public async Task GetResidentes_SinQueryParams_UsaPageUnoYPageSizeVeinte()
+    {
+        // Arrange
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = GenerateFakeToken(adminId);
+
+        var mockSupabaseService = new Mock<ISupabaseService>();
+        
+        mockSupabaseService.Setup(s => s.GetUsuarioByIdAsync(adminId, It.IsAny<string>(), It.IsAny<Guid>()))
+            .ReturnsAsync(new UsuarioDto { Id = adminId, Rol = "Administrador", CondominioId = condominioId });
+
+        PaginationParams capturedParams = null!;
+
+        mockSupabaseService.Setup(s => s.GetResidentesAsync(condominioId, It.IsAny<PaginationParams>()))
+            .Callback<Guid, PaginationParams>((id, p) => capturedParams = p)
+            .ReturnsAsync((new List<UsuarioDto>(), 0));
+
+        await using var application = BuildApplication(mockSupabaseService);
+        var client = application.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        // Act
+        var response = await client.GetAsync("/api/Auth/residentes");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        mockSupabaseService.Verify(s => s.GetResidentesAsync(condominioId, It.IsAny<PaginationParams>()), Times.Once);
+        
+        Assert.NotNull(capturedParams);
+        Assert.Equal(1, capturedParams.Page);
+        Assert.Equal(20, capturedParams.PageSize);
+
+        var content = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(content.TryGetProperty("page", out var pageElement));
+        Assert.Equal(1, pageElement.GetInt32());
+        
+        Assert.True(content.TryGetProperty("pageSize", out var pageSizeElement));
+        Assert.Equal(20, pageSizeElement.GetInt32());
+    }
 }
