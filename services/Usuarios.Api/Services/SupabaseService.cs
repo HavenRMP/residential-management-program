@@ -307,4 +307,77 @@ public class SupabaseService : ISupabaseService
         var updatedUsuario = await ParseJsonAsync<UsuarioDto>(rpcResponse.Content);
         return (updatedUsuario, null);
     }
+
+    // Notificaciones
+    public async Task<List<NotificacionDto>?> GetNotificacionesAsync(Guid userId, string accessToken)
+    {
+        var requestUrl = $"{_supabaseUrl}/rest/v1/notificaciones?usuario_id=eq.{userId}&order=creado_en.desc&limit=20";
+        var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await SendRequestAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to fetch notificaciones for user {UserId}. Status: {StatusCode}", userId, response.StatusCode);
+            return null;
+        }
+
+        return await ParseJsonAsync<List<NotificacionDto>>(response.Content) ?? new List<NotificacionDto>();
+    }
+
+    public async Task<int> GetContadorNoLeidasAsync(Guid userId, string accessToken)
+    {
+        var requestUrl = $"{_supabaseUrl}/rest/v1/notificaciones?usuario_id=eq.{userId}&leida=eq.false";
+        var request = new HttpRequestMessage(HttpMethod.Head, requestUrl);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Add("Prefer", "count=exact");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await SendRequestAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to fetch count of unread notificaciones for user {UserId}. Status: {StatusCode}", userId, response.StatusCode);
+            return 0;
+        }
+
+        if (response.Headers.TryGetValues("Content-Range", out var values))
+        {
+            var contentRange = values.FirstOrDefault();
+            if (!string.IsNullOrEmpty(contentRange) && contentRange.Contains("/"))
+            {
+                var parts = contentRange.Split('/');
+                if (parts.Length == 2 && int.TryParse(parts[1], out var total))
+                {
+                    return total;
+                }
+            }
+        }
+
+        return 0;
+    }
+
+    public async Task<bool> MarcarNotificacionComoLeidaAsync(Guid id, Guid userId, string accessToken)
+    {
+        var requestUrl = $"{_supabaseUrl}/rest/v1/notificaciones?id=eq.{id}&usuario_id=eq.{userId}";
+        var request = new HttpRequestMessage(HttpMethod.Patch, requestUrl);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        request.Content = new StringContent("{\"leida\":true}", System.Text.Encoding.UTF8, "application/json");
+
+        var response = await SendRequestAsync(request);
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> MarcarTodasComoLeidasAsync(Guid userId, string accessToken)
+    {
+        var requestUrl = $"{_supabaseUrl}/rest/v1/notificaciones?usuario_id=eq.{userId}&leida=eq.false";
+        var request = new HttpRequestMessage(HttpMethod.Patch, requestUrl);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        request.Content = new StringContent("{\"leida\":true}", System.Text.Encoding.UTF8, "application/json");
+
+        var response = await SendRequestAsync(request);
+        return response.IsSuccessStatusCode;
+    }
 }
