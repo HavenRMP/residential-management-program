@@ -15,10 +15,10 @@ public interface ISupabaseService
     Task<(UsuarioDto? usuario, string? error)> AsignarCondominioAdminAsync(Guid adminId, Guid condominioId);
     
     // Notificaciones
-    Task<List<NotificacionDto>?> GetNotificacionesAsync(Guid userId, string accessToken);
-    Task<int> GetContadorNoLeidasAsync(Guid userId, string accessToken);
-    Task<bool> MarcarNotificacionComoLeidaAsync(Guid id, Guid userId, string accessToken);
-    Task<bool> MarcarTodasComoLeidasAsync(Guid userId, string accessToken);
+    Task<(List<NotificacionDto>? Notificaciones, string? Error)> GetNotificacionesAsync(Guid userId, string accessToken);
+    Task<(int? Count, string? Error)> GetContadorNoLeidasAsync(Guid userId, string accessToken);
+    Task<(bool Success, string? Error)> MarcarNotificacionComoLeidaAsync(Guid id, Guid userId, string accessToken);
+    Task<(bool Success, string? Error)> MarcarTodasComoLeidasAsync(Guid userId, string accessToken);
 
     // Sub-usuarios
     Task<List<VwViviendaSubusuarioDto>?> GetSubusuariosActivosAsync(int viviendaId, string accessToken);
