@@ -94,7 +94,7 @@ public class NotificacionesControllerTests : IAsyncLifetime
         };
 
         mockSupabaseService.Setup(s => s.GetNotificacionesAsync(userId, It.IsAny<string>()))
-            .ReturnsAsync(expectedList);
+            .ReturnsAsync((expectedList, null));
 
         await using var application = BuildApplication(mockSupabaseService);
         var client = application.CreateClient();
@@ -119,7 +119,7 @@ public class NotificacionesControllerTests : IAsyncLifetime
         var mockSupabaseService = new Mock<ISupabaseService>();
         
         mockSupabaseService.Setup(s => s.GetContadorNoLeidasAsync(userId, It.IsAny<string>()))
-            .ReturnsAsync(5);
+            .ReturnsAsync((5, null));
 
         await using var application = BuildApplication(mockSupabaseService);
         var client = application.CreateClient();
@@ -146,7 +146,7 @@ public class NotificacionesControllerTests : IAsyncLifetime
         var mockSupabaseService = new Mock<ISupabaseService>();
         
         mockSupabaseService.Setup(s => s.MarcarNotificacionComoLeidaAsync(notificacionId, userId, It.IsAny<string>()))
-            .ReturnsAsync(true);
+            .ReturnsAsync((true, null));
 
         await using var application = BuildApplication(mockSupabaseService);
         var client = application.CreateClient();
@@ -169,7 +169,7 @@ public class NotificacionesControllerTests : IAsyncLifetime
         var mockSupabaseService = new Mock<ISupabaseService>();
         
         mockSupabaseService.Setup(s => s.MarcarTodasComoLeidasAsync(userId, It.IsAny<string>()))
-            .ReturnsAsync(true);
+            .ReturnsAsync((true, null));
 
         await using var application = BuildApplication(mockSupabaseService);
         var client = application.CreateClient();
