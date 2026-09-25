@@ -19,4 +19,11 @@ public interface ISupabaseService
     Task<int> GetContadorNoLeidasAsync(Guid userId, string accessToken);
     Task<bool> MarcarNotificacionComoLeidaAsync(Guid id, Guid userId, string accessToken);
     Task<bool> MarcarTodasComoLeidasAsync(Guid userId, string accessToken);
+
+    // Sub-usuarios
+    Task<List<VwViviendaSubusuarioDto>?> GetSubusuariosActivosAsync(int viviendaId, string accessToken);
+    Task<List<VwCodigoSubusuarioDto>?> GetInvitacionesSubusuarioAsync(int viviendaId, string accessToken);
+    Task<(VwCodigoSubusuarioDto? invitacion, string? error)> InvitarSubusuarioAsync(int viviendaId, string parentesco, Guid creadoPor, string accessToken);
+    Task<bool> CancelarInvitacionAsync(Guid invitacionId, string accessToken);
+    Task<bool> RevocarSubusuarioAsync(int viviendaId, Guid usuarioId, string accessToken);
 }

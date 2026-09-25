@@ -380,4 +380,108 @@ public class SupabaseService : ISupabaseService
         var response = await SendRequestAsync(request);
         return response.IsSuccessStatusCode;
     }
+
+    // Sub-usuarios
+    public async Task<List<VwViviendaSubusuarioDto>?> GetSubusuariosActivosAsync(int viviendaId, string accessToken)
+    {
+        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_vivienda_subusuarios?vivienda_id=eq.{viviendaId}&activo=eq.true";
+        var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await SendRequestAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to fetch active subusuarios for vivienda {ViviendaId}. Status: {StatusCode}", viviendaId, response.StatusCode);
+            return null;
+        }
+
+        return await ParseJsonAsync<List<VwViviendaSubusuarioDto>>(response.Content);
+    }
+
+    public async Task<List<VwCodigoSubusuarioDto>?> GetInvitacionesSubusuarioAsync(int viviendaId, string accessToken)
+    {
+        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_codigos_subusuario?vivienda_id=eq.{viviendaId}&es_vigente=eq.true";
+        var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await SendRequestAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to fetch pending invitations for vivienda {ViviendaId}. Status: {StatusCode}", viviendaId, response.StatusCode);
+            return null;
+        }
+
+        return await ParseJsonAsync<List<VwCodigoSubusuarioDto>>(response.Content);
+    }
+
+    public async Task<(VwCodigoSubusuarioDto? invitacion, string? error)> InvitarSubusuarioAsync(int viviendaId, string parentesco, Guid creadoPor, string accessToken)
+    {
+        var url = $"{_supabaseUrl}/rest/v1/rpc/generar_codigo_subusuario";
+        var payload = new
+        {
+            p_vivienda_id = viviendaId,
+            p_parentesco = parentesco,
+            p_creado_por = creadoPor
+        };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Add("x-actor-id", creadoPor.ToString());
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        
+        var jsonString = JsonSerializer.Serialize(payload);
+        request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await SendRequestAsync(request);
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogError("Failed to generate subusuario code. Status: {StatusCode}, Body: {Body}", response.StatusCode, errorBody);
+            
+            if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                return (null, "Límite máximo de 2 sub-usuarios alcanzado en la vivienda.");
+            }
+            
+            return (null, $"Error al generar código: {errorBody}");
+        }
+
+        var invitacion = await ParseJsonAsync<VwCodigoSubusuarioDto>(response.Content);
+        return (invitacion, null);
+    }
+
+    public async Task<bool> CancelarInvitacionAsync(Guid invitacionId, string accessToken)
+    {
+        var url = $"{_supabaseUrl}/rest/v1/rpc/cancelar_codigo_subusuario";
+        var payload = new { p_id = invitacionId };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        
+        var jsonString = JsonSerializer.Serialize(payload);
+        request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await SendRequestAsync(request);
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> RevocarSubusuarioAsync(int viviendaId, Guid usuarioId, string accessToken)
+    {
+        var url = $"{_supabaseUrl}/rest/v1/rpc/baja_subusuario";
+        var payload = new { p_vivienda_id = viviendaId, p_usuario_id = usuarioId };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        
+        var jsonString = JsonSerializer.Serialize(payload);
+        request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await SendRequestAsync(request);
+        return response.IsSuccessStatusCode;
+    }
 }
