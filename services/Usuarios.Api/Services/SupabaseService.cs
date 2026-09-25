@@ -344,7 +344,17 @@ public class SupabaseService : ISupabaseService
             return (null, $"Supabase API Error: {response.StatusCode} - {errorBody}");
         }
 
-        if (response.Headers.TryGetValues("Content-Range", out var values))
+        IEnumerable<string>? values = null;
+        if (response.Content.Headers.TryGetValues("Content-Range", out var cValues))
+        {
+            values = cValues;
+        }
+        else if (response.Headers.TryGetValues("Content-Range", out var hValues))
+        {
+            values = hValues;
+        }
+
+        if (values != null)
         {
             var contentRange = values.FirstOrDefault();
             if (!string.IsNullOrEmpty(contentRange) && contentRange.Contains("/"))
