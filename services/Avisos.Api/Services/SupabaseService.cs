@@ -218,6 +218,23 @@ public class SupabaseService : ISupabaseService
         }
 
         var result = await ParseJsonAsync<AvisoDto>(response.Content);
+
+        if (result != null && string.Equals(dto.Prioridad, "urgente", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var residentesIds = await GetResidentesUsuarioIdsPorCondominioAsync(result.CondominioId);
+                foreach (var resId in residentesIds)
+                {
+                    await NotificarAvisoUrgenteAsync(resId, result.Id, result.Titulo);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error no controlado al notificar aviso urgente {AvisoId}", result.Id);
+            }
+        }
+
         return (result, null);
     }
 
