@@ -304,4 +304,14 @@ public class SupabaseService : ISupabaseService
         var ok = await ParseJsonAsync<bool>(response.Content);
         return (ok, null);
     }
+
+    public Task<List<Guid>> GetResidentesUsuarioIdsPorCondominioAsync(Guid condominioId)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<bool> NotificarAvisoUrgenteAsync(Guid usuarioId, Guid avisoId, string tituloAviso)
+    {
+        throw new NotImplementedException();
+    }
 }
