@@ -309,7 +309,7 @@ public class SupabaseService : ISupabaseService
     }
 
     // Notificaciones
-    public async Task<List<NotificacionDto>?> GetNotificacionesAsync(Guid userId, string accessToken)
+    public async Task<(List<NotificacionDto>? Notificaciones, string? Error)> GetNotificacionesAsync(Guid userId, string accessToken)
     {
         var requestUrl = $"{_supabaseUrl}/rest/v1/vw_notificaciones?usuario_id=eq.{userId}&order=creado_en.desc&limit=20";
         var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
@@ -319,14 +319,16 @@ public class SupabaseService : ISupabaseService
         var response = await SendRequestAsync(request);
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogWarning("Failed to fetch notificaciones for user {UserId}. Status: {StatusCode}", userId, response.StatusCode);
-            return null;
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogWarning("Failed to fetch notificaciones for user {UserId}. Status: {StatusCode}. Body: {Body}", userId, response.StatusCode, errorBody);
+            return (null, $"Supabase API Error: {response.StatusCode} - {errorBody}");
         }
 
-        return await ParseJsonAsync<List<NotificacionDto>>(response.Content) ?? new List<NotificacionDto>();
+        var result = await ParseJsonAsync<List<NotificacionDto>>(response.Content) ?? new List<NotificacionDto>();
+        return (result, null);
     }
 
-    public async Task<int> GetContadorNoLeidasAsync(Guid userId, string accessToken)
+    public async Task<(int? Count, string? Error)> GetContadorNoLeidasAsync(Guid userId, string accessToken)
     {
         var requestUrl = $"{_supabaseUrl}/rest/v1/vw_notificaciones?usuario_id=eq.{userId}&leida=eq.false";
         var request = new HttpRequestMessage(HttpMethod.Head, requestUrl);
@@ -337,8 +339,9 @@ public class SupabaseService : ISupabaseService
         var response = await SendRequestAsync(request);
         if (!response.IsSuccessStatusCode)
         {
+            var errorBody = await response.Content.ReadAsStringAsync();
             _logger.LogWarning("Failed to fetch count of unread notificaciones for user {UserId}. Status: {StatusCode}", userId, response.StatusCode);
-            return 0;
+            return (null, $"Supabase API Error: {response.StatusCode} - {errorBody}");
         }
 
         if (response.Headers.TryGetValues("Content-Range", out var values))
@@ -349,15 +352,15 @@ public class SupabaseService : ISupabaseService
                 var parts = contentRange.Split('/');
                 if (parts.Length == 2 && int.TryParse(parts[1], out var total))
                 {
-                    return total;
+                    return (total, null);
                 }
             }
         }
 
-        return 0;
+        return (0, null);
     }
 
-    public async Task<bool> MarcarNotificacionComoLeidaAsync(Guid id, Guid userId, string accessToken)
+    public async Task<(bool Success, string? Error)> MarcarNotificacionComoLeidaAsync(Guid id, Guid userId, string accessToken)
     {
         var requestUrl = $"{_supabaseUrl}/rest/v1/rpc/marcar_notificacion_leida";
         var request = new HttpRequestMessage(HttpMethod.Post, requestUrl);
@@ -369,10 +372,15 @@ public class SupabaseService : ISupabaseService
         request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
 
         var response = await SendRequestAsync(request);
-        return response.IsSuccessStatusCode;
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            return (false, $"Supabase API Error: {response.StatusCode} - {errorBody}");
+        }
+        return (true, null);
     }
 
-    public async Task<bool> MarcarTodasComoLeidasAsync(Guid userId, string accessToken)
+    public async Task<(bool Success, string? Error)> MarcarTodasComoLeidasAsync(Guid userId, string accessToken)
     {
         var requestUrl = $"{_supabaseUrl}/rest/v1/rpc/marcar_todas_notificaciones_leidas";
         var request = new HttpRequestMessage(HttpMethod.Post, requestUrl);
@@ -384,7 +392,12 @@ public class SupabaseService : ISupabaseService
         request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
 
         var response = await SendRequestAsync(request);
-        return response.IsSuccessStatusCode;
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            return (false, $"Supabase API Error: {response.StatusCode} - {errorBody}");
+        }
+        return (true, null);
     }
 
     // Sub-usuarios
