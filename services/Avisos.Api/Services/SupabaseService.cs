@@ -333,7 +333,8 @@ public class SupabaseService : ISupabaseService
         var response = await SendRequestAsync(request);
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogWarning("GetResidentesUsuarioIdsPorCondominioAsync failed. Status: {StatusCode}", response.StatusCode);
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogWarning("GetResidentesUsuarioIdsPorCondominioAsync failed. Status: {StatusCode}, Body: {Body}", response.StatusCode, errorBody);
             return new List<Guid>();
         }
 
@@ -374,7 +375,8 @@ public class SupabaseService : ISupabaseService
         var response = await SendRequestAsync(request);
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogWarning("NotificarAvisoUrgenteAsync failed. Status: {StatusCode}", response.StatusCode);
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogWarning("NotificarAvisoUrgenteAsync failed. Status: {StatusCode}, Body: {Body}", response.StatusCode, errorBody);
             return false;
         }
 
