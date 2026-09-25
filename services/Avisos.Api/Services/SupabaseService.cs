@@ -23,6 +23,7 @@ public class SupabaseService : ISupabaseService
     private const string RpcAltaAviso = "alta_aviso";
     private const string RpcCambioAviso = "cambio_aviso";
     private const string RpcBajaAviso = "baja_aviso";
+    private const string RpcAltaNotificacion = "alta_notificacion";
 
     private const string ParamId = "p_id";
     private const string ParamActorId = "p_actor_id";
@@ -305,13 +306,61 @@ public class SupabaseService : ISupabaseService
         return (ok, null);
     }
 
-    public Task<List<Guid>> GetResidentesUsuarioIdsPorCondominioAsync(Guid condominioId)
+    public async Task<List<Guid>> GetResidentesUsuarioIdsPorCondominioAsync(Guid condominioId)
     {
-        throw new NotImplementedException();
+        var requestUrl = $"{_supabaseUrl}/rest/v1/{VwUsuarios}?condominio_id=eq.{condominioId}&rol_id=eq.2&activo=eq.true&select=id";
+        var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+        request.Headers.Add("apikey", _serviceRoleKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
+
+        var response = await SendRequestAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("GetResidentesUsuarioIdsPorCondominioAsync failed. Status: {StatusCode}", response.StatusCode);
+            return new List<Guid>();
+        }
+
+        var jsonElements = await ParseJsonAsync<List<Dictionary<string, JsonElement>>>(response.Content);
+        if (jsonElements == null) return new List<Guid>();
+
+        var list = new List<Guid>();
+        foreach (var dict in jsonElements)
+        {
+            if (dict.TryGetValue("id", out var idElement) && idElement.ValueKind == JsonValueKind.String)
+            {
+                if (Guid.TryParse(idElement.GetString(), out var id))
+                {
+                    list.Add(id);
+                }
+            }
+        }
+        return list;
     }
 
-    public Task<bool> NotificarAvisoUrgenteAsync(Guid usuarioId, Guid avisoId, string tituloAviso)
+    public async Task<bool> NotificarAvisoUrgenteAsync(Guid usuarioId, Guid avisoId, string tituloAviso)
     {
-        throw new NotImplementedException();
+        var requestUrl = $"{_supabaseUrl}/rest/v1/rpc/{RpcAltaNotificacion}";
+        var payload = new
+        {
+            p_usuario_id = usuarioId,
+            p_tipo_evento = "aviso_urgente",
+            p_titulo = "Aviso urgente publicado",
+            p_mensaje = tituloAviso,
+            p_url_redireccion = $"/avisos/{avisoId}"
+        };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, requestUrl);
+        request.Headers.Add("apikey", _serviceRoleKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
+        request.Content = System.Net.Http.Json.JsonContent.Create(payload);
+
+        var response = await SendRequestAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("NotificarAvisoUrgenteAsync failed. Status: {StatusCode}", response.StatusCode);
+            return false;
+        }
+
+        return true;
     }
 }
