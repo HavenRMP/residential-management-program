@@ -311,7 +311,7 @@ public class SupabaseService : ISupabaseService
     // Notificaciones
     public async Task<List<NotificacionDto>?> GetNotificacionesAsync(Guid userId, string accessToken)
     {
-        var requestUrl = $"{_supabaseUrl}/rest/v1/notificaciones?usuario_id=eq.{userId}&order=creado_en.desc&limit=20";
+        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_notificaciones?usuario_id=eq.{userId}&order=creado_en.desc&limit=20";
         var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
         request.Headers.Add("apikey", _anonKey);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
@@ -328,7 +328,7 @@ public class SupabaseService : ISupabaseService
 
     public async Task<int> GetContadorNoLeidasAsync(Guid userId, string accessToken)
     {
-        var requestUrl = $"{_supabaseUrl}/rest/v1/notificaciones?usuario_id=eq.{userId}&leida=eq.false";
+        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_notificaciones?usuario_id=eq.{userId}&leida=eq.false";
         var request = new HttpRequestMessage(HttpMethod.Head, requestUrl);
         request.Headers.Add("apikey", _anonKey);
         request.Headers.Add("Prefer", "count=exact");
@@ -359,11 +359,14 @@ public class SupabaseService : ISupabaseService
 
     public async Task<bool> MarcarNotificacionComoLeidaAsync(Guid id, Guid userId, string accessToken)
     {
-        var requestUrl = $"{_supabaseUrl}/rest/v1/notificaciones?id=eq.{id}&usuario_id=eq.{userId}";
-        var request = new HttpRequestMessage(HttpMethod.Patch, requestUrl);
+        var requestUrl = $"{_supabaseUrl}/rest/v1/rpc/marcar_notificacion_leida";
+        var request = new HttpRequestMessage(HttpMethod.Post, requestUrl);
         request.Headers.Add("apikey", _anonKey);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        request.Content = new StringContent("{\"leida\":true}", System.Text.Encoding.UTF8, "application/json");
+        
+        var payload = new { p_id = id, p_usuario_id = userId };
+        var jsonString = JsonSerializer.Serialize(payload);
+        request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
 
         var response = await SendRequestAsync(request);
         return response.IsSuccessStatusCode;
@@ -371,11 +374,14 @@ public class SupabaseService : ISupabaseService
 
     public async Task<bool> MarcarTodasComoLeidasAsync(Guid userId, string accessToken)
     {
-        var requestUrl = $"{_supabaseUrl}/rest/v1/notificaciones?usuario_id=eq.{userId}&leida=eq.false";
-        var request = new HttpRequestMessage(HttpMethod.Patch, requestUrl);
+        var requestUrl = $"{_supabaseUrl}/rest/v1/rpc/marcar_todas_notificaciones_leidas";
+        var request = new HttpRequestMessage(HttpMethod.Post, requestUrl);
         request.Headers.Add("apikey", _anonKey);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        request.Content = new StringContent("{\"leida\":true}", System.Text.Encoding.UTF8, "application/json");
+        
+        var payload = new { p_usuario_id = userId };
+        var jsonString = JsonSerializer.Serialize(payload);
+        request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
 
         var response = await SendRequestAsync(request);
         return response.IsSuccessStatusCode;
