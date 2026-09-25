@@ -40,7 +40,11 @@ public class NotificacionesController : ControllerBase
             return Unauthorized(new { error = "Token invalido: no contiene ID de usuario" });
         }
 
-        var notificaciones = await _supabaseService.GetNotificacionesAsync(userId.Value, accessToken);
+        var (notificaciones, error) = await _supabaseService.GetNotificacionesAsync(userId.Value, accessToken);
+        if (error != null)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new { error });
+        }
         if (notificaciones == null)
         {
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "Error al obtener notificaciones" });
@@ -60,8 +64,12 @@ public class NotificacionesController : ControllerBase
             return Unauthorized(new { error = "Token invalido: no contiene ID de usuario" });
         }
 
-        var count = await _supabaseService.GetContadorNoLeidasAsync(userId.Value, accessToken);
-        return Ok(new { count });
+        var (count, error) = await _supabaseService.GetContadorNoLeidasAsync(userId.Value, accessToken);
+        if (error != null)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new { error });
+        }
+        return Ok(new { count = count ?? 0 });
     }
 
     [HttpPatch("{id:guid}/leer")]
@@ -76,7 +84,11 @@ public class NotificacionesController : ControllerBase
             return Unauthorized(new { error = "Token invalido: no contiene ID de usuario" });
         }
 
-        var success = await _supabaseService.MarcarNotificacionComoLeidaAsync(id, userId.Value, accessToken);
+        var (success, error) = await _supabaseService.MarcarNotificacionComoLeidaAsync(id, userId.Value, accessToken);
+        if (error != null)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new { error });
+        }
         if (!success)
         {
             return BadRequest(new { error = "No se pudo marcar la notificación como leída" });
@@ -97,7 +109,11 @@ public class NotificacionesController : ControllerBase
             return Unauthorized(new { error = "Token invalido: no contiene ID de usuario" });
         }
 
-        var success = await _supabaseService.MarcarTodasComoLeidasAsync(userId.Value, accessToken);
+        var (success, error) = await _supabaseService.MarcarTodasComoLeidasAsync(userId.Value, accessToken);
+        if (error != null)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new { error });
+        }
         if (!success)
         {
             return BadRequest(new { error = "No se pudieron marcar las notificaciones como leídas" });
