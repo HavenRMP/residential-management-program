@@ -133,54 +133,75 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
     final titleController = TextEditingController();
     final contentController = TextEditingController();
     int duracionDias = 7;
+    String prioridad = 'informativo';
 
     final result = await showDialog<bool>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Crear Nuevo Aviso'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleController,
-                  decoration: const InputDecoration(labelText: 'Título'),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: contentController,
-                  decoration: const InputDecoration(labelText: 'Contenido'),
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<int>(
-                  initialValue: duracionDias,
-                  items: const [
-                    DropdownMenuItem(value: 3, child: Text('3 días')),
-                    DropdownMenuItem(value: 7, child: Text('1 semana (7 días)')),
-                    DropdownMenuItem(value: 14, child: Text('2 semanas')),
-                    DropdownMenuItem(value: 30, child: Text('1 mes')),
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: const Text('Crear Nuevo Aviso'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(labelText: 'Título'),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: contentController,
+                      decoration: const InputDecoration(labelText: 'Contenido'),
+                      maxLines: 3,
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      initialValue: prioridad,
+                      items: const [
+                        DropdownMenuItem(value: 'informativo', child: Text('Informativo')),
+                        DropdownMenuItem(value: 'urgente', child: Text('Urgente (Notifica a residentes)')),
+                        DropdownMenuItem(value: 'mantenimiento', child: Text('Mantenimiento')),
+                        DropdownMenuItem(value: 'evento', child: Text('Evento')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setModalState(() => prioridad = value);
+                        }
+                      },
+                      decoration: const InputDecoration(labelText: 'Prioridad'),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<int>(
+                      initialValue: duracionDias,
+                      items: const [
+                        DropdownMenuItem(value: 3, child: Text('3 días')),
+                        DropdownMenuItem(value: 7, child: Text('1 semana (7 días)')),
+                        DropdownMenuItem(value: 14, child: Text('2 semanas')),
+                        DropdownMenuItem(value: 30, child: Text('1 mes')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) duracionDias = value;
+                      },
+                      decoration: const InputDecoration(labelText: 'Duración'),
+                    ),
                   ],
-                  onChanged: (value) {
-                    if (value != null) duracionDias = value;
-                  },
-                  decoration: const InputDecoration(labelText: 'Duración'),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF111C99)),
+                  child: const Text('Crear'),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF111C99)),
-              child: const Text('Crear'),
-            ),
-          ],
+            );
+          },
         );
       },
     );
@@ -197,7 +218,12 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
       setState(() => _isLoading = true);
       try {
         final service = AvisosService(widget.controller);
-        final res = await service.createAviso(titulo, contenido, duracionDias: duracionDias);
+        final res = await service.createAviso(
+          titulo,
+          contenido,
+          duracionDias: duracionDias,
+          prioridad: prioridad,
+        );
         
         if (res != null) {
           widget.controller.notifyToast('Aviso creado exitosamente', success: true);
@@ -317,6 +343,7 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
         final id = aviso['id'];
         final titulo = aviso['titulo'] ?? 'Aviso';
         final contenido = aviso['contenido'] ?? '';
+        final prioridad = aviso['prioridad']?.toString();
         
         return Card(
           margin: const EdgeInsets.only(bottom: 16),
@@ -330,13 +357,20 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
-                      child: Text(
-                        titulo,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F172A),
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            titulo,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          _buildPrioridadBadge(prioridad),
+                        ],
                       ),
                     ),
                     if (esVigente)
@@ -358,6 +392,65 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
           ),
         );
       },
+    );
+  }
+
+  Widget _buildPrioridadBadge(String? prioridad) {
+    Color bg;
+    Color textColor;
+    IconData icon;
+    String label;
+
+    switch (prioridad?.toLowerCase()) {
+      case 'urgente':
+        bg = const Color(0xFFFEF2F2);
+        textColor = const Color(0xFFDC2626);
+        icon = Icons.warning_amber_rounded;
+        label = 'Urgente';
+        break;
+      case 'mantenimiento':
+        bg = const Color(0xFFFFFBEB);
+        textColor = const Color(0xFFD97706);
+        icon = Icons.build_rounded;
+        label = 'Mantenimiento';
+        break;
+      case 'evento':
+        bg = const Color(0xFFF5F3FF);
+        textColor = const Color(0xFF7C3AED);
+        icon = Icons.event_rounded;
+        label = 'Evento';
+        break;
+      case 'informativo':
+      default:
+        bg = const Color(0xFFEFF6FF);
+        textColor = const Color(0xFF2563EB);
+        icon = Icons.info_outline_rounded;
+        label = 'Informativo';
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: textColor.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: textColor),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: textColor,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
