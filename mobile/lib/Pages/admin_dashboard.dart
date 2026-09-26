@@ -8,6 +8,7 @@ import 'residentes_list.dart';
 import 'viviendas_list.dart';
 import 'avisos_admin_screen.dart';
 import 'perfil_screen.dart';
+import '../Services/push_notifications_service.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key, required this.controller});
@@ -32,6 +33,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void initState() {
     super.initState();
     _fetchStats();
+    PushNotificationsService.requestPermission();
   }
 
   Future<void> _fetchStats() async {
