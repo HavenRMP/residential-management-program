@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, effect } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -55,8 +55,31 @@ import Swal from 'sweetalert2';
           {{ modo() === 'residente' ? 'Acceso para residentes' : 'Acceso para administración y vigilancia' }}
         </p>
 
+        <!-- Skeleton de carga: sustituye al formulario mientras se valida la sesión -->
+        <div *ngIf="isSubmitting() || isSubmittingGoogle()" class="space-y-6" aria-live="polite" aria-busy="true">
+          <div class="flex items-center gap-3 p-3.5 rounded-lg bg-[#111C99]/5 border border-[#111C99]/10">
+            <span class="relative flex h-2.5 w-2.5 shrink-0">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#111C99]/50"></span>
+              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#111C99]"></span>
+            </span>
+            <span class="text-sm font-medium text-[#111C99]">{{ mensajeEstadoCarga() }}</span>
+          </div>
+
+          <div class="space-y-2">
+            <div class="h-3 w-14 bg-slate-200 rounded-sm animate-pulse"></div>
+            <div class="h-[50px] w-full bg-slate-100 rounded-lg animate-pulse"></div>
+          </div>
+
+          <div class="space-y-2">
+            <div class="h-3 w-24 bg-slate-200 rounded-sm animate-pulse"></div>
+            <div class="h-[50px] w-full bg-slate-100 rounded-lg animate-pulse"></div>
+          </div>
+
+          <div class="h-[50px] w-full bg-slate-200 rounded-lg animate-pulse"></div>
+        </div>
+
         <!-- Form -->
-        <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="space-y-6">
+        <form *ngIf="!isSubmitting() && !isSubmittingGoogle()" [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="space-y-6">
           <!-- Error Banner -->
           <div *ngIf="errorMessage()" class="p-3.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm font-medium flex items-center gap-2.5">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 shrink-0 text-red-600">
@@ -201,9 +224,16 @@ export class LoginComponent implements OnInit {
 
   readonly isSubmitting = signal<boolean>(false);
   readonly isSubmittingGoogle = signal<boolean>(false);
+  readonly isWakingUp = signal<boolean>(false);
   readonly errorMessage = signal<string | null>(null);
   readonly modo = signal<'residente' | 'staff'>('residente');
   readonly showPassword = signal<boolean>(false);
+
+  readonly mensajeEstadoCarga = computed(() => {
+    if (this.isSubmittingGoogle()) return 'Redirigiendo a Google...';
+    if (this.isWakingUp()) return 'Conectando con el servidor en la nube, esto puede tardar unos segundos...';
+    return 'Verificando tus datos...';
+  });
 
   private readonly MODO_ROLES: Record<'residente' | 'staff', string[]> = {
     residente: ['residente'],
@@ -260,22 +290,10 @@ export class LoginComponent implements OnInit {
     this.isSubmitting.set(true);
     this.errorMessage.set(null);
 
-    // Si tarda más de 3.5s (backend en frío en Render), mostrar feedback transparente
+    // Si tarda más de 3.5s (backend en frío en Render), el skeleton actualiza su mensaje
     const wakingTimer = setTimeout(() => {
       if (this.isSubmitting()) {
-        const Toast = Swal.mixin({
-          toast: true,
-          position: 'top',
-          showConfirmButton: false,
-          timer: 5000,
-          timerProgressBar: true
-        });
-        Toast.fire({
-          icon: 'info',
-          title: 'Conectando con el servidor en la nube, un momento por favor...',
-          background: '#fef3c7',
-          color: '#92400e'
-        });
+        this.isWakingUp.set(true);
       }
     }, 3500);
 
@@ -314,6 +332,7 @@ export class LoginComponent implements OnInit {
     } finally {
       clearTimeout(wakingTimer);
       this.isSubmitting.set(false);
+      this.isWakingUp.set(false);
     }
   }
 }
