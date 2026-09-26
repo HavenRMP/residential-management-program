@@ -1,128 +1,93 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
-import { SubUsuarioInvitacion, CrearInvitacionSubUsuarioDto } from '../models/subusuario.model';
-import { AuthService } from './auth.service';
+import { firstValueFrom } from 'rxjs';
+import { HttpParams } from '@angular/common/http';
+import { ApiService } from './api.service';
+import { SubUsuarioItem, SubusuarioItemApi, InvitarSubusuarioDto, mapSubusuarioApiToItem } from '../models/subusuario.model';
 
 @Injectable({
   providedIn: 'root'
 })
 export class SubusuariosService {
-  private readonly authService = inject(AuthService);
+  private readonly apiService = inject(ApiService);
 
   readonly MAX_SUBUSUARIOS = 2;
-  readonly invitaciones = signal<SubUsuarioInvitacion[]>([]);
+  readonly items = signal<SubUsuarioItem[]>([]);
   readonly isLoading = signal<boolean>(false);
+  readonly errorMessage = signal<string | null>(null);
 
-  /** Invitaciones activas o pendientes no expiradas */
-  readonly activas = computed(() => {
-    const now = Date.now();
-    return this.invitaciones().filter(i => {
-      const expTime = new Date(i.expiraEn).getTime();
-      return expTime > now && i.estado !== 'expirada';
-    });
-  });
+  private viviendaIdActual: number | null = null;
 
-  /** Cantidad de cupos libres (máximo 2) */
-  readonly cuposDisponibles = computed(() => {
-    return Math.max(0, this.MAX_SUBUSUARIOS - this.activas().length);
-  });
+  /** Sub-usuarios activos o con invitación pendiente (cuentan para el cupo) */
+  readonly activos = computed(() => this.items().filter(i => i.activo));
+  readonly pendientes = computed(() => this.items().filter(i => !i.activo));
+
+  /** Cantidad de cupos libres (máximo 2 por vivienda) */
+  readonly cuposDisponibles = computed(() => Math.max(0, this.MAX_SUBUSUARIOS - this.items().length));
 
   /**
-   * Carga las invitaciones del usuario actual desde localStorage
+   * Carga los sub-usuarios (activos e invitaciones pendientes) de una vivienda
+   * (GET /api/subusuarios/mis-subusuarios)
    */
-  cargar(): SubUsuarioInvitacion[] {
-    const userId = this.authService.currentUser()?.id || 'residente-local';
-    const storageKey = `haven_subusuarios_${userId}`;
-
+  async cargar(viviendaId: number): Promise<void> {
+    this.viviendaIdActual = viviendaId;
+    this.isLoading.set(true);
+    this.errorMessage.set(null);
     try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) {
-        const parsed: SubUsuarioInvitacion[] = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          // Actualizar estados si alguna ya expiró
-          const now = Date.now();
-          const actualizadas = parsed.map(inv => {
-            if (new Date(inv.expiraEn).getTime() <= now && inv.estado === 'pendiente') {
-              return { ...inv, estado: 'expirada' as const };
-            }
-            return inv;
-          });
-          this.invitaciones.set(actualizadas);
-          return actualizadas;
-        }
-      }
-
-      // Semilla inicial amigable: 1 cupo ocupado/activo para demostrar cómo se ve
-      const now = new Date();
-      const seed: SubUsuarioInvitacion[] = [
-        {
-          id: 'sub-seed-1',
-          nombreInvitado: 'Sofía Gómez (Familiar)',
-          emailInvitado: 'sofia.g@ejemplo.com',
-          telefonoInvitado: '5512345678',
-          codigoInvitacion: 'SUB-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
-          creadoEn: new Date(now.getTime() - 2 * 3600000).toISOString(),
-          expiraEn: new Date(now.getTime() + 22 * 3600000).toISOString(), // Expira en 22 horas
-          estado: 'activa'
-        }
-      ];
-
-      localStorage.setItem(storageKey, JSON.stringify(seed));
-      this.invitaciones.set(seed);
-      return seed;
-    } catch {
-      this.invitaciones.set([]);
-      return [];
+      const params = new HttpParams().set('viviendaId', viviendaId.toString());
+      const response = await firstValueFrom(
+        this.apiService.get<SubusuarioItemApi[]>('/api/subusuarios/mis-subusuarios', params, undefined, 'usuarios')
+      );
+      this.items.set((response || []).map(mapSubusuarioApiToItem));
+    } catch (err: any) {
+      console.error('[SubusuariosService] Error al cargar sub-usuarios:', err);
+      this.errorMessage.set(err?.error?.error || 'No se pudieron cargar los sub-usuarios.');
+    } finally {
+      this.isLoading.set(false);
     }
   }
 
   /**
-   * Genera una nueva invitación para sub-usuario con vigencia exacta de 1 día (24 horas)
+   * Genera una invitación de sub-usuario (POST /api/subusuarios/invitar)
    */
-  crearInvitacion(dto: CrearInvitacionSubUsuarioDto): SubUsuarioInvitacion {
+  async invitar(dto: InvitarSubusuarioDto): Promise<SubUsuarioItem> {
     if (this.cuposDisponibles() <= 0) {
       throw new Error('Has alcanzado el límite máximo de 2 sub-usuarios para esta vivienda.');
     }
 
-    const userId = this.authService.currentUser()?.id || 'residente-local';
-    const now = new Date();
-    // 1 día de vigencia (24 horas)
-    const expira = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-
-    const codigo = 'SUB-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-
-    const nueva: SubUsuarioInvitacion = {
-      id: 'sub-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
-      nombreInvitado: dto.nombreInvitado.trim(),
-      emailInvitado: dto.emailInvitado?.trim(),
-      telefonoInvitado: dto.telefonoInvitado?.trim(),
-      codigoInvitacion: codigo,
-      creadoEn: now.toISOString(),
-      expiraEn: expira.toISOString(),
-      estado: 'pendiente'
+    const body = {
+      vivienda_id: dto.viviendaId,
+      nombre: dto.nombre.trim(),
+      apellidos: dto.apellidos.trim(),
+      email: dto.email.trim(),
+      telefono: dto.telefono.trim(),
+      parentesco: dto.parentesco.trim()
     };
 
-    const lista = [nueva, ...this.invitaciones()];
-    this.invitaciones.set(lista);
-    this.guardar(userId, lista);
-    return nueva;
+    const response = await firstValueFrom(
+      this.apiService.post<SubusuarioItemApi>('/api/subusuarios/invitar', body, undefined, 'usuarios')
+    );
+    const nuevo = mapSubusuarioApiToItem(response);
+    this.items.update(lista => [nuevo, ...lista]);
+    return nuevo;
   }
 
   /**
-   * Revoca o elimina una invitación
+   * Revoca un sub-usuario activo o cancela una invitación pendiente
+   * (DELETE /api/subusuarios/{id})
    */
-  revocar(id: string): boolean {
-    const userId = this.authService.currentUser()?.id || 'residente-local';
-    const lista = this.invitaciones().filter(i => i.id !== id);
-    this.invitaciones.set(lista);
-    this.guardar(userId, lista);
-    return true;
-  }
-
-  private guardar(userId: string, lista: SubUsuarioInvitacion[]): void {
-    try {
-      localStorage.setItem(`haven_subusuarios_${userId}`, JSON.stringify(lista));
-    } catch (err) {
-      console.warn('[SubusuariosService] Error al guardar:', err);
+  async revocar(id: string, isInvitacion: boolean): Promise<void> {
+    if (this.viviendaIdActual == null) {
+      throw new Error('No se ha cargado la vivienda del sub-usuario a revocar.');
     }
+
+    const params = new HttpParams()
+      .set('viviendaId', this.viviendaIdActual.toString())
+      .set('isInvitacion', isInvitacion.toString());
+
+    await firstValueFrom(
+      this.apiService.delete<void>(`/api/subusuarios/${id}?${params.toString()}`, undefined, 'usuarios')
+    );
+
+    this.items.update(lista => lista.filter(i => i.id !== id));
   }
 }
