@@ -127,7 +127,8 @@ export class AvisosService {
 
     const body: any = {
       titulo: dto.titulo.trim(),
-      contenido: dto.contenido.trim()
+      contenido: dto.contenido.trim(),
+      prioridad: dto.prioridad || 'informativo'
     };
 
     if (dto.fecha_expiracion || dto.fechaExpiracion) {
@@ -174,6 +175,7 @@ export class AvisosService {
     const body: any = {};
     if (dto.titulo !== undefined) body.titulo = dto.titulo.trim();
     if (dto.contenido !== undefined) body.contenido = dto.contenido.trim();
+    if (dto.prioridad !== undefined) body.prioridad = dto.prioridad;
 
     if (dto.fecha_expiracion || dto.fechaExpiracion) {
       body.fecha_expiracion = dto.fecha_expiracion || dto.fechaExpiracion;
