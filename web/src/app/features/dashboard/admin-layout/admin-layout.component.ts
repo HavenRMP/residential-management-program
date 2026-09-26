@@ -4,11 +4,12 @@ import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/rou
 import { AuthService } from '../../../core/services/auth.service';
 import { CondominiosService } from '../../../core/services/condominios.service';
 import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.component';
+import { NotificacionesPopoverComponent } from '../../../core/components/notificaciones-popover/notificaciones-popover.component';
 
 @Component({
   selector: 'app-admin-layout',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, UserMenuComponent],
+  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, UserMenuComponent, NotificacionesPopoverComponent],
   template: `
     <div class="min-h-screen bg-slate-100 text-slate-900 font-sans antialiased flex flex-col lg:flex-row">
       
@@ -35,7 +36,10 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
           </div>
         </div>
 
-        <app-user-menu [user]="currentUser()" (logout)="onLogout()" />
+        <div class="flex items-center gap-1.5">
+          <app-notificaciones-popover />
+          <app-user-menu [user]="currentUser()" (logout)="onLogout()" />
+        </div>
       </header>
 
       <!-- Mobile Backdrop Overlay -->
