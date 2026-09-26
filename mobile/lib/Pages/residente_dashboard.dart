@@ -6,8 +6,10 @@ import '../Services/push_notifications_service.dart';
 import '../Services/condominios_service.dart';
 import '../Services/viviendas_service.dart';
 import '../Services/avisos_service.dart';
+import '../Services/notificaciones_service.dart';
 import '../Models/auth_user.dart';
 import 'avisos_residente_screen.dart';
+import 'notificaciones_screen.dart';
 import 'perfil_screen.dart';
 
 class ResidenteDashboardScreen extends StatefulWidget {
@@ -25,6 +27,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
   List<Map<String, dynamic>> _misViviendas = [];
   bool _isLoadingViviendas = true;
   int _unreadAvisosCount = 0;
+  int _unreadNotificacionesCount = 0;
 
   @override
   void initState() {
@@ -32,6 +35,17 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
     _cargarMisViviendas();
     _solicitarPermisos();
     _checkUnreadAvisos();
+    _checkUnreadNotificaciones();
+  }
+
+  Future<void> _checkUnreadNotificaciones() async {
+    try {
+      final srv = NotificacionesService(widget.controller);
+      final count = await srv.getContadorNoLeidas();
+      if (mounted) {
+        setState(() => _unreadNotificacionesCount = count);
+      }
+    } catch (_) {}
   }
 
   Future<void> _checkUnreadAvisos() async {
@@ -216,6 +230,23 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
           ),
         ),
         actions: [
+          IconButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => NotificacionesScreen(controller: widget.controller),
+                ),
+              ).then((_) => _checkUnreadNotificaciones());
+            },
+            icon: _unreadNotificacionesCount > 0
+                ? Badge(
+                    label: Text('$_unreadNotificacionesCount'),
+                    child: const Icon(Icons.notifications_outlined, color: Color(0xFF64748B)),
+                  )
+                : const Icon(Icons.notifications_outlined, color: Color(0xFF64748B)),
+            tooltip: 'Notificaciones',
+          ),
           IconButton(
             onPressed: () async {
               final confirm = await showDialog<bool>(
