@@ -35,6 +35,11 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
           cache: 'gradle'
+          cache-dependency-path: |
+            mobile/android/build.gradle.kts
+            mobile/android/app/build.gradle.kts
+            mobile/android/settings.gradle.kts
+            mobile/android/gradle/wrapper/gradle-wrapper.properties
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -69,6 +74,9 @@ jobs:
           echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
           echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
           echo "storeFile=upload-keystore.jks" >> android/key.properties
+
+      - name: Clean Gradle Build Cache
+        run: cd android && ./gradlew cleanBuildCache --no-daemon
 
       - name: Build Android AppBundle
         run: flutter build appbundle --release --android-skip-build-dependency-validation
