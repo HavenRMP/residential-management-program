@@ -39,7 +39,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: 'beta'
           cache: true
 
       - name: Create Firebase Configs from secrets
