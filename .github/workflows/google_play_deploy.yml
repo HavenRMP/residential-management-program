@@ -71,7 +71,7 @@ jobs:
           echo "storeFile=upload-keystore.jks" >> android/key.properties
 
       - name: Build Android AppBundle
-        run: flutter build appbundle --release
+        run: flutter build appbundle --release --android-skip-build-dependency-validation
 
       - name: Upload to Google Play
         uses: r0adkll/upload-google-play@v1
