@@ -75,9 +75,6 @@ jobs:
           echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
           echo "storeFile=upload-keystore.jks" >> android/key.properties
 
-      - name: Clean Gradle Build Cache
-        run: cd android && ./gradlew cleanBuildCache --no-daemon
-
       - name: Build Android AppBundle
         run: flutter build appbundle --release --android-skip-build-dependency-validation
 
