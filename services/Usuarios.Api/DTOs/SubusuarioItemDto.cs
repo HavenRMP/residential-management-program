@@ -22,9 +22,6 @@ public class SubusuarioItemDto
     [JsonPropertyName("estado")]
     public string Estado { get; set; } = string.Empty; // "Activo" or "Pendiente"
 
-    [JsonPropertyName("codigo")]
-    public string? Codigo { get; set; } // Only for pending
-
-    [JsonPropertyName("expira_en")]
-    public DateTime? ExpiraEn { get; set; } // Only for pending
+    [JsonPropertyName("creado_en")]
+    public DateTime? CreadoEn { get; set; }
 }

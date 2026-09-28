@@ -428,9 +428,9 @@ public class SupabaseService : ISupabaseService
         return await ParseJsonAsync<List<VwViviendaSubusuarioDto>>(response.Content);
     }
 
-    public async Task<List<VwCodigoSubusuarioDto>?> GetInvitacionesSubusuarioAsync(int viviendaId, string accessToken)
+    public async Task<List<VwInvitacionSubusuarioDto>?> GetInvitacionesViviendaAsync(int viviendaId, string accessToken)
     {
-        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_codigos_subusuario?vivienda_id=eq.{viviendaId}&es_vigente=eq.true";
+        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_invitaciones_subusuarios?vivienda_id=eq.{viviendaId}&estado=eq.PENDIENTE";
         var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
         request.Headers.Add("apikey", _anonKey);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
@@ -442,15 +442,33 @@ public class SupabaseService : ISupabaseService
             return null;
         }
 
-        return await ParseJsonAsync<List<VwCodigoSubusuarioDto>>(response.Content);
+        return await ParseJsonAsync<List<VwInvitacionSubusuarioDto>>(response.Content);
     }
 
-    public async Task<(VwCodigoSubusuarioDto? invitacion, string? error)> InvitarSubusuarioAsync(int viviendaId, string parentesco, Guid creadoPor, string accessToken)
+    public async Task<List<VwInvitacionSubusuarioDto>?> GetMisInvitacionesPendientesAsync(Guid invitadoId, string accessToken)
     {
-        var url = $"{_supabaseUrl}/rest/v1/rpc/generar_codigo_subusuario";
+        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_invitaciones_subusuarios?invitado_id=eq.{invitadoId}&estado=eq.PENDIENTE";
+        var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await SendRequestAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to fetch pending invitations for user {InvitadoId}. Status: {StatusCode}", invitadoId, response.StatusCode);
+            return null;
+        }
+
+        return await ParseJsonAsync<List<VwInvitacionSubusuarioDto>>(response.Content);
+    }
+
+    public async Task<(VwInvitacionSubusuarioDto? invitacion, string? error)> InvitarSubusuarioAsync(int viviendaId, string email, string parentesco, Guid creadoPor, string accessToken)
+    {
+        var url = $"{_supabaseUrl}/rest/v1/rpc/invitar_subusuario_por_email";
         var payload = new
         {
             p_vivienda_id = viviendaId,
+            p_email = email,
             p_parentesco = parentesco,
             p_creado_por = creadoPor
         };
@@ -468,23 +486,46 @@ public class SupabaseService : ISupabaseService
         if (!response.IsSuccessStatusCode)
         {
             var errorBody = await response.Content.ReadAsStringAsync();
-            _logger.LogError("Failed to generate subusuario code. Status: {StatusCode}, Body: {Body}", response.StatusCode, errorBody);
+            _logger.LogError("Failed to generate subusuario invitation. Status: {StatusCode}, Body: {Body}", response.StatusCode, errorBody);
             
             if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
-                return (null, "Límite máximo de 2 sub-usuarios alcanzado en la vivienda.");
+                if (errorBody.Contains("Límite") || errorBody.Contains("SU001"))
+                    return (null, "Límite máximo de 2 sub-usuarios alcanzado en la vivienda.");
+                if (errorBody.Contains("Ya existe"))
+                    return (null, "El usuario ya está invitado o activo en esta vivienda.");
+            }
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return (null, "No se encontró ningún usuario con ese correo electrónico. Pídele que se registre primero.");
             }
             
-            return (null, $"Error al generar código: {errorBody}");
+            return (null, $"Error al generar invitación: {errorBody}");
         }
 
-        var invitacion = await ParseJsonAsync<VwCodigoSubusuarioDto>(response.Content);
+        var invitacion = await ParseJsonAsync<VwInvitacionSubusuarioDto>(response.Content);
         return (invitacion, null);
+    }
+
+    public async Task<bool> ResponderInvitacionAsync(Guid invitacionId, Guid usuarioId, string respuesta, string accessToken)
+    {
+        var url = $"{_supabaseUrl}/rest/v1/rpc/responder_invitacion_subusuario";
+        var payload = new { p_invitacion_id = invitacionId, p_usuario_id = usuarioId, p_respuesta = respuesta };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        
+        var jsonString = JsonSerializer.Serialize(payload);
+        request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await SendRequestAsync(request);
+        return response.IsSuccessStatusCode;
     }
 
     public async Task<bool> CancelarInvitacionAsync(Guid invitacionId, string accessToken)
     {
-        var url = $"{_supabaseUrl}/rest/v1/rpc/cancelar_codigo_subusuario";
+        var url = $"{_supabaseUrl}/rest/v1/rpc/cancelar_invitacion_subusuario";
         var payload = new { p_id = invitacionId };
 
         var request = new HttpRequestMessage(HttpMethod.Post, url);
