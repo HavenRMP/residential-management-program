@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../Services/app_controller.dart';
 import '../Pages/perfil_screen.dart';
+import '../Pages/notificaciones_screen.dart';
 
 class HeaderBar extends StatelessWidget {
   const HeaderBar({
@@ -111,6 +112,34 @@ class HeaderBar extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
+                    ),
+                  ),
+                ),
+                InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => NotificacionesScreen(controller: controller),
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.notifications_outlined,
+                      size: 18,
+                      color: Color(0xFF475569),
                     ),
                   ),
                 ),

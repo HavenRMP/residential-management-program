@@ -6,8 +6,11 @@ import '../Services/push_notifications_service.dart';
 import '../Services/condominios_service.dart';
 import '../Services/viviendas_service.dart';
 import '../Services/avisos_service.dart';
+import '../Services/notificaciones_service.dart';
 import '../Models/auth_user.dart';
 import 'avisos_residente_screen.dart';
+import 'notificaciones_screen.dart';
+import 'subusuarios_screen.dart';
 import 'perfil_screen.dart';
 
 class ResidenteDashboardScreen extends StatefulWidget {
@@ -25,6 +28,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
   List<Map<String, dynamic>> _misViviendas = [];
   bool _isLoadingViviendas = true;
   int _unreadAvisosCount = 0;
+  int _unreadNotificacionesCount = 0;
 
   @override
   void initState() {
@@ -32,6 +36,17 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
     _cargarMisViviendas();
     _solicitarPermisos();
     _checkUnreadAvisos();
+    _checkUnreadNotificaciones();
+  }
+
+  Future<void> _checkUnreadNotificaciones() async {
+    try {
+      final srv = NotificacionesService(widget.controller);
+      final count = await srv.getContadorNoLeidas();
+      if (mounted) {
+        setState(() => _unreadNotificacionesCount = count);
+      }
+    } catch (_) {}
   }
 
   Future<void> _checkUnreadAvisos() async {
@@ -216,6 +231,23 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
           ),
         ),
         actions: [
+          IconButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => NotificacionesScreen(controller: widget.controller),
+                ),
+              ).then((_) => _checkUnreadNotificaciones());
+            },
+            icon: _unreadNotificacionesCount > 0
+                ? Badge(
+                    label: Text('$_unreadNotificacionesCount'),
+                    child: const Icon(Icons.notifications_outlined, color: Color(0xFF64748B)),
+                  )
+                : const Icon(Icons.notifications_outlined, color: Color(0xFF64748B)),
+            tooltip: 'Notificaciones',
+          ),
           IconButton(
             onPressed: () async {
               final confirm = await showDialog<bool>(
@@ -510,6 +542,69 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                   Text(
                     'Tipo: $tipo',
                     style: const TextStyle(fontSize: 13, color: Color(0xFF475569)),
+                  ),
+                  const SizedBox(height: 12),
+                  const Divider(color: Color(0xFFE2E8F0), height: 1),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.group_outlined, size: 16, color: Color(0xFF64748B)),
+                          SizedBox(width: 6),
+                          Text(
+                            'Sub-usuarios',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF334155),
+                            ),
+                          ),
+                        ],
+                      ),
+                      InkWell(
+                        onTap: () {
+                          final vivId = (v['id'] is num)
+                              ? (v['id'] as num).toInt()
+                              : int.tryParse(v['id']?.toString() ?? '') ?? 0;
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => SubusuariosScreen(
+                                controller: widget.controller,
+                                viviendaId: vivId,
+                                numeroCasa: numCasa,
+                              ),
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEEF2FF),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFFC7D2FE)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Gestionar',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF111C99),
+                                ),
+                              ),
+                              SizedBox(width: 4),
+                              Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF111C99)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

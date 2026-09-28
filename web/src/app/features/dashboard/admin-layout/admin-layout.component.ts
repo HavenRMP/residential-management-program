@@ -4,11 +4,12 @@ import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/rou
 import { AuthService } from '../../../core/services/auth.service';
 import { CondominiosService } from '../../../core/services/condominios.service';
 import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.component';
+import { NotificacionesPopoverComponent } from '../../../core/components/notificaciones-popover/notificaciones-popover.component';
 
 @Component({
   selector: 'app-admin-layout',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, UserMenuComponent],
+  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, UserMenuComponent, NotificacionesPopoverComponent],
   template: `
     <div class="min-h-screen bg-slate-100 text-slate-900 font-sans antialiased flex flex-col lg:flex-row">
       
@@ -35,7 +36,10 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
           </div>
         </div>
 
-        <app-user-menu [user]="currentUser()" (logout)="onLogout()" />
+        <div class="flex items-center gap-1.5">
+          <app-notificaciones-popover />
+          <app-user-menu [user]="currentUser()" (logout)="onLogout()" />
+        </div>
       </header>
 
       <!-- Mobile Backdrop Overlay -->
@@ -187,6 +191,29 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
               </svg>
               <span *ngIf="showText()" class="whitespace-nowrap font-medium fade-in-direct">Tablón de Avisos</span>
+            </a>
+
+            <!-- Vigilantes -->
+            <a
+              routerLink="/dashboard/admin/vigilantes"
+              [routerLinkActiveOptions]="{ exact: false }"
+              routerLinkActive="bg-[#111C99] text-white font-semibold shadow-xs"
+              class="flex items-center h-10 rounded-lg text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer group whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111C99]"
+              [class.px-3]="!sidebarCollapsed()"
+              [class.px-0]="sidebarCollapsed()"
+              [class.justify-center]="sidebarCollapsed()"
+              [title]="sidebarCollapsed() ? 'Vigilantes' : ''"
+              aria-label="Vigilantes"
+              (click)="mobileMenuOpen.set(false)"
+            >
+              <svg
+                class="w-5 h-5 shrink-0 transition-transform group-hover:scale-105"
+                [class.mr-3]="!sidebarCollapsed()"
+                fill="none" viewBox="0 0 24 24" stroke="currentColor"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+              <span *ngIf="showText()" class="whitespace-nowrap font-medium fade-in-direct">Vigilantes</span>
             </a>
           </nav>
         </div>

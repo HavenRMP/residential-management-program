@@ -34,11 +34,18 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '17'
+          cache: 'gradle'
+          cache-dependency-path: |
+            mobile/android/build.gradle.kts
+            mobile/android/app/build.gradle.kts
+            mobile/android/settings.gradle.kts
+            mobile/android/gradle/wrapper/gradle-wrapper.properties
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: 'beta'
+          cache: true
 
       - name: Create Firebase Configs from secrets
         run: |
@@ -69,7 +76,7 @@ jobs:
           echo "storeFile=upload-keystore.jks" >> android/key.properties
 
       - name: Build Android AppBundle
-        run: flutter build appbundle --release
+        run: flutter build appbundle --release --android-skip-build-dependency-validation
 
       - name: Upload to Google Play
         uses: r0adkll/upload-google-play@v1

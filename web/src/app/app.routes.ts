@@ -63,6 +63,12 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/avisos/avisos-list/avisos-list.component')
             .then(m => m.AvisosListComponent)
+      },
+      {
+        path: 'vigilantes',
+        loadComponent: () =>
+          import('./features/vigilantes/vigilantes-list/vigilantes-list.component')
+            .then(m => m.VigilantesListComponent)
       }
     ]
   },
@@ -73,14 +79,13 @@ export const routes: Routes = [
       import('./features/dashboard/residente-dashboard/residente-dashboard.component')
         .then(m => m.ResidenteDashboardComponent)
   },
-  // Oculto temporalmente para Sprint 5 (Notificaciones / Sub-usuarios)
-  // {
-  //   path: 'dashboard/residente/notificaciones',
-  //   canActivate: [authGuard, roleGuard(['residente'])],
-  //   loadComponent: () =>
-  //     import('./features/notificaciones/notificaciones.component')
-  //       .then(m => m.NotificacionesComponent)
-  // },
+  {
+    path: 'dashboard/residente/subusuarios',
+    canActivate: [authGuard, roleGuard(['residente'])],
+    loadComponent: () =>
+      import('./features/subusuarios/subusuarios.component')
+        .then(m => m.SubusuariosComponent)
+  },
   {
     path: 'dashboard/vigilante',
     canActivate: [authGuard, roleGuard(['vigilante'])],

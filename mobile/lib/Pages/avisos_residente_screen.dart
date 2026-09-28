@@ -202,6 +202,7 @@ class _AvisosResidenteScreenState extends State<AvisosResidenteScreen> {
     final titulo = aviso['titulo'] ?? 'Aviso';
     final contenido = aviso['contenido'] ?? '';
     final autor = aviso['creado_por_nombre'] ?? 'Administrador';
+    final prioridad = aviso['prioridad']?.toString();
     
     // Parse fecha si es necesario
     String fechaStr = '';
@@ -266,16 +267,26 @@ class _AvisosResidenteScreenState extends State<AvisosResidenteScreen> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    titulo,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: isRead ? FontWeight.bold : FontWeight.w900,
-                      color: const Color(0xFF0F172A),
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        titulo,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: isRead ? FontWeight.bold : FontWeight.w900,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                      if (prioridad != null && prioridad.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        _buildPrioridadBadge(prioridad),
+                      ],
+                    ],
                   ),
                 ),
-                if (!isRead)
+                if (!isRead) ...[
+                  const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
@@ -291,6 +302,7 @@ class _AvisosResidenteScreenState extends State<AvisosResidenteScreen> {
                       ),
                     ),
                   ),
+                ],
               ],
             ),
             const SizedBox(height: 16),
@@ -328,6 +340,65 @@ class _AvisosResidenteScreenState extends State<AvisosResidenteScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPrioridadBadge(String? prioridad) {
+    Color bg;
+    Color textColor;
+    IconData icon;
+    String label;
+
+    switch (prioridad?.toLowerCase()) {
+      case 'urgente':
+        bg = const Color(0xFFFEF2F2);
+        textColor = const Color(0xFFDC2626);
+        icon = Icons.warning_amber_rounded;
+        label = 'Urgente';
+        break;
+      case 'mantenimiento':
+        bg = const Color(0xFFFFFBEB);
+        textColor = const Color(0xFFD97706);
+        icon = Icons.build_rounded;
+        label = 'Mantenimiento';
+        break;
+      case 'evento':
+        bg = const Color(0xFFF5F3FF);
+        textColor = const Color(0xFF7C3AED);
+        icon = Icons.event_rounded;
+        label = 'Evento';
+        break;
+      case 'informativo':
+      default:
+        bg = const Color(0xFFEFF6FF);
+        textColor = const Color(0xFF2563EB);
+        icon = Icons.info_outline_rounded;
+        label = 'Informativo';
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: textColor.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: textColor),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: textColor,
+            ),
+          ),
+        ],
       ),
     );
   }
