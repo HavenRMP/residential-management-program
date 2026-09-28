@@ -18,6 +18,7 @@ export interface AvisoApi {
   creado_por_nombre?: string;
   creado_en: string;
   estado?: string;
+  prioridad?: AvisoPrioridad;
 }
 
 /**

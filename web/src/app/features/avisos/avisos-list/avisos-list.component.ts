@@ -250,6 +250,59 @@ import { Aviso, AvisoPrioridad, CrearAvisoDto } from '../../../core/models/aviso
             />
           </div>
 
+          <!-- Prioridad -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-800 mb-1">
+              Prioridad
+            </label>
+            <div class="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-lg border border-slate-200 text-center">
+              <button
+                type="button"
+                (click)="formAviso.prioridad = 'informativo'"
+                [class.bg-white]="formAviso.prioridad === 'informativo'"
+                [class.text-slate-900]="formAviso.prioridad === 'informativo'"
+                [class.shadow-2xs]="formAviso.prioridad === 'informativo'"
+                [class.font-semibold]="formAviso.prioridad === 'informativo'"
+                class="py-1.5 px-2 text-[11px] rounded-md text-slate-600 hover:text-slate-900 transition-all cursor-pointer"
+              >
+                Informativo
+              </button>
+              <button
+                type="button"
+                (click)="formAviso.prioridad = 'urgente'"
+                [class.bg-white]="formAviso.prioridad === 'urgente'"
+                [class.text-rose-800]="formAviso.prioridad === 'urgente'"
+                [class.shadow-2xs]="formAviso.prioridad === 'urgente'"
+                [class.font-semibold]="formAviso.prioridad === 'urgente'"
+                class="py-1.5 px-2 text-[11px] rounded-md text-slate-600 hover:text-rose-700 transition-all cursor-pointer"
+              >
+                Urgente
+              </button>
+              <button
+                type="button"
+                (click)="formAviso.prioridad = 'mantenimiento'"
+                [class.bg-white]="formAviso.prioridad === 'mantenimiento'"
+                [class.text-amber-800]="formAviso.prioridad === 'mantenimiento'"
+                [class.shadow-2xs]="formAviso.prioridad === 'mantenimiento'"
+                [class.font-semibold]="formAviso.prioridad === 'mantenimiento'"
+                class="py-1.5 px-2 text-[11px] rounded-md text-slate-600 hover:text-amber-700 transition-all cursor-pointer"
+              >
+                Mantenimiento
+              </button>
+              <button
+                type="button"
+                (click)="formAviso.prioridad = 'evento'"
+                [class.bg-white]="formAviso.prioridad === 'evento'"
+                [class.text-indigo-800]="formAviso.prioridad === 'evento'"
+                [class.shadow-2xs]="formAviso.prioridad === 'evento'"
+                [class.font-semibold]="formAviso.prioridad === 'evento'"
+                class="py-1.5 px-2 text-[11px] rounded-md text-slate-600 hover:text-indigo-700 transition-all cursor-pointer"
+              >
+                Evento
+              </button>
+            </div>
+          </div>
+
           <!-- Contenido -->
           <div>
             <label class="block text-xs font-semibold text-slate-800 mb-1">
@@ -533,7 +586,7 @@ export class AvisosListComponent implements OnInit {
   async guardarAviso(): Promise<void> {
     if (this.isSaving() || !this.isFormValido) return;
 
-    let payload: { titulo: string; contenido: string; duracion_dias?: number; fecha_expiracion?: string };
+    let payload: { titulo: string; contenido: string; prioridad: AvisoPrioridad; duracion_dias?: number; fecha_expiracion?: string };
 
     if (this.formAviso.tipoVigencia === 'fecha') {
       if (!this.formAviso.fechaExpiracion) {
@@ -572,6 +625,7 @@ export class AvisosListComponent implements OnInit {
       payload = {
         titulo: this.formAviso.titulo.trim(),
         contenido: this.formAviso.contenido.trim(),
+        prioridad: this.formAviso.prioridad,
         fecha_expiracion: finDia.toISOString()
       };
     } else {
@@ -589,6 +643,7 @@ export class AvisosListComponent implements OnInit {
       payload = {
         titulo: this.formAviso.titulo.trim(),
         contenido: this.formAviso.contenido.trim(),
+        prioridad: this.formAviso.prioridad,
         duracion_dias: Math.floor(dias)
       };
     }
