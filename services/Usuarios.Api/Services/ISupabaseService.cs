@@ -9,6 +9,7 @@ public interface ISupabaseService
     Task<UsuarioDto?> GetUsuarioByIdAsync(Guid userId, string accessToken, Guid actorId);
     Task<string?> GetDbVersionAsync();
     Task<(UsuarioDto? usuario, string? error)> RegisterAdminAsync(RegisterRequestDto datos, Guid? actorId = null);
+    Task<(UsuarioDto? usuario, string? error)> RegisterVigilanteAsync(RegisterRequestDto datos, Guid condominioId, Guid? actorId = null);
     Task<(UsuarioDto? usuario, string? error)> CompletarPerfilAsync(Guid userId, CompletarPerfilRequestDto datos, string accessToken, Guid actorId);
     Task<(List<UsuarioDto>? Items, int? TotalCount)> GetResidentesAsync(Guid condominioId, PaginationParams paginacion);
     Task<(List<UsuarioDto>? Items, int? TotalCount)> GetResidentesSinViviendaAsync(Guid condominioId, PaginationParams paginacion);

@@ -98,7 +98,17 @@ public class SupabaseService : ISupabaseService
         return version;
     }
 
-    public async Task<(UsuarioDto? usuario, string? error)> RegisterAdminAsync(RegisterRequestDto datos, Guid? actorId = null)
+    public Task<(UsuarioDto? usuario, string? error)> RegisterAdminAsync(RegisterRequestDto datos, Guid? actorId = null)
+    {
+        return RegisterUserAsync(datos, HavenApi.Shared.Roles.RolesHaven.AdministradorId, null, actorId);
+    }
+
+    public Task<(UsuarioDto? usuario, string? error)> RegisterVigilanteAsync(RegisterRequestDto datos, Guid condominioId, Guid? actorId = null)
+    {
+        return RegisterUserAsync(datos, HavenApi.Shared.Roles.RolesHaven.VigilanciaId, condominioId, actorId);
+    }
+
+    private async Task<(UsuarioDto? usuario, string? error)> RegisterUserAsync(RegisterRequestDto datos, int rolId, Guid? condominioId = null, Guid? actorId = null)
     {
         var signupUrl = $"{_supabaseUrl}/auth/v1/admin/users";
         var signupPayload = new { email = datos.Email, password = datos.Password, email_confirm = true };
@@ -147,15 +157,33 @@ public class SupabaseService : ISupabaseService
         }
 
         var insertUrl = $"{_supabaseUrl}/rest/v1/rpc/alta_usuario";
-        var insertPayload = new
+        object insertPayload;
+
+        if (condominioId.HasValue)
         {
-            p_id = userId,
-            p_rol_id = 1,
-            p_email = datos.Email,
-            p_nombre = datos.Nombre,
-            p_apellidos = datos.Apellidos,
-            p_telefono = datos.Telefono
-        };
+            insertPayload = new
+            {
+                p_id = userId,
+                p_rol_id = rolId,
+                p_condominio_id = condominioId.Value,
+                p_email = datos.Email,
+                p_nombre = datos.Nombre,
+                p_apellidos = datos.Apellidos,
+                p_telefono = datos.Telefono
+            };
+        }
+        else
+        {
+            insertPayload = new
+            {
+                p_id = userId,
+                p_rol_id = rolId,
+                p_email = datos.Email,
+                p_nombre = datos.Nombre,
+                p_apellidos = datos.Apellidos,
+                p_telefono = datos.Telefono
+            };
+        }
 
         var insertRequest = new HttpRequestMessage(HttpMethod.Post, insertUrl);
         insertRequest.Headers.Add("apikey", _serviceRoleKey);
