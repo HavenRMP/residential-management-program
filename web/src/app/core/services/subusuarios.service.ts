@@ -2,7 +2,16 @@ import { Injectable, inject, signal, computed } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { HttpParams } from '@angular/common/http';
 import { ApiService } from './api.service';
-import { SubUsuarioItem, SubusuarioItemApi, InvitarSubusuarioDto, mapSubusuarioApiToItem } from '../models/subusuario.model';
+import {
+  SubUsuarioItem,
+  SubusuarioItemApi,
+  InvitarSubusuarioDto,
+  InvitacionRecibida,
+  InvitacionRecibidaApi,
+  RespuestaInvitacion,
+  mapSubusuarioApiToItem,
+  mapInvitacionApiToInvitacion
+} from '../models/subusuario.model';
 
 @Injectable({
   providedIn: 'root'
@@ -15,9 +24,13 @@ export class SubusuariosService {
   readonly isLoading = signal<boolean>(false);
   readonly errorMessage = signal<string | null>(null);
 
+  /** Invitaciones que el usuario actual recibió y todavía no responde */
+  readonly invitacionesRecibidas = signal<InvitacionRecibida[]>([]);
+  readonly isLoadingInvitaciones = signal<boolean>(false);
+
   private viviendaIdActual: number | null = null;
 
-  /** Sub-usuarios activos o con invitación pendiente (cuentan para el cupo) */
+  /** Sub-usuarios activos o con invitación enviada pendiente (cuentan para el cupo) */
   readonly activos = computed(() => this.items().filter(i => i.activo));
   readonly pendientes = computed(() => this.items().filter(i => !i.activo));
 
@@ -25,7 +38,7 @@ export class SubusuariosService {
   readonly cuposDisponibles = computed(() => Math.max(0, this.MAX_SUBUSUARIOS - this.items().length));
 
   /**
-   * Carga los sub-usuarios (activos e invitaciones pendientes) de una vivienda
+   * Carga los sub-usuarios (activos e invitaciones enviadas pendientes) de una vivienda
    * (GET /api/subusuarios/mis-subusuarios)
    */
   async cargar(viviendaId: number): Promise<void> {
@@ -47,7 +60,8 @@ export class SubusuariosService {
   }
 
   /**
-   * Genera una invitación de sub-usuario (POST /api/subusuarios/invitar)
+   * Genera una invitación de sub-usuario identificando al invitado por su correo
+   * (POST /api/subusuarios/invitar)
    */
   async invitar(dto: InvitarSubusuarioDto): Promise<SubUsuarioItem> {
     if (this.cuposDisponibles() <= 0) {
@@ -56,10 +70,7 @@ export class SubusuariosService {
 
     const body = {
       vivienda_id: dto.viviendaId,
-      nombre: dto.nombre.trim(),
-      apellidos: dto.apellidos.trim(),
       email: dto.email.trim(),
-      telefono: dto.telefono.trim(),
       parentesco: dto.parentesco.trim()
     };
 
@@ -72,7 +83,7 @@ export class SubusuariosService {
   }
 
   /**
-   * Revoca un sub-usuario activo o cancela una invitación pendiente
+   * Revoca un sub-usuario activo o cancela una invitación enviada pendiente
    * (DELETE /api/subusuarios/{id})
    */
   async revocar(id: string, isInvitacion: boolean): Promise<void> {
@@ -89,5 +100,35 @@ export class SubusuariosService {
     );
 
     this.items.update(lista => lista.filter(i => i.id !== id));
+  }
+
+  /**
+   * Carga las invitaciones que otros titulares enviaron al usuario actual
+   * (GET /api/subusuarios/mis-invitaciones). No depende de una vivienda:
+   * el backend resuelve el destinatario a partir del token.
+   */
+  async cargarInvitacionesRecibidas(): Promise<void> {
+    this.isLoadingInvitaciones.set(true);
+    try {
+      const response = await firstValueFrom(
+        this.apiService.get<InvitacionRecibidaApi[]>('/api/subusuarios/mis-invitaciones', undefined, undefined, 'usuarios')
+      );
+      this.invitacionesRecibidas.set((response || []).map(mapInvitacionApiToInvitacion));
+    } catch (err) {
+      console.error('[SubusuariosService] Error al cargar invitaciones recibidas:', err);
+    } finally {
+      this.isLoadingInvitaciones.set(false);
+    }
+  }
+
+  /**
+   * Acepta o rechaza una invitación recibida
+   * (POST /api/subusuarios/invitaciones/{id}/responder)
+   */
+  async responderInvitacion(id: string, respuesta: RespuestaInvitacion): Promise<void> {
+    await firstValueFrom(
+      this.apiService.post<{ message: string }>(`/api/subusuarios/invitaciones/${id}/responder`, { respuesta }, undefined, 'usuarios')
+    );
+    this.invitacionesRecibidas.update(lista => lista.filter(i => i.id !== id));
   }
 }
