@@ -20,6 +20,7 @@ public class SubusuariosController : ControllerBase
         _logger = logger;
     }
 
+    // Usado por el titular para ver quién está en su vivienda o a quién invitó
     [HttpGet("mis-subusuarios")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -40,7 +41,7 @@ public class SubusuariosController : ControllerBase
         var accessToken = HttpContext.Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
 
         var activos = await _supabaseService.GetSubusuariosActivosAsync(viviendaId, accessToken);
-        var invitaciones = await _supabaseService.GetInvitacionesSubusuarioAsync(viviendaId, accessToken);
+        var invitaciones = await _supabaseService.GetInvitacionesViviendaAsync(viviendaId, accessToken);
 
         var result = new List<SubusuarioItemDto>();
 
@@ -63,22 +64,23 @@ public class SubusuariosController : ControllerBase
             {
                 Id = i.Id,
                 Nombre = "Pendiente",
-                Email = "Pendiente",
+                Email = i.InvitadoEmail ?? "Desconocido",
                 Telefono = "Pendiente",
                 Parentesco = i.Parentesco,
                 Estado = "Pendiente",
-                Codigo = i.Codigo,
-                ExpiraEn = i.ExpiraEn
+                CreadoEn = i.CreadoEn
             }));
         }
 
         return Ok(result);
     }
 
+    // Usado por el titular para invitar a alguien vía email
     [HttpPost("invitar")]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> InvitarSubusuario([FromBody] InvitarSubusuarioRequestDto dto)
     {
@@ -95,13 +97,17 @@ public class SubusuariosController : ControllerBase
 
         var accessToken = HttpContext.Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
 
-        var (invitacion, error) = await _supabaseService.InvitarSubusuarioAsync(dto.ViviendaId, dto.Parentesco, userId, accessToken);
+        var (invitacion, error) = await _supabaseService.InvitarSubusuarioAsync(dto.ViviendaId, dto.Email, dto.Parentesco, userId, accessToken);
 
         if (error != null)
         {
-            if (error.Contains("Límite máximo"))
+            if (error.Contains("Límite máximo") || error.Contains("ya está invitado"))
             {
                 return Conflict(new { error });
+            }
+            if (error.Contains("No se encontró"))
+            {
+                return NotFound(new { error });
             }
             return BadRequest(new { error });
         }
@@ -114,18 +120,65 @@ public class SubusuariosController : ControllerBase
         var result = new SubusuarioItemDto
         {
             Id = invitacion.Id,
-            Nombre = dto.Nombre,
+            Nombre = "Pendiente",
             Email = dto.Email,
-            Telefono = dto.Telefono,
+            Telefono = "Pendiente",
             Parentesco = invitacion.Parentesco,
             Estado = "Pendiente",
-            Codigo = invitacion.Codigo,
-            ExpiraEn = invitacion.ExpiraEn
+            CreadoEn = invitacion.CreadoEn
         };
 
         return Created($"/api/subusuarios/mis-subusuarios?viviendaId={dto.ViviendaId}", result);
     }
 
+    // Usado por el invitado para ver qué invitaciones tiene pendientes
+    [HttpGet("mis-invitaciones")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetMisInvitaciones()
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { error = "Token invalido" });
+        }
+
+        var accessToken = HttpContext.Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
+        var invitaciones = await _supabaseService.GetMisInvitacionesPendientesAsync(userId, accessToken);
+
+        return Ok(invitaciones ?? new List<VwInvitacionSubusuarioDto>());
+    }
+
+    // Usado por el invitado para aceptar o rechazar la invitación
+    [HttpPost("invitaciones/{id}/responder")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> ResponderInvitacion(Guid id, [FromBody] ResponderInvitacionDto dto)
+    {
+        if (dto.Respuesta != "ACEPTADA" && dto.Respuesta != "RECHAZADA")
+        {
+            return BadRequest(new { error = "La respuesta debe ser ACEPTADA o RECHAZADA" });
+        }
+
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { error = "Token invalido" });
+        }
+
+        var accessToken = HttpContext.Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
+        var success = await _supabaseService.ResponderInvitacionAsync(id, userId, dto.Respuesta, accessToken);
+
+        if (!success)
+        {
+            return BadRequest(new { error = "No se pudo procesar la respuesta a la invitación. Puede que ya haya sido procesada o cancelada." });
+        }
+
+        return Ok(new { message = $"Invitación {dto.Respuesta.ToLower()} exitosamente." });
+    }
+
+    // Usado por el titular para revocar el acceso
     [HttpDelete("{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -147,7 +200,6 @@ public class SubusuariosController : ControllerBase
 
         bool success = false;
         
-        // El id puede ser el ID del código de invitación o el ID del usuario
         if (isInvitacion)
         {
             success = await _supabaseService.CancelarInvitacionAsync(id, accessToken);
@@ -157,7 +209,7 @@ public class SubusuariosController : ControllerBase
             // Intentamos revocar usuario activo
             success = await _supabaseService.RevocarSubusuarioAsync(viviendaId, id, accessToken);
             
-            // Si falló y no estábamos seguros, tal vez era una invitación
+            // Si falló, tal vez era una invitación pendiente y mandaron isInvitacion=false por error
             if (!success)
             {
                 success = await _supabaseService.CancelarInvitacionAsync(id, accessToken);

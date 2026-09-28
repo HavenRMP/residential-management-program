@@ -10,21 +10,9 @@ public class InvitarSubusuarioRequestDto
     public int ViviendaId { get; set; }
 
     [Required]
-    [JsonPropertyName("nombre")]
-    public string Nombre { get; set; } = string.Empty;
-
-    [Required]
-    [JsonPropertyName("apellidos")]
-    public string Apellidos { get; set; } = string.Empty;
-
-    [Required]
     [JsonPropertyName("email")]
     [EmailAddress]
     public string Email { get; set; } = string.Empty;
-
-    [Required]
-    [JsonPropertyName("telefono")]
-    public string Telefono { get; set; } = string.Empty;
 
     [Required]
     [JsonPropertyName("parentesco")]

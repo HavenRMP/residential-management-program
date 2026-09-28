@@ -74,11 +74,8 @@ public class SubusuariosControllerTests : IAsyncLifetime
             });
     }
 
-    // Helper fake token since ValidateIssuerSigningKey = false and RequireSignedTokens = false
     private string GenerateFakeToken()
     {
-        // A minimal fake JWT format: header.payload.signature
-        // Payload has sub = _userId
         var header = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("{\"alg\":\"none\"}")).TrimEnd('=');
         var payload = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{{\"sub\":\"{_userId}\"}}")).TrimEnd('=');
         return $"{header}.{payload}.";
@@ -95,10 +92,10 @@ public class SubusuariosControllerTests : IAsyncLifetime
                 new VwViviendaSubusuarioDto { UsuarioId = Guid.NewGuid(), UsuarioNombre = "Juan", Parentesco = "Hijo", Activo = true }
             });
         
-        mockSupabaseService.Setup(s => s.GetInvitacionesSubusuarioAsync(_viviendaId, It.IsAny<string>()))
-            .ReturnsAsync(new List<VwCodigoSubusuarioDto>
+        mockSupabaseService.Setup(s => s.GetInvitacionesViviendaAsync(_viviendaId, It.IsAny<string>()))
+            .ReturnsAsync(new List<VwInvitacionSubusuarioDto>
             {
-                new VwCodigoSubusuarioDto { Id = Guid.NewGuid(), Codigo = "XYZ123", Parentesco = "Esposa", EsVigente = true }
+                new VwInvitacionSubusuarioDto { Id = Guid.NewGuid(), InvitadoEmail = "test@test.com", Parentesco = "Esposa", Estado = "PENDIENTE" }
             });
 
         await using var application = BuildApplication(mockSupabaseService);
@@ -114,7 +111,7 @@ public class SubusuariosControllerTests : IAsyncLifetime
         Assert.NotNull(result);
         Assert.Equal(2, result.Count);
         Assert.Contains(result, r => r.Nombre == "Juan");
-        Assert.Contains(result, r => r.Codigo == "XYZ123");
+        Assert.Contains(result, r => r.Email == "test@test.com");
     }
 
     [Fact]
@@ -124,17 +121,14 @@ public class SubusuariosControllerTests : IAsyncLifetime
         var requestDto = new InvitarSubusuarioRequestDto
         {
             ViviendaId = _viviendaId,
-            Nombre = "Maria",
-            Apellidos = "Lopez",
             Email = "maria@example.com",
-            Telefono = "5551234",
             Parentesco = "Hermana"
         };
 
         var newCode = Guid.NewGuid();
         var mockSupabaseService = new Mock<ISupabaseService>();
-        mockSupabaseService.Setup(s => s.InvitarSubusuarioAsync(_viviendaId, "Hermana", _userId, It.IsAny<string>()))
-            .ReturnsAsync((new VwCodigoSubusuarioDto { Id = newCode, Codigo = "ABC999", Parentesco = "Hermana" }, null));
+        mockSupabaseService.Setup(s => s.InvitarSubusuarioAsync(_viviendaId, "maria@example.com", "Hermana", _userId, It.IsAny<string>()))
+            .ReturnsAsync((new VwInvitacionSubusuarioDto { Id = newCode, InvitadoEmail = "maria@example.com", Parentesco = "Hermana" }, null));
 
         await using var application = BuildApplication(mockSupabaseService);
         var client = application.CreateClient();
@@ -148,27 +142,23 @@ public class SubusuariosControllerTests : IAsyncLifetime
         var result = await response.Content.ReadFromJsonAsync<SubusuarioItemDto>();
         Assert.NotNull(result);
         Assert.Equal(newCode, result.Id);
-        Assert.Equal("ABC999", result.Codigo);
-        Assert.Equal("Maria", result.Nombre);
+        Assert.Equal("maria@example.com", result.Email);
     }
     
     [Fact]
-    public async Task InvitarSubusuario_ReturnsConflict_WhenLimitReached()
+    public async Task InvitarSubusuario_ReturnsNotFound_WhenUserDoesNotExist()
     {
         // Arrange
         var requestDto = new InvitarSubusuarioRequestDto
         {
             ViviendaId = _viviendaId,
-            Nombre = "Maria",
-            Apellidos = "Lopez",
-            Email = "maria@example.com",
-            Telefono = "5551234",
+            Email = "doesnotexist@example.com",
             Parentesco = "Hermana"
         };
 
         var mockSupabaseService = new Mock<ISupabaseService>();
-        mockSupabaseService.Setup(s => s.InvitarSubusuarioAsync(_viviendaId, "Hermana", _userId, It.IsAny<string>()))
-            .ReturnsAsync((null, "Límite máximo de 2 sub-usuarios alcanzado en la vivienda."));
+        mockSupabaseService.Setup(s => s.InvitarSubusuarioAsync(_viviendaId, "doesnotexist@example.com", "Hermana", _userId, It.IsAny<string>()))
+            .ReturnsAsync((null, "No se encontró ningún usuario con ese correo electrónico. Pídele que se registre primero."));
 
         await using var application = BuildApplication(mockSupabaseService);
         var client = application.CreateClient();
@@ -178,7 +168,29 @@ public class SubusuariosControllerTests : IAsyncLifetime
         var response = await client.PostAsJsonAsync("/api/Subusuarios/invitar", requestDto);
 
         // Assert
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ResponderInvitacion_ReturnsOk_WhenValid()
+    {
+        // Arrange
+        var invitacionId = Guid.NewGuid();
+        var requestDto = new ResponderInvitacionDto { Respuesta = "ACEPTADA" };
+
+        var mockSupabaseService = new Mock<ISupabaseService>();
+        mockSupabaseService.Setup(s => s.ResponderInvitacionAsync(invitacionId, _userId, "ACEPTADA", It.IsAny<string>()))
+            .ReturnsAsync(true);
+
+        await using var application = BuildApplication(mockSupabaseService);
+        var client = application.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", GenerateFakeToken());
+
+        // Act
+        var response = await client.PostAsJsonAsync($"/api/Subusuarios/invitaciones/{invitacionId}/responder", requestDto);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
