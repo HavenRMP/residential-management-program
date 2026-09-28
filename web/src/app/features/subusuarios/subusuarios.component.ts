@@ -6,7 +6,7 @@ import Swal from 'sweetalert2';
 import { AuthService } from '../../core/services/auth.service';
 import { ViviendasService } from '../../core/services/viviendas.service';
 import { SubusuariosService } from '../../core/services/subusuarios.service';
-import { SubUsuarioItem } from '../../core/models/subusuario.model';
+import { SubUsuarioItem, InvitacionRecibida, RespuestaInvitacion } from '../../core/models/subusuario.model';
 import { UserMenuComponent } from '../../core/components/user-menu/user-menu.component';
 
 const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
@@ -53,6 +53,51 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
           <span class="text-slate-900">Sub-usuarios</span>
         </nav>
 
+        <!-- Invitaciones recibidas: visible sin importar si el usuario tiene vivienda propia -->
+        <section
+          *ngIf="subusuariosService.isLoadingInvitaciones() || subusuariosService.invitacionesRecibidas().length > 0"
+          class="rounded-lg border border-indigo-200 bg-indigo-50/50 p-5 shadow-2xs space-y-3"
+        >
+          <div>
+            <h2 class="text-sm font-semibold text-slate-900">Invitaciones recibidas</h2>
+            <p class="text-xs text-slate-500 mt-0.5">Otro residente te invitó como sub-usuario de su vivienda.</p>
+          </div>
+
+          <div *ngIf="subusuariosService.isLoadingInvitaciones()" class="space-y-2">
+            <div *ngFor="let s of [1]" class="p-3.5 rounded-md bg-white border border-slate-200 animate-pulse h-16"></div>
+          </div>
+
+          <div *ngIf="!subusuariosService.isLoadingInvitaciones()" class="space-y-2">
+            <div
+              *ngFor="let inv of subusuariosService.invitacionesRecibidas()"
+              class="p-3.5 rounded-md bg-white border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+            >
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-slate-900 truncate">{{ inv.titularNombre || 'Un residente' }}</p>
+                <p class="text-xs text-slate-500 mt-0.5">
+                  {{ inv.numeroCasa ? 'Unidad ' + inv.numeroCasa : 'Vivienda' }}<span *ngIf="inv.condominioNombre"> · {{ inv.condominioNombre }}</span> · {{ inv.parentesco }}
+                </p>
+              </div>
+              <div class="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+                <button
+                  type="button"
+                  (click)="confirmarResponderInvitacion(inv, 'RECHAZADA')"
+                  class="h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
+                >
+                  Rechazar
+                </button>
+                <button
+                  type="button"
+                  (click)="confirmarResponderInvitacion(inv, 'ACEPTADA')"
+                  class="h-8 px-3 inline-flex items-center gap-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-colors shadow-2xs cursor-pointer"
+                >
+                  Aceptar
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- Sin vivienda asignada -->
         <div *ngIf="!isLoadingVivienda() && !viviendaId()" class="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-2xs space-y-2">
           <h2 class="text-base font-semibold text-slate-900">Necesitas una vivienda asignada</h2>
@@ -71,7 +116,7 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
               <div>
                 <h2 class="text-sm font-semibold text-slate-900">Sub-usuarios autorizados</h2>
                 <p class="text-xs text-slate-500 mt-0.5">
-                  Hasta 2 accesos por vivienda. Las invitaciones tienen una vigencia de 24 horas.
+                  Hasta 2 accesos por vivienda. Invita a alguien por su correo — debe tener cuenta en Haven.
                 </p>
               </div>
 
@@ -121,7 +166,7 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
                         [class.text-amber-700]="!item.activo"
                         [class.border-amber-200]="!item.activo"
                       >
-                        {{ item.activo ? 'Activo' : 'Pendiente' }}
+                        {{ item.activo ? 'Activo' : 'Invitación enviada' }}
                       </span>
                       <span class="px-2 py-0.5 rounded text-[10px] font-medium border bg-slate-100 text-slate-600 border-slate-200">
                         {{ item.parentesco }}
@@ -142,26 +187,6 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
 
                   <h3 class="text-sm font-semibold text-slate-900">{{ item.nombre || 'Invitación pendiente' }}</h3>
                   <p class="text-xs text-slate-500 mt-0.5">{{ item.email || item.telefono || 'Sin contacto' }}</p>
-
-                  <!-- Código (solo pendientes) -->
-                  <div *ngIf="!item.activo && item.codigo" class="mt-3 p-2 bg-white border border-slate-200 rounded flex items-center justify-between">
-                    <div>
-                      <span class="text-[9px] uppercase font-bold text-slate-400 block">Código temporal</span>
-                      <span class="text-xs font-mono font-bold text-slate-900">{{ item.codigo }}</span>
-                    </div>
-                    <button
-                      type="button"
-                      (click)="copiarCodigo(item.codigo!)"
-                      class="h-6 px-2 text-[11px] font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors cursor-pointer"
-                    >
-                      Copiar
-                    </button>
-                  </div>
-                </div>
-
-                <div *ngIf="!item.activo && item.expiraEn" class="mt-3 pt-2 border-t border-slate-200 text-[10px] text-slate-400 flex items-center justify-between">
-                  <span>Vigencia</span>
-                  <span class="font-medium text-slate-600">{{ tiempoRestante(item.expiraEn) }}</span>
                 </div>
               </div>
 
@@ -169,7 +194,7 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
               <div
                 *ngIf="subusuariosService.cuposDisponibles() > 0"
                 (click)="abrirModalInvitacion()"
-                class="p-4 rounded-md border border-dashed border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition-colors flex flex-col items-center justify-center text-center cursor-pointer min-h-[140px]"
+                class="p-4 rounded-md border border-dashed border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition-colors flex flex-col items-center justify-center text-center cursor-pointer min-h-[100px]"
               >
                 <svg class="w-5 h-5 text-slate-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -254,30 +279,6 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
 
           <form (ngSubmit)="generarInvitacion()" class="mt-3.5 space-y-3">
             <div>
-              <label class="block text-xs font-medium text-slate-700 mb-1">Nombre *</label>
-              <input
-                type="text"
-                [(ngModel)]="nuevoSub.nombre"
-                name="nombre"
-                required
-                placeholder="Nombre"
-                class="h-9 w-full text-xs rounded-md border border-slate-200 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900"
-              />
-            </div>
-
-            <div>
-              <label class="block text-xs font-medium text-slate-700 mb-1">Apellidos *</label>
-              <input
-                type="text"
-                [(ngModel)]="nuevoSub.apellidos"
-                name="apellidos"
-                required
-                placeholder="Apellidos"
-                class="h-9 w-full text-xs rounded-md border border-slate-200 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900"
-              />
-            </div>
-
-            <div>
               <label class="block text-xs font-medium text-slate-700 mb-1">Correo *</label>
               <input
                 type="email"
@@ -287,18 +288,7 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
                 placeholder="correo@ejemplo.com"
                 class="h-9 w-full text-xs rounded-md border border-slate-200 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900"
               />
-            </div>
-
-            <div>
-              <label class="block text-xs font-medium text-slate-700 mb-1">Teléfono *</label>
-              <input
-                type="tel"
-                [(ngModel)]="nuevoSub.telefono"
-                name="telefono"
-                required
-                placeholder="10 dígitos"
-                class="h-9 w-full text-xs rounded-md border border-slate-200 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900"
-              />
+              <p class="mt-1 text-[11px] text-slate-400">Debe ser una cuenta que ya exista en Haven.</p>
             </div>
 
             <div>
@@ -326,7 +316,7 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
                 [disabled]="isInvitando() || !esFormularioValido()"
                 class="h-8 px-3.5 bg-[#111C99] hover:bg-[#0d1577] text-white rounded-md text-xs font-medium shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
               >
-                {{ isInvitando() ? 'Generando...' : 'Generar código' }}
+                {{ isInvitando() ? 'Enviando...' : 'Enviar invitación' }}
               </button>
             </div>
           </form>
@@ -350,14 +340,13 @@ export class SubusuariosComponent implements OnInit {
   viviendaId = signal<number | null>(null);
 
   nuevoSub = {
-    nombre: '',
-    apellidos: '',
     email: '',
-    telefono: '',
     parentesco: PARENTESCOS[0]
   };
 
   async ngOnInit(): Promise<void> {
+    this.subusuariosService.cargarInvitacionesRecibidas();
+
     this.isLoadingVivienda.set(true);
     try {
       const viviendas = await this.viviendasService.obtenerMisViviendas();
@@ -373,11 +362,11 @@ export class SubusuariosComponent implements OnInit {
 
   esFormularioValido(): boolean {
     const s = this.nuevoSub;
-    return !!(s.nombre.trim() && s.apellidos.trim() && s.email.trim() && s.telefono.trim() && s.parentesco);
+    return !!(s.email.trim() && s.parentesco);
   }
 
   abrirModalInvitacion(): void {
-    this.nuevoSub = { nombre: '', apellidos: '', email: '', telefono: '', parentesco: PARENTESCOS[0] };
+    this.nuevoSub = { email: '', parentesco: PARENTESCOS[0] };
     this.modalInvitarAbierto.set(true);
   }
 
@@ -392,28 +381,18 @@ export class SubusuariosComponent implements OnInit {
 
     this.isInvitando.set(true);
     try {
-      const inv = await this.subusuariosService.invitar({ viviendaId, ...this.nuevoSub });
+      const email = this.nuevoSub.email.trim();
+      await this.subusuariosService.invitar({ viviendaId, ...this.nuevoSub });
       this.cerrarModalInvitacion();
 
-      await Swal.fire({
-        title: 'Código de acceso generado',
-        html: `
-          <div class="text-center space-y-3 p-2">
-            <p class="text-xs text-slate-500">Comparte este código con <strong>${inv.nombre}</strong>:</p>
-            <div class="p-3 bg-slate-100 rounded-md border border-slate-200 inline-block font-mono text-2xl font-bold text-slate-900 tracking-widest">
-              ${inv.codigo || ''}
-            </div>
-            <p class="text-[11px] text-slate-400">Vigencia: 24 horas.</p>
-          </div>
-        `,
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
         icon: 'success',
-        confirmButtonText: 'Copiar y cerrar',
-        confirmButtonColor: '#111C99'
+        title: `Invitación enviada a ${email}`,
+        showConfirmButton: false,
+        timer: 2500
       });
-
-      if (inv.codigo) {
-        this.copiarCodigo(inv.codigo);
-      }
     } catch (err: any) {
       Swal.fire({
         icon: 'error',
@@ -424,19 +403,6 @@ export class SubusuariosComponent implements OnInit {
     } finally {
       this.isInvitando.set(false);
     }
-  }
-
-  copiarCodigo(codigo: string): void {
-    navigator.clipboard.writeText(codigo).then(() => {
-      Swal.fire({
-        toast: true,
-        position: 'top-end',
-        icon: 'success',
-        title: 'Copiado al portapapeles',
-        showConfirmButton: false,
-        timer: 1800
-      });
-    });
   }
 
   async confirmarRevocar(item: SubUsuarioItem): Promise<void> {
@@ -465,11 +431,41 @@ export class SubusuariosComponent implements OnInit {
     }
   }
 
-  tiempoRestante(expiraEn: string): string {
-    const diff = new Date(expiraEn).getTime() - Date.now();
-    if (diff <= 0) return 'Expirado';
-    const horas = Math.ceil(diff / (1000 * 60 * 60));
-    return horas <= 1 ? 'Menos de 1 h' : `${horas} horas restantes`;
+  async confirmarResponderInvitacion(inv: InvitacionRecibida, respuesta: RespuestaInvitacion): Promise<void> {
+    const aceptar = respuesta === 'ACEPTADA';
+    const res = await Swal.fire({
+      title: aceptar ? '¿Aceptar esta invitación?' : '¿Rechazar esta invitación?',
+      text: aceptar
+        ? `Tendrás acceso como sub-usuario de la vivienda de ${inv.titularNombre || 'este residente'}.`
+        : `No tendrás acceso a la vivienda de ${inv.titularNombre || 'este residente'}.`,
+      icon: aceptar ? 'question' : 'warning',
+      showCancelButton: true,
+      confirmButtonColor: aceptar ? '#059669' : '#EF4444',
+      cancelButtonColor: '#64748B',
+      confirmButtonText: aceptar ? 'Aceptar' : 'Rechazar',
+      cancelButtonText: 'Volver'
+    });
+
+    if (!res.isConfirmed) return;
+
+    try {
+      await this.subusuariosService.responderInvitacion(inv.id, respuesta);
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: aceptar ? 'Invitación aceptada' : 'Invitación rechazada',
+        showConfirmButton: false,
+        timer: 2000
+      });
+    } catch (err: any) {
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo responder',
+        text: err?.error?.error || 'Intenta de nuevo en unos segundos.',
+        confirmButtonColor: '#111C99'
+      });
+    }
   }
 
   onLogout(): void {
