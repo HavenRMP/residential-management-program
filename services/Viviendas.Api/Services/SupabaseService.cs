@@ -181,6 +181,39 @@ public class SupabaseService : ISupabaseService
         }
     }
 
+    public async Task<(List<ViviendaConResidentesDto> Items, int? TotalCount)> GetViviendasConResidentesAsync(Guid condominioId, PaginationParams paginacion)
+    {
+        var resourcePath = $"vw_viviendas_con_residentes?select=*&condominio_id=eq.{condominioId}&order=numero_casa.asc";
+
+        try
+        {
+            var result = await SupabaseQueryClient.GetPagedAsync<ViviendaConResidentesDto>(
+                _httpClient,
+                _supabaseUrl,
+                _serviceRoleKey,
+                _serviceRoleKey,
+                resourcePath,
+                paginacion
+            );
+
+            var items = result.Items ?? new List<ViviendaConResidentesDto>();
+            foreach (var item in items)
+            {
+                if (item.Residentes == null)
+                {
+                    item.Residentes = new List<ResidenteVigilanciaDto>();
+                }
+            }
+
+            return (items, result.TotalCount);
+        }
+        catch (SupabaseResponseException ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch paginated viviendas con residentes.");
+            return (new List<ViviendaConResidentesDto>(), null);
+        }
+    }
+
     public async Task<ViviendaDto?> GetViviendaByIdAsync(int id)
     {
         var requestUrl = $"{_supabaseUrl}/rest/v1/vw_viviendas?id=eq.{id}&select=*";
