@@ -6,6 +6,7 @@ using System.Security.Claims;
 using HavenApi.Shared.Exceptions;
 using HavenApi.Shared.Pagination;
 using HavenApi.Shared.Rpc;
+using HavenApi.Shared.Roles;
 
 namespace Viviendas.Api.Controllers;
 
@@ -54,23 +55,44 @@ public class ViviendasController : ControllerBase
         return (null, condominioId);
     }
 
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [HttpGet]
-    public async Task<IActionResult> GetViviendas([FromQuery] PaginationParams paginacion)
+    private async Task<(IActionResult? Error, Guid? CondominioId)> ValidateReadAccessAsync()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                           ?? User.FindFirst("sub")?.Value;
 
         if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
         {
-            _logger.LogWarning("GetViviendas: Unauthorized, missing or invalid user ID.");
-            return Unauthorized(new { error = "Token invalido: no contiene ID de usuario" });
+            _logger.LogWarning("ValidateReadAccess: Unauthorized, missing or invalid user ID.");
+            return (Unauthorized(new { error = "Token invalido: no contiene ID de usuario" }), null);
         }
 
         var accessToken = HttpContext.Request.Headers["Authorization"]
             .ToString().Replace("Bearer ", "");
 
         var (rolNombre, condominioId) = await _supabaseService.GetContextoAdminAsync(userId, accessToken);
+
+        if (rolNombre == null)
+        {
+            _logger.LogWarning("ValidateReadAccess: User {UserId} not found.", userId);
+            return (NotFound(new { error = "Usuario no encontrado en la tabla 'usuarios'" }), null);
+        }
+
+        if (!rolNombre.PuedeConsultarDatosResidenciales())
+        {
+            _logger.LogWarning("ValidateReadAccess: Forbidden, user {UserId} is neither Admin nor Vigilancia.", userId);
+            return (StatusCode(403, new { error = "Se requiere rol de administrador o vigilancia" }), null);
+        }
+
+        return (null, condominioId);
+    }
+
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [HttpGet]
+    public async Task<IActionResult> GetViviendas([FromQuery] PaginationParams paginacion)
+    {
+        var (readError, condominioId) = await ValidateReadAccessAsync();
+        if (readError != null)
+            return readError;
 
         if (condominioId == null)
         {
@@ -98,19 +120,9 @@ public class ViviendasController : ControllerBase
     [HttpGet("{id}")]
     public async Task<IActionResult> GetVivienda(int id)
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                          ?? User.FindFirst("sub")?.Value;
-
-        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
-        {
-            _logger.LogWarning("GetVivienda: Unauthorized, missing or invalid user ID.");
-            return Unauthorized(new { error = "Token invalido: no contiene ID de usuario" });
-        }
-
-        var accessToken = HttpContext.Request.Headers["Authorization"]
-            .ToString().Replace("Bearer ", "");
-
-        var (rolNombre, condominioId) = await _supabaseService.GetContextoAdminAsync(userId, accessToken);
+        var (readError, condominioId) = await ValidateReadAccessAsync();
+        if (readError != null)
+            return readError;
 
         var vivienda = await _supabaseService.GetViviendaByIdAsync(id);
         if (vivienda == null || condominioId == null || vivienda.CondominioId != condominioId.Value)
