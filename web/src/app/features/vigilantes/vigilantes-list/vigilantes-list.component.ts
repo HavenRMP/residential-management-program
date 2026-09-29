@@ -302,6 +302,14 @@ export class VigilantesListComponent implements OnInit {
         showConfirmButton: false,
         timer: 2000
       });
+    } catch (err: any) {
+      console.error('[VigilantesListComponent] Error al registrar vigilante:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo registrar',
+        text: err?.error?.error || 'Ocurrió un error al registrar al vigilante. Intenta de nuevo.',
+        confirmButtonColor: '#111C99'
+      });
     } finally {
       this.isSaving.set(false);
     }
