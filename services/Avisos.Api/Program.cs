@@ -4,6 +4,7 @@ using Avisos.Api.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddHavenJwtAuth(builder.Configuration);
+builder.Services.AddHavenFirebase(builder.Configuration);
 
 builder.Services.AddHavenExceptionHandler();
 
