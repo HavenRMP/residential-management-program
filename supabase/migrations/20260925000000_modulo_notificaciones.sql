@@ -67,3 +67,25 @@ DROP TRIGGER IF EXISTS trg_notificaciones_auditoria_delete ON public.notificacio
 CREATE TRIGGER trg_notificaciones_auditoria_delete
     BEFORE DELETE ON public.notificaciones
     FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+    -- ==============================================================================
+-- 4. VISTA DE CONSULTA: vw_notificaciones
+-- ==============================================================================
+DROP VIEW IF EXISTS public.vw_notificaciones CASCADE;
+
+CREATE VIEW public.vw_notificaciones AS
+SELECT 
+    n.id,
+    n.usuario_id,
+    u.nombre || ' ' || u.apellidos AS usuario_nombre,
+    u.email AS usuario_email,
+    n.tipo_evento,
+    n.titulo,
+    n.mensaje,
+    n.url_redireccion,
+    n.leida,
+    n.creado_en
+FROM public.notificaciones n
+JOIN public.usuarios u ON u.id = n.usuario_id;
+
+-- Permisos de lectura
+GRANT SELECT ON public.vw_notificaciones TO authenticated, service_role;
