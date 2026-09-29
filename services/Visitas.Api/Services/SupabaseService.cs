@@ -243,4 +243,50 @@ public class SupabaseService : ISupabaseService
 
         return (result.Items ?? new List<VisitaDto>(), result.TotalCount);
     }
+
+    public async Task<(List<VisitaDto> Items, int? TotalCount)> GetVisitasHistoricoAsync(Guid condominioId, DateTimeOffset? desde, DateTimeOffset? hasta, int? viviendaId, string? estado, PaginationParams paginacion)
+    {
+        var resourcePath = $"{VwVisitasHistorico}?condominio_id=eq.{condominioId}&select=*";
+
+        if (desde.HasValue)
+        {
+            resourcePath += $"&fecha_llegada_esperada=gte.{Uri.EscapeDataString(desde.Value.ToString("O"))}";
+        }
+
+        if (hasta.HasValue)
+        {
+            resourcePath += $"&fecha_llegada_esperada=lte.{Uri.EscapeDataString(hasta.Value.ToString("O"))}";
+        }
+
+        if (viviendaId.HasValue)
+        {
+            resourcePath += $"&vivienda_id=eq.{viviendaId.Value}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(estado))
+        {
+            var validEstados = new[] { "programada", "en_curso", "finalizada", "cancelada", "expirada" };
+            var estadoLower = estado.Trim().ToLowerInvariant();
+            
+            if (!validEstados.Contains(estadoLower))
+            {
+                throw new ArgumentException("El estado proporcionado no es válido.", nameof(estado));
+            }
+            
+            resourcePath += $"&estado=eq.{estadoLower}";
+        }
+
+        resourcePath += "&order=fecha_llegada_esperada.desc";
+
+        var result = await SupabaseQueryClient.GetPagedAsync<VisitaDto>(
+            _httpClient,
+            _supabaseUrl,
+            _serviceRoleKey,
+            _serviceRoleKey,
+            resourcePath,
+            paginacion
+        );
+
+        return (result.Items ?? new List<VisitaDto>(), result.TotalCount);
+    }
 }
