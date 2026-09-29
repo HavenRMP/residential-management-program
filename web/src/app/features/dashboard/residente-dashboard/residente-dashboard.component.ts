@@ -1,7 +1,7 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import Swal from 'sweetalert2';
 import { AuthService } from '../../../core/services/auth.service';
 import { ViviendasService } from '../../../core/services/viviendas.service';
@@ -257,6 +257,8 @@ export class ResidenteDashboardComponent implements OnInit {
   private readonly viviendasService = inject(ViviendasService);
   private readonly condominiosService = inject(CondominiosService);
   private readonly cacheService = inject(CacheService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   readonly avisosService = inject(AvisosService);
 
   readonly currentUser = this.authService.currentUser;
@@ -272,12 +274,37 @@ export class ResidenteDashboardComponent implements OnInit {
 
   codigoInput = '';
 
-  ngOnInit(): void {
+  async ngOnInit(): Promise<void> {
     const condId = this.currentUser()?.condominioId;
     if (condId) {
-      this.avisosService.cargarAvisos(condId);
+      await this.avisosService.cargarAvisos(condId);
     }
-    this.cargarDatosResidente();
+    await this.cargarDatosResidente();
+    this.abrirAvisoDesdeNotificacion();
+  }
+
+  /**
+   * Cuando el usuario llega desde el clic en una notificación de aviso urgente
+   * (redirigido vía AvisoRedirectComponent desde /avisos/:id), abre el detalle
+   * de ese aviso si ya está en la lista de vigentes cargada.
+   */
+  private abrirAvisoDesdeNotificacion(): void {
+    const avisoId = this.route.snapshot.queryParamMap.get('avisoId');
+    if (!avisoId) return;
+
+    const aviso = this.avisosService.vigentes().find(a => a.id === avisoId);
+    if (aviso) {
+      this.verDetalleAviso(aviso);
+    } else {
+      Swal.fire({
+        icon: 'info',
+        title: 'Aviso no disponible',
+        text: 'Este aviso ya expiró o no está disponible.',
+        confirmButtonColor: '#111C99'
+      });
+    }
+
+    this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
   }
 
   async cargarDatosResidente(): Promise<void> {
