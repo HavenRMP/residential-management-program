@@ -1,5 +1,6 @@
 using System.Text.Json;
 using HavenApi.Shared.Exceptions;
+using HavenApi.Shared.Pagination;
 using HavenApi.Shared.Rpc;
 using Visitas.Api.DTOs;
 
@@ -196,5 +197,34 @@ public class SupabaseService : ISupabaseService
             _httpClient, _supabaseUrl, _serviceRoleKey, RpcCancelarVisita, payload, actorId);
 
         return result ?? false;
+    }
+
+    public async Task<(List<VisitaDto> Items, int? TotalCount)> GetMisVisitasAsync(string accessToken, string? estado, PaginationParams paginacion)
+    {
+        var resourcePath = $"{VwMisVisitas}?select=*&order=fecha_llegada_esperada.desc";
+
+        if (!string.IsNullOrWhiteSpace(estado))
+        {
+            var validEstados = new[] { "programada", "en_curso", "finalizada", "cancelada", "expirada" };
+            var estadoLower = estado.Trim().ToLowerInvariant();
+            
+            if (!validEstados.Contains(estadoLower))
+            {
+                throw new ArgumentException("El estado proporcionado no es válido.", nameof(estado));
+            }
+            
+            resourcePath += $"&estado=eq.{estadoLower}";
+        }
+
+        var result = await SupabaseQueryClient.GetPagedAsync<VisitaDto>(
+            _httpClient,
+            _supabaseUrl,
+            _anonKey,
+            accessToken,
+            resourcePath,
+            paginacion
+        );
+
+        return (result.Items ?? new List<VisitaDto>(), result.TotalCount);
     }
 }
