@@ -89,9 +89,12 @@ FROM public.vivienda_residente vr
 JOIN public.viviendas v ON v.id = vr.vivienda_id
 WHERE u.id = vr.usuario_id
   AND u.condominio_id IS NULL;
-  -- ==============================================================================
+-- ==============================================================================
 -- 2. CORRECCIÓN: CAMBIO_AVISO (Preservar vigencia y corregir tabla condominios)
 -- ==============================================================================
+DROP FUNCTION IF EXISTS public.cambio_aviso(UUID, UUID, VARCHAR, TEXT, INTEGER, TIMESTAMPTZ);
+DROP FUNCTION IF EXISTS public.cambio_aviso(UUID, UUID, VARCHAR, TEXT, INTEGER, TIMESTAMPTZ, VARCHAR);
+
 CREATE OR REPLACE FUNCTION public.cambio_aviso(
     p_id UUID,
     p_actor_id UUID,
@@ -105,6 +108,7 @@ SECURITY DEFINER
 SET search_path = public
 LANGUAGE plpgsql
 AS $$
+...
 DECLARE
     v_aviso RECORD;
     v_resultado public.vw_avisos_vigentes;
