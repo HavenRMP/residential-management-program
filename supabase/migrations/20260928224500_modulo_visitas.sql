@@ -235,3 +235,56 @@ BEGIN
     RETURN jsonb_build_object('id', v_visita_id, 'codigo_acceso', v_codigo);
 END;
 $$;
+-- ==============================================================================
+-- 8. STORED PROCEDURE: cambio_visita
+-- ==============================================================================
+DROP FUNCTION IF EXISTS public.cambio_visita(UUID, UUID, VARCHAR, VARCHAR, VARCHAR, VARCHAR, INTEGER, VARCHAR, VARCHAR, TIMESTAMPTZ, INTEGER);
+
+CREATE OR REPLACE FUNCTION public.cambio_visita(
+    p_id UUID, 
+    p_actor_id UUID, 
+    p_nombre_visitante VARCHAR DEFAULT NULL, 
+    p_apellidos_visitante VARCHAR DEFAULT NULL, 
+    p_telefono_visitante VARCHAR DEFAULT NULL, 
+    p_motivo VARCHAR DEFAULT NULL, 
+    p_num_acompanantes INTEGER DEFAULT NULL, 
+    p_vehiculo_placas VARCHAR DEFAULT NULL, 
+    p_notas VARCHAR DEFAULT NULL, 
+    p_fecha_llegada_esperada TIMESTAMPTZ DEFAULT NULL, 
+    p_horas_vigencia INTEGER DEFAULT NULL
+) 
+RETURNS BOOLEAN 
+SECURITY DEFINER 
+SET search_path = public 
+LANGUAGE plpgsql AS $$
+DECLARE
+    v_visita RECORD;
+BEGIN
+    SELECT * INTO v_visita FROM public.visitas WHERE id = p_id;
+    IF NOT FOUND THEN 
+        RAISE EXCEPTION USING ERRCODE = 'VI001', MESSAGE = 'La visita no existe.'; 
+    END IF;
+
+    IF v_visita.creado_por != p_actor_id THEN 
+        RAISE EXCEPTION USING ERRCODE = 'VI002', MESSAGE = 'Solo el creador puede modificar la visita.'; 
+    END IF;
+
+    IF v_visita.estado != 'programada' THEN 
+        RAISE EXCEPTION USING ERRCODE = 'VI003', MESSAGE = 'Solo se pueden modificar visitas programadas.'; 
+    END IF;
+
+    UPDATE public.visitas SET
+        nombre_visitante = COALESCE(p_nombre_visitante, nombre_visitante),
+        apellidos_visitante = COALESCE(p_apellidos_visitante, apellidos_visitante),
+        telefono_visitante = COALESCE(p_telefono_visitante, telefono_visitante),
+        motivo = COALESCE(p_motivo, motivo),
+        num_acompanantes = COALESCE(p_num_acompanantes, num_acompanantes),
+        vehiculo_placas = COALESCE(p_vehiculo_placas, vehiculo_placas),
+        notas = COALESCE(p_notas, notas),
+        fecha_llegada_esperada = COALESCE(p_fecha_llegada_esperada, fecha_llegada_esperada),
+        horas_vigencia = COALESCE(p_horas_vigencia, horas_vigencia)
+    WHERE id = p_id;
+
+    RETURN true;
+END;
+$$;
