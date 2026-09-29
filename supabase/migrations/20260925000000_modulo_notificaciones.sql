@@ -162,3 +162,28 @@ BEGIN
     RETURN v_resultado;
 END;
 $$;
+-- ==============================================================================
+-- 6. STORED PROCEDURE: marcar_notificacion_leida
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.marcar_notificacion_leida(
+    p_id UUID,
+    p_usuario_id UUID
+)
+RETURNS BOOLEAN
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_afectados INTEGER;
+BEGIN
+    UPDATE public.notificaciones
+    SET leida = true
+    WHERE id = p_id 
+      AND usuario_id = p_usuario_id
+      AND leida = false;
+
+    GET DIAGNOSTICS v_afectados = ROW_COUNT;
+    RETURN v_afectados > 0;
+END;
+$$;
