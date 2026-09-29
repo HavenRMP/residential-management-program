@@ -480,3 +480,44 @@ BEGIN
     RETURN to_jsonb(v_visita);
 END;
 $$;
+
+-- ==============================================================================
+-- 13. PERMISOS Y SEGURIDAD POSTGREST
+-- ==============================================================================
+-- Revocar accesos directos a la tabla física
+REVOKE ALL ON public.visitas FROM authenticated, anon, service_role;
+
+-- Vistas
+GRANT SELECT ON public.vw_mis_visitas TO authenticated;
+GRANT SELECT ON public.vw_visitas_hoy TO service_role;
+GRANT SELECT ON public.vw_visitas_historico TO service_role;
+
+-- Funciones RPC
+GRANT EXECUTE ON FUNCTION public.alta_visita(UUID, INTEGER, VARCHAR, VARCHAR, VARCHAR, VARCHAR, INTEGER, VARCHAR, VARCHAR, TIMESTAMPTZ, INTEGER) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.cambio_visita(UUID, UUID, VARCHAR, VARCHAR, VARCHAR, VARCHAR, INTEGER, VARCHAR, VARCHAR, TIMESTAMPTZ, INTEGER) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.cancelar_visita(UUID, UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.validar_codigo_visita(VARCHAR) TO service_role;
+GRANT EXECUTE ON FUNCTION public.registrar_entrada_visita(UUID, UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.registrar_salida_visita(UUID, UUID) TO service_role;
+
+-- ==============================================================================
+-- 14. INCREMENTO SEMÁNTICO DE VERSIÓN
+-- ==============================================================================
+DO $$
+DECLARE
+    v_actual TEXT;
+    v_partes TEXT[];
+    v_nueva TEXT;
+BEGIN
+    SELECT numero_version INTO v_actual FROM public.version ORDER BY updated_at DESC LIMIT 1;
+    IF v_actual IS NOT NULL THEN
+        v_partes := string_to_array(v_actual, '.');
+        v_nueva := v_partes[1] || '.' || (v_partes[2]::INT + 1) || '.0';
+        UPDATE public.version 
+        SET numero_version = v_nueva, 
+            updated_at = timezone('utc'::text, now());
+    END IF;
+END $$;
+
+-- Recarga de PostgREST
+NOTIFY pgrst, 'reload schema';
