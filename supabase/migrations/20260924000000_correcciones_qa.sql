@@ -332,3 +332,130 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.alta_aviso(UUID, VARCHAR, TEXT, INTEGER, TIMESTAMPTZ, VARCHAR) TO service_role;
+-- ==============================================================================
+-- 6. ACTUALIZACIÓN DE STORED PROCEDURE: cambio_aviso
+-- ==============================================================================
+DROP FUNCTION IF EXISTS public.cambio_aviso(UUID, UUID, VARCHAR, TEXT, INTEGER, TIMESTAMPTZ);
+DROP FUNCTION IF EXISTS public.cambio_aviso(UUID, UUID, VARCHAR, TEXT, INTEGER, TIMESTAMPTZ, VARCHAR);
+
+CREATE OR REPLACE FUNCTION public.cambio_aviso(
+    p_id UUID,
+    p_actor_id UUID,
+    p_titulo VARCHAR(200) DEFAULT NULL,
+    p_contenido TEXT DEFAULT NULL,
+    p_duracion_dias INTEGER DEFAULT NULL,
+    p_fecha_expiracion TIMESTAMPTZ DEFAULT NULL,
+    p_prioridad VARCHAR(20) DEFAULT NULL
+)
+RETURNS JSONB
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_aviso RECORD;
+    v_admin RECORD;
+    v_nuevo_duracion_dias INTEGER;
+    v_nueva_fecha_manual TIMESTAMPTZ;
+    v_prioridad VARCHAR(20);
+    v_resultado JSONB;
+BEGIN
+    -- Validar que el aviso exista
+    SELECT id, condominio_id, duracion_dias, fecha_expiracion_manual, prioridad, activo
+    INTO v_aviso
+    FROM public.avisos
+    WHERE id = p_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'El aviso con ID % no existe.', p_id USING ERRCODE = 'AV008';
+    END IF;
+
+    -- Validar que el actor sea Administrador activo del mismo condominio
+    SELECT id, condominio_id, rol_id, activo
+    INTO v_admin
+    FROM public.usuarios
+    WHERE id = p_actor_id;
+
+    IF NOT FOUND OR NOT v_admin.activo THEN
+        RAISE EXCEPTION 'El usuario administrador no existe o está inactivo.' USING ERRCODE = 'AV001';
+    END IF;
+
+    IF v_admin.rol_id != 1 THEN
+        RAISE EXCEPTION 'El actor no cuenta con privilegios de Administrador.' USING ERRCODE = 'AV002';
+    END IF;
+
+    IF v_admin.condominio_id IS NULL OR v_admin.condominio_id != v_aviso.condominio_id THEN
+        RAISE EXCEPTION 'El administrador no pertenece al mismo condominio del aviso.' USING ERRCODE = 'AV009';
+    END IF;
+
+    -- Validar prioridad si fue enviada
+    IF p_prioridad IS NOT NULL THEN
+        v_prioridad := LOWER(TRIM(p_prioridad));
+        IF v_prioridad NOT IN ('informativo', 'urgente', 'mantenimiento', 'evento') THEN
+            RAISE EXCEPTION 'Prioridad no válida. Debe ser informativo, urgente, mantenimiento o evento.' USING ERRCODE = 'AV010';
+        END IF;
+    ELSE
+        v_prioridad := v_aviso.prioridad;
+    END IF;
+
+    -- Vigencia
+    IF p_fecha_expiracion IS NOT NULL AND p_fecha_expiracion IS DISTINCT FROM v_aviso.fecha_expiracion_manual THEN
+        IF p_fecha_expiracion <= now() THEN
+            RAISE EXCEPTION 'La fecha de expiración manual debe ser posterior a la fecha actual.' USING ERRCODE = 'AV006';
+        END IF;
+        v_nueva_fecha_manual := p_fecha_expiracion;
+        v_nuevo_duracion_dias := NULL;
+    ELSIF p_duracion_dias IS NOT NULL AND (p_duracion_dias IS DISTINCT FROM v_aviso.duracion_dias OR v_aviso.fecha_expiracion_manual IS NOT NULL) THEN
+        IF p_duracion_dias <= 0 THEN
+            RAISE EXCEPTION 'La duración en días debe ser mayor a 0.' USING ERRCODE = 'AV007';
+        END IF;
+        v_nuevo_duracion_dias := p_duracion_dias;
+        v_nueva_fecha_manual := NULL;
+    ELSE
+        v_nuevo_duracion_dias := v_aviso.duracion_dias;
+        v_nueva_fecha_manual := v_aviso.fecha_expiracion_manual;
+    END IF;
+
+    -- Actualización dinámica
+    UPDATE public.avisos
+    SET
+        titulo = COALESCE(NULLIF(TRIM(p_titulo), ''), titulo),
+        contenido = COALESCE(NULLIF(TRIM(p_contenido), ''), contenido),
+        prioridad = v_prioridad,
+        duracion_dias = v_nuevo_duracion_dias,
+        fecha_expiracion_manual = v_nueva_fecha_manual
+    WHERE id = p_id;
+
+    -- Construcción del retorno con prioridad incluida
+    SELECT jsonb_build_object(
+        'id', a.id,
+        'condominio_id', a.condominio_id,
+        'condominio_nombre', c.nombre,
+        'titulo', a.titulo,
+        'contenido', a.contenido,
+        'prioridad', a.prioridad,
+        'duracion_dias', a.duracion_dias,
+        'fecha_expiracion_manual', a.fecha_expiracion_manual,
+        'fecha_publicacion', a.fecha_publicacion,
+        'fecha_expiracion', a.fecha_expiracion,
+        'activo', a.activo,
+        'creado_por', a.creado_por,
+        'creado_por_nombre', u.nombre || ' ' || u.apellidos,
+        'creado_en', a.creado_en
+    )
+    INTO v_resultado
+    FROM public.avisos a
+    JOIN public.condominios c ON c.id = a.condominio_id
+    JOIN public.usuarios u ON u.id = a.creado_por
+    WHERE a.id = p_id;
+
+    RETURN v_resultado;
+END;
+$$;
+
+-- Permisos y recarga de esquema PostgREST
+GRANT SELECT ON public.vw_avisos_vigentes TO authenticated, service_role;
+GRANT SELECT ON public.vw_avisos_historico TO service_role;
+GRANT EXECUTE ON FUNCTION public.cambio_aviso(UUID, UUID, VARCHAR, TEXT, INTEGER, TIMESTAMPTZ, VARCHAR) TO service_role;
+
+NOTIFY pgrst, 'reload schema';
