@@ -308,4 +308,23 @@ public class SupabaseService : ISupabaseService
 
         return result;
     }
+
+    public async Task<VisitaDto> RegistrarEntradaAsync(Guid visitaId, Guid actorId)
+    {
+        var payload = new
+        {
+            p_visita_id = visitaId,
+            p_actor_id = actorId
+        };
+
+        var result = await SupabaseRpcClient.PostRpcAsync<VisitaDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, RpcRegistrarEntradaVisita, payload, actorId);
+
+        if (result == null)
+        {
+            throw new SupabaseResponseException("Error inesperado: la base de datos no devolvió la visita tras registrar la entrada.");
+        }
+
+        return result;
+    }
 }
