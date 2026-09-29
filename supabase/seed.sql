@@ -154,3 +154,90 @@ SET titulo = EXCLUDED.titulo,
     duracion_dias = EXCLUDED.duracion_dias,
     fecha_expiracion_manual = EXCLUDED.fecha_expiracion_manual,
     activo = EXCLUDED.activo;
+    -- ============================================================================
+-- 8. USUARIO VIGILANCIA Y RESIDENTE DE EJEMPLO (Pruebas de Caseta)
+-- ============================================================================
+
+-- A. Login de Supabase (auth.users)
+INSERT INTO auth.users (
+    instance_id,
+    id,
+    aud,
+    role,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at
+) VALUES 
+  -- Vigilante
+  (
+    '00000000-0000-0000-0000-000000000000',
+    'c0000000-0000-0000-0000-000000000001',
+    'authenticated',
+    'authenticated',
+    'vigilante@haven.com',
+    crypt('Password123!', gen_salt('bf')),
+    timezone('utc'::text, now()),
+    '{"provider":"email","providers":["email"]}',
+    '{"nombre":"Vigilante","apellidos":"Caseta"}',
+    timezone('utc'::text, now()),
+    timezone('utc'::text, now())
+  ),
+  -- Residente de prueba para Casa 101
+  (
+    '00000000-0000-0000-0000-000000000000',
+    'e0000000-0000-0000-0000-000000000001',
+    'authenticated',
+    'authenticated',
+    'residente.prueba@haven.com',
+    crypt('Password123!', gen_salt('bf')),
+    timezone('utc'::text, now()),
+    '{"provider":"email","providers":["email"]}',
+    '{"nombre":"Carlos","apellidos":"Gómez"}',
+    timezone('utc'::text, now()),
+    timezone('utc'::text, now())
+  )
+ON CONFLICT (id) DO NOTHING;
+
+-- B. Perfiles en tabla pública (public.usuarios)
+INSERT INTO public.usuarios (id, rol_id, email, nombre, apellidos, telefono, condominio_id, activo)
+VALUES 
+  -- Vigilante (rol_id = 3)
+  (
+    'c0000000-0000-0000-0000-000000000001',
+    3,
+    'vigilante@haven.com',
+    'Vigilante',
+    'Caseta',
+    '4423000001',
+    'a0000000-0000-0000-0000-000000000001',
+    true
+  ),
+  -- Residente (rol_id = 2)
+  (
+    'e0000000-0000-0000-0000-000000000001',
+    2,
+    'residente.prueba@haven.com',
+    'Carlos',
+    'Gómez',
+    '4423000002',
+    'a0000000-0000-0000-0000-000000000001',
+    true
+  )
+ON CONFLICT (id) DO UPDATE 
+SET rol_id = EXCLUDED.rol_id,
+    email = EXCLUDED.email,
+    nombre = EXCLUDED.nombre,
+    apellidos = EXCLUDED.apellidos,
+    telefono = EXCLUDED.telefono,
+    condominio_id = EXCLUDED.condominio_id,
+    activo = EXCLUDED.activo;
+
+-- C. Asignar residente de prueba a Casa 101 (id = 1)
+-- Nota: Casa 102 (id = 2) permanece intencionalmente sin asignaciones.
+INSERT INTO public.vivienda_residente (vivienda_id, usuario_id) VALUES
+  (1, 'e0000000-0000-0000-0000-000000000001')
+ON CONFLICT (vivienda_id, usuario_id) DO NOTHING;
