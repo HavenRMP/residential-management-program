@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using System.Text.Json;
 using HavenApi.Shared.Exceptions;
 using HavenApi.Shared.Pagination;
@@ -325,6 +326,46 @@ public class SupabaseService : ISupabaseService
             throw new SupabaseResponseException("Error inesperado: la base de datos no devolvió la visita tras registrar la entrada.");
         }
 
+        if (result.CreadoPor.HasValue)
+        {
+            try
+            {
+                await NotificarLlegadaAsync(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error no controlado al notificar llegada de visita {VisitaId}", result.Id);
+            }
+        }
+
         return result;
+    }
+
+    private async Task<bool> NotificarLlegadaAsync(VisitaDto visita)
+    {
+        var requestUrl = $"{_supabaseUrl}/rest/v1/rpc/{RpcAltaNotificacion}";
+        var payload = new
+        {
+            p_usuario_id = visita.CreadoPor,
+            p_tipo_evento = "visita_llegada",
+            p_titulo = "Tu visita ha llegado",
+            p_mensaje = $"{visita.NombreVisitante} {visita.ApellidosVisitante} ha ingresado al condominio.",
+            p_url_redireccion = $"/visitas/{visita.Id}"
+        };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, requestUrl);
+        request.Headers.Add("apikey", _serviceRoleKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
+        request.Content = System.Net.Http.Json.JsonContent.Create(payload);
+
+        var response = await SendRequestAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogWarning("NotificarLlegadaAsync failed for visita {VisitaId}. Status: {StatusCode}, Body: {Body}", visita.Id, response.StatusCode, errorBody);
+            return false;
+        }
+
+        return true;
     }
 }
