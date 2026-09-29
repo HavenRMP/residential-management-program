@@ -157,3 +157,19 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.cambio_aviso(UUID, UUID, VARCHAR, TEXT, INTEGER, TIMESTAMPTZ) TO service_role;
+-- ==============================================================================
+-- 3. MODIFICACIÓN: TABLA AVISOS (Prioridad y restricción CHECK)
+-- ==============================================================================
+ALTER TABLE public.avisos
+ADD COLUMN IF NOT EXISTS prioridad VARCHAR(20) NOT NULL DEFAULT 'informativo';
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'chk_avisos_prioridad'
+    ) THEN
+        ALTER TABLE public.avisos
+        ADD CONSTRAINT chk_avisos_prioridad 
+        CHECK (prioridad IN ('informativo', 'urgente', 'mantenimiento', 'evento'));
+    END IF;
+END $$;
