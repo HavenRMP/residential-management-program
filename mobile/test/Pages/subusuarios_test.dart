@@ -265,5 +265,29 @@ void main() {
       expect(res['success'], isTrue);
       expect(capturedBody!['respuesta'], 'ACEPTADA');
     });
+
+    test('responderInvitacion envía RECHAZADA correctamente', () async {
+      Map<String, dynamic>? capturedBody;
+
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/api/subusuarios/invitaciones/inv-456/responder' &&
+            request.method == 'POST') {
+          capturedBody = jsonDecode(request.body);
+          return http.Response(
+            jsonEncode({'message': 'Invitación rechazada exitosamente.'}),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('Not found', 404);
+      });
+
+      final controller = AppController(null, client: mockClient);
+      final service = SubusuariosService(controller);
+
+      final res = await service.responderInvitacion('inv-456', aceptar: false);
+      expect(res['success'], isTrue);
+      expect(capturedBody!['respuesta'], 'RECHAZADA');
+    });
   });
 }
