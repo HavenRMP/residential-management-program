@@ -37,8 +37,9 @@ public class SupabaseServiceNotificacionesTests
         configMock.Setup(c => c["Supabase:ServiceRoleKey"]).Returns("fake_service_role_key");
         
         var loggerMock = new Mock<ILogger<SupabaseService>>();
+        var firebaseMock = new Mock<HavenApi.Shared.Services.IFirebaseNotificationService>();
 
-        return new SupabaseService(httpClient, configMock.Object, loggerMock.Object);
+        return new SupabaseService(httpClient, configMock.Object, loggerMock.Object, firebaseMock.Object);
     }
 
     [Fact]
