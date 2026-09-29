@@ -156,3 +156,28 @@ WHERE (
 ) OR (v.estado = 'en_curso');
 
 GRANT SELECT ON public.vw_visitas_hoy TO service_role;
+-- ==============================================================================
+-- 6. VISTA: vw_visitas_historico (Para Administradores)
+-- ==============================================================================
+DROP VIEW IF EXISTS public.vw_visitas_historico CASCADE;
+
+CREATE VIEW public.vw_visitas_historico AS
+SELECT 
+    v.id, 
+    viv.numero_casa, 
+    viv.condominio_id,
+    v.nombre_visitante, 
+    v.apellidos_visitante, 
+    v.motivo, 
+    v.fecha_llegada_esperada,
+    CASE 
+        WHEN v.estado = 'programada' AND (v.fecha_llegada_esperada + (v.horas_vigencia || ' hours')::interval) <= now() THEN 'expirada'
+        ELSE v.estado 
+    END AS estado_calculado,
+    v.hora_entrada, 
+    v.hora_salida, 
+    v.creado_en
+FROM public.visitas v
+JOIN public.viviendas viv ON v.vivienda_id = viv.id;
+
+GRANT SELECT ON public.vw_visitas_historico TO service_role;
