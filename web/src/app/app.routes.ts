@@ -87,6 +87,13 @@ export const routes: Routes = [
         .then(m => m.SubusuariosComponent)
   },
   {
+    path: 'avisos/:id',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/avisos/aviso-redirect/aviso-redirect.component')
+        .then(m => m.AvisoRedirectComponent)
+  },
+  {
     path: 'dashboard/vigilante',
     canActivate: [authGuard, roleGuard(['vigilante'])],
     loadComponent: () =>
