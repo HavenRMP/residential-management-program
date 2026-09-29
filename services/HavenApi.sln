@@ -25,6 +25,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avisos.Api.Tests", "Avisos.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Visitas.Api", "Visitas.Api\Visitas.Api.csproj", "{74A7CC00-1F66-4DA7-8ABB-46371E932706}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Visitas.Api.Tests", "Visitas.Api.Tests\Visitas.Api.Tests.csproj", "{BEB762FE-861F-406F-B100-B7F98AD38330}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -155,6 +157,18 @@ Global
 		{74A7CC00-1F66-4DA7-8ABB-46371E932706}.Release|x64.Build.0 = Release|Any CPU
 		{74A7CC00-1F66-4DA7-8ABB-46371E932706}.Release|x86.ActiveCfg = Release|Any CPU
 		{74A7CC00-1F66-4DA7-8ABB-46371E932706}.Release|x86.Build.0 = Release|Any CPU
+		{BEB762FE-861F-406F-B100-B7F98AD38330}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BEB762FE-861F-406F-B100-B7F98AD38330}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BEB762FE-861F-406F-B100-B7F98AD38330}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{BEB762FE-861F-406F-B100-B7F98AD38330}.Debug|x64.Build.0 = Debug|Any CPU
+		{BEB762FE-861F-406F-B100-B7F98AD38330}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{BEB762FE-861F-406F-B100-B7F98AD38330}.Debug|x86.Build.0 = Debug|Any CPU
+		{BEB762FE-861F-406F-B100-B7F98AD38330}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BEB762FE-861F-406F-B100-B7F98AD38330}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BEB762FE-861F-406F-B100-B7F98AD38330}.Release|x64.ActiveCfg = Release|Any CPU
+		{BEB762FE-861F-406F-B100-B7F98AD38330}.Release|x64.Build.0 = Release|Any CPU
+		{BEB762FE-861F-406F-B100-B7F98AD38330}.Release|x86.ActiveCfg = Release|Any CPU
+		{BEB762FE-861F-406F-B100-B7F98AD38330}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
