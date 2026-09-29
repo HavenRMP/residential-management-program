@@ -1,19 +1,21 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
+import { ApiService } from './api.service';
 import { AuthService } from './auth.service';
-import { Vigilante, CrearVigilanteDto } from '../models/vigilante.model';
+import { Vigilante, CrearVigilanteDto, VigilanteRegistradoApi } from '../models/vigilante.model';
 
 /**
- * Persistencia temporal en localStorage mientras Usuarios.Api no expone endpoints de vigilantes.
- * Cuando existan, reemplazar el cuerpo de cada método por llamadas a ApiService manteniendo
- * la misma forma pública (signals + métodos) para no tener que tocar el componente:
- *   listar()            -> GET   /api/vigilantes
- *   crear(dto)           -> POST  /api/vigilantes
+ * El alta ya usa el backend real (POST /api/auth/register-vigilante). Listar y dar de baja/reactivar
+ * siguen en localStorage porque Usuarios.Api todavía no expone esos endpoints; cuando existan,
+ * reemplazar el cuerpo de cada método manteniendo la misma forma pública (signals + métodos):
+ *   listar()             -> GET   /api/vigilantes
  *   cambiarEstado(id, x) -> PATCH /api/vigilantes/{id}/estado
  */
 @Injectable({
   providedIn: 'root'
 })
 export class VigilantesService {
+  private readonly apiService = inject(ApiService);
   private readonly authService = inject(AuthService);
 
   readonly vigilantes = signal<Vigilante[]>([]);
@@ -39,16 +41,31 @@ export class VigilantesService {
     }
   }
 
+  /**
+   * Registra un vigilante en el condominio del administrador
+   * (POST /api/auth/register-vigilante)
+   */
   async crear(dto: CrearVigilanteDto): Promise<Vigilante> {
-    const nuevo: Vigilante = {
-      id: 'vig-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+    const body = {
       nombre: dto.nombre.trim(),
       apellidos: dto.apellidos.trim(),
-      email: dto.email.trim().toLowerCase(),
       telefono: dto.telefono.trim(),
-      turno: dto.turno,
+      email: dto.email.trim().toLowerCase(),
+      password: dto.password
+    };
+
+    const response = await firstValueFrom(
+      this.apiService.post<VigilanteRegistradoApi>('/api/auth/register-vigilante', body, undefined, 'usuarios')
+    );
+
+    const nuevo: Vigilante = {
+      id: response.id,
+      nombre: response.nombre,
+      apellidos: response.apellidos,
+      email: response.email,
+      telefono: response.telefono,
       activo: true,
-      creadoEn: new Date().toISOString()
+      creadoEn: response.creadoEn
     };
 
     const lista = [nuevo, ...this.vigilantes()];
