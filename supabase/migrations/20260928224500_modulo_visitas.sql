@@ -435,3 +435,48 @@ BEGIN
     RETURN to_jsonb(v_visita);
 END;
 $$;
+-- ==============================================================================
+-- 12. STORED PROCEDURE: registrar_salida_visita (Caseta / Vigilancia)
+-- ==============================================================================
+DROP FUNCTION IF EXISTS public.registrar_salida_visita(UUID, UUID);
+
+CREATE OR REPLACE FUNCTION public.registrar_salida_visita(
+    p_visita_id UUID, 
+    p_actor_id UUID
+) 
+RETURNS JSONB 
+SECURITY DEFINER 
+SET search_path = public 
+LANGUAGE plpgsql AS $$
+DECLARE
+    v_visita RECORD;
+    v_actor_condominio UUID;
+BEGIN
+    SELECT condominio_id INTO v_actor_condominio FROM public.usuarios WHERE id = p_actor_id;
+    SELECT v.*, viv.condominio_id INTO v_visita 
+    FROM public.visitas v 
+    JOIN public.viviendas viv ON v.vivienda_id = viv.id 
+    WHERE v.id = p_visita_id;
+
+    IF NOT FOUND THEN 
+        RAISE EXCEPTION USING ERRCODE = 'VI001', MESSAGE = 'La visita no existe.'; 
+    END IF;
+
+    IF v_visita.condominio_id != v_actor_condominio THEN 
+        RAISE EXCEPTION USING ERRCODE = 'VI002', MESSAGE = 'Sin permisos en este condominio.'; 
+    END IF;
+
+    IF v_visita.estado != 'en_curso' THEN 
+        RAISE EXCEPTION USING ERRCODE = 'VI007', MESSAGE = 'No se puede registrar salida sin entrada previa (o ya finalizó).'; 
+    END IF;
+
+    UPDATE public.visitas 
+    SET estado = 'finalizada', 
+        hora_salida = now(), 
+        registrado_salida_por = p_actor_id
+    WHERE id = p_visita_id 
+    RETURNING * INTO v_visita;
+
+    RETURN to_jsonb(v_visita);
+END;
+$$;
