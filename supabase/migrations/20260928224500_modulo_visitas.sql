@@ -181,3 +181,57 @@ FROM public.visitas v
 JOIN public.viviendas viv ON v.vivienda_id = viv.id;
 
 GRANT SELECT ON public.vw_visitas_historico TO service_role;
+
+-- ==============================================================================
+-- 7. STORED PROCEDURE: alta_visita
+-- ==============================================================================
+DROP FUNCTION IF EXISTS public.alta_visita(UUID, INTEGER, VARCHAR, VARCHAR, VARCHAR, VARCHAR, INTEGER, VARCHAR, VARCHAR, TIMESTAMPTZ, INTEGER);
+
+CREATE OR REPLACE FUNCTION public.alta_visita(
+    p_actor_id UUID, 
+    p_vivienda_id INTEGER, 
+    p_nombre_visitante VARCHAR, 
+    p_apellidos_visitante VARCHAR, 
+    p_telefono_visitante VARCHAR, 
+    p_motivo VARCHAR, 
+    p_num_acompanantes INTEGER, 
+    p_vehiculo_placas VARCHAR, 
+    p_notas VARCHAR, 
+    p_fecha_llegada_esperada TIMESTAMPTZ, 
+    p_horas_vigencia INTEGER DEFAULT 12
+) 
+RETURNS JSONB 
+SECURITY DEFINER 
+SET search_path = public 
+LANGUAGE plpgsql AS $$
+DECLARE
+    v_codigo VARCHAR;
+    v_visita_id UUID;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM public.viviendas WHERE id = p_vivienda_id AND activo = true) THEN
+        RAISE EXCEPTION USING ERRCODE = 'VI009', MESSAGE = 'La vivienda no existe o está inactiva.';
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM public.vivienda_residente WHERE vivienda_id = p_vivienda_id AND usuario_id = p_actor_id) THEN
+        RAISE EXCEPTION USING ERRCODE = 'VI002', MESSAGE = 'El actor no pertenece a esta vivienda.';
+    END IF;
+    
+    LOOP
+        BEGIN
+            v_codigo := public.fn_generar_codigo_visita();
+            INSERT INTO public.visitas (
+                vivienda_id, creado_por, nombre_visitante, apellidos_visitante, telefono_visitante, motivo, 
+                num_acompanantes, vehiculo_placas, notas, fecha_llegada_esperada, horas_vigencia, codigo_acceso
+            ) VALUES (
+                p_vivienda_id, p_actor_id, p_nombre_visitante, p_apellidos_visitante, p_telefono_visitante, p_motivo,
+                COALESCE(p_num_acompanantes, 0), p_vehiculo_placas, p_notas, p_fecha_llegada_esperada, p_horas_vigencia, v_codigo
+            ) RETURNING id INTO v_visita_id;
+            EXIT; -- Éxito, sale del loop
+        EXCEPTION WHEN unique_violation THEN
+            -- Ignora y vuelve a intentar generar código si hay colisión (23505)
+        END;
+    END LOOP;
+    
+    RETURN jsonb_build_object('id', v_visita_id, 'codigo_acceso', v_codigo);
+END;
+$$;
