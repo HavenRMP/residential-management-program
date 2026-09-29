@@ -63,3 +63,19 @@ CREATE TRIGGER trg_visitas_auditoria_update
 DROP TRIGGER IF EXISTS trg_visitas_auditoria_delete ON public.visitas;
 CREATE TRIGGER trg_visitas_auditoria_delete
     BEFORE DELETE ON public.visitas FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+    -- ==============================================================================
+-- 3. GENERADOR DE CÓDIGOS DE ACCESO
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.fn_generar_codigo_visita() 
+RETURNS VARCHAR AS $$
+DECLARE
+    v_caracteres VARCHAR := '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; -- Sin I, 1, 0, O
+    v_codigo VARCHAR := '';
+    i INTEGER;
+BEGIN
+    FOR i IN 1..6 LOOP
+        v_codigo := v_codigo || substr(v_caracteres, (random() * length(v_caracteres) + 1)::integer, 1);
+    END LOOP;
+    RETURN v_codigo;
+END;
+$$ LANGUAGE plpgsql VOLATILE;
