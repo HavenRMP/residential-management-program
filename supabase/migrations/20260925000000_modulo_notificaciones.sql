@@ -187,3 +187,39 @@ BEGIN
     RETURN v_afectados > 0;
 END;
 $$;
+
+-- ==============================================================================
+-- 7. STORED PROCEDURE: marcar_todas_notificaciones_leidas
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.marcar_todas_notificaciones_leidas(
+    p_usuario_id UUID
+)
+RETURNS INTEGER
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_afectados INTEGER;
+BEGIN
+    UPDATE public.notificaciones
+    SET leida = true
+    WHERE usuario_id = p_usuario_id 
+      AND leida = false;
+
+    GET DIAGNOSTICS v_afectados = ROW_COUNT;
+    RETURN v_afectados;
+END;
+$$;
+
+-- ==============================================================================
+-- 8. PERMISOS Y RECARGA DE POSTGREST
+-- ==============================================================================
+REVOKE ALL ON public.notificaciones FROM authenticated, anon, service_role;
+
+GRANT SELECT ON public.vw_notificaciones TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.alta_notificacion(UUID, VARCHAR, VARCHAR, TEXT, TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION public.marcar_notificacion_leida(UUID, UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.marcar_todas_notificaciones_leidas(UUID) TO authenticated, service_role;
+
+NOTIFY pgrst, 'reload schema';
