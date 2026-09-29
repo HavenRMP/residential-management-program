@@ -1,6 +1,7 @@
 using System.Text.Json;
 using HavenApi.Shared.Exceptions;
 using HavenApi.Shared.Rpc;
+using Visitas.Api.DTOs;
 
 namespace Visitas.Api.Services;
 
@@ -73,5 +74,49 @@ public class SupabaseService : ISupabaseService
             userId,
             accessToken
         );
+    }
+
+    public async Task<VisitaDto> CreateVisitaAsync(CreateVisitaRequestDto dto, Guid actorId)
+    {
+        var payload = new Dictionary<string, object>
+        {
+            { "p_actor_id", actorId },
+            { "p_vivienda_id", dto.ViviendaId },
+            { "p_nombre_visitante", dto.NombreVisitante.Trim() },
+            { "p_apellidos_visitante", dto.ApellidosVisitante.Trim() },
+            { "p_motivo", dto.Motivo.Trim().ToLowerInvariant() },
+            { "p_num_acompanantes", dto.NumAcompanantes },
+            { "p_fecha_llegada_esperada", dto.FechaLlegadaEsperada }
+        };
+
+        if (dto.TelefonoVisitante != null)
+        {
+            payload["p_telefono_visitante"] = dto.TelefonoVisitante.Trim();
+        }
+
+        if (dto.VehiculoPlacas != null)
+        {
+            payload["p_vehiculo_placas"] = dto.VehiculoPlacas.Trim();
+        }
+
+        if (dto.Notas != null)
+        {
+            payload["p_notas"] = dto.Notas.Trim();
+        }
+
+        if (dto.HorasVigencia.HasValue)
+        {
+            payload["p_horas_vigencia"] = dto.HorasVigencia.Value;
+        }
+
+        var result = await SupabaseRpcClient.PostRpcAsync<VisitaDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, RpcAltaVisita, payload, actorId);
+
+        if (result == null)
+        {
+            throw new SupabaseResponseException("Error inesperado: la base de datos no devolvió la visita creada.");
+        }
+
+        return result;
     }
 }
