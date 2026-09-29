@@ -1,12 +1,9 @@
-export type TurnoVigilante = 'matutino' | 'vespertino' | 'nocturno';
-
 export interface Vigilante {
   id: string;
   nombre: string;
   apellidos: string;
   email: string;
   telefono: string;
-  turno: TurnoVigilante;
   activo: boolean;
   creadoEn: string;
 }
@@ -16,5 +13,16 @@ export interface CrearVigilanteDto {
   apellidos: string;
   email: string;
   telefono: string;
-  turno: TurnoVigilante;
+  password: string;
+}
+
+/** Respuesta de POST /api/auth/register-vigilante */
+export interface VigilanteRegistradoApi {
+  id: string;
+  email: string;
+  nombre: string;
+  apellidos: string;
+  telefono: string;
+  condominioId?: string;
+  creadoEn: string;
 }
