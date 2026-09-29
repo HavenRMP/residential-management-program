@@ -114,7 +114,18 @@ public class SupabaseService : ISupabaseService
     private async Task<(UsuarioDto? usuario, string? error)> RegisterUserAsync(RegisterRequestDto datos, int rolId, Guid? condominioId = null, Guid? actorId = null)
     {
         var signupUrl = $"{_supabaseUrl}/auth/v1/admin/users";
-        var signupPayload = new { email = datos.Email, password = datos.Password, email_confirm = true };
+        var signupPayload = new
+        {
+            email = datos.Email,
+            password = datos.Password,
+            email_confirm = true,
+            user_metadata = new
+            {
+                nombre = datos.Nombre,
+                apellidos = datos.Apellidos,
+                telefono = datos.Telefono
+            }
+        };
 
         var signupRequest = new HttpRequestMessage(HttpMethod.Post, signupUrl);
         signupRequest.Headers.Add("apikey", _serviceRoleKey);
