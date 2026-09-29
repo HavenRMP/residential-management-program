@@ -118,3 +118,41 @@ WHERE EXISTS (
 );
 
 GRANT SELECT ON public.vw_mis_visitas TO authenticated;
+
+-- ==============================================================================
+-- 5. VISTA: vw_visitas_hoy (Para vigilancia en caseta)
+-- ==============================================================================
+DROP VIEW IF EXISTS public.vw_visitas_hoy CASCADE;
+
+CREATE VIEW public.vw_visitas_hoy AS
+SELECT 
+    v.id, 
+    viv.numero_casa, 
+    viv.condominio_id, 
+    v.nombre_visitante, 
+    v.apellidos_visitante, 
+    v.telefono_visitante, 
+    v.motivo, 
+    v.num_acompanantes, 
+    v.vehiculo_placas, 
+    v.notas,
+    v.fecha_llegada_esperada, 
+    v.horas_vigencia,
+    CASE 
+        WHEN v.estado = 'programada' AND (v.fecha_llegada_esperada + (v.horas_vigencia || ' hours')::interval) <= now() THEN 'expirada'
+        ELSE v.estado 
+    END AS estado_calculado,
+    u.nombre || ' ' || u.apellidos AS creado_por_nombre,
+    v.hora_entrada, 
+    v.creado_en
+FROM public.visitas v
+JOIN public.viviendas viv ON v.vivienda_id = viv.id
+JOIN public.usuarios u ON v.creado_por = u.id
+WHERE (
+    -- Es "hoy" en CDMX
+    (v.fecha_llegada_esperada AT TIME ZONE 'UTC' AT TIME ZONE 'America/Mexico_City')::date = (now() AT TIME ZONE 'UTC' AT TIME ZONE 'America/Mexico_City')::date
+    AND v.estado = 'programada'
+    AND (v.fecha_llegada_esperada + (v.horas_vigencia || ' hours')::interval) > now()
+) OR (v.estado = 'en_curso');
+
+GRANT SELECT ON public.vw_visitas_hoy TO service_role;
