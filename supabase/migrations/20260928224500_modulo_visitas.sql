@@ -324,3 +324,64 @@ BEGIN
     RETURN true;
 END;
 $$;
+-- ==============================================================================
+-- 10. STORED PROCEDURE: validar_codigo_visita (Caseta / Vigilancia)
+-- ==============================================================================
+DROP FUNCTION IF EXISTS public.validar_codigo_visita(VARCHAR);
+
+CREATE OR REPLACE FUNCTION public.validar_codigo_visita(
+    p_codigo VARCHAR(6)
+)
+RETURNS JSONB
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql AS $$
+DECLARE
+    v_visita RECORD;
+    v_resultado JSONB;
+BEGIN
+    SELECT 
+        v.*,
+        viv.numero_casa,
+        u.nombre || ' ' || u.apellidos AS creado_por_nombre,
+        (v.fecha_llegada_esperada + (v.horas_vigencia || ' hours')::interval) AS fecha_expiracion
+    INTO v_visita
+    FROM public.visitas v
+    JOIN public.viviendas viv ON v.vivienda_id = viv.id
+    JOIN public.usuarios u ON v.creado_por = u.id
+    WHERE v.codigo_acceso = UPPER(TRIM(p_codigo))
+    ORDER BY v.creado_en DESC
+    LIMIT 1;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION USING ERRCODE = 'VI001', MESSAGE = 'Código de acceso no encontrado o no existe.';
+    END IF;
+
+    IF v_visita.estado != 'programada' THEN
+        RAISE EXCEPTION USING ERRCODE = 'VI003', MESSAGE = 'La visita no se encuentra en estado programada (estado actual: ' || v_visita.estado || ').';
+    END IF;
+
+    IF v_visita.fecha_expiracion <= now() THEN
+        RAISE EXCEPTION USING ERRCODE = 'VI004', MESSAGE = 'El código de acceso ha expirado.';
+    END IF;
+
+    SELECT jsonb_build_object(
+        'id', v_visita.id,
+        'vivienda_id', v_visita.vivienda_id,
+        'numero_casa', v_visita.numero_casa,
+        'nombre_visitante', v_visita.nombre_visitante,
+        'apellidos_visitante', v_visita.apellidos_visitante,
+        'telefono_visitante', v_visita.telefono_visitante,
+        'motivo', v_visita.motivo,
+        'num_acompanantes', v_visita.num_acompanantes,
+        'vehiculo_placas', v_visita.vehiculo_placas,
+        'notas', v_visita.notas,
+        'fecha_llegada_esperada', v_visita.fecha_llegada_esperada,
+        'fecha_expiracion', v_visita.fecha_expiracion,
+        'creado_por_nombre', v_visita.creado_por_nombre,
+        'estado', v_visita.estado
+    ) INTO v_resultado;
+
+    RETURN v_resultado;
+END;
+$$;
