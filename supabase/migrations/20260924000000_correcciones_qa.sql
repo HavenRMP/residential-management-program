@@ -173,3 +173,55 @@ BEGIN
         CHECK (prioridad IN ('informativo', 'urgente', 'mantenimiento', 'evento'));
     END IF;
 END $$;
+-- ==============================================================================
+-- 4. ACTUALIZACIÓN DE VISTAS CON SOPORTE DE PRIORIDAD
+-- ==============================================================================
+DROP VIEW IF EXISTS public.vw_avisos_vigentes CASCADE;
+CREATE VIEW public.vw_avisos_vigentes AS
+SELECT 
+    a.id,
+    a.condominio_id,
+    c.nombre AS condominio_nombre,
+    a.titulo,
+    a.contenido,
+    a.prioridad,
+    a.duracion_dias,
+    a.fecha_expiracion_manual,
+    a.fecha_publicacion,
+    a.fecha_expiracion,
+    a.activo,
+    a.creado_por,
+    u.nombre || ' ' || u.apellidos AS creado_por_nombre,
+    a.creado_en
+FROM public.avisos a
+JOIN public.condominios c ON c.id = a.condominio_id
+JOIN public.usuarios u ON u.id = a.creado_por
+WHERE a.activo = true 
+  AND a.fecha_expiracion > now();
+
+DROP VIEW IF EXISTS public.vw_avisos_historico CASCADE;
+CREATE VIEW public.vw_avisos_historico AS
+SELECT 
+    a.id,
+    a.condominio_id,
+    c.nombre AS condominio_nombre,
+    a.titulo,
+    a.contenido,
+    a.prioridad,
+    a.duracion_dias,
+    a.fecha_expiracion_manual,
+    a.fecha_publicacion,
+    a.fecha_expiracion,
+    a.activo,
+    CASE 
+        WHEN a.activo = false THEN 'eliminado'
+        ELSE 'expirado'
+    END AS estado,
+    a.creado_por,
+    u.nombre || ' ' || u.apellidos AS creado_por_nombre,
+    a.creado_en
+FROM public.avisos a
+JOIN public.condominios c ON c.id = a.condominio_id
+JOIN public.usuarios u ON u.id = a.creado_por
+WHERE a.activo = false 
+   OR a.fecha_expiracion <= now();
