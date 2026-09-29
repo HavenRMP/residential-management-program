@@ -118,4 +118,50 @@ public class VisitasController : ControllerBase
         var pagedResult = HavenApi.Shared.Pagination.PagedResult<object>.Create(resultList, paginacion, totalCount);
         return Ok(pagedResult);
     }
+
+    [HttpPut("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateVisita(Guid id, [FromBody] UpdateVisitaRequestDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        if (!User.TryGetUserId(out var userId))
+        {
+            return Unauthorized(new { error = "Token invalido: no contiene ID de usuario" });
+        }
+
+        try
+        {
+            var result = await _supabaseService.UpdateVisitaAsync(id, userId, dto);
+            
+            return Ok(new
+            {
+                id = result.Id,
+                viviendaId = result.ViviendaId,
+                numeroCasa = result.NumeroCasa,
+                nombreVisitante = result.NombreVisitante,
+                apellidosVisitante = result.ApellidosVisitante,
+                telefonoVisitante = result.TelefonoVisitante,
+                motivo = result.Motivo,
+                numAcompanantes = result.NumAcompanantes,
+                vehiculoPlacas = result.VehiculoPlacas,
+                notas = result.Notas,
+                fechaLlegadaEsperada = result.FechaLlegadaEsperada,
+                vigenciaHasta = result.VigenciaHasta,
+                codigo = result.Codigo,
+                estado = result.Estado,
+                creadoEn = result.CreadoEn
+            });
+        }
+        catch (SupabaseRpcException ex)
+        {
+            var (status, mensaje) = RpcErrorMapper.Map(ex);
+            return StatusCode(status, new { error = mensaje });
+        }
+    }
 }
