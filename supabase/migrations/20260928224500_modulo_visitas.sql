@@ -288,3 +288,39 @@ BEGIN
     RETURN true;
 END;
 $$;
+-- ==============================================================================
+-- 9. STORED PROCEDURE: cancelar_visita
+-- ==============================================================================
+DROP FUNCTION IF EXISTS public.cancelar_visita(UUID, UUID);
+
+CREATE OR REPLACE FUNCTION public.cancelar_visita(
+    p_id UUID, 
+    p_actor_id UUID
+) 
+RETURNS BOOLEAN 
+SECURITY DEFINER 
+SET search_path = public 
+LANGUAGE plpgsql AS $$
+DECLARE
+    v_visita RECORD;
+BEGIN
+    SELECT * INTO v_visita FROM public.visitas WHERE id = p_id;
+    IF NOT FOUND THEN 
+        RAISE EXCEPTION USING ERRCODE = 'VI001', MESSAGE = 'La visita no existe.'; 
+    END IF;
+
+    IF v_visita.creado_por != p_actor_id THEN 
+        RAISE EXCEPTION USING ERRCODE = 'VI002', MESSAGE = 'Solo el creador puede cancelar la visita.'; 
+    END IF;
+
+    IF v_visita.estado != 'programada' THEN 
+        RAISE EXCEPTION USING ERRCODE = 'VI003', MESSAGE = 'El estado actual no permite cancelación.'; 
+    END IF;
+
+    UPDATE public.visitas 
+    SET estado = 'cancelada' 
+    WHERE id = p_id;
+
+    RETURN true;
+END;
+$$;
