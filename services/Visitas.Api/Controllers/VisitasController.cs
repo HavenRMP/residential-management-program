@@ -1,6 +1,7 @@
 using HavenApi.Shared.Exceptions;
 using HavenApi.Shared.Extensions;
 using HavenApi.Shared.Pagination;
+using HavenApi.Shared.Roles;
 using HavenApi.Shared.Rpc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -21,6 +22,56 @@ public class VisitasController : ControllerBase
     {
         _supabaseService = supabaseService;
         _logger = logger;
+    }
+
+    private async Task<(IActionResult? Error, Guid? CondominioId, Guid UserId)> ValidateRoleAsync(Func<string, bool> rolValidator, string errorMessage)
+    {
+        if (!User.TryGetUserId(out var userId))
+        {
+            _logger.LogWarning("ValidateRole: Unauthorized, missing or invalid user ID.");
+            return (Unauthorized(new { error = "Token invalido: no contiene ID de usuario" }), null, Guid.Empty);
+        }
+
+        var accessToken = HttpContext.Request.GetBearerToken();
+
+        var (rolNombre, condominioId) = await _supabaseService.GetContextoUsuarioAsync(userId, accessToken);
+
+        if (rolNombre == null)
+        {
+            _logger.LogWarning("ValidateRole: User {UserId} not found.", userId);
+            return (NotFound(new { error = "Usuario no encontrado en la tabla 'usuarios'" }), null, userId);
+        }
+
+        if (!rolValidator(rolNombre))
+        {
+            _logger.LogWarning("ValidateRole: Forbidden, user {UserId} with role {RoleName} failed validation.", userId, rolNombre);
+            return (StatusCode(403, new { error = errorMessage }), null, userId);
+        }
+
+        return (null, condominioId, userId);
+    }
+
+    private static object ProyectarVisitaVigilancia(VisitaDto v)
+    {
+        return new
+        {
+            id = v.Id,
+            viviendaId = v.ViviendaId,
+            numeroCasa = v.NumeroCasa,
+            nombreVisitante = v.NombreVisitante,
+            apellidosVisitante = v.ApellidosVisitante,
+            telefonoVisitante = v.TelefonoVisitante,
+            motivo = v.Motivo,
+            numAcompanantes = v.NumAcompanantes,
+            vehiculoPlacas = v.VehiculoPlacas,
+            notas = v.Notas,
+            fechaLlegadaEsperada = v.FechaLlegadaEsperada,
+            vigenciaHasta = v.VigenciaHasta,
+            estado = v.Estado,
+            horaEntrada = v.HoraEntrada,
+            horaSalida = v.HoraSalida,
+            creadoPorNombre = v.CreadoPorNombre
+        };
     }
 
     [HttpPost]
@@ -194,5 +245,33 @@ public class VisitasController : ControllerBase
             var (status, mensaje) = RpcErrorMapper.Map(ex);
             return StatusCode(status, new { error = mensaje });
         }
+    }
+
+    [HttpGet("hoy")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetVisitasHoy([FromQuery] PaginationParams paginacion)
+    {
+        var (roleError, condominioId, _) = await ValidateRoleAsync(
+            r => r.PuedeConsultarDatosResidenciales(),
+            "Se requiere rol de administrador o vigilancia"
+        );
+
+        if (roleError != null)
+            return roleError;
+
+        if (condominioId == null)
+        {
+            return Ok(PagedResult<object>.Create(new List<object>(), paginacion, 0));
+        }
+
+        var (items, totalCount) = await _supabaseService.GetVisitasHoyAsync(condominioId.Value, paginacion);
+        
+        var resultList = items.Select(ProyectarVisitaVigilancia).ToList();
+        
+        var pagedResult = PagedResult<object>.Create(resultList, paginacion, totalCount);
+        return Ok(pagedResult);
     }
 }
