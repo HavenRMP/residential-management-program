@@ -29,3 +29,23 @@ CREATE INDEX IF NOT EXISTS idx_notificaciones_creado_en
 CREATE INDEX IF NOT EXISTS idx_notificaciones_usuario_no_leidas 
     ON public.notificaciones(usuario_id, creado_en DESC) 
     WHERE leida = false;
+    -- ==============================================================================
+-- 2. TABLA DE BITÁCORA (AUDITORÍA FORENSE)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.notificaciones_bitacora (
+    id BIGSERIAL PRIMARY KEY,
+    registro_id TEXT NOT NULL,
+    operacion VARCHAR(10) NOT NULL CHECK (operacion IN ('INSERT', 'UPDATE', 'DELETE')),
+    datos_anteriores JSONB,
+    datos_nuevos JSONB,
+    modificado_por TEXT,
+    modificado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_notificaciones_bitacora_registro 
+    ON public.notificaciones_bitacora(registro_id);
+
+CREATE INDEX IF NOT EXISTS idx_notificaciones_bitacora_fecha 
+    ON public.notificaciones_bitacora(modificado_en);
+
+REVOKE ALL ON public.notificaciones_bitacora FROM authenticated, anon, service_role;
