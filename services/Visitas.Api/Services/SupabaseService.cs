@@ -289,4 +289,23 @@ public class SupabaseService : ISupabaseService
 
         return (result.Items ?? new List<VisitaDto>(), result.TotalCount);
     }
+
+    public async Task<VisitaDto> ValidarCodigoAsync(string codigo, Guid actorId)
+    {
+        var payload = new
+        {
+            p_codigo = codigo.Trim().ToUpperInvariant(),
+            p_actor_id = actorId
+        };
+
+        var result = await SupabaseRpcClient.PostRpcAsync<VisitaDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, RpcValidarCodigoVisita, payload, actorId);
+
+        if (result == null)
+        {
+            throw new SupabaseResponseException("Error inesperado: la base de datos no devolvió la visita validada.");
+        }
+
+        return result;
+    }
 }
