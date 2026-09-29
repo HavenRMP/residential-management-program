@@ -227,4 +227,20 @@ public class SupabaseService : ISupabaseService
 
         return (result.Items ?? new List<VisitaDto>(), result.TotalCount);
     }
+
+    public async Task<(List<VisitaDto> Items, int? TotalCount)> GetVisitasHoyAsync(Guid condominioId, PaginationParams paginacion)
+    {
+        var resourcePath = $"{VwVisitasHoy}?condominio_id=eq.{condominioId}&select=*&order=fecha_llegada_esperada.asc";
+
+        var result = await SupabaseQueryClient.GetPagedAsync<VisitaDto>(
+            _httpClient,
+            _supabaseUrl,
+            _serviceRoleKey,
+            _serviceRoleKey,
+            resourcePath,
+            paginacion
+        );
+
+        return (result.Items ?? new List<VisitaDto>(), result.TotalCount);
+    }
 }
