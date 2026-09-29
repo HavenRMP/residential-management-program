@@ -8,6 +8,8 @@ import '../Services/viviendas_service.dart';
 import '../Services/avisos_service.dart';
 import '../Services/notificaciones_service.dart';
 import '../Models/auth_user.dart';
+import '../Models/subusuario.dart';
+import '../Services/subusuarios_service.dart';
 import 'avisos_residente_screen.dart';
 import 'notificaciones_screen.dart';
 import 'subusuarios_screen.dart';
@@ -31,10 +33,16 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
   int _unreadAvisosCount = 0;
   int _unreadNotificacionesCount = 0;
 
+  late final SubusuariosService _subusuariosService;
+  List<InvitacionSubusuario> _invitacionesPendientes = [];
+  final Set<String> _processingInvitacionIds = {};
+
   @override
   void initState() {
     super.initState();
+    _subusuariosService = SubusuariosService(widget.controller);
     _cargarMisViviendas();
+    _cargarInvitacionesPendientes();
     _solicitarPermisos();
     _checkUnreadAvisos();
     _checkUnreadNotificaciones();
@@ -154,6 +162,76 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
         });
       }
     }
+    _cargarInvitacionesPendientes();
+  }
+
+  Future<void> _cargarInvitacionesPendientes() async {
+    try {
+      final list = await _subusuariosService.getMisInvitaciones();
+      if (mounted) {
+        setState(() {
+          _invitacionesPendientes = list.where((i) => i.isPendiente).toList();
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _responderInvitacion(InvitacionSubusuario inv, bool aceptar) async {
+    if (_processingInvitacionIds.contains(inv.id)) return;
+
+    if (!aceptar) {
+      final confirmar = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Rechazar invitación'),
+          content: Text(
+            '¿Seguro que deseas rechazar la invitación para vincularte a la vivienda #${inv.numeroCasa ?? ''} de ${inv.titularNombre ?? 'el titular'}?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Volver'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+              child: const Text('Rechazar'),
+            ),
+          ],
+        ),
+      );
+      if (confirmar != true) return;
+    }
+
+    setState(() => _processingInvitacionIds.add(inv.id));
+
+    final res = await _subusuariosService.responderInvitacion(inv.id, aceptar: aceptar);
+
+    if (mounted) {
+      setState(() => _processingInvitacionIds.remove(inv.id));
+
+      if (res['success'] == true) {
+        widget.controller.notifyToast(
+          aceptar
+              ? '¡Invitación aceptada! Vinculado a la vivienda exitosamente.'
+              : 'Invitación rechazada.',
+          success: true,
+        );
+        if (aceptar) {
+          await Future.delayed(const Duration(milliseconds: 600));
+          await widget.controller.forceRefreshSession();
+          await Future.delayed(const Duration(milliseconds: 400));
+          _cargarMisViviendas();
+        }
+        _cargarInvitacionesPendientes();
+      } else {
+        widget.controller.notifyToast(
+          res['error'] ?? 'No se pudo procesar la respuesta',
+          success: false,
+        );
+      }
+    }
   }
 
   bool _hasTelefono() {
@@ -232,6 +310,24 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
           ),
         ),
         actions: [
+          if (_invitacionesPendientes.isNotEmpty)
+            IconButton(
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => InvitacionesRecibidasScreen(controller: widget.controller),
+                  ),
+                );
+                _cargarMisViviendas();
+              },
+              icon: Badge(
+                label: Text('${_invitacionesPendientes.length}'),
+                backgroundColor: const Color(0xFFD97706),
+                child: const Icon(Icons.mail_rounded, color: Color(0xFF111C99)),
+              ),
+              tooltip: 'Invitaciones recibidas',
+            ),
           IconButton(
             onPressed: () {
               Navigator.push(
@@ -414,6 +510,12 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                 ),
                 const SizedBox(height: 20),
 
+                // Banner destacado de Invitaciones Pendientes
+                if (_invitacionesPendientes.isNotEmpty) ...[
+                  _buildInvitacionesPendientesBanner(),
+                  const SizedBox(height: 20),
+                ],
+
                 // Módulo "Mi Vivienda"
                 if (_isLoadingViviendas)
                   _buildLoadingVivienda()
@@ -426,6 +528,175 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildInvitacionesPendientesBanner() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: _invitacionesPendientes.map((inv) {
+        final isProcessing = _processingInvitacionIds.contains(inv.id);
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFEFF6FF), Color(0xFFDBEAFE)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFF93C5FD), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF1D4ED8).withValues(alpha: 0.08),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF111C99),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.mark_email_unread_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                '¡Invitación recibida!',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF1E3A8A),
+                                ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEF3C7),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: const Color(0xFFFDE68A)),
+                              ),
+                              child: const Text(
+                                'Pendiente',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFFB45309),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${inv.titularNombre ?? 'Un titular'} te invitó a formar parte de su vivienda como ${inv.parentesco.toLowerCase()}.',
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: Color(0xFF1E293B),
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.8),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.home_rounded, size: 16, color: Color(0xFF111C99)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Vivienda #${inv.numeroCasa ?? 'N/A'}${inv.condominioNombre != null && inv.condominioNombre!.isNotEmpty ? ' · ${inv.condominioNombre}' : ''}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1E3A8A),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: isProcessing ? null : () => _responderInvitacion(inv, false),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFDC2626),
+                        side: const BorderSide(color: Color(0xFFFCA5A5)),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: const Text(
+                        'Rechazar',
+                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: isProcessing ? null : () => _responderInvitacion(inv, true),
+                      icon: isProcessing
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.check_rounded, size: 16),
+                      label: Text(
+                        isProcessing ? 'Procesando...' : 'Aceptar',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF059669),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -798,7 +1069,11 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                       _cargarMisViviendas();
                     },
                     icon: const Icon(Icons.mail_outline_rounded, size: 16),
-                    label: const Text('Ver mis invitaciones recibidas'),
+                    label: Text(
+                      _invitacionesPendientes.isEmpty
+                          ? 'Ver mis invitaciones recibidas'
+                          : 'Ver mis invitaciones recibidas (${_invitacionesPendientes.length} pendientes)',
+                    ),
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF111C99),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

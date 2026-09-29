@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -41,6 +43,9 @@ class PushNotificationsService {
   static final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
   static bool _isInitialized = false;
+
+  /// Callback global para acciones derivadas del clic en notificaciones (ej. invitaciones de sub-usuario)
+  static void Function(Map<String, dynamic> data)? onMessageAction;
 
   /// Inicializa Firebase y configura los canales de notificación tanto para
   /// primer plano (foreground) como para segundo plano (background).
@@ -91,6 +96,14 @@ class PushNotificationsService {
           if (kDebugMode) {
             debugPrint('[LocalNotifications] Notificación pulsada con payload: ${response.payload}');
           }
+          if (response.payload != null && response.payload!.isNotEmpty) {
+            try {
+              final dynamic decoded = jsonDecode(response.payload!);
+              if (decoded is Map<String, dynamic>) {
+                onMessageAction?.call(decoded);
+              }
+            } catch (_) {}
+          }
         },
       );
 
@@ -114,12 +127,18 @@ class PushNotificationsService {
         if (kDebugMode) {
           debugPrint('[FCM] App abierta desde notificación: ${message.notification?.title}');
         }
+        onMessageAction?.call(message.data);
       });
 
       // 7. Verificar si la aplicación fue iniciada por una notificación cuando estaba cerrada
       final initialMessage = await _messaging.getInitialMessage();
-      if (initialMessage != null && kDebugMode) {
-        debugPrint('[FCM] App abierta desde estado terminado con mensaje: ${initialMessage.notification?.title}');
+      if (initialMessage != null) {
+        if (kDebugMode) {
+          debugPrint('[FCM] App abierta desde estado terminado con mensaje: ${initialMessage.notification?.title}');
+        }
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          onMessageAction?.call(initialMessage.data);
+        });
       }
 
       _isInitialized = true;
@@ -162,7 +181,7 @@ class PushNotificationsService {
         title: title,
         body: body,
         notificationDetails: details,
-        payload: message.data.isNotEmpty ? message.data.toString() : null,
+        payload: message.data.isNotEmpty ? jsonEncode(message.data) : null,
       );
     } catch (e) {
       if (kDebugMode) {

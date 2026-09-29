@@ -8,7 +8,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'Pages/invitaciones_recibidas_screen.dart';
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<ScaffoldMessengerState> messengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
@@ -90,10 +92,22 @@ class _HavenAppState extends State<HavenApp> {
       // immediately transitions out of the splash so the user can retry.
       controller = AppController.unavailable(supabaseInitError);
     }
+
+    PushNotificationsService.onMessageAction = (data) {
+      final tipo = data['tipo']?.toString().toLowerCase();
+      if (tipo == 'invitacion' && controller.isAuthenticated) {
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (_) => InvitacionesRecibidasScreen(controller: controller),
+          ),
+        );
+      }
+    };
   }
 
   @override
   void dispose() {
+    PushNotificationsService.onMessageAction = null;
     controller.dispose();
     super.dispose();
   }
@@ -101,6 +115,7 @@ class _HavenAppState extends State<HavenApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       scaffoldMessengerKey: messengerKey,
       debugShowCheckedModeBanner: false,
       title: 'haven',

@@ -78,7 +78,16 @@ class _InvitacionesRecibidasScreenState extends State<InvitacionesRecibidasScree
               : 'Invitación rechazada.',
           success: true,
         );
-        _cargarInvitaciones();
+        if (aceptar) {
+          await widget.controller.forceRefreshSession();
+        }
+        await _cargarInvitaciones();
+        if (aceptar && mounted && _invitaciones.isEmpty) {
+          await Future.delayed(const Duration(milliseconds: 600));
+          if (mounted && Navigator.canPop(context)) {
+            Navigator.pop(context, true);
+          }
+        }
       } else {
         widget.controller.notifyToast(
           res['error'] ?? 'No se pudo procesar la respuesta',
