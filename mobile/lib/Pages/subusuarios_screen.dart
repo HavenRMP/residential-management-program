@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../Models/subusuario.dart';
 import '../Services/app_controller.dart';
 import '../Services/subusuarios_service.dart';
+import 'invitaciones_recibidas_screen.dart';
 
 class SubusuariosScreen extends StatefulWidget {
   const SubusuariosScreen({
@@ -246,6 +247,20 @@ class _SubusuariosScreenState extends State<SubusuariosScreen> {
         foregroundColor: const Color(0xFF0F172A),
         elevation: 0,
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.mail_rounded, color: Color(0xFF111C99)),
+            tooltip: 'Mis Invitaciones Recibidas',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => InvitacionesRecibidasScreen(controller: widget.controller),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _mostrarModalInvitar,
