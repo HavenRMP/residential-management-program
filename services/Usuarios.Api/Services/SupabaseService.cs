@@ -4,6 +4,7 @@ using Usuarios.Api.DTOs;
 using HavenApi.Shared.Exceptions;
 using HavenApi.Shared.Pagination;
 using HavenApi.Shared.Rpc;
+using HavenApi.Shared.Services;
 
 namespace Usuarios.Api.Services;
 
@@ -14,14 +15,16 @@ public class SupabaseService : ISupabaseService
     private readonly string _supabaseUrl;
     private readonly string _anonKey;
     private readonly string _serviceRoleKey;
+    private readonly IFirebaseNotificationService _firebaseNotificationService;
 
-    public SupabaseService(HttpClient httpClient, IConfiguration configuration, ILogger<SupabaseService> logger)
+    public SupabaseService(HttpClient httpClient, IConfiguration configuration, ILogger<SupabaseService> logger, IFirebaseNotificationService firebaseNotificationService)
     {
         _httpClient = httpClient;
         _logger = logger;
         _supabaseUrl = configuration["Supabase:Url"] ?? throw new InvalidOperationException("Supabase:Url is not configured.");
         _anonKey = configuration["Supabase:AnonKey"] ?? throw new InvalidOperationException("Supabase:AnonKey is not configured.");
         _serviceRoleKey = configuration["Supabase:ServiceRoleKey"] ?? throw new InvalidOperationException("Supabase:ServiceRoleKey is not configured.");
+        _firebaseNotificationService = firebaseNotificationService;
     }
 
     private async Task<HttpResponseMessage> SendRequestAsync(HttpRequestMessage request)
@@ -532,6 +535,25 @@ public class SupabaseService : ISupabaseService
         }
 
         var invitacion = await ParseJsonAsync<VwInvitacionSubusuarioDto>(response.Content);
+
+        if (invitacion != null && invitacion.InvitadoId != Guid.Empty)
+        {
+            var topic = "user" + invitacion.InvitadoId.ToString().Replace("-", "");
+            var data = new Dictionary<string, string>
+            {
+                { "tipo", "invitacion" },
+                { "invitacion_id", invitacion.Id.ToString() },
+                { "click_action", "FLUTTER_NOTIFICATION_CLICK" }
+            };
+
+            await _firebaseNotificationService.SendToTopicAsync(
+                topic,
+                "Nueva invitación recibida",
+                "Te han invitado a ser subusuario de una vivienda",
+                data
+            );
+        }
+
         return (invitacion, null);
     }
 

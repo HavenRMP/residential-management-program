@@ -4,6 +4,7 @@ using Avisos.Api.DTOs;
 using HavenApi.Shared.Exceptions;
 using HavenApi.Shared.Pagination;
 using HavenApi.Shared.Rpc;
+using HavenApi.Shared.Services;
 
 namespace Avisos.Api.Services;
 
@@ -14,6 +15,7 @@ public class SupabaseService : ISupabaseService
     private readonly string _supabaseUrl;
     private readonly string _anonKey;
     private readonly string _serviceRoleKey;
+    private readonly IFirebaseNotificationService _firebaseNotificationService;
 
     // --- Definición de constantes (Nombres de vistas, RPCs y parámetros provisionales) ---
     private const string VwUsuarios = "vw_usuarios";
@@ -35,13 +37,14 @@ public class SupabaseService : ISupabaseService
     private const string ParamPrioridad = "p_prioridad";
     // --------------------------------------------------------------------------------------
 
-    public SupabaseService(HttpClient httpClient, IConfiguration configuration, ILogger<SupabaseService> logger)
+    public SupabaseService(HttpClient httpClient, IConfiguration configuration, ILogger<SupabaseService> logger, IFirebaseNotificationService firebaseNotificationService)
     {
         _httpClient = httpClient;
         _logger = logger;
         _supabaseUrl = configuration["Supabase:Url"] ?? throw new InvalidOperationException("Supabase:Url is not configured.");
         _anonKey = configuration["Supabase:AnonKey"] ?? throw new InvalidOperationException("Supabase:AnonKey is not configured.");
         _serviceRoleKey = configuration["Supabase:ServiceRoleKey"] ?? throw new InvalidOperationException("Supabase:ServiceRoleKey is not configured.");
+        _firebaseNotificationService = firebaseNotificationService;
     }
 
     private async Task<HttpResponseMessage> SendRequestAsync(HttpRequestMessage request)
@@ -181,10 +184,24 @@ public class SupabaseService : ISupabaseService
         {
             try
             {
+                var data = new Dictionary<string, string>
+                {
+                    { "tipo", "aviso_urgente" },
+                    { "aviso_id", result.Id.ToString() },
+                    { "click_action", "FLUTTER_NOTIFICATION_CLICK" }
+                };
+
+                await _firebaseNotificationService.SendToTopicAsync(
+                    "avisos_urgentes",
+                    "Aviso Urgente",
+                    result.Titulo ?? "",
+                    data
+                );
+
                 var residentesIds = await GetResidentesUsuarioIdsPorCondominioAsync(result.CondominioId);
                 foreach (var resId in residentesIds)
                 {
-                    await NotificarAvisoUrgenteAsync(resId, result.Id, result.Titulo);
+                    await NotificarAvisoUrgenteAsync(resId, result.Id, result.Titulo ?? "");
                 }
             }
             catch (Exception ex)
