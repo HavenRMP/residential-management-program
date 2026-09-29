@@ -225,3 +225,110 @@ JOIN public.condominios c ON c.id = a.condominio_id
 JOIN public.usuarios u ON u.id = a.creado_por
 WHERE a.activo = false 
    OR a.fecha_expiracion <= now();
+   -- ==============================================================================
+-- 5. ACTUALIZACIÓN DE STORED PROCEDURE: alta_aviso
+-- ==============================================================================
+DROP FUNCTION IF EXISTS public.alta_aviso(UUID, VARCHAR, TEXT, INTEGER, TIMESTAMPTZ);
+DROP FUNCTION IF EXISTS public.alta_aviso(UUID, VARCHAR, TEXT, INTEGER, TIMESTAMPTZ, VARCHAR);
+
+CREATE OR REPLACE FUNCTION public.alta_aviso(
+    p_creado_por UUID,
+    p_titulo VARCHAR(200),
+    p_contenido TEXT,
+    p_duracion_dias INTEGER DEFAULT 7,
+    p_fecha_expiracion TIMESTAMPTZ DEFAULT NULL,
+    p_prioridad VARCHAR(20) DEFAULT 'informativo'
+)
+RETURNS JSONB
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_admin RECORD;
+    v_id UUID;
+    v_duracion_dias INTEGER;
+    v_fecha_expiracion_manual TIMESTAMPTZ;
+    v_prioridad VARCHAR(20);
+    v_resultado JSONB;
+BEGIN
+    -- Validar que el creador sea Administrador (rol_id = 1) activo
+    SELECT id, condominio_id, rol_id, activo
+    INTO v_admin
+    FROM public.usuarios
+    WHERE id = p_creado_por;
+
+    IF NOT FOUND OR NOT v_admin.activo THEN
+        RAISE EXCEPTION 'El usuario creador no existe o no se encuentra activo.' USING ERRCODE = 'AV001';
+    END IF;
+
+    IF v_admin.rol_id != 1 THEN
+        RAISE EXCEPTION 'Solo un Administrador activo puede publicar avisos.' USING ERRCODE = 'AV002';
+    END IF;
+
+    IF v_admin.condominio_id IS NULL THEN
+        RAISE EXCEPTION 'El administrador no tiene un condominio asociado.' USING ERRCODE = 'AV003';
+    END IF;
+
+    -- Validaciones de campos de texto
+    IF NULLIF(TRIM(p_titulo), '') IS NULL THEN
+        RAISE EXCEPTION 'El título del aviso no puede estar vacío.' USING ERRCODE = 'AV004';
+    END IF;
+
+    IF NULLIF(TRIM(p_contenido), '') IS NULL THEN
+        RAISE EXCEPTION 'El contenido del aviso no puede estar vacío.' USING ERRCODE = 'AV005';
+    END IF;
+
+    -- Validar prioridad
+    v_prioridad := LOWER(TRIM(COALESCE(p_prioridad, 'informativo')));
+    IF v_prioridad NOT IN ('informativo', 'urgente', 'mantenimiento', 'evento') THEN
+        RAISE EXCEPTION 'Prioridad no válida. Debe ser informativo, urgente, mantenimiento o evento.' USING ERRCODE = 'AV010';
+    END IF;
+
+    -- Manejo de vigencia
+    IF p_fecha_expiracion IS NOT NULL THEN
+        IF p_fecha_expiracion <= now() THEN
+            RAISE EXCEPTION 'La fecha de expiración manual debe ser posterior a la fecha actual.' USING ERRCODE = 'AV006';
+        END IF;
+        v_fecha_expiracion_manual := p_fecha_expiracion;
+        v_duracion_dias := NULL;
+    ELSE
+        v_duracion_dias := COALESCE(p_duracion_dias, 7);
+        IF v_duracion_dias <= 0 THEN
+            RAISE EXCEPTION 'La duración en días debe ser mayor a 0.' USING ERRCODE = 'AV007';
+        END IF;
+        v_fecha_expiracion_manual := NULL;
+    END IF;
+
+    -- Inserción
+    INSERT INTO public.avisos (
+        condominio_id,
+        titulo,
+        contenido,
+        prioridad,
+        duracion_dias,
+        fecha_expiracion_manual,
+        creado_por
+    )
+    VALUES (
+        v_admin.condominio_id,
+        TRIM(p_titulo),
+        TRIM(p_contenido),
+        v_prioridad,
+        v_duracion_dias,
+        v_fecha_expiracion_manual,
+        p_creado_por
+    )
+    RETURNING id INTO v_id;
+
+    -- Retornar el registro desde la vista
+    SELECT to_jsonb(v.*)
+    INTO v_resultado
+    FROM public.vw_avisos_vigentes v
+    WHERE v.id = v_id;
+
+    RETURN v_resultado;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.alta_aviso(UUID, VARCHAR, TEXT, INTEGER, TIMESTAMPTZ, VARCHAR) TO service_role;
