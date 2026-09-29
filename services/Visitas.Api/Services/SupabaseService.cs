@@ -119,4 +119,68 @@ public class SupabaseService : ISupabaseService
 
         return result;
     }
+
+    public async Task<VisitaDto> UpdateVisitaAsync(Guid id, Guid actorId, UpdateVisitaRequestDto dto)
+    {
+        var payload = new Dictionary<string, object>
+        {
+            { "p_id", id },
+            { "p_actor_id", actorId }
+        };
+
+        if (dto.NombreVisitante != null)
+        {
+            payload["p_nombre_visitante"] = dto.NombreVisitante.Trim();
+        }
+
+        if (dto.ApellidosVisitante != null)
+        {
+            payload["p_apellidos_visitante"] = dto.ApellidosVisitante.Trim();
+        }
+
+        if (dto.TelefonoVisitante != null)
+        {
+            payload["p_telefono_visitante"] = dto.TelefonoVisitante.Trim();
+        }
+
+        if (dto.Motivo != null)
+        {
+            payload["p_motivo"] = dto.Motivo.Trim().ToLowerInvariant();
+        }
+
+        if (dto.NumAcompanantes.HasValue)
+        {
+            payload["p_num_acompanantes"] = dto.NumAcompanantes.Value;
+        }
+
+        if (dto.VehiculoPlacas != null)
+        {
+            payload["p_vehiculo_placas"] = dto.VehiculoPlacas.Trim();
+        }
+
+        if (dto.Notas != null)
+        {
+            payload["p_notas"] = dto.Notas.Trim();
+        }
+
+        if (dto.FechaLlegadaEsperada.HasValue)
+        {
+            payload["p_fecha_llegada_esperada"] = dto.FechaLlegadaEsperada.Value;
+        }
+
+        if (dto.HorasVigencia.HasValue)
+        {
+            payload["p_horas_vigencia"] = dto.HorasVigencia.Value;
+        }
+
+        var result = await SupabaseRpcClient.PostRpcAsync<VisitaDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, RpcCambioVisita, payload, actorId);
+
+        if (result == null)
+        {
+            throw new SupabaseResponseException("Error inesperado: la base de datos no devolvió la visita actualizada.");
+        }
+
+        return result;
+    }
 }
