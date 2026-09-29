@@ -108,7 +108,6 @@ SECURITY DEFINER
 SET search_path = public
 LANGUAGE plpgsql
 AS $$
-...
 DECLARE
     v_aviso RECORD;
     v_resultado public.vw_avisos_vigentes;
@@ -159,7 +158,6 @@ BEGIN
     RETURN v_resultado;
 END;
 $$;
-
 GRANT EXECUTE ON FUNCTION public.cambio_aviso(UUID, UUID, VARCHAR, TEXT, INTEGER, TIMESTAMPTZ) TO service_role;
 -- ==============================================================================
 -- 3. MODIFICACIÓN: TABLA AVISOS (Prioridad y restricción CHECK)
