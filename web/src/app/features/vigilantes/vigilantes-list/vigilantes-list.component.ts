@@ -231,6 +231,22 @@ const TURNOS: { valor: TurnoVigilante; etiqueta: string }[] = [
           </div>
 
           <div>
+            <label class="block text-xs font-semibold text-slate-800 mb-1">Contraseña *</label>
+            <input
+              type="password"
+              formControlName="password"
+              autocomplete="new-password"
+              placeholder="Mínimo 8 caracteres"
+              class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+            />
+            <div *ngIf="form.get('password')?.touched && form.get('password')?.invalid" class="mt-1 text-[11px] text-red-600 font-medium">
+              <span *ngIf="form.get('password')?.errors?.['required']">Requerida.</span>
+              <span *ngIf="form.get('password')?.errors?.['minlength']">Mínimo 8 caracteres.</span>
+              <span *ngIf="form.get('password')?.errors?.['maxlength']">Máximo 100 caracteres.</span>
+            </div>
+          </div>
+
+          <div>
             <label class="block text-xs font-semibold text-slate-800 mb-1">Turno *</label>
             <select
               formControlName="turno"
@@ -279,6 +295,7 @@ export class VigilantesListComponent implements OnInit {
     apellidos: ['', [Validators.required, Validators.pattern(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/)]],
     email: ['', [Validators.required, Validators.email]],
     telefono: ['', [Validators.required, Validators.pattern('^[0-9]{10}$')]],
+    password: ['', [Validators.required, Validators.minLength(8), Validators.maxLength(100)]],
     turno: ['matutino', [Validators.required]]
   });
 
@@ -291,7 +308,7 @@ export class VigilantesListComponent implements OnInit {
   }
 
   abrirModalCrear(): void {
-    this.form.reset({ nombre: '', apellidos: '', email: '', telefono: '', turno: 'matutino' });
+    this.form.reset({ nombre: '', apellidos: '', email: '', telefono: '', password: '', turno: 'matutino' });
     this.modalAbierto.set(true);
   }
 
