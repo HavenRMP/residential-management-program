@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../Models/subusuario.dart';
 import '../Services/app_controller.dart';
 import '../Services/subusuarios_service.dart';
@@ -45,17 +44,21 @@ class _SubusuariosScreenState extends State<SubusuariosScreen> {
 
   List<SubusuarioItem> get _activos => _items.where((i) => i.isActivo).toList();
   List<SubusuarioItem> get _pendientes => _items.where((i) => i.isPendiente).toList();
-  int get _cuposDisponibles => (SubusuariosService.maxSubusuarios - _items.length).clamp(0, SubusuariosService.maxSubusuarios);
+  int get _cuposDisponibles =>
+      (SubusuariosService.maxSubusuarios - _items.length).clamp(0, SubusuariosService.maxSubusuarios);
 
   Future<void> _revocarSubusuario(SubusuarioItem item) async {
     final esInvitacion = item.isPendiente;
-    final accion = esInvitacion ? 'cancelar la invitación de' : 'revocar el acceso a';
+    final accion = esInvitacion ? 'cancelar la invitación enviada a' : 'revocar el acceso a';
+    final identificador = (item.email.isNotEmpty && item.email != 'Desconocido')
+        ? item.email
+        : item.nombre;
 
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(esInvitacion ? 'Cancelar Invitación' : 'Revocar Sub-usuario'),
-        content: Text('¿Seguro que deseas $accion "${item.nombre}"?'),
+        content: Text('¿Seguro que deseas $accion "$identificador"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -93,14 +96,14 @@ class _SubusuariosScreenState extends State<SubusuariosScreen> {
 
   Future<void> _mostrarModalInvitar() async {
     if (_cuposDisponibles <= 0) {
-      widget.controller.notifyToast('Has alcanzado el límite máximo de 2 sub-usuarios', success: false);
+      widget.controller.notifyToast(
+        'Has alcanzado el límite máximo de 2 sub-usuarios',
+        success: false,
+      );
       return;
     }
 
-    final nombreController = TextEditingController();
-    final apellidosController = TextEditingController();
     final emailController = TextEditingController();
-    final telController = TextEditingController();
     String parentesco = 'Familiar';
     final formKey = GlobalKey<FormState>();
 
@@ -113,7 +116,7 @@ class _SubusuariosScreenState extends State<SubusuariosScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               title: const Row(
                 children: [
-                  Icon(Icons.person_add_rounded, color: Color(0xFF111C99)),
+                  Icon(Icons.mark_email_read_rounded, color: Color(0xFF111C99)),
                   SizedBox(width: 8),
                   Text('Invitar Sub-usuario', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 ],
@@ -123,41 +126,59 @@ class _SubusuariosScreenState extends State<SubusuariosScreen> {
                   key: formKey,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      TextFormField(
-                        controller: nombreController,
-                        decoration: const InputDecoration(labelText: 'Nombre(s) *', border: OutlineInputBorder()),
-                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Ingresa el nombre' : null,
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFBFDBFE)),
+                        ),
+                        child: const Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.info_outline_rounded, color: Color(0xFF1E3A8A), size: 18),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'El invitado debe haber creado su cuenta en HAVEN primero con este correo.',
+                                style: TextStyle(fontSize: 12, color: Color(0xFF1E3A8A), height: 1.3),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: apellidosController,
-                        decoration: const InputDecoration(labelText: 'Apellidos *', border: OutlineInputBorder()),
-                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Ingresa los apellidos' : null,
-                      ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       TextFormField(
                         controller: emailController,
                         keyboardType: TextInputType.emailAddress,
-                        decoration: const InputDecoration(labelText: 'Correo electrónico *', border: OutlineInputBorder()),
-                        validator: (v) => (v == null || !v.contains('@')) ? 'Ingresa un correo válido' : null,
+                        decoration: const InputDecoration(
+                          labelText: 'Correo electrónico del invitado *',
+                          hintText: 'ejemplo@correo.com',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.email_outlined),
+                        ),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return 'Ingresa el correo electrónico';
+                          if (!v.contains('@') || !v.contains('.')) return 'Ingresa un correo electrónico válido';
+                          return null;
+                        },
                       ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: telController,
-                        keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(labelText: 'Teléfono (10 dígitos) *', border: OutlineInputBorder()),
-                        validator: (v) => (v == null || v.trim().length < 10) ? 'Teléfono debe tener 10 dígitos' : null,
-                      ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
                       DropdownButtonFormField<String>(
                         initialValue: parentesco,
-                        decoration: const InputDecoration(labelText: 'Parentesco', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(
+                          labelText: 'Parentesco',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.people_alt_outlined),
+                        ),
                         items: const [
                           DropdownMenuItem(value: 'Familiar', child: Text('Familiar')),
                           DropdownMenuItem(value: 'Cónyuge', child: Text('Cónyuge')),
                           DropdownMenuItem(value: 'Hijo/a', child: Text('Hijo/a')),
                           DropdownMenuItem(value: 'Padre/Madre', child: Text('Padre/Madre')),
+                          DropdownMenuItem(value: 'Hermano/a', child: Text('Hermano/a')),
                           DropdownMenuItem(value: 'Inquilino/a', child: Text('Inquilino/a')),
                           DropdownMenuItem(value: 'Otro', child: Text('Otro')),
                         ],
@@ -191,87 +212,28 @@ class _SubusuariosScreenState extends State<SubusuariosScreen> {
     );
 
     if (resultado == true) {
+      widget.controller.notifyToast('Enviando invitación...', success: true);
       final res = await _service.invitarSubusuario(
         viviendaId: widget.viviendaId,
-        nombre: nombreController.text,
-        apellidos: apellidosController.text,
-        email: emailController.text,
-        telefono: telController.text,
+        email: emailController.text.trim(),
         parentesco: parentesco,
       );
 
       if (mounted) {
         if (res['success'] == true) {
-          final SubusuarioItem? nuevo = res['item'] as SubusuarioItem?;
-          widget.controller.notifyToast('Invitación creada exitosamente', success: true);
+          widget.controller.notifyToast(
+            'Invitación enviada con éxito. Se notificó al usuario.',
+            success: true,
+          );
           _cargarSubusuarios();
-
-          if (nuevo?.codigo != null && nuevo!.codigo!.isNotEmpty) {
-            _mostrarCodigoGenerado(nuevo.codigo!);
-          }
         } else {
-          widget.controller.notifyToast(res['error'] ?? 'Error al invitar sub-usuario', success: false);
+          widget.controller.notifyToast(
+            res['error'] ?? 'Error al invitar sub-usuario',
+            success: false,
+          );
         }
       }
     }
-  }
-
-  void _mostrarCodigoGenerado(String codigo) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Código de Invitación'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Comparte este código con tu sub-usuario. Tiene una vigencia de 1 día.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFBFDBFE)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SelectableText(
-                    codigo,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
-                      color: Color(0xFF111C99),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  IconButton(
-                    icon: const Icon(Icons.copy_rounded, color: Color(0xFF111C99), size: 20),
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: codigo));
-                      widget.controller.notifyToast('Código copiado al portapapeles', success: true);
-                    },
-                    tooltip: 'Copiar código',
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.pop(context),
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF111C99)),
-            child: const Text('Entendido'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -304,7 +266,7 @@ class _SubusuariosScreenState extends State<SubusuariosScreen> {
                   _buildSeccionActivos(),
                   const SizedBox(height: 24),
                   _buildSeccionPendientes(),
-                  const SizedBox(height: 80), // espacio para el FAB
+                  const SizedBox(height: 80),
                 ],
               ),
             ),
@@ -371,7 +333,7 @@ class _SubusuariosScreenState extends State<SubusuariosScreen> {
           ),
           const SizedBox(height: 10),
           Text(
-            'Has utilizado $cuposUsados de $total cupos permitidos. Cada sub-usuario podrá ver avisos y pre-registrar visitas.',
+            'Has utilizado $cuposUsados de $total cupos permitidos. Cada sub-usuario vinculado podrá ver avisos y pre-registrar visitas.',
             style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
           ),
         ],
@@ -440,7 +402,7 @@ class _SubusuariosScreenState extends State<SubusuariosScreen> {
             ),
             child: const Center(
               child: Text(
-                'No hay invitaciones pendientes por redimir.',
+                'No hay invitaciones pendientes.',
                 style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
               ),
             ),
@@ -452,6 +414,11 @@ class _SubusuariosScreenState extends State<SubusuariosScreen> {
   }
 
   Widget _buildSubusuarioCard(SubusuarioItem item) {
+    final esPendiente = item.isPendiente;
+    final titulo = esPendiente
+        ? (item.email.isNotEmpty && item.email != 'Desconocido' ? item.email : 'Invitación enviada')
+        : item.nombre;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -478,7 +445,7 @@ class _SubusuariosScreenState extends State<SubusuariosScreen> {
                 radius: 20,
                 backgroundColor: item.isActivo ? const Color(0xFFEEF2FF) : const Color(0xFFFFFBEB),
                 child: Icon(
-                  item.isActivo ? Icons.person_rounded : Icons.hourglass_top_rounded,
+                  item.isActivo ? Icons.person_rounded : Icons.mail_outline_rounded,
                   color: item.isActivo ? const Color(0xFF111C99) : const Color(0xFFD97706),
                   size: 22,
                 ),
@@ -489,10 +456,11 @@ class _SubusuariosScreenState extends State<SubusuariosScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      item.nombre,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                      titulo,
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Row(
                       children: [
                         Container(
@@ -507,12 +475,19 @@ class _SubusuariosScreenState extends State<SubusuariosScreen> {
                           ),
                         ),
                         const SizedBox(width: 6),
-                        Text(
-                          item.isActivo ? 'Activo' : 'Pendiente',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: item.isActivo ? const Color(0xFF059669) : const Color(0xFFD97706),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: item.isActivo ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            item.isActivo ? 'Activo' : 'Pendiente de aceptación',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: item.isActivo ? const Color(0xFF059669) : const Color(0xFFD97706),
+                            ),
                           ),
                         ),
                       ],
@@ -527,7 +502,7 @@ class _SubusuariosScreenState extends State<SubusuariosScreen> {
               ),
             ],
           ),
-          if (item.email.isNotEmpty && item.email != 'Pendiente') ...[
+          if (!esPendiente && item.email.isNotEmpty && item.email != 'Pendiente') ...[
             const SizedBox(height: 10),
             Row(
               children: [
@@ -547,53 +522,17 @@ class _SubusuariosScreenState extends State<SubusuariosScreen> {
               ],
             ),
           ],
-          if (item.codigo != null && item.codigo!.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFBFDBFE)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      const Text(
-                        'Código: ',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF1E3A8A)),
-                      ),
-                      Text(
-                        item.codigo!,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1,
-                          color: Color(0xFF111C99),
-                        ),
-                      ),
-                    ],
-                  ),
-                  InkWell(
-                    onTap: () {
-                      Clipboard.setData(ClipboardData(text: item.codigo!));
-                      widget.controller.notifyToast('Código copiado al portapapeles', success: true);
-                    },
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      child: Row(
-                        children: [
-                          Icon(Icons.copy_rounded, size: 14, color: Color(0xFF111C99)),
-                          SizedBox(width: 4),
-                          Text('Copiar', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF111C99))),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+          if (esPendiente) ...[
+            const SizedBox(height: 8),
+            const Row(
+              children: [
+                Icon(Icons.schedule_rounded, size: 13, color: Color(0xFF94A3B8)),
+                SizedBox(width: 5),
+                Text(
+                  'Esperando a que el invitado acepte desde su app Haven',
+                  style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Color(0xFF64748B)),
+                ),
+              ],
             ),
           ],
         ],
