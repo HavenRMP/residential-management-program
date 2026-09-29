@@ -13,4 +13,5 @@ public interface ISupabaseService
     Task<(List<VisitaDto> Items, int? TotalCount)> GetVisitasHoyAsync(Guid condominioId, PaginationParams paginacion);
     Task<(List<VisitaDto> Items, int? TotalCount)> GetVisitasHistoricoAsync(Guid condominioId, DateTimeOffset? desde, DateTimeOffset? hasta, int? viviendaId, string? estado, PaginationParams paginacion);
     Task<VisitaDto> ValidarCodigoAsync(string codigo, Guid actorId);
+    Task<VisitaDto> RegistrarEntradaAsync(Guid visitaId, Guid actorId);
 }
