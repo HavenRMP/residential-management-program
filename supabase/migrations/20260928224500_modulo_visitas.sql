@@ -385,3 +385,53 @@ BEGIN
     RETURN v_resultado;
 END;
 $$;
+-- ==============================================================================
+-- 11. STORED PROCEDURE: registrar_entrada_visita (Caseta / Vigilancia)
+-- ==============================================================================
+DROP FUNCTION IF EXISTS public.registrar_entrada_visita(UUID, UUID);
+
+CREATE OR REPLACE FUNCTION public.registrar_entrada_visita(
+    p_visita_id UUID, 
+    p_actor_id UUID
+) 
+RETURNS JSONB 
+SECURITY DEFINER 
+SET search_path = public 
+LANGUAGE plpgsql AS $$
+DECLARE
+    v_visita RECORD;
+    v_actor_condominio UUID;
+BEGIN
+    SELECT condominio_id INTO v_actor_condominio FROM public.usuarios WHERE id = p_actor_id;
+    SELECT v.*, viv.condominio_id INTO v_visita 
+    FROM public.visitas v 
+    JOIN public.viviendas viv ON v.vivienda_id = viv.id 
+    WHERE v.id = p_visita_id;
+
+    IF NOT FOUND THEN 
+        RAISE EXCEPTION USING ERRCODE = 'VI001', MESSAGE = 'La visita no existe.'; 
+    END IF;
+
+    IF v_visita.condominio_id != v_actor_condominio THEN 
+        RAISE EXCEPTION USING ERRCODE = 'VI002', MESSAGE = 'Sin permisos en este condominio.'; 
+    END IF;
+
+    IF v_visita.estado != 'programada' THEN 
+        RAISE EXCEPTION USING ERRCODE = 'VI003', MESSAGE = 'La visita no está programada.'; 
+    END IF;
+
+    IF (v_visita.fecha_llegada_esperada + (v_visita.horas_vigencia || ' hours')::interval) <= now() THEN 
+        RAISE EXCEPTION USING ERRCODE = 'VI005', MESSAGE = 'Visita expirada.'; 
+    END IF;
+
+    UPDATE public.visitas 
+    SET estado = 'en_curso', 
+        codigo_usado = true, 
+        hora_entrada = now(), 
+        registrado_entrada_por = p_actor_id
+    WHERE id = p_visita_id 
+    RETURNING * INTO v_visita;
+
+    RETURN to_jsonb(v_visita);
+END;
+$$;
