@@ -35,3 +35,31 @@ DROP INDEX IF EXISTS public.idx_codigo_visita_vigente;
 CREATE UNIQUE INDEX idx_codigo_visita_vigente 
 ON public.visitas (codigo_acceso) 
 WHERE estado = 'programada';
+-- ==============================================================================
+-- 2. TABLA ESPEJO DE AUDITORÍA Y TRIGGERS
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.visitas_bitacora (
+    id BIGSERIAL PRIMARY KEY,
+    registro_id TEXT NOT NULL,
+    operacion VARCHAR(10) NOT NULL CHECK (operacion IN ('INSERT','UPDATE','DELETE')),
+    datos_anteriores JSONB,
+    datos_nuevos JSONB,
+    modificado_por TEXT,
+    modificado_en TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_visitas_bitacora_registro ON public.visitas_bitacora(registro_id);
+REVOKE ALL ON public.visitas_bitacora FROM authenticated, anon, service_role;
+
+-- Triggers de auditoría vinculados a fn_auditoria()
+DROP TRIGGER IF EXISTS trg_visitas_auditoria_insert ON public.visitas;
+CREATE TRIGGER trg_visitas_auditoria_insert
+    AFTER INSERT ON public.visitas FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+
+DROP TRIGGER IF EXISTS trg_visitas_auditoria_update ON public.visitas;
+CREATE TRIGGER trg_visitas_auditoria_update
+    BEFORE UPDATE ON public.visitas FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+
+DROP TRIGGER IF EXISTS trg_visitas_auditoria_delete ON public.visitas;
+CREATE TRIGGER trg_visitas_auditoria_delete
+    BEFORE DELETE ON public.visitas FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
