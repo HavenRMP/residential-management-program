@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../Models/notificacion.dart';
 import '../Services/app_controller.dart';
 import '../Services/notificaciones_service.dart';
+import 'invitaciones_recibidas_screen.dart';
 
 class NotificacionesScreen extends StatefulWidget {
   const NotificacionesScreen({super.key, required this.controller});
@@ -38,17 +39,30 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
   int get _noLeidasCount => _notificaciones.where((n) => !n.leida).length;
 
   Future<void> _marcarComoLeida(Notificacion notif) async {
-    if (notif.leida) return;
+    if (!notif.leida) {
+      // Actualización optimista
+      setState(() {
+        final index = _notificaciones.indexWhere((n) => n.id == notif.id);
+        if (index != -1) {
+          _notificaciones[index] = notif.copyWith(leida: true);
+        }
+      });
 
-    // Actualización optimista
-    setState(() {
-      final index = _notificaciones.indexWhere((n) => n.id == notif.id);
-      if (index != -1) {
-        _notificaciones[index] = notif.copyWith(leida: true);
-      }
-    });
+      await _service.marcarComoLeida(notif.id);
+    }
 
-    await _service.marcarComoLeida(notif.id);
+    final esInvitacion = notif.tipoEvento.toLowerCase().contains('invitacion') ||
+        notif.titulo.toLowerCase().contains('invita') ||
+        notif.mensaje.toLowerCase().contains('invita');
+
+    if (esInvitacion && mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => InvitacionesRecibidasScreen(controller: widget.controller),
+        ),
+      );
+    }
   }
 
   Future<void> _marcarTodasComoLeidas() async {
@@ -92,6 +106,13 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
     Color color;
 
     switch (tipo.toLowerCase()) {
+      case 'invitacion':
+      case 'invitaciones':
+      case 'subusuario':
+        icon = Icons.mark_email_read_rounded;
+        bg = const Color(0xFFEFF6FF);
+        color = const Color(0xFF111C99);
+        break;
       case 'aviso_urgente':
       case 'urgente':
         icon = Icons.warning_amber_rounded;
@@ -144,6 +165,18 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
         elevation: 0,
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.mail_rounded, color: Color(0xFF111C99)),
+            tooltip: 'Mis Invitaciones Recibidas',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => InvitacionesRecibidasScreen(controller: widget.controller),
+                ),
+              );
+            },
+          ),
           if (_noLeidasCount > 0)
             TextButton(
               onPressed: _isMarkingAll ? null : _marcarTodasComoLeidas,
@@ -301,13 +334,44 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    _formatTiempoRelativo(notif.creadoEn),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF94A3B8),
-                      fontWeight: FontWeight.w500,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _formatTiempoRelativo(notif.creadoEn),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      if (notif.tipoEvento.toLowerCase().contains('invitacion') ||
+                          notif.titulo.toLowerCase().contains('invita') ||
+                          notif.mensaje.toLowerCase().contains('invita'))
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFBFDBFE)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Toca para responder',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF111C99),
+                                ),
+                              ),
+                              SizedBox(width: 2),
+                              Icon(Icons.chevron_right_rounded, size: 12, color: Color(0xFF111C99)),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),

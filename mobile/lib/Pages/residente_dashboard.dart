@@ -11,6 +11,7 @@ import '../Models/auth_user.dart';
 import 'avisos_residente_screen.dart';
 import 'notificaciones_screen.dart';
 import 'subusuarios_screen.dart';
+import 'invitaciones_recibidas_screen.dart';
 import 'perfil_screen.dart';
 
 class ResidenteDashboardScreen extends StatefulWidget {
@@ -753,9 +754,64 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
               ),
             ),
           ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFBFDBFE)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.mark_email_read_rounded, color: Color(0xFF111C99), size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      '¿Te invitaron como sub-usuario?',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1E3A8A),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Si el titular de una vivienda te invitó con tu correo, revisa tus invitaciones para vincularte a la vivienda.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF1E3A8A), height: 1.3),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => InvitacionesRecibidasScreen(controller: widget.controller),
+                        ),
+                      );
+                      _cargarMisViviendas();
+                    },
+                    icon: const Icon(Icons.mail_outline_rounded, size: 16),
+                    label: const Text('Ver mis invitaciones recibidas'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF111C99),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 24),
           const Text(
-            '¿Tienes un código de vinculación?',
+            '¿Tienes un código de vinculación de titular?',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.bold,
