@@ -183,4 +183,18 @@ public class SupabaseService : ISupabaseService
 
         return result;
     }
+
+    public async Task<bool> CancelVisitaAsync(Guid id, Guid actorId)
+    {
+        var payload = new
+        {
+            p_id = id,
+            p_actor_id = actorId
+        };
+
+        var result = await SupabaseRpcClient.PostRpcAsync<bool?>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, RpcCancelarVisita, payload, actorId);
+
+        return result ?? false;
+    }
 }
