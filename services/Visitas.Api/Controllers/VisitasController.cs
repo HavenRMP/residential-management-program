@@ -164,4 +164,35 @@ public class VisitasController : ControllerBase
             return StatusCode(status, new { error = mensaje });
         }
     }
+
+    [HttpPost("{id:guid}/cancelar")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CancelVisita(Guid id)
+    {
+        if (!User.TryGetUserId(out var userId))
+        {
+            return Unauthorized(new { error = "Token invalido: no contiene ID de usuario" });
+        }
+
+        try
+        {
+            var success = await _supabaseService.CancelVisitaAsync(id, userId);
+            
+            if (!success)
+            {
+                return NotFound(new { error = "Visita no encontrada" });
+            }
+
+            return NoContent();
+        }
+        catch (SupabaseRpcException ex)
+        {
+            var (status, mensaje) = RpcErrorMapper.Map(ex);
+            return StatusCode(status, new { error = mensaje });
+        }
+    }
 }
