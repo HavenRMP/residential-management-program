@@ -53,15 +53,22 @@ export const routes: Routes = [
             .then(m => m.ResidentesListComponent)
       },
       {
-        path: 'residentes/nuevo',
-        redirectTo: 'residentes',
-        pathMatch: 'full'
-      },
-      {
         path: 'viviendas',
         loadComponent: () =>
           import('./features/viviendas/viviendas-list/viviendas-list.component')
             .then(m => m.ViviendasListComponent)
+      },
+      {
+        path: 'avisos',
+        loadComponent: () =>
+          import('./features/avisos/avisos-list/avisos-list.component')
+            .then(m => m.AvisosListComponent)
+      },
+      {
+        path: 'vigilantes',
+        loadComponent: () =>
+          import('./features/vigilantes/vigilantes-list/vigilantes-list.component')
+            .then(m => m.VigilantesListComponent)
       }
     ]
   },
@@ -71,6 +78,20 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/dashboard/residente-dashboard/residente-dashboard.component')
         .then(m => m.ResidenteDashboardComponent)
+  },
+  {
+    path: 'dashboard/residente/subusuarios',
+    canActivate: [authGuard, roleGuard(['residente'])],
+    loadComponent: () =>
+      import('./features/subusuarios/subusuarios.component')
+        .then(m => m.SubusuariosComponent)
+  },
+  {
+    path: 'avisos/:id',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/avisos/aviso-redirect/aviso-redirect.component')
+        .then(m => m.AvisoRedirectComponent)
   },
   {
     path: 'dashboard/vigilante',

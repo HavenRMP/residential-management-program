@@ -31,17 +31,36 @@ class CondominiosService {
     return null;
   }
 
-  Future<Map<String, dynamic>?> redimirCodigo(String codigo) async {
+  Future<Map<String, dynamic>?> redimirCodigo(String codigo, {String? usuarioId}) async {
     final url = '$baseUrl/api/codigos/condominio/redimir';
     final payload = {'codigo': codigo};
-    final response = await controller.httpClient.post(
-      Uri.parse(url),
-      headers: await _getHeaders(),
-      body: jsonEncode(payload),
-    );
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return jsonDecode(response.body);
+    if (usuarioId != null) payload['usuarioId'] = usuarioId;
+    
+    try {
+      final response = await controller.httpClient.post(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+        body: jsonEncode(payload),
+      );
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        if (response.body.isEmpty) return {'success': true};
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          if (!decoded.containsKey('success')) decoded['success'] = true;
+          return decoded;
+        }
+        return {'success': true, 'data': decoded};
+      } else {
+        try {
+          final errDecoded = jsonDecode(response.body);
+          if (errDecoded is Map && errDecoded['error'] != null) {
+            return {'error': errDecoded['error']};
+          }
+        } catch (_) {}
+        return {'error': 'Error HTTP ${response.statusCode}'};
+      }
+    } catch (e) {
+      return {'error': e.toString()};
     }
-    return null;
   }
 }

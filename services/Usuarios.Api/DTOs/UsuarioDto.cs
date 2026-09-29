@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using HavenApi.Shared.Roles;
 
 namespace Usuarios.Api.DTOs;
 
@@ -39,10 +40,11 @@ public class UsuarioDto
             if (!string.IsNullOrWhiteSpace(Rol)) return Rol;
             if (!string.IsNullOrWhiteSpace(Role)) return Role;
             var id = (RoleId ?? RolId)?.ToString();
-            if (id == "1") return "Administrador";
-            if (id == "2") return "Residente";
-            if (id == "3") return "Vigilante";
-            return id ?? "Residente";
+            if (id == RolesHaven.AdministradorId.ToString()) return RolesHaven.AdministradorNombre;
+            if (id == RolesHaven.ResidenteId.ToString()) return RolesHaven.ResidenteNombre;
+            if (id == RolesHaven.VigilanciaId.ToString()) return RolesHaven.VigilanciaNombre;
+            if (id == RolesHaven.MantenimientoId.ToString()) return RolesHaven.MantenimientoNombre;
+            return id ?? RolesHaven.ResidenteNombre;
         }
     }
 

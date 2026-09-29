@@ -1,7 +1,8 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, OnInit, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../core/services/auth.service';
 import Swal from 'sweetalert2';
 
@@ -120,11 +121,14 @@ import Swal from 'sweetalert2';
                     id="nombre"
                     type="text"
                     formControlName="nombre"
+                    (keypress)="permitirSoloLetras($event)"
+                    (input)="filtrarSoloTexto($event, 'nombre')"
                     placeholder="Tu nombre oficial"
                     class="w-full px-3.5 py-2.5 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#111C99]/10 focus:border-[#111C99] transition-all disabled:opacity-60 disabled:bg-slate-100"
                   />
                   <div *ngIf="perfilForm.get('nombre')?.touched && perfilForm.get('nombre')?.invalid" class="mt-1 text-xs text-red-500 font-medium">
-                    El nombre es requerido.
+                    <span *ngIf="perfilForm.get('nombre')?.errors?.['required']">El nombre es requerido.</span>
+                    <span *ngIf="perfilForm.get('nombre')?.errors?.['pattern']">Solo se permiten letras y espacios.</span>
                   </div>
                 </div>
 
@@ -136,11 +140,14 @@ import Swal from 'sweetalert2';
                     id="apellidos"
                     type="text"
                     formControlName="apellidos"
+                    (keypress)="permitirSoloLetras($event)"
+                    (input)="filtrarSoloTexto($event, 'apellidos')"
                     placeholder="Tus apellidos oficiales"
                     class="w-full px-3.5 py-2.5 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#111C99]/10 focus:border-[#111C99] transition-all disabled:opacity-60 disabled:bg-slate-100"
                   />
                   <div *ngIf="perfilForm.get('apellidos')?.touched && perfilForm.get('apellidos')?.invalid" class="mt-1 text-xs text-red-500 font-medium">
-                    Los apellidos son requeridos.
+                    <span *ngIf="perfilForm.get('apellidos')?.errors?.['required']">Los apellidos son requeridos.</span>
+                    <span *ngIf="perfilForm.get('apellidos')?.errors?.['pattern']">Solo se permiten letras y espacios.</span>
                   </div>
                 </div>
               </div>
@@ -210,6 +217,7 @@ export class PerfilComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly fb = inject(FormBuilder);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly user = this.authService.currentUser;
   readonly editMode = signal(false);
@@ -218,13 +226,13 @@ export class PerfilComponent implements OnInit {
   readonly isOnboarding = signal(false);
 
   perfilForm: FormGroup = this.fb.group({
-    nombre: ['', Validators.required],
-    apellidos: ['', Validators.required],
+    nombre: ['', [Validators.required, Validators.pattern(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/)]],
+    apellidos: ['', [Validators.required, Validators.pattern(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/)]],
     telefono: ['', [Validators.required, Validators.pattern('^[0-9]{10}$')]]
   });
 
   ngOnInit(): void {
-    this.route.queryParams.subscribe(params => {
+    this.route.queryParams.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
       const isParamOnboarding = params['onboarding'] === 'true' || params['onboarding'] === '1';
       const isIncomplete = this.authService.isProfileIncomplete();
 
@@ -380,6 +388,30 @@ export class PerfilComponent implements OnInit {
       this.errorMessage.set(err?.message || 'Error inesperado al guardar los cambios.');
     } finally {
       this.guardando.set(false);
+    }
+  }
+
+  permitirSoloLetras(event: KeyboardEvent): void {
+    if (['Backspace', 'Tab', 'ArrowLeft', 'ArrowRight', 'Delete', 'Enter'].includes(event.key)) {
+      return;
+    }
+    if (event.ctrlKey || event.metaKey) {
+      return;
+    }
+    const regex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]$/;
+    if (!regex.test(event.key)) {
+      event.preventDefault();
+    }
+  }
+
+  filtrarSoloTexto(event: Event, controlName: 'nombre' | 'apellidos'): void {
+    const input = event.target as HTMLInputElement;
+    if (input) {
+      const limpio = input.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
+      if (input.value !== limpio) {
+        input.value = limpio;
+      }
+      this.perfilForm.get(controlName)?.setValue(limpio, { emitEvent: true });
     }
   }
 }

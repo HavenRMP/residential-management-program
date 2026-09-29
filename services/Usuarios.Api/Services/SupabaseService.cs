@@ -2,6 +2,9 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using Usuarios.Api.DTOs;
 using HavenApi.Shared.Exceptions;
+using HavenApi.Shared.Pagination;
+using HavenApi.Shared.Rpc;
+using HavenApi.Shared.Services;
 
 namespace Usuarios.Api.Services;
 
@@ -12,14 +15,16 @@ public class SupabaseService : ISupabaseService
     private readonly string _supabaseUrl;
     private readonly string _anonKey;
     private readonly string _serviceRoleKey;
+    private readonly IFirebaseNotificationService _firebaseNotificationService;
 
-    public SupabaseService(HttpClient httpClient, IConfiguration configuration, ILogger<SupabaseService> logger)
+    public SupabaseService(HttpClient httpClient, IConfiguration configuration, ILogger<SupabaseService> logger, IFirebaseNotificationService firebaseNotificationService)
     {
         _httpClient = httpClient;
         _logger = logger;
         _supabaseUrl = configuration["Supabase:Url"] ?? throw new InvalidOperationException("Supabase:Url is not configured.");
         _anonKey = configuration["Supabase:AnonKey"] ?? throw new InvalidOperationException("Supabase:AnonKey is not configured.");
         _serviceRoleKey = configuration["Supabase:ServiceRoleKey"] ?? throw new InvalidOperationException("Supabase:ServiceRoleKey is not configured.");
+        _firebaseNotificationService = firebaseNotificationService;
     }
 
     private async Task<HttpResponseMessage> SendRequestAsync(HttpRequestMessage request)
@@ -96,10 +101,31 @@ public class SupabaseService : ISupabaseService
         return version;
     }
 
-    public async Task<(UsuarioDto? usuario, string? error)> RegisterAdminAsync(RegisterRequestDto datos, Guid? actorId = null)
+    public Task<(UsuarioDto? usuario, string? error)> RegisterAdminAsync(RegisterRequestDto datos, Guid? actorId = null)
+    {
+        return RegisterUserAsync(datos, HavenApi.Shared.Roles.RolesHaven.AdministradorId, null, actorId);
+    }
+
+    public Task<(UsuarioDto? usuario, string? error)> RegisterVigilanteAsync(RegisterRequestDto datos, Guid condominioId, Guid? actorId = null)
+    {
+        return RegisterUserAsync(datos, HavenApi.Shared.Roles.RolesHaven.VigilanciaId, condominioId, actorId);
+    }
+
+    private async Task<(UsuarioDto? usuario, string? error)> RegisterUserAsync(RegisterRequestDto datos, int rolId, Guid? condominioId = null, Guid? actorId = null)
     {
         var signupUrl = $"{_supabaseUrl}/auth/v1/admin/users";
-        var signupPayload = new { email = datos.Email, password = datos.Password, email_confirm = true };
+        var signupPayload = new
+        {
+            email = datos.Email,
+            password = datos.Password,
+            email_confirm = true,
+            user_metadata = new
+            {
+                nombre = datos.Nombre,
+                apellidos = datos.Apellidos,
+                telefono = datos.Telefono
+            }
+        };
 
         var signupRequest = new HttpRequestMessage(HttpMethod.Post, signupUrl);
         signupRequest.Headers.Add("apikey", _serviceRoleKey);
@@ -145,15 +171,33 @@ public class SupabaseService : ISupabaseService
         }
 
         var insertUrl = $"{_supabaseUrl}/rest/v1/rpc/alta_usuario";
-        var insertPayload = new
+        object insertPayload;
+
+        if (condominioId.HasValue)
         {
-            p_id = userId,
-            p_rol_id = 1,
-            p_email = datos.Email,
-            p_nombre = datos.Nombre,
-            p_apellidos = datos.Apellidos,
-            p_telefono = datos.Telefono
-        };
+            insertPayload = new
+            {
+                p_id = userId,
+                p_rol_id = rolId,
+                p_condominio_id = condominioId.Value,
+                p_email = datos.Email,
+                p_nombre = datos.Nombre,
+                p_apellidos = datos.Apellidos,
+                p_telefono = datos.Telefono
+            };
+        }
+        else
+        {
+            insertPayload = new
+            {
+                p_id = userId,
+                p_rol_id = rolId,
+                p_email = datos.Email,
+                p_nombre = datos.Nombre,
+                p_apellidos = datos.Apellidos,
+                p_telefono = datos.Telefono
+            };
+        }
 
         var insertRequest = new HttpRequestMessage(HttpMethod.Post, insertUrl);
         insertRequest.Headers.Add("apikey", _serviceRoleKey);
@@ -215,45 +259,18 @@ public class SupabaseService : ISupabaseService
         return (updated, null);
     }
 
-    public async Task<List<UsuarioDto>> GetResidentesAsync(Guid condominioId)
+    public async Task<(List<UsuarioDto>? Items, int? TotalCount)> GetResidentesAsync(Guid condominioId, PaginationParams paginacion)
     {
-        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_usuarios?rol_id=eq.2&condominio_id=eq.{condominioId}&select=*";
-
-        var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
-        request.Headers.Add("apikey", _serviceRoleKey);
-        request.Headers.Add("x-actor-id", condominioId.ToString());
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
-
-        var response = await SendRequestAsync(request);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogWarning("Failed to fetch residentes. Status: {StatusCode}", response.StatusCode);
-            return new List<UsuarioDto>();
-        }
-
-        var residentes = await ParseJsonAsync<List<UsuarioDto>>(response.Content);
-        return residentes ?? new List<UsuarioDto>();
+        var resourcePath = $"vw_usuarios?rol_id=eq.2&condominio_id=eq.{condominioId}&select=*";
+        return await SupabaseQueryClient.GetPagedAsync<UsuarioDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, _serviceRoleKey, resourcePath, paginacion, true, condominioId);
     }
 
-    public async Task<List<ViviendaResidentesDto>> GetViviendasResidentesAsync()
+    public async Task<(List<UsuarioDto>? Items, int? TotalCount)> GetResidentesSinViviendaAsync(Guid condominioId, PaginationParams paginacion)
     {
-        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_viviendas_residentes?select=*";
-
-        var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
-        request.Headers.Add("apikey", _serviceRoleKey);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
-
-        var response = await SendRequestAsync(request);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogWarning("Failed to fetch viviendas_residentes. Status: {StatusCode}", response.StatusCode);
-            return new List<ViviendaResidentesDto>();
-        }
-
-        var result = await ParseJsonAsync<List<ViviendaResidentesDto>>(response.Content);
-        return result ?? new List<ViviendaResidentesDto>();
+        var resourcePath = $"vw_residentes_sin_vivienda?condominio_id=eq.{condominioId}&select=*";
+        return await SupabaseQueryClient.GetPagedAsync<UsuarioDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, _serviceRoleKey, resourcePath, paginacion, true, condominioId);
     }
 
     public async Task<(UsuarioDto? usuario, string? error)> AsignarCondominioAdminAsync(Guid adminId, Guid condominioId)
@@ -331,5 +348,271 @@ public class SupabaseService : ISupabaseService
 
         var updatedUsuario = await ParseJsonAsync<UsuarioDto>(rpcResponse.Content);
         return (updatedUsuario, null);
+    }
+
+    // Notificaciones
+    public async Task<(List<NotificacionDto>? Notificaciones, string? Error)> GetNotificacionesAsync(Guid userId, string accessToken)
+    {
+        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_notificaciones?usuario_id=eq.{userId}&order=creado_en.desc&limit=20";
+        var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await SendRequestAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogWarning("Failed to fetch notificaciones for user {UserId}. Status: {StatusCode}. Body: {Body}", userId, response.StatusCode, errorBody);
+            return (null, $"Supabase API Error: {response.StatusCode} - {errorBody}");
+        }
+
+        var result = await ParseJsonAsync<List<NotificacionDto>>(response.Content) ?? new List<NotificacionDto>();
+        return (result, null);
+    }
+
+    public async Task<(int? Count, string? Error)> GetContadorNoLeidasAsync(Guid userId, string accessToken)
+    {
+        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_notificaciones?usuario_id=eq.{userId}&leida=eq.false";
+        var request = new HttpRequestMessage(HttpMethod.Head, requestUrl);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Add("Prefer", "count=exact");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await SendRequestAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogWarning("Failed to fetch count of unread notificaciones for user {UserId}. Status: {StatusCode}", userId, response.StatusCode);
+            return (null, $"Supabase API Error: {response.StatusCode} - {errorBody}");
+        }
+
+        IEnumerable<string>? values = null;
+        if (response.Content.Headers.TryGetValues("Content-Range", out var cValues))
+        {
+            values = cValues;
+        }
+        else if (response.Headers.TryGetValues("Content-Range", out var hValues))
+        {
+            values = hValues;
+        }
+
+        if (values != null)
+        {
+            var contentRange = values.FirstOrDefault();
+            if (!string.IsNullOrEmpty(contentRange) && contentRange.Contains("/"))
+            {
+                var parts = contentRange.Split('/');
+                if (parts.Length == 2 && int.TryParse(parts[1], out var total))
+                {
+                    return (total, null);
+                }
+            }
+        }
+
+        return (0, null);
+    }
+
+    public async Task<(bool Success, string? Error)> MarcarNotificacionComoLeidaAsync(Guid id, Guid userId, string accessToken)
+    {
+        var requestUrl = $"{_supabaseUrl}/rest/v1/rpc/marcar_notificacion_leida";
+        var request = new HttpRequestMessage(HttpMethod.Post, requestUrl);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        
+        var payload = new { p_id = id, p_usuario_id = userId };
+        var jsonString = JsonSerializer.Serialize(payload);
+        request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await SendRequestAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            return (false, $"Supabase API Error: {response.StatusCode} - {errorBody}");
+        }
+        return (true, null);
+    }
+
+    public async Task<(bool Success, string? Error)> MarcarTodasComoLeidasAsync(Guid userId, string accessToken)
+    {
+        var requestUrl = $"{_supabaseUrl}/rest/v1/rpc/marcar_todas_notificaciones_leidas";
+        var request = new HttpRequestMessage(HttpMethod.Post, requestUrl);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        
+        var payload = new { p_usuario_id = userId };
+        var jsonString = JsonSerializer.Serialize(payload);
+        request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await SendRequestAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            return (false, $"Supabase API Error: {response.StatusCode} - {errorBody}");
+        }
+        return (true, null);
+    }
+
+    // Sub-usuarios
+    public async Task<List<VwViviendaSubusuarioDto>?> GetSubusuariosActivosAsync(int viviendaId, string accessToken)
+    {
+        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_vivienda_subusuarios?vivienda_id=eq.{viviendaId}&activo=eq.true";
+        var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await SendRequestAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to fetch active subusuarios for vivienda {ViviendaId}. Status: {StatusCode}", viviendaId, response.StatusCode);
+            return null;
+        }
+
+        return await ParseJsonAsync<List<VwViviendaSubusuarioDto>>(response.Content);
+    }
+
+    public async Task<List<VwInvitacionSubusuarioDto>?> GetInvitacionesViviendaAsync(int viviendaId, string accessToken)
+    {
+        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_invitaciones_subusuarios?vivienda_id=eq.{viviendaId}&estado=eq.PENDIENTE";
+        var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await SendRequestAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to fetch pending invitations for vivienda {ViviendaId}. Status: {StatusCode}", viviendaId, response.StatusCode);
+            return null;
+        }
+
+        return await ParseJsonAsync<List<VwInvitacionSubusuarioDto>>(response.Content);
+    }
+
+    public async Task<List<VwInvitacionSubusuarioDto>?> GetMisInvitacionesPendientesAsync(Guid invitadoId, string accessToken)
+    {
+        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_invitaciones_subusuarios?invitado_id=eq.{invitadoId}&estado=eq.PENDIENTE";
+        var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await SendRequestAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to fetch pending invitations for user {InvitadoId}. Status: {StatusCode}", invitadoId, response.StatusCode);
+            return null;
+        }
+
+        return await ParseJsonAsync<List<VwInvitacionSubusuarioDto>>(response.Content);
+    }
+
+    public async Task<(VwInvitacionSubusuarioDto? invitacion, string? error)> InvitarSubusuarioAsync(int viviendaId, string email, string parentesco, Guid creadoPor, string accessToken)
+    {
+        var url = $"{_supabaseUrl}/rest/v1/rpc/invitar_subusuario_por_email";
+        var payload = new
+        {
+            p_vivienda_id = viviendaId,
+            p_email = email,
+            p_parentesco = parentesco,
+            p_creado_por = creadoPor
+        };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Add("x-actor-id", creadoPor.ToString());
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        
+        var jsonString = JsonSerializer.Serialize(payload);
+        request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await SendRequestAsync(request);
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogError("Failed to generate subusuario invitation. Status: {StatusCode}, Body: {Body}", response.StatusCode, errorBody);
+            
+            if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                if (errorBody.Contains("Límite") || errorBody.Contains("SU001"))
+                    return (null, "Límite máximo de 2 sub-usuarios alcanzado en la vivienda.");
+                if (errorBody.Contains("Ya existe"))
+                    return (null, "El usuario ya está invitado o activo en esta vivienda.");
+            }
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return (null, "No se encontró ningún usuario con ese correo electrónico. Pídele que se registre primero.");
+            }
+            
+            return (null, $"Error al generar invitación: {errorBody}");
+        }
+
+        var invitacion = await ParseJsonAsync<VwInvitacionSubusuarioDto>(response.Content);
+
+        if (invitacion != null && invitacion.InvitadoId != Guid.Empty)
+        {
+            var topic = "user" + invitacion.InvitadoId.ToString().Replace("-", "");
+            var data = new Dictionary<string, string>
+            {
+                { "tipo", "invitacion" },
+                { "invitacion_id", invitacion.Id.ToString() },
+                { "click_action", "FLUTTER_NOTIFICATION_CLICK" }
+            };
+
+            await _firebaseNotificationService.SendToTopicAsync(
+                topic,
+                "Nueva invitación recibida",
+                "Te han invitado a ser subusuario de una vivienda",
+                data
+            );
+        }
+
+        return (invitacion, null);
+    }
+
+    public async Task<bool> ResponderInvitacionAsync(Guid invitacionId, Guid usuarioId, string respuesta, string accessToken)
+    {
+        var url = $"{_supabaseUrl}/rest/v1/rpc/responder_invitacion_subusuario";
+        var payload = new { p_invitacion_id = invitacionId, p_usuario_id = usuarioId, p_respuesta = respuesta };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        
+        var jsonString = JsonSerializer.Serialize(payload);
+        request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await SendRequestAsync(request);
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> CancelarInvitacionAsync(Guid invitacionId, string accessToken)
+    {
+        var url = $"{_supabaseUrl}/rest/v1/rpc/cancelar_invitacion_subusuario";
+        var payload = new { p_id = invitacionId };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        
+        var jsonString = JsonSerializer.Serialize(payload);
+        request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await SendRequestAsync(request);
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> RevocarSubusuarioAsync(int viviendaId, Guid usuarioId, string accessToken)
+    {
+        var url = $"{_supabaseUrl}/rest/v1/rpc/baja_subusuario";
+        var payload = new { p_vivienda_id = viviendaId, p_usuario_id = usuarioId };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        
+        var jsonString = JsonSerializer.Serialize(payload);
+        request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await SendRequestAsync(request);
+        return response.IsSuccessStatusCode;
     }
 }

@@ -1,15 +1,18 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { tap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
+import { CacheService } from './cache.service';
 
-export type MicroserviceName = 'usuarios' | 'viviendas' | 'condominios' | 'default';
+export type MicroserviceName = 'usuarios' | 'viviendas' | 'condominios' | 'avisos' | 'default';
 
 @Injectable({
   providedIn: 'root'
 })
 export class ApiService {
   private readonly http = inject(HttpClient);
+  private readonly cacheService = inject(CacheService);
 
   /**
    * Resuelve automáticamente el endpoint contra el microservicio correspondiente
@@ -23,8 +26,8 @@ export class ApiService {
     const services = environment.services;
 
     // 1. Servicio explícito
-    if (service && services[service]) {
-      return `${services[service]}${endpoint}`;
+    if (service && (services as any)[service]) {
+      return `${(services as any)[service]}${endpoint}`;
     }
 
     // 2. Enrutamiento automático por convención de ruta
@@ -32,11 +35,14 @@ export class ApiService {
     if (lower.startsWith('/api/auth') || lower.startsWith('/api/usuarios')) {
       return `${services.usuarios}${endpoint}`;
     }
-    if (lower.startsWith('/api/viviendas')) {
+    if (lower.startsWith('/api/viviendas') || lower.startsWith('/api/codigos/vivienda')) {
       return `${services.viviendas}${endpoint}`;
     }
-    if (lower.startsWith('/api/condominios')) {
+    if (lower.startsWith('/api/condominios') || lower.startsWith('/api/codigos/condominio')) {
       return `${services.condominios}${endpoint}`;
+    }
+    if (lower.startsWith('/api/avisos')) {
+      return `${(services as any).avisos}${endpoint}`;
     }
 
     // 3. Fallback al servicio default (monolito)
@@ -48,19 +54,27 @@ export class ApiService {
   }
 
   post<T>(endpoint: string, body: any, headers?: HttpHeaders, service?: MicroserviceName): Observable<T> {
-    return this.http.post<T>(this.resolveUrl(endpoint, service), body, { headers });
+    return this.http.post<T>(this.resolveUrl(endpoint, service), body, { headers }).pipe(
+      tap(() => this.cacheService.invalidateForEndpoint(endpoint))
+    );
   }
 
   put<T>(endpoint: string, body: any, headers?: HttpHeaders, service?: MicroserviceName): Observable<T> {
-    return this.http.put<T>(this.resolveUrl(endpoint, service), body, { headers });
+    return this.http.put<T>(this.resolveUrl(endpoint, service), body, { headers }).pipe(
+      tap(() => this.cacheService.invalidateForEndpoint(endpoint))
+    );
   }
 
   patch<T>(endpoint: string, body: any, headers?: HttpHeaders, service?: MicroserviceName): Observable<T> {
-    return this.http.patch<T>(this.resolveUrl(endpoint, service), body, { headers });
+    return this.http.patch<T>(this.resolveUrl(endpoint, service), body, { headers }).pipe(
+      tap(() => this.cacheService.invalidateForEndpoint(endpoint))
+    );
   }
 
   delete<T>(endpoint: string, headers?: HttpHeaders, service?: MicroserviceName): Observable<T> {
-    return this.http.delete<T>(this.resolveUrl(endpoint, service), { headers });
+    return this.http.delete<T>(this.resolveUrl(endpoint, service), { headers }).pipe(
+      tap(() => this.cacheService.invalidateForEndpoint(endpoint))
+    );
   }
 }
 

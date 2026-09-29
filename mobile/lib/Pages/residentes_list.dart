@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../Services/app_controller.dart';
+import '../Services/viviendas_service.dart';
 
 class ResidentesListScreen extends StatefulWidget {
   const ResidentesListScreen({super.key, required this.controller});
@@ -18,6 +19,7 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   List<dynamic> _residentes = [];
+  bool _soloSinVivienda = false;
 
   @override
   void initState() {
@@ -31,19 +33,55 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
       _errorMessage = null;
     });
     try {
+      final baseUrl = dotenv.env['API_BASE_URL_USUARIOS'] ?? 'https://usuarios-api-n1qi.onrender.com';
+      final query = _soloSinVivienda ? '?sinVivienda=true' : '';
+      final token = await widget.controller.getValidAccessToken();
       final response = await widget.controller.httpClient.get(
-        Uri.parse(
-          '${dotenv.env['API_BASE_URL_USUARIOS'] ?? 'https://usuarios-api-n1qi.onrender.com'}/api/Auth/residentes',
-        ),
-        headers: {'Authorization': 'Bearer ${widget.controller.accessToken}'},
+        Uri.parse('$baseUrl/api/Auth/residentes$query'),
+        headers: {'Authorization': 'Bearer $token'},
       );
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
         if (decoded is List) {
           _residentes = decoded;
-        } else if (decoded is Map && decoded['data'] is List) {
-          _residentes = decoded['data'];
+        } else if (decoded is Map) {
+          if (decoded['items'] is List) {
+            _residentes = decoded['items'];
+          } else if (decoded['data'] is List) {
+            _residentes = decoded['data'];
+          }
         }
+
+        try {
+          final viviendasSrv = ViviendasService(widget.controller);
+          final viviendas = await viviendasSrv.listar();
+          if (viviendas.isNotEmpty) {
+            final asignaciones = await Future.wait(
+              viviendas.map((v) => viviendasSrv.obtenerResidentesVivienda(v['id']).catchError((_) => <dynamic>[]))
+            );
+            
+            final Map<String, dynamic> residenteViviendaMap = {};
+            for (int i = 0; i < viviendas.length; i++) {
+              final v = viviendas[i];
+              final res = asignaciones[i];
+              for (var r in res) {
+                final rId = r['id'] ?? r['usuarioId'];
+                if (rId != null) {
+                  residenteViviendaMap[rId.toString()] = v;
+                }
+              }
+            }
+            
+            for (var i = 0; i < _residentes.length; i++) {
+              final rId = _residentes[i]['id']?.toString();
+              if (rId != null && residenteViviendaMap.containsKey(rId)) {
+                if (_residentes[i] is Map) {
+                  _residentes[i]['vivienda'] = residenteViviendaMap[rId];
+                }
+              }
+            }
+          }
+        } catch (_) {}
       } else {
         _errorMessage = 'Error de conexión';
       }
@@ -73,6 +111,15 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
       } catch (_) {
         fechaAlta = rawFecha.toString();
       }
+    }
+
+    String viviendaStr = 'Sin vivienda asignada';
+    if (r['viviendas'] != null && r['viviendas'] is List && (r['viviendas'] as List).isNotEmpty) {
+      viviendaStr = (r['viviendas'] as List).map((v) => v['numeroCasa'] ?? 'S/N').join(', ');
+    } else if (r['vivienda'] != null && r['vivienda'] is Map) {
+      viviendaStr = r['vivienda']['numeroCasa']?.toString() ?? 'Vinculada';
+    } else if (r['numeroCasa'] != null) {
+      viviendaStr = r['numeroCasa'].toString();
     }
 
     showModalBottomSheet(
@@ -224,6 +271,12 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
                               label: 'FECHA DE ALTA',
                               value: fechaAlta,
                               icon: Icons.calendar_today_outlined,
+                            ),
+                            const Divider(height: 24, color: Color(0xFFE2E8F0)),
+                            _buildDetalleRow(
+                              label: 'VIVIENDA',
+                              value: viviendaStr,
+                              icon: Icons.home_outlined,
                             ),
                           ],
                         ),
@@ -435,6 +488,30 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Checkbox(
+                                        value: _soloSinVivienda,
+                                        activeColor: const Color(0xFF111C99),
+                                        onChanged: (val) {
+                                          if (val != null) {
+                                            setState(() => _soloSinVivienda = val);
+                                            _fetchResidentes();
+                                          }
+                                        },
+                                      ),
+                                      const Text(
+                                        'Solo sin vivienda',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF334155),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(width: 16),
                                   IconButton(
                                     onPressed: _isLoading
                                         ? null

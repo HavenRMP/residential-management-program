@@ -6,6 +6,12 @@ import { AuthService } from '../services/auth.service';
 import { environment } from '../../../environments/environment';
 import Swal from 'sweetalert2';
 
+let isHandling401 = false;
+
+export function _reset401Debounce(): void {
+  isHandling401 = false;
+}
+
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const authService = inject(AuthService);
   const session = authService.currentSession();
@@ -26,17 +32,23 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   return next(authReq).pipe(
     catchError((error: HttpErrorResponse) => {
       if (error.status === 401 && !req.url.toLowerCase().includes('/api/auth/me')) {
-        Swal.fire({
-          icon: 'warning',
-          title: 'Sesión Expirada',
-          text: 'Tu sesión expiró, inicia sesión nuevamente.',
-          toast: true,
-          position: 'top-end',
-          showConfirmButton: false,
-          timer: 4000,
-          timerProgressBar: true
-        });
-        authService.logout();
+        if (!isHandling401) {
+          isHandling401 = true;
+          Swal.fire({
+            icon: 'warning',
+            title: 'Sesión Expirada',
+            text: 'Tu sesión expiró, inicia sesión nuevamente.',
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 4000,
+            timerProgressBar: true
+          });
+          authService.logout();
+          setTimeout(() => {
+            isHandling401 = false;
+          }, 3500);
+        }
       } else if (error.status === 403) {
         Swal.fire({
           icon: 'error',

@@ -106,55 +106,13 @@ public class SupabaseService : ISupabaseService
 
     public async Task<(string? rolNombre, Guid? condominioId)> GetContextoAdminAsync(Guid userId, string accessToken)
     {
-        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_usuarios?id=eq.{userId}&select=rol_nombre,condominio_id";
-
-        var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
-        request.Headers.Add("apikey", _anonKey);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-
-        var response = await SendRequestAsync(request);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogWarning("Failed to fetch user context. Status: {StatusCode}", response.StatusCode);
-            return (null, null);
-        }
-
-        var json = await response.Content.ReadAsStringAsync();
-        JsonDocument doc;
-        try
-        {
-            doc = JsonDocument.Parse(json);
-        }
-        catch (JsonException ex)
-        {
-            _logger.LogError(ex, "Failed to parse JSON when getting user context.");
-            throw new SupabaseResponseException("Invalid JSON response from Supabase.", ex);
-        }
-
-        using (doc)
-        {
-            if (doc.RootElement.GetArrayLength() == 0) return (null, null);
-
-            var el = doc.RootElement[0];
-            string? rolNombre = null;
-            Guid? condominioId = null;
-
-            if (el.TryGetProperty("rol_nombre", out var rn) && rn.ValueKind != JsonValueKind.Null)
-            {
-                rolNombre = rn.GetString();
-            }
-
-            if (el.TryGetProperty("condominio_id", out var ci) && ci.ValueKind != JsonValueKind.Null)
-            {
-                if (Guid.TryParse(ci.GetString(), out var parsedId))
-                {
-                    condominioId = parsedId;
-                }
-            }
-
-            return (rolNombre, condominioId);
-        }
+        return await SupabaseUserContextClient.GetContextoUsuarioAsync(
+            _httpClient,
+            _supabaseUrl,
+            _anonKey,
+            userId,
+            accessToken
+        );
     }
 
     public async Task<(List<ViviendaDto> Items, int? TotalCount)> GetViviendasAsync(Guid condominioId, PaginationParams paginacion)
@@ -178,6 +136,39 @@ public class SupabaseService : ISupabaseService
         {
             _logger.LogWarning(ex, "Failed to fetch paginated viviendas.");
             return (new List<ViviendaDto>(), null);
+        }
+    }
+
+    public async Task<(List<ViviendaConResidentesDto> Items, int? TotalCount)> GetViviendasConResidentesAsync(Guid condominioId, PaginationParams paginacion)
+    {
+        var resourcePath = $"vw_viviendas_con_residentes?select=*&condominio_id=eq.{condominioId}&order=numero_casa.asc";
+
+        try
+        {
+            var result = await SupabaseQueryClient.GetPagedAsync<ViviendaConResidentesDto>(
+                _httpClient,
+                _supabaseUrl,
+                _serviceRoleKey,
+                _serviceRoleKey,
+                resourcePath,
+                paginacion
+            );
+
+            var items = result.Items ?? new List<ViviendaConResidentesDto>();
+            foreach (var item in items)
+            {
+                if (item.Residentes == null)
+                {
+                    item.Residentes = new List<ResidenteVigilanciaDto>();
+                }
+            }
+
+            return (items, result.TotalCount);
+        }
+        catch (SupabaseResponseException ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch paginated viviendas con residentes.");
+            return (new List<ViviendaConResidentesDto>(), null);
         }
     }
 

@@ -424,6 +424,11 @@ export class AuthService implements OnDestroy {
       ? (profile?.telefono ?? '')
       : (sessionUser.user_metadata?.['telefono'] || '');
 
+    const condominioNombre =
+      profile?.condominio_nombre ||
+      profile?.condominioNombre ||
+      undefined;
+
     this.currentUser.set({
       id: profile?.id || sessionUser.id,
       email: profile?.email || sessionUser.email || '',
@@ -433,6 +438,7 @@ export class AuthService implements OnDestroy {
       apellidos: resolvedApellidos,
       telefono: resolvedTelefono,
       condominioId,
+      condominioNombre,
       creadoEn: profile?.creadoEn ?? profile?.creado_en ?? undefined
     });
     this.authStatus.set('authenticated');

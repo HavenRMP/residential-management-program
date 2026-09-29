@@ -36,7 +36,7 @@ public static class SupabaseQueryClient
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessTokenOrServiceRoleKey);
         
         var (desde, hasta) = paginacion.ToRange();
-        request.Headers.Add("Range", $"{desde}-{hasta}");
+        request.Headers.TryAddWithoutValidation("Range", $"{desde}-{hasta}");
         request.Headers.Add("Prefer", "count=exact");
 
         if (actorHeader && actorId.HasValue)

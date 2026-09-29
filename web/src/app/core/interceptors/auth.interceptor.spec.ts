@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { authInterceptor } from './auth.interceptor';
+import { authInterceptor, _reset401Debounce } from './auth.interceptor';
 import { AuthService } from '../services/auth.service';
 import { environment } from '../../../environments/environment';
 import { signal } from '@angular/core';
@@ -12,6 +12,7 @@ describe('authInterceptor', () => {
   let mockAuthService: any;
 
   beforeEach(() => {
+    _reset401Debounce();
     mockAuthService = {
       currentSession: signal<any>({ access_token: 'fake-jwt-token' }),
       logout: jasmine.createSpy('logout')
@@ -78,5 +79,21 @@ describe('authInterceptor', () => {
     req.flush('Forbidden', { status: 403, statusText: 'Forbidden' });
 
     expect(mockAuthService.logout).not.toHaveBeenCalled();
+  });
+
+  it('should debounce concurrent 401 errors so logout is only invoked once', () => {
+    const url1 = `${environment.apiUrl}/api/residents`;
+    const url2 = `${environment.apiUrl}/api/viviendas`;
+
+    httpClient.get(url1).subscribe({ error: () => {} });
+    httpClient.get(url2).subscribe({ error: () => {} });
+
+    const req1 = httpTestingController.expectOne(url1);
+    const req2 = httpTestingController.expectOne(url2);
+
+    req1.flush('Unauthorized', { status: 401, statusText: 'Unauthorized' });
+    req2.flush('Unauthorized', { status: 401, statusText: 'Unauthorized' });
+
+    expect(mockAuthService.logout).toHaveBeenCalledTimes(1);
   });
 });

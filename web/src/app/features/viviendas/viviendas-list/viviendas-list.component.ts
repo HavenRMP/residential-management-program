@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, HostListener } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -50,7 +50,7 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
           <div class="flex items-center gap-3 shrink-0">
             <!-- Refresh Button -->
             <button
-              (click)="cargarViviendas()"
+              (click)="cargarViviendas(true)"
               [disabled]="isLoading()"
               title="Actualizar datos"
               class="p-2 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-200 text-slate-600 rounded-lg transition-all shadow-2xs cursor-pointer disabled:opacity-50"
@@ -92,13 +92,13 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
             <input
               type="text"
               [ngModel]="searchQuery()"
-              (ngModelChange)="searchQuery.set($event)"
+              (ngModelChange)="onSearchChange($event)"
               placeholder="Buscar por número o identificador..."
               class="w-full h-8 pl-8 pr-8 text-xs bg-slate-50/70 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#111C99]/10 focus:border-[#111C99] transition-all"
             />
             <button
               *ngIf="searchQuery()"
-              (click)="searchQuery.set('')"
+              (click)="onSearchChange('')"
               class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
               title="Limpiar búsqueda"
             >
@@ -111,7 +111,7 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
           <!-- Selector de Tipo -->
           <select
             [ngModel]="filtroTipo()"
-            (ngModelChange)="filtroTipo.set($event)"
+            (ngModelChange)="onTipoChange($event)"
             class="h-8 px-2 text-xs bg-slate-50/70 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#111C99]/10 focus:border-[#111C99] transition-all cursor-pointer shrink-0"
           >
             <option value="todos">Todos los tipos</option>
@@ -121,7 +121,7 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
 
         <div class="flex items-center justify-between sm:justify-end gap-3 text-xs text-slate-500 font-medium px-2">
           <span>
-            Mostrando <strong class="text-slate-800">{{ viviendasFiltradas().length }}</strong> de {{ viviendas().length }}
+            Mostrando <strong class="text-slate-800">{{ viviendasPaginadas().length }}</strong> de {{ totalFiltrados() }} (Total: {{ viviendas().length }})
           </span>
         </div>
       </div>
@@ -196,36 +196,36 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
       <!-- Modern, Spacious Table (Estilo amigable aprobado) -->
       <div
         *ngIf="!isLoading() && !errorMessage() && viviendasFiltradas().length > 0"
-        class="bg-white border border-slate-200 rounded-lg shadow-xs overflow-hidden"
+        class="bg-white border border-slate-200/90 rounded-xl shadow-xs overflow-hidden"
       >
         <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-slate-100">
+          <table class="min-w-full divide-y divide-slate-200">
             <thead>
-              <tr class="bg-slate-50/80">
-                <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+              <tr class="bg-slate-50 border-b border-slate-200">
+                <th class="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Vivienda
                 </th>
-                <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <th class="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Tipo de Unidad
                 </th>
-                <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <th class="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Fecha de Alta
                 </th>
-                <th class="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <th class="px-6 py-4 text-right text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Acciones
                 </th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100 bg-white">
+            <tbody class="divide-y divide-slate-200 bg-white">
               <tr
-                *ngFor="let v of viviendasFiltradas()"
+                *ngFor="let v of viviendasPaginadas()"
                 (click)="abrirDetalle(v)"
-                class="group hover:bg-blue-50/40 transition-colors cursor-pointer"
+                class="group hover:bg-slate-50/80 transition-colors cursor-pointer"
               >
                 <!-- Numero Casa / Avatar -->
                 <td class="px-6 py-4.5 whitespace-nowrap">
                   <div class="flex items-center gap-3.5">
-                    <div class="w-10 h-10 rounded-full bg-[#eff6ff] text-[#111C99] flex items-center justify-center shadow-2xs ring-1 ring-blue-100 group-hover:scale-105 transition-transform shrink-0">
+                    <div class="w-10 h-10 rounded-full bg-blue-50 text-[#111C99] flex items-center justify-center shadow-2xs ring-1 ring-blue-200/60 group-hover:scale-105 transition-transform shrink-0">
                       <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-[#111C99]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                       </svg>
@@ -240,15 +240,15 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
 
                 <!-- Tipo -->
                 <td class="px-6 py-4.5 whitespace-nowrap">
-                  <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                  <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200">
                     {{ v.tipo || 'Sin especificar' }}
                   </span>
                 </td>
 
                 <!-- Fecha de Alta -->
                 <td class="px-6 py-4.5 whitespace-nowrap">
-                  <div class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-100/80 px-2.5 py-1 rounded-md">
-                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                    <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                     <span class="font-mono text-xs">{{ v.creadoEn ? (v.creadoEn | date:'dd/MM/yyyy') : '—' }}</span>
@@ -297,12 +297,77 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
             </tbody>
           </table>
         </div>
+
+        <!-- Pagination Control Bar Spartan UI -->
+        <div class="px-4 py-3 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div class="flex items-center gap-3 text-slate-600 font-medium">
+            <span>
+              Mostrando <strong class="text-slate-900 font-bold">{{ indiceInicio() }}</strong> a <strong class="text-slate-900 font-bold">{{ indiceFin() }}</strong> de <strong class="text-slate-900 font-bold">{{ totalFiltrados() }}</strong> viviendas
+            </span>
+
+            <div class="flex items-center gap-1.5 pl-3 border-l border-slate-200">
+              <span class="text-slate-600 font-medium">Por página:</span>
+              <select
+                [ngModel]="elementosPorPagina()"
+                (ngModelChange)="cambiarElementosPorPagina($event)"
+                class="h-7 px-2 text-xs bg-white border border-slate-300 rounded font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#111C99]/20 focus:border-[#111C99] cursor-pointer"
+              >
+                <option *ngFor="let opt of opcionesPaginacion" [value]="opt">{{ opt }}</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Page Buttons -->
+          <div class="flex items-center gap-1 self-end sm:self-auto">
+            <button
+              type="button"
+              (click)="irAPagina(1)"
+              [disabled]="paginaActual() === 1"
+              title="Primera página"
+              class="px-2 py-1 bg-white border border-slate-300 rounded text-slate-700 font-semibold hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111C99]"
+            >
+              «
+            </button>
+            <button
+              type="button"
+              (click)="irAPagina(paginaActual() - 1)"
+              [disabled]="paginaActual() === 1"
+              title="Página anterior"
+              class="px-2.5 py-1 bg-white border border-slate-300 rounded text-slate-700 font-semibold hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111C99]"
+            >
+              Anterior
+            </button>
+
+            <span class="px-3 py-1 font-bold text-slate-900">
+              {{ paginaActual() }} / {{ totalPaginas() }}
+            </span>
+
+            <button
+              type="button"
+              (click)="irAPagina(paginaActual() + 1)"
+              [disabled]="paginaActual() >= totalPaginas()"
+              title="Página siguiente"
+              class="px-2.5 py-1 bg-white border border-slate-300 rounded text-slate-700 font-semibold hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111C99]"
+            >
+              Siguiente
+            </button>
+            <button
+              type="button"
+              (click)="irAPagina(totalPaginas())"
+              [disabled]="paginaActual() >= totalPaginas()"
+              title="Última página"
+              class="px-2 py-1 bg-white border border-slate-300 rounded text-slate-700 font-semibold hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111C99]"
+            >
+              »
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Modal de Creación / Edición Compacto -->
       <div
         *ngIf="showModal()"
-        class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+        class="fixed inset-0 z-50 !m-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
       >
         <div
           class="bg-white rounded-lg shadow-xl border border-slate-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150"
@@ -348,25 +413,20 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
               <span>{{ formError() }}</span>
             </div>
 
-            <!-- Campo: Condominio (GET de condominios) -->
+            <!-- Campo: Condominio (Asignación Automática al Condominio del Administrador) -->
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Condominio <span class="text-red-500">*</span>
+                Condominio
               </label>
-              <select
-                name="condominioId"
-                [(ngModel)]="formCondominioId"
-                class="w-full text-sm bg-slate-50/70 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#111C99]/10 focus:border-[#111C99] transition-all cursor-pointer"
-              >
-                <option *ngFor="let c of listaCondominios()" [value]="c.id">
-                  {{ c.nombre }} {{ c.id === condominioActual()?.id ? '(Tu condominio)' : '' }}
-                </option>
-                <option *ngIf="listaCondominios().length === 0" [value]="condominioActual()?.id || 'a0000000-0000-0000-0000-000000000001'">
-                  {{ condominioActual()?.nombre || 'Condominio Residencial Principal' }}
-                </option>
-              </select>
+              <div class="flex items-center gap-2.5 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                <span class="font-medium truncate">{{ condominioActual()?.nombre || 'Tu condominio administrado' }}</span>
+                <span class="ml-auto text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
+                  Asignación automática
+                </span>
+              </div>
               <p class="text-[11px] text-slate-400 mt-1">
-                Condominio al que pertenece la vivienda (obtenido del sistema).
+                La vivienda se vinculará directamente a tu condominio administrado.
               </p>
             </div>
 
@@ -411,6 +471,8 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
                 type="text"
                 name="tipo"
                 [(ngModel)]="formTipo"
+                (keypress)="permitirSoloLetras($event)"
+                (input)="filtrarSoloTextoTipo($event)"
                 placeholder="Ej. Casa, Departamento, Townhouse..."
                 class="w-full text-sm bg-slate-50/70 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#111C99]/10 focus:border-[#111C99] transition-all"
                 maxlength="50"
@@ -493,16 +555,75 @@ export class ViviendasListComponent implements OnInit {
   });
 
   readonly viviendasFiltradas = computed(() => {
-    const query = this.searchQuery().trim().toLowerCase();
+    const normalizar = (texto: string) =>
+      texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    const query = normalizar(this.searchQuery());
     const tipo = this.filtroTipo();
     const list = this.viviendas();
 
     return list.filter(v => {
-      const matchQuery = !query || (v.numeroCasa && v.numeroCasa.toLowerCase().includes(query));
+      const matchQuery = !query || (v.numeroCasa && normalizar(v.numeroCasa).includes(query));
       const matchTipo = tipo === 'todos' || (v.tipo && v.tipo.trim().toLowerCase() === tipo.toLowerCase());
       return matchQuery && matchTipo;
     });
   });
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (this.showModal() && !this.isSaving()) {
+      this.cerrarModal();
+    } else if (this.isDetalleOpen()) {
+      this.cerrarDetalle();
+    }
+  }
+
+  // Paginación reactiva
+  readonly paginaActual = signal<number>(1);
+  readonly elementosPorPagina = signal<number>(10);
+  readonly opcionesPaginacion = [5, 10, 25, 50];
+
+  readonly totalFiltrados = computed(() => this.viviendasFiltradas().length);
+
+  readonly totalPaginas = computed(() => {
+    return Math.max(1, Math.ceil(this.totalFiltrados() / this.elementosPorPagina()));
+  });
+
+  readonly viviendasPaginadas = computed(() => {
+    const lista = this.viviendasFiltradas();
+    const inicio = (this.paginaActual() - 1) * this.elementosPorPagina();
+    const fin = inicio + this.elementosPorPagina();
+    return lista.slice(inicio, fin);
+  });
+
+  readonly indiceInicio = computed(() => {
+    if (this.totalFiltrados() === 0) return 0;
+    return (this.paginaActual() - 1) * this.elementosPorPagina() + 1;
+  });
+
+  readonly indiceFin = computed(() => {
+    return Math.min(this.paginaActual() * this.elementosPorPagina(), this.totalFiltrados());
+  });
+
+  onSearchChange(val: string): void {
+    this.searchQuery.set(val);
+    this.paginaActual.set(1);
+  }
+
+  onTipoChange(val: string): void {
+    this.filtroTipo.set(val);
+    this.paginaActual.set(1);
+  }
+
+  irAPagina(pagina: number): void {
+    if (pagina >= 1 && pagina <= this.totalPaginas()) {
+      this.paginaActual.set(pagina);
+    }
+  }
+
+  cambiarElementosPorPagina(cantidad: number): void {
+    this.elementosPorPagina.set(Number(cantidad));
+    this.paginaActual.set(1);
+  }
 
   async ngOnInit(): Promise<void> {
     await Promise.all([
@@ -523,11 +644,11 @@ export class ViviendasListComponent implements OnInit {
     }
   }
 
-  async cargarViviendas(): Promise<void> {
+  async cargarViviendas(forceRefresh: boolean = false): Promise<void> {
     this.isLoading.set(true);
     this.errorMessage.set(null);
     try {
-      const data = await this.viviendasService.listar();
+      const data = await this.viviendasService.listar(undefined, undefined, forceRefresh);
       this.viviendas.set(data || []);
     } catch {
       this.errorMessage.set('No fue posible cargar la lista de viviendas desde el servidor.');
@@ -550,7 +671,7 @@ export class ViviendasListComponent implements OnInit {
     this.editingId.set(null);
     this.formNumeroCasa = '';
     this.formTipo = '';
-    this.formCondominioId = this.condominioActual()?.id || (this.listaCondominios().length > 0 ? this.listaCondominios()[0].id : 'a0000000-0000-0000-0000-000000000001');
+    this.formCondominioId = this.condominioActual()?.id || (this.listaCondominios().length > 0 ? this.listaCondominios()[0].id : '');
     this.formError.set(null);
     this.showModal.set(true);
   }
@@ -598,12 +719,11 @@ export class ViviendasListComponent implements OnInit {
       } else {
         await this.viviendasService.crear({
           numeroCasa,
-          tipo: this.formTipo.trim() || null,
-          condominioId: this.formCondominioId || undefined
+          tipo: this.formTipo.trim() || null
         });
         await Swal.fire({
           title: '¡Vivienda Creada!',
-          text: 'La vivienda se ha registrado correctamente en el condominio.',
+          text: 'La vivienda se ha registrado correctamente en tu condominio.',
           icon: 'success',
           confirmButtonText: 'Aceptar',
           confirmButtonColor: '#111C99'
@@ -636,6 +756,9 @@ export class ViviendasListComponent implements OnInit {
     if (result.isConfirmed) {
       try {
         await this.viviendasService.eliminar(vivienda.id);
+        if (this.viviendaSeleccionada()?.id === vivienda.id) {
+          this.cerrarDetalle();
+        }
         await Swal.fire({
           title: '¡Eliminada!',
           text: 'La vivienda ha sido eliminada del sistema.',
@@ -655,6 +778,30 @@ export class ViviendasListComponent implements OnInit {
           confirmButtonColor: '#111C99'
         });
       }
+    }
+  }
+
+  permitirSoloLetras(event: KeyboardEvent): void {
+    if (['Backspace', 'Tab', 'ArrowLeft', 'ArrowRight', 'Delete', 'Enter'].includes(event.key)) {
+      return;
+    }
+    if (event.ctrlKey || event.metaKey) {
+      return;
+    }
+    const regex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]$/;
+    if (!regex.test(event.key)) {
+      event.preventDefault();
+    }
+  }
+
+  filtrarSoloTextoTipo(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (input) {
+      const limpio = input.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
+      if (input.value !== limpio) {
+        input.value = limpio;
+      }
+      this.formTipo = limpio;
     }
   }
 }

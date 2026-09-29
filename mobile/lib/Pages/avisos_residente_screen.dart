@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../Services/app_controller.dart';
 import '../Services/avisos_service.dart';
-import 'en_construccion_screen.dart';
 
 class AvisosResidenteScreen extends StatefulWidget {
-  const AvisosResidenteScreen({super.key, required this.controller});
+  const AvisosResidenteScreen({super.key, required this.controller, this.onAvisoRead});
   
   final AppController controller;
+  final VoidCallback? onAvisoRead;
 
   @override
   State<AvisosResidenteScreen> createState() => _AvisosResidenteScreenState();
@@ -18,13 +19,27 @@ class _AvisosResidenteScreenState extends State<AvisosResidenteScreen> {
   bool _hasMore = true;
   int _currentPage = 1;
   List<dynamic> _avisos = [];
+  List<String> _readAvisos = [];
   final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    _cargarAvisos(refresh: true);
+    _loadReadAvisos().then((_) {
+      _cargarAvisos(refresh: true);
+    });
     _scrollController.addListener(_onScroll);
+  }
+
+  Future<void> _loadReadAvisos() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (mounted) {
+        setState(() {
+          _readAvisos = prefs.getStringList('read_avisos') ?? [];
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -60,7 +75,11 @@ class _AvisosResidenteScreenState extends State<AvisosResidenteScreen> {
       final response = await service.getAvisosVigentes(page: _currentPage, pageSize: 10);
       
       if (response != null) {
-        final items = response['items'] as List<dynamic>? ?? [];
+        final rawItems = response['items'] as List<dynamic>? ?? [];
+        final items = rawItems.where((a) {
+          final isVigente = a['vigente'] == true || a['activo'] == true || a['estado'] == 'activo';
+          return isVigente;
+        }).toList();
         
         setState(() {
           if (refresh) {
@@ -92,16 +111,7 @@ class _AvisosResidenteScreenState extends State<AvisosResidenteScreen> {
     }
   }
 
-  void _redirigirAConstruccion(String mensaje) {
-    // Si hay un error general que rompe la pantalla, según los requerimientos, 
-    // se manda a la pantalla de EnConstruccion
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const EnConstruccionScreen(titulo: 'Avisos no disponibles'),
-      ),
-    );
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -187,9 +197,12 @@ class _AvisosResidenteScreenState extends State<AvisosResidenteScreen> {
   }
 
   Widget _buildAvisoCard(dynamic aviso) {
+    final id = aviso['id']?.toString() ?? '';
+    final isRead = _readAvisos.contains(id);
     final titulo = aviso['titulo'] ?? 'Aviso';
     final contenido = aviso['contenido'] ?? '';
     final autor = aviso['creado_por_nombre'] ?? 'Administrador';
+    final prioridad = aviso['prioridad']?.toString();
     
     // Parse fecha si es necesario
     String fechaStr = '';
@@ -200,79 +213,190 @@ class _AvisosResidenteScreenState extends State<AvisosResidenteScreen> {
       } catch (_) {}
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x05000000),
-            blurRadius: 4,
-            offset: Offset(0, 1),
+    return InkWell(
+      onTap: () async {
+        if (id.isNotEmpty && !isRead) {
+          final prefs = await SharedPreferences.getInstance();
+          final updated = List<String>.from(_readAvisos)..add(id);
+          await prefs.setStringList('read_avisos', updated);
+          if (mounted) {
+            setState(() {
+              _readAvisos = updated;
+            });
+            if (widget.onAvisoRead != null) {
+              widget.onAvisoRead!();
+            }
+          }
+        }
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: isRead ? Colors.white : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isRead ? const Color(0xFFE2E8F0) : const Color(0xFF111C99).withValues(alpha: 0.3),
+            width: isRead ? 1 : 1.5,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFEF2F2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.campaign_rounded, color: Color(0xFFDC2626), size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  titulo,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF0F172A),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x05000000),
+              blurRadius: 4,
+              offset: Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isRead ? const Color(0xFFFEF2F2) : const Color(0xFF111C99),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    isRead ? Icons.campaign_rounded : Icons.notifications_active_rounded, 
+                    color: isRead ? const Color(0xFFDC2626) : Colors.white, 
+                    size: 20,
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            contenido,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Color(0xFF475569),
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Divider(color: Color(0xFFF1F5F9)),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Por: $autor',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF94A3B8),
-                  fontWeight: FontWeight.w500,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        titulo,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: isRead ? FontWeight.bold : FontWeight.w900,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                      if (prioridad != null && prioridad.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        _buildPrioridadBadge(prioridad),
+                      ],
+                    ],
+                  ),
                 ),
+                if (!isRead) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF111C99),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'NUEVO',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              contenido,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Color(0xFF475569),
+                height: 1.5,
               ),
-              if (fechaStr.isNotEmpty)
+            ),
+            const SizedBox(height: 16),
+            const Divider(color: Color(0xFFF1F5F9)),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
                 Text(
-                  fechaStr,
+                  'Por: $autor',
                   style: const TextStyle(
                     fontSize: 12,
                     color: Color(0xFF94A3B8),
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-            ],
+                if (fechaStr.isNotEmpty)
+                  Text(
+                    fechaStr,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPrioridadBadge(String? prioridad) {
+    Color bg;
+    Color textColor;
+    IconData icon;
+    String label;
+
+    switch (prioridad?.toLowerCase()) {
+      case 'urgente':
+        bg = const Color(0xFFFEF2F2);
+        textColor = const Color(0xFFDC2626);
+        icon = Icons.warning_amber_rounded;
+        label = 'Urgente';
+        break;
+      case 'mantenimiento':
+        bg = const Color(0xFFFFFBEB);
+        textColor = const Color(0xFFD97706);
+        icon = Icons.build_rounded;
+        label = 'Mantenimiento';
+        break;
+      case 'evento':
+        bg = const Color(0xFFF5F3FF);
+        textColor = const Color(0xFF7C3AED);
+        icon = Icons.event_rounded;
+        label = 'Evento';
+        break;
+      case 'informativo':
+      default:
+        bg = const Color(0xFFEFF6FF);
+        textColor = const Color(0xFF2563EB);
+        icon = Icons.info_outline_rounded;
+        label = 'Informativo';
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: textColor.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: textColor),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: textColor,
+            ),
           ),
         ],
       ),

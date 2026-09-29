@@ -55,8 +55,10 @@ public class AvisosController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [HttpGet]
-    public async Task<IActionResult> GetAvisos([FromQuery] PaginationParams paginacion)
+    public async Task<IActionResult> GetAvisos([FromQuery] PaginationParams? paginacion)
     {
+        paginacion ??= new PaginationParams();
+
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                           ?? User.FindFirst("sub")?.Value;
 
@@ -84,8 +86,10 @@ public class AvisosController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [HttpGet("historico")]
-    public async Task<IActionResult> GetAvisosHistorico([FromQuery] PaginationParams paginacion)
+    public async Task<IActionResult> GetAvisosHistorico([FromQuery] PaginationParams? paginacion)
     {
+        paginacion ??= new PaginationParams();
+
         var (adminError, condominioId, _) = await ValidateAdminAsync();
         if (adminError != null)
             return adminError;

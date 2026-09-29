@@ -71,13 +71,14 @@ class AvisosService {
     }
   }
 
-  Future<Map<String, dynamic>?> createAviso(String titulo, String contenido, {int duracionDias = 7}) async {
+  Future<Map<String, dynamic>?> createAviso(String titulo, String contenido, {int duracionDias = 7, String? prioridad}) async {
     try {
       final url = '$baseUrl/api/avisos';
       final payload = {
         'titulo': titulo,
         'contenido': contenido,
         'duracion_dias': duracionDias,
+        if (prioridad != null && prioridad.isNotEmpty) 'prioridad': prioridad.toLowerCase(),
       };
 
       final response = await controller.httpClient.post(
@@ -98,12 +99,13 @@ class AvisosService {
     }
   }
 
-  Future<Map<String, dynamic>?> updateAviso(String id, String titulo, String contenido) async {
+  Future<Map<String, dynamic>?> updateAviso(String id, String titulo, String contenido, {String? prioridad}) async {
     try {
       final url = '$baseUrl/api/avisos/$id';
       final payload = {
         'titulo': titulo,
         'contenido': contenido,
+        if (prioridad != null && prioridad.isNotEmpty) 'prioridad': prioridad.toLowerCase(),
       };
 
       final response = await controller.httpClient.put(

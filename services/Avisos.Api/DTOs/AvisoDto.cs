@@ -45,4 +45,7 @@ public class AvisoDto
 
     [JsonPropertyName("estado")]
     public string? Estado { get; set; }
+
+    [JsonPropertyName("prioridad")]
+    public string? Prioridad { get; set; }
 }

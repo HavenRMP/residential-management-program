@@ -1,7 +1,9 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpParams } from '@angular/common/http';
 import { ApiService } from './api.service';
+import { CacheService } from './cache.service';
 import { Condominio } from '../models/condominio.model';
+import { extractPagedItems } from '../models/pagination.model';
 import { firstValueFrom } from 'rxjs';
 
 @Injectable({
@@ -9,6 +11,7 @@ import { firstValueFrom } from 'rxjs';
 })
 export class CondominiosService {
   private readonly apiService = inject(ApiService);
+  private readonly cacheService = inject(CacheService);
 
   /** Señal reactiva con el condominio actual del contexto del administrador */
   readonly condominioActual = signal<Condominio | null>(null);
@@ -16,26 +19,44 @@ export class CondominiosService {
   /**
    * Obtiene la lista de condominios desde el microservicio /api/condominios
    */
-  async listar(nombre?: string): Promise<Condominio[]> {
+  async listar(nombre?: string, forceRefresh: boolean = false): Promise<Condominio[]> {
+    const cacheKey = `condominios_list_${nombre || 'all'}`;
+    if (!forceRefresh) {
+      const cached = this.cacheService.get<Condominio[]>(cacheKey);
+      if (cached) return cached;
+    }
+
     try {
       let params: HttpParams | undefined;
       if (nombre && nombre.trim().length > 0) {
         params = new HttpParams().set('nombre', nombre.trim());
       }
-      const data = await firstValueFrom(this.apiService.get<Condominio[]>('/api/condominios', params));
-      return Array.isArray(data) ? data : [];
+      const data = await firstValueFrom(this.apiService.get<any>('/api/condominios', params));
+      const items = extractPagedItems<Condominio>(data);
+      this.cacheService.set(cacheKey, items, 'condominios', 120_000);
+      return items;
     } catch (err) {
       console.warn('[CondominiosService] Error al listar condominios:', err);
-      return [];
+      throw err;
     }
   }
 
   /**
    * Obtiene un condominio por su ID
    */
-  async obtenerPorId(id: string): Promise<Condominio | null> {
+  async obtenerPorId(id: string, forceRefresh: boolean = false): Promise<Condominio | null> {
+    const cacheKey = `condominio_${id}`;
+    if (!forceRefresh) {
+      const cached = this.cacheService.get<Condominio>(cacheKey);
+      if (cached) return cached;
+    }
+
     try {
-      return await firstValueFrom(this.apiService.get<Condominio>(`/api/condominios/${id}`));
+      const cond = await firstValueFrom(this.apiService.get<Condominio>(`/api/condominios/${id}`));
+      if (cond) {
+        this.cacheService.set(cacheKey, cond, 'condominios', 120_000);
+      }
+      return cond;
     } catch (err) {
       console.warn(`[CondominiosService] Error al obtener condominio ${id}:`, err);
       return null;
@@ -82,4 +103,32 @@ export class CondominiosService {
     this.condominioActual.set(fallback);
     return fallback;
   }
+
+  /**
+   * Genera un código de vinculación para un condominio (Admin).
+   */
+  async generarCodigo(condominioId: string, minutosVigencia: number = 1440): Promise<{ codigo: string; expiraEn?: string } | null> {
+    try {
+      const payload = { minutosVigencia };
+      return await firstValueFrom(
+        this.apiService.post<{ codigo: string; expiraEn?: string }>(`/api/condominios/${condominioId}/codigo`, payload)
+      );
+    } catch (err) {
+      console.error(`[CondominiosService] Error al generar código para condominio ${condominioId}:`, err);
+      return null;
+    }
+  }
+
+  /**
+   * Redime un código de invitación de condominio para el usuario actual.
+   */
+  async redimirCodigo(codigo: string): Promise<any | null> {
+    const payload = { codigo: codigo.trim().toUpperCase() };
+    const res = await firstValueFrom(
+      this.apiService.post<any>('/api/codigos/condominio/redimir', payload)
+    );
+    this.cacheService.invalidateTag('condominios');
+    return res;
+  }
 }
+

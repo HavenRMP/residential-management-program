@@ -22,9 +22,22 @@ export class PingService {
   private readonly maxRetries = 2;
 
   checkBackendConnection(): void {
-    // 1. Despertar microservicio de Viviendas en segundo plano (para que este listo al entrar a gestion de viviendas)
+    // 1. Despertar los microservicios de apoyo en paralelo (Viviendas, Condominios, Avisos)
     const pingViviendasUrl = `${environment.services.viviendas}/swagger/v1/swagger.json`;
+    const pingCondominiosUrl = `${environment.services.condominios}/swagger/v1/swagger.json`;
+    const pingAvisosUrl = `${environment.services.avisos}/swagger/v1/swagger.json`;
+
     this.http.get(pingViviendasUrl, { responseType: 'text' }).pipe(
+      timeout(PING_TIMEOUT),
+      catchError(() => of(null))
+    ).subscribe();
+
+    this.http.get(pingCondominiosUrl, { responseType: 'text' }).pipe(
+      timeout(PING_TIMEOUT),
+      catchError(() => of(null))
+    ).subscribe();
+
+    this.http.get(pingAvisosUrl, { responseType: 'text' }).pipe(
       timeout(PING_TIMEOUT),
       catchError(() => of(null))
     ).subscribe();
