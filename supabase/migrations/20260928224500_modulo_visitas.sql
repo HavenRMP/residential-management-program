@@ -79,3 +79,42 @@ BEGIN
     RETURN v_codigo;
 END;
 $$ LANGUAGE plpgsql VOLATILE;
+
+-- ==============================================================================
+-- 4. VISTA: vw_mis_visitas (Para el residente en sesión)
+-- ==============================================================================
+DROP VIEW IF EXISTS public.vw_mis_visitas CASCADE;
+
+CREATE VIEW public.vw_mis_visitas AS
+SELECT 
+    v.id,
+    v.vivienda_id,
+    viv.numero_casa,
+    viv.condominio_id,
+    v.creado_por,
+    v.nombre_visitante,
+    v.apellidos_visitante,
+    v.telefono_visitante,
+    v.motivo,
+    v.num_acompanantes,
+    v.vehiculo_placas,
+    v.notas,
+    v.fecha_llegada_esperada,
+    v.horas_vigencia,
+    (v.fecha_llegada_esperada + (v.horas_vigencia || ' hours')::interval) AS fecha_expiracion,
+    CASE 
+        WHEN v.estado = 'programada' AND (v.fecha_llegada_esperada + (v.horas_vigencia || ' hours')::interval) <= now() THEN 'expirada'
+        ELSE v.estado 
+    END AS estado_calculado,
+    v.codigo_acceso,
+    v.hora_entrada,
+    v.hora_salida,
+    v.creado_en
+FROM public.visitas v
+JOIN public.viviendas viv ON v.vivienda_id = viv.id
+WHERE EXISTS (
+    SELECT 1 FROM public.vivienda_residente vr 
+    WHERE vr.vivienda_id = v.vivienda_id AND vr.usuario_id = auth.uid()
+);
+
+GRANT SELECT ON public.vw_mis_visitas TO authenticated;
