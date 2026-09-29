@@ -4,13 +4,7 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { RouterLink } from '@angular/router';
 import Swal from 'sweetalert2';
 import { VigilantesService } from '../../../core/services/vigilantes.service';
-import { TurnoVigilante, Vigilante } from '../../../core/models/vigilante.model';
-
-const TURNOS: { valor: TurnoVigilante; etiqueta: string }[] = [
-  { valor: 'matutino', etiqueta: 'Matutino' },
-  { valor: 'vespertino', etiqueta: 'Vespertino' },
-  { valor: 'nocturno', etiqueta: 'Nocturno' }
-];
+import { Vigilante } from '../../../core/models/vigilante.model';
 
 @Component({
   selector: 'app-vigilantes-list',
@@ -95,7 +89,6 @@ const TURNOS: { valor: TurnoVigilante; etiqueta: string }[] = [
             <tr>
               <th class="px-4 py-2.5 text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Vigilante</th>
               <th class="px-4 py-2.5 text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Contacto</th>
-              <th class="px-4 py-2.5 text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Turno</th>
               <th class="px-4 py-2.5 text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Estatus</th>
               <th class="px-4 py-2.5 text-[11px] font-semibold text-slate-600 uppercase tracking-wide text-right">Acciones</th>
             </tr>
@@ -108,15 +101,6 @@ const TURNOS: { valor: TurnoVigilante; etiqueta: string }[] = [
               <td class="px-4 py-3">
                 <p class="text-xs text-slate-700">{{ v.email }}</p>
                 <p class="text-[11px] text-slate-500">{{ v.telefono }}</p>
-              </td>
-              <td class="px-4 py-3">
-                <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border"
-                  [class.bg-amber-50]="v.turno === 'matutino'" [class.text-amber-700]="v.turno === 'matutino'" [class.border-amber-200]="v.turno === 'matutino'"
-                  [class.bg-indigo-50]="v.turno === 'vespertino'" [class.text-indigo-700]="v.turno === 'vespertino'" [class.border-indigo-200]="v.turno === 'vespertino'"
-                  [class.bg-slate-100]="v.turno === 'nocturno'" [class.text-slate-700]="v.turno === 'nocturno'" [class.border-slate-300]="v.turno === 'nocturno'"
-                >
-                  {{ etiquetaTurno(v.turno) }}
-                </span>
               </td>
               <td class="px-4 py-3">
                 <span
@@ -246,16 +230,6 @@ const TURNOS: { valor: TurnoVigilante; etiqueta: string }[] = [
             </div>
           </div>
 
-          <div>
-            <label class="block text-xs font-semibold text-slate-800 mb-1">Turno *</label>
-            <select
-              formControlName="turno"
-              class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
-            >
-              <option *ngFor="let t of turnos" [value]="t.valor">{{ t.etiqueta }}</option>
-            </select>
-          </div>
-
           <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
             <button
               type="button"
@@ -281,7 +255,6 @@ export class VigilantesListComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   readonly vigilantesService = inject(VigilantesService);
 
-  readonly turnos = TURNOS;
   readonly tabActiva = signal<'activos' | 'inactivos'>('activos');
   readonly modalAbierto = signal<boolean>(false);
   readonly isSaving = signal<boolean>(false);
@@ -295,20 +268,15 @@ export class VigilantesListComponent implements OnInit {
     apellidos: ['', [Validators.required, Validators.pattern(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/)]],
     email: ['', [Validators.required, Validators.email]],
     telefono: ['', [Validators.required, Validators.pattern('^[0-9]{10}$')]],
-    password: ['', [Validators.required, Validators.minLength(8), Validators.maxLength(100)]],
-    turno: ['matutino', [Validators.required]]
+    password: ['', [Validators.required, Validators.minLength(8), Validators.maxLength(100)]]
   });
 
   ngOnInit(): void {
     this.vigilantesService.listar();
   }
 
-  etiquetaTurno(turno: string): string {
-    return TURNOS.find(t => t.valor === turno)?.etiqueta || turno;
-  }
-
   abrirModalCrear(): void {
-    this.form.reset({ nombre: '', apellidos: '', email: '', telefono: '', password: '', turno: 'matutino' });
+    this.form.reset({ nombre: '', apellidos: '', email: '', telefono: '', password: '' });
     this.modalAbierto.set(true);
   }
 
