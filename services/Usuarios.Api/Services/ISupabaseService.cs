@@ -15,6 +15,11 @@ public interface ISupabaseService
     Task<(List<UsuarioDto>? Items, int? TotalCount)> GetResidentesSinViviendaAsync(Guid condominioId, PaginationParams paginacion);
     Task<(UsuarioDto? usuario, string? error)> AsignarCondominioAdminAsync(Guid adminId, Guid condominioId);
     
+    // Vigilantes
+    Task<(List<VigilanteDto>? Items, int? TotalCount)> GetVigilantesAsync(Guid condominioId, PaginationParams paginacion);
+    Task<(bool Success, string? Error)> BajaVigilanteAsync(Guid id, string accessToken);
+    Task<(bool Success, string? Error)> ReactivarVigilanteAsync(Guid id, string accessToken);
+    
     // Notificaciones
     Task<(List<NotificacionDto>? Notificaciones, string? Error)> GetNotificacionesAsync(Guid userId, string accessToken);
     Task<(int? Count, string? Error)> GetContadorNoLeidasAsync(Guid userId, string accessToken);
