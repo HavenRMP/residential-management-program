@@ -288,7 +288,8 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
                 placeholder="correo@ejemplo.com"
                 class="h-9 w-full text-xs rounded-md border border-slate-200 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900"
               />
-              <p class="mt-1 text-[11px] text-slate-400">Debe ser una cuenta que ya exista en Haven.</p>
+              <p *ngIf="nuevoSub.email.trim() && !esCorreoValido()" class="mt-1 text-[11px] text-red-600 font-medium">Correo no válido.</p>
+              <p *ngIf="!nuevoSub.email.trim() || esCorreoValido()" class="mt-1 text-[11px] text-slate-400">Debe ser una cuenta que ya exista en Haven.</p>
             </div>
 
             <div>
@@ -360,9 +361,12 @@ export class SubusuariosComponent implements OnInit {
     }
   }
 
+  esCorreoValido(): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.nuevoSub.email.trim());
+  }
+
   esFormularioValido(): boolean {
-    const s = this.nuevoSub;
-    return !!(s.email.trim() && s.parentesco);
+    return this.esCorreoValido() && !!this.nuevoSub.parentesco;
   }
 
   abrirModalInvitacion(): void {

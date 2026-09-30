@@ -19,11 +19,15 @@ export class VisitasService {
   readonly isLoading = signal<boolean>(false);
   readonly errorMessage = signal<string | null>(null);
 
+  private ultimaPeticion = 0;
+
   /**
    * Carga las visitas de la vivienda del residente, de la más reciente a la más antigua
    * (GET /api/visitas/mis-visitas)
    */
   async cargar(estado?: EstadoVisita | null, page: number = 1): Promise<void> {
+    // Al cambiar de filtro rápido, una respuesta lenta de un filtro anterior no debe pisar la última
+    const peticion = ++this.ultimaPeticion;
     this.isLoading.set(true);
     this.errorMessage.set(null);
     try {
@@ -34,14 +38,16 @@ export class VisitasService {
       const response = await firstValueFrom(
         this.apiService.get<any>('/api/visitas/mis-visitas', params, undefined, 'visitas')
       );
+      if (peticion !== this.ultimaPeticion) return;
       this.items.set(extractPagedItems<Visita>(response));
       this.totalCount.set(response?.totalCount ?? this.items().length);
       this.page.set(response?.page ?? page);
     } catch (err: any) {
+      if (peticion !== this.ultimaPeticion) return;
       console.error('[VisitasService] Error al cargar visitas:', err);
       this.errorMessage.set(err?.error?.error || 'No se pudieron cargar las visitas.');
     } finally {
-      this.isLoading.set(false);
+      if (peticion === this.ultimaPeticion) this.isLoading.set(false);
     }
   }
 

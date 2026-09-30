@@ -185,6 +185,20 @@ function isoAInputLocal(iso: string): string {
                 <div *ngIf="v.codigo && (v.estado === 'programada' || v.estado === 'en_curso')" class="text-right">
                   <p class="text-[10px] uppercase tracking-wide font-semibold text-slate-500">Código de acceso</p>
                   <p class="font-mono text-base font-bold tracking-widest text-[#111C99]">{{ v.codigo }}</p>
+                  <div class="mt-1 flex items-center justify-end gap-1">
+                    <button type="button" (click)="copiarCodigo(v)"
+                      class="h-6 px-2 text-[11px] font-medium rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">
+                      Copiar
+                    </button>
+                    <button type="button" (click)="compartirCodigo(v)"
+                      class="h-6 px-2 text-[11px] font-medium rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">
+                      Compartir
+                    </button>
+                    <button type="button" (click)="imprimirCodigo(v)"
+                      class="h-6 px-2 text-[11px] font-medium rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">
+                      Imprimir
+                    </button>
+                  </div>
                 </div>
 
                 <div *ngIf="v.estado === 'programada'" class="flex items-center gap-1.5">
@@ -379,6 +393,73 @@ export class VisitasComponent implements OnInit {
 
   formatearFecha(iso: string | null | undefined): string {
     return formatearFechaVisita(iso);
+  }
+
+  /** Texto que se comparte con el visitante para que lo presente en caseta */
+  private textoCodigo(v: Visita): string {
+    return `Código de acceso Haven para ${v.nombreVisitante} ${v.apellidosVisitante}: ${v.codigo}. ` +
+      `Casa ${v.numeroCasa}, válido hasta ${this.formatearFecha(v.vigenciaHasta)}.`;
+  }
+
+  async copiarCodigo(v: Visita): Promise<void> {
+    if (!v.codigo) return;
+    try {
+      await navigator.clipboard.writeText(v.codigo);
+      this.avisarExito('Código copiado');
+    } catch (err) {
+      console.error('[VisitasComponent] No se pudo copiar el código:', err);
+      Swal.fire({ icon: 'info', title: 'Tu código', text: v.codigo, confirmButtonColor: '#111C99' });
+    }
+  }
+
+  async compartirCodigo(v: Visita): Promise<void> {
+    if (!v.codigo) return;
+    const texto = this.textoCodigo(v);
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Acceso a visita', text: texto });
+      } catch (err: any) {
+        // AbortError: el usuario cerró el diálogo de compartir, no es un fallo
+        if (err?.name !== 'AbortError') console.error('[VisitasComponent] Error al compartir:', err);
+      }
+      return;
+    }
+    // Sin Web Share API (escritorio): se copia el mensaje completo
+    try {
+      await navigator.clipboard.writeText(texto);
+      this.avisarExito('Mensaje copiado, pégalo donde quieras compartirlo');
+    } catch (err) {
+      console.error('[VisitasComponent] No se pudo copiar el mensaje:', err);
+      Swal.fire({ icon: 'info', title: 'Comparte este mensaje', text: texto, confirmButtonColor: '#111C99' });
+    }
+  }
+
+  imprimirCodigo(v: Visita): void {
+    if (!v.codigo) return;
+    const ventana = window.open('', '_blank', 'width=420,height=520');
+    if (!ventana) {
+      Swal.fire({ icon: 'warning', title: 'Ventana bloqueada', text: 'Permite las ventanas emergentes para imprimir el código.', confirmButtonColor: '#111C99' });
+      return;
+    }
+    const e = (t: string) => t.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+    ventana.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Acceso de visita</title>
+      <style>body{font-family:system-ui,sans-serif;text-align:center;padding:32px;color:#0f172a}
+      .codigo{font-family:monospace;font-size:44px;letter-spacing:.25em;font-weight:700;margin:24px 0;color:#111C99}
+      p{margin:6px 0;color:#475569}</style></head><body>
+      <h2>Acceso de visita</h2>
+      <p>${e(v.nombreVisitante)} ${e(v.apellidosVisitante)}</p>
+      <div class="codigo">${e(v.codigo)}</div>
+      <p>Casa ${e(v.numeroCasa)}</p>
+      <p>Llegada: ${e(this.formatearFecha(v.fechaLlegadaEsperada))}</p>
+      <p>Válido hasta: ${e(this.formatearFecha(v.vigenciaHasta))}</p>
+      <p>Presenta este código en caseta.</p></body></html>`);
+    ventana.document.close();
+    ventana.focus();
+    ventana.print();
+  }
+
+  private avisarExito(titulo: string): void {
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: titulo, showConfirmButton: false, timer: 2000 });
   }
 
   cambiarFiltro(estado: EstadoVisita | null): void {

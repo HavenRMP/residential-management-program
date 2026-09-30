@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpParams } from '@angular/common/http';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { VisitasVigilanciaService } from './visitas-vigilancia.service';
 import { ApiService } from './api.service';
 import { VisitaVigilancia } from '../models/visita.model';
@@ -82,5 +82,37 @@ describe('VisitasVigilanciaService', () => {
     await service.registrarSalida('v-1');
     expect(mockApiService.post.calls.mostRecent().args[0]).toBe('/api/visitas/v-1/salida');
     expect(service.items()[0].estado).toBe('finalizada');
+  });
+
+  it('no borra estado, casa ni vigencia cuando el backend responde la entrada con campos vacíos', async () => {
+    mockApiService.get.and.returnValue(of({ items: [visitaBase], totalCount: 1 }));
+    await service.cargarHoy();
+
+    // Respuesta real observada: estado '', numeroCasa '', vigenciaHasta 0001-01-01, viviendaId 0
+    mockApiService.post.and.returnValue(of({
+      ...visitaBase, estado: '', numeroCasa: '', viviendaId: 0, horaEntrada: '2026-10-01T15:05:00Z'
+    } as unknown as VisitaVigilancia));
+    const resultado = await service.registrarEntrada('v-1');
+
+    expect(resultado.estado).toBe('en_curso');
+    expect(service.items()[0].estado).toBe('en_curso');
+    expect(service.items()[0].numeroCasa).toBe('PRUEBA-01');
+    expect(service.items()[0].viviendaId).toBe(33);
+    expect(service.items()[0].horaEntrada).toBe('2026-10-01T15:05:00Z');
+  });
+
+  it('descarta la respuesta atrasada de una búsqueda anterior', async () => {
+    const lenta = new Subject<any>();
+    mockApiService.get.and.returnValues(lenta.asObservable(), of({ items: [{ ...visitaBase, id: 'v-2' }], totalCount: 1 }));
+
+    const primera = service.cargarHoy('Pe');
+    const segunda = service.cargarHoy('Perez');
+    await segunda;
+    lenta.next({ items: [visitaBase], totalCount: 1 });
+    lenta.complete();
+    await primera;
+
+    expect(service.items().map(v => v.id)).toEqual(['v-2']);
+    expect(service.isLoading()).toBeFalse();
   });
 });

@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import Swal from 'sweetalert2';
@@ -8,9 +8,12 @@ import {
   ETIQUETAS_ESTADO_VISITA,
   EstadoVisita,
   formatearFechaVisita,
+  fusionarSinVacios,
   MOTIVOS_VISITA,
   VisitaVigilancia
 } from '../../../core/models/visita.model';
+
+const BUSQUEDA_DEBOUNCE_MS = 350;
 
 @Component({
   selector: 'app-caseta-visitas',
@@ -76,24 +79,17 @@ import {
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div>
             <h2 class="text-sm font-semibold text-slate-900">Visitas de hoy</h2>
-            <p class="text-xs text-slate-500 mt-0.5">Programadas y en curso. Busca por nombre, código o número de casa.</p>
+            <p class="text-xs text-slate-500 mt-0.5">Programadas y en curso. La lista se filtra mientras escribes.</p>
           </div>
 
           <div class="flex items-center gap-2">
             <input
               type="text"
               [(ngModel)]="busqueda"
-              (keyup.enter)="buscar()"
-              placeholder="Buscar..."
-              class="h-8 w-44 text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+              (ngModelChange)="onBusquedaCambio()"
+              placeholder="Nombre, código o casa..."
+              class="h-8 w-56 text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
             />
-            <button
-              type="button"
-              (click)="buscar()"
-              class="h-8 px-3 rounded-md border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-            >
-              Buscar
-            </button>
             <button
               type="button"
               (click)="recargar()"
@@ -148,7 +144,14 @@ import {
               </p>
             </div>
 
-            <div class="shrink-0">
+            <div class="shrink-0 flex items-center gap-2">
+              <button
+                type="button"
+                (click)="abrirDetalle(v)"
+                class="h-8 px-3 rounded-md border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Detalle
+              </button>
               <ng-container *ngTemplateOutlet="acciones; context: { $implicit: v }"></ng-container>
             </div>
           </li>
@@ -176,6 +179,51 @@ import {
       </section>
     </div>
 
+    <!-- Modal de detalle de visita -->
+    <div
+      *ngIf="visitaDetalle() as d"
+      class="fixed inset-0 z-50 overflow-y-auto bg-black/40 backdrop-blur-xs flex items-center justify-center p-4"
+      (click)="cerrarDetalle()"
+    >
+      <div class="bg-white rounded-lg max-w-md w-full p-5 shadow-lg border border-slate-200" (click)="$event.stopPropagation()">
+        <div class="flex items-start justify-between pb-3 border-b border-slate-100">
+          <div>
+            <h3 class="text-sm font-semibold text-slate-900">{{ d.nombreVisitante }} {{ d.apellidosVisitante }}</h3>
+            <span class="mt-1 inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border" [ngClass]="claseEstado(d.estado)">
+              {{ etiquetaEstado(d.estado) }}
+            </span>
+          </div>
+          <button type="button" (click)="cerrarDetalle()" class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer" title="Cerrar">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <dl class="mt-3 grid grid-cols-3 gap-x-3 gap-y-2 text-xs">
+          <dt class="text-slate-500">Casa</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.numeroCasa }}</dd>
+          <dt class="text-slate-500">Motivo</dt><dd class="col-span-2 font-medium text-slate-900">{{ etiquetaMotivo(d.motivo) }}</dd>
+          <dt class="text-slate-500">Teléfono</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.telefonoVisitante || '—' }}</dd>
+          <dt class="text-slate-500">Acompañantes</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.numAcompanantes }}</dd>
+          <dt class="text-slate-500">Placas</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.vehiculoPlacas || '—' }}</dd>
+          <dt class="text-slate-500">Notas</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.notas || '—' }}</dd>
+          <dt class="text-slate-500">Llegada esperada</dt><dd class="col-span-2 font-medium text-slate-900">{{ formatearFecha(d.fechaLlegadaEsperada) }}</dd>
+          <dt class="text-slate-500">Vigente hasta</dt><dd class="col-span-2 font-medium text-slate-900">{{ formatearFecha(d.vigenciaHasta) || '—' }}</dd>
+          <dt class="text-slate-500">Entrada</dt><dd class="col-span-2 font-medium text-slate-900">{{ formatearFecha(d.horaEntrada) || '—' }}</dd>
+          <dt class="text-slate-500">Salida</dt><dd class="col-span-2 font-medium text-slate-900">{{ formatearFecha(d.horaSalida) || '—' }}</dd>
+          <dt class="text-slate-500">Registrada por</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.creadoPorNombre || 'el residente' }}</dd>
+        </dl>
+
+        <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+          <button type="button" (click)="cerrarDetalle()"
+            class="h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer">
+            Cerrar
+          </button>
+          <ng-container *ngTemplateOutlet="acciones; context: { $implicit: d }"></ng-container>
+        </div>
+      </div>
+    </div>
+
     <!-- Botón de acción según el estado de la visita -->
     <ng-template #acciones let-v>
       <button
@@ -199,11 +247,12 @@ import {
     </ng-template>
   `
 })
-export class CasetaVisitasComponent implements OnInit {
+export class CasetaVisitasComponent implements OnInit, OnDestroy {
   readonly visitasService = inject(VisitasVigilanciaService);
 
   codigo = '';
   busqueda = '';
+  private temporizadorBusqueda?: ReturnType<typeof setTimeout>;
 
   readonly isValidando = signal<boolean>(false);
   readonly visitaValidada = signal<VisitaVigilancia | null>(null);
@@ -211,12 +260,22 @@ export class CasetaVisitasComponent implements OnInit {
   /** Id de la visita a la que se le está registrando entrada o salida */
   readonly visitaEnProceso = signal<string | null>(null);
 
+  private readonly detalleId = signal<string | null>(null);
+  /** Se deriva de la lista para que el modal refleje entrada y salida registradas sin cerrarse */
+  readonly visitaDetalle = computed(() =>
+    this.visitasService.items().find(v => v.id === this.detalleId()) ?? null
+  );
+
   readonly totalPaginas = computed(() =>
     Math.max(1, Math.ceil(this.visitasService.totalCount() / this.visitasService.PAGE_SIZE))
   );
 
   ngOnInit(): void {
     this.visitasService.cargarHoy();
+  }
+
+  ngOnDestroy(): void {
+    clearTimeout(this.temporizadorBusqueda);
   }
 
   etiquetaEstado(estado: EstadoVisita): string {
@@ -235,8 +294,18 @@ export class CasetaVisitasComponent implements OnInit {
     return formatearFechaVisita(iso);
   }
 
-  buscar(): void {
-    this.visitasService.cargarHoy(this.busqueda, 1);
+  abrirDetalle(v: VisitaVigilancia): void {
+    this.detalleId.set(v.id);
+  }
+
+  cerrarDetalle(): void {
+    this.detalleId.set(null);
+  }
+
+  /** Espera a que el guardia deje de teclear para no disparar una petición por letra */
+  onBusquedaCambio(): void {
+    clearTimeout(this.temporizadorBusqueda);
+    this.temporizadorBusqueda = setTimeout(() => this.visitasService.cargarHoy(this.busqueda, 1), BUSQUEDA_DEBOUNCE_MS);
   }
 
   recargar(): void {
@@ -285,7 +354,7 @@ export class CasetaVisitasComponent implements OnInit {
     try {
       const actualizada = await accion();
       if (this.visitaValidada()?.id === v.id) {
-        this.visitaValidada.set({ ...this.visitaValidada()!, ...actualizada });
+        this.visitaValidada.set(fusionarSinVacios(this.visitaValidada()!, actualizada));
       }
       Swal.fire({
         toast: true,
