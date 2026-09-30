@@ -568,7 +568,7 @@ public class SupabaseService : ISupabaseService
         return (invitacion, null);
     }
 
-    public async Task<bool> ResponderInvitacionAsync(Guid invitacionId, Guid usuarioId, string respuesta, string accessToken)
+    public async Task<(bool Success, string? Error)> ResponderInvitacionAsync(Guid invitacionId, Guid usuarioId, string respuesta, string accessToken)
     {
         var url = $"{_supabaseUrl}/rest/v1/rpc/responder_invitacion_subusuario";
         var payload = new { p_invitacion_id = invitacionId, p_usuario_id = usuarioId, p_respuesta = respuesta };
@@ -581,10 +581,16 @@ public class SupabaseService : ISupabaseService
         request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
 
         var response = await SendRequestAsync(request);
-        return response.IsSuccessStatusCode;
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogError("Failed to respond to invitation. Status: {StatusCode}, Body: {Body}", response.StatusCode, errorBody);
+            return (false, $"Error desde Supabase: {errorBody}");
+        }
+        return (true, null);
     }
 
-    public async Task<bool> CancelarInvitacionAsync(Guid invitacionId, string accessToken)
+    public async Task<(bool Success, string? Error)> CancelarInvitacionAsync(Guid invitacionId, string accessToken)
     {
         var url = $"{_supabaseUrl}/rest/v1/rpc/cancelar_invitacion_subusuario";
         var payload = new { p_id = invitacionId };
@@ -597,10 +603,16 @@ public class SupabaseService : ISupabaseService
         request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
 
         var response = await SendRequestAsync(request);
-        return response.IsSuccessStatusCode;
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogError("Failed to cancel invitation {InvitacionId}. Status: {StatusCode}, Body: {Body}", invitacionId, response.StatusCode, errorBody);
+            return (false, $"Error desde Supabase: {errorBody}");
+        }
+        return (true, null);
     }
 
-    public async Task<bool> RevocarSubusuarioAsync(int viviendaId, Guid usuarioId, string accessToken)
+    public async Task<(bool Success, string? Error)> RevocarSubusuarioAsync(int viviendaId, Guid usuarioId, string accessToken)
     {
         var url = $"{_supabaseUrl}/rest/v1/rpc/baja_subusuario";
         var payload = new { p_vivienda_id = viviendaId, p_usuario_id = usuarioId };
@@ -613,6 +625,12 @@ public class SupabaseService : ISupabaseService
         request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
 
         var response = await SendRequestAsync(request);
-        return response.IsSuccessStatusCode;
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogError("Failed to revoke subusuario {UsuarioId} from vivienda {ViviendaId}. Status: {StatusCode}, Body: {Body}", usuarioId, viviendaId, response.StatusCode, errorBody);
+            return (false, $"Error desde Supabase: {errorBody}");
+        }
+        return (true, null);
     }
 }

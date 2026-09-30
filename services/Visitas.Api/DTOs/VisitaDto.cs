@@ -40,10 +40,10 @@ public class VisitaDto
     [JsonPropertyName("fecha_llegada_esperada")]
     public DateTimeOffset FechaLlegadaEsperada { get; set; }
 
-    [JsonPropertyName("vigencia_hasta")]
+    [JsonPropertyName("fecha_expiracion")]
     public DateTimeOffset VigenciaHasta { get; set; }
 
-    [JsonPropertyName("estado")]
+    [JsonPropertyName("estado_calculado")]
     public string Estado { get; set; } = string.Empty;
 
     [JsonPropertyName("hora_entrada")]
@@ -52,7 +52,7 @@ public class VisitaDto
     [JsonPropertyName("hora_salida")]
     public DateTimeOffset? HoraSalida { get; set; }
 
-    [JsonPropertyName("codigo")]
+    [JsonPropertyName("codigo_acceso")]
     public string? Codigo { get; set; }
 
     [JsonPropertyName("creado_por")]
