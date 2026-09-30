@@ -7,6 +7,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { ViviendasService } from '../../../core/services/viviendas.service';
 import { CondominiosService } from '../../../core/services/condominios.service';
 import { AvisosService } from '../../../core/services/avisos.service';
+import { SubusuariosService } from '../../../core/services/subusuarios.service';
 import { CacheService } from '../../../core/services/cache.service';
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { Aviso, AvisoPrioridad } from '../../../core/models/aviso.model';
@@ -87,6 +88,30 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
           </a>
           </div>
         </div>
+
+        <!-- Banner: invitaciones de sub-usuario pendientes (visible aunque aún no tenga vivienda propia) -->
+        <a
+          *ngIf="subusuariosService.invitacionesRecibidas().length > 0"
+          routerLink="/dashboard/residente/subusuarios"
+          class="flex items-center justify-between gap-3 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 hover:bg-indigo-100/70 transition-colors"
+        >
+          <div class="flex items-center gap-3 min-w-0">
+            <span class="shrink-0 h-8 w-8 inline-flex items-center justify-center rounded-full bg-indigo-600 text-white">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </span>
+            <div class="min-w-0">
+              <p class="text-sm font-semibold text-indigo-900">
+                {{ subusuariosService.invitacionesRecibidas().length === 1 ? 'Tienes una invitación de sub-usuario pendiente' : 'Tienes ' + subusuariosService.invitacionesRecibidas().length + ' invitaciones de sub-usuario pendientes' }}
+              </p>
+              <p class="text-xs text-indigo-800/80 truncate">
+                De {{ subusuariosService.invitacionesRecibidas()[0]?.titularNombre || 'un residente' }}<span *ngIf="subusuariosService.invitacionesRecibidas()[0]?.numeroCasa"> · Unidad {{ subusuariosService.invitacionesRecibidas()[0]?.numeroCasa }}</span>. Acéptala o recházala.
+              </p>
+            </div>
+          </div>
+          <span class="shrink-0 text-xs font-semibold text-indigo-700">Ver invitaciones →</span>
+        </a>
 
         <!-- Estado de Carga -->
         <div *ngIf="isLoadingVivienda()" class="rounded-xl border border-slate-200/90 bg-white p-6 shadow-xs animate-pulse">
@@ -270,6 +295,7 @@ export class ResidenteDashboardComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   readonly avisosService = inject(AvisosService);
+  readonly subusuariosService = inject(SubusuariosService);
 
   readonly currentUser = this.authService.currentUser;
   readonly misViviendas = signal<Vivienda[]>([]);
@@ -289,6 +315,8 @@ export class ResidenteDashboardComponent implements OnInit {
     if (condId) {
       await this.avisosService.cargarAvisos(condId);
     }
+    // Sin await: el banner de invitaciones no debe retrasar la carga del portal
+    this.subusuariosService.cargarInvitacionesRecibidas();
     await this.cargarDatosResidente();
     this.abrirAvisoDesdeNotificacion();
   }
