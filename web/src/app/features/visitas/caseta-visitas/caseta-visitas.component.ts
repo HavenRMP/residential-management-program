@@ -214,22 +214,36 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
           <dt class="text-slate-500">Registrada por</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.creadoPorNombre || 'el residente' }}</dd>
         </dl>
 
+        <!-- Captura de placas al dar ingreso -->
+        <div *ngIf="d.estado === 'programada'" class="mt-3">
+          <label class="block text-xs font-semibold text-slate-800 mb-1" for="placas-entrada">Placas del vehículo (opcional)</label>
+          <input
+            id="placas-entrada"
+            type="text"
+            [(ngModel)]="placasEntrada"
+            maxlength="15"
+            autocomplete="off"
+            placeholder="Ej. ABC-123"
+            class="h-9 w-full text-xs uppercase rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 placeholder:normal-case focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+          />
+        </div>
+
         <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
           <button type="button" (click)="cerrarDetalle()"
             class="h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer">
             Cerrar
           </button>
-          <ng-container *ngTemplateOutlet="acciones; context: { $implicit: d }"></ng-container>
+          <ng-container *ngTemplateOutlet="acciones; context: { $implicit: d, conPlacas: true }"></ng-container>
         </div>
       </div>
     </div>
 
     <!-- Botón de acción según el estado de la visita -->
-    <ng-template #acciones let-v>
+    <ng-template #acciones let-v let-conPlacas="conPlacas">
       <button
         *ngIf="v.estado === 'programada'"
         type="button"
-        (click)="registrarEntrada(v)"
+        (click)="registrarEntrada(v, conPlacas ? placasEntrada : undefined)"
         [disabled]="visitaEnProceso() === v.id"
         class="h-8 px-3 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
       >
@@ -252,6 +266,8 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
 
   codigo = '';
   busqueda = '';
+  /** Placas que el guardia captura en el detalle al dar ingreso */
+  placasEntrada = '';
   private temporizadorBusqueda?: ReturnType<typeof setTimeout>;
 
   readonly isValidando = signal<boolean>(false);
@@ -296,6 +312,8 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
 
   abrirDetalle(v: VisitaVigilancia): void {
     this.detalleId.set(v.id);
+    // Si el residente ya indicó las placas al programar, se precargan para confirmarlas o corregirlas
+    this.placasEntrada = v.vehiculoPlacas ?? '';
   }
 
   cerrarDetalle(): void {
@@ -334,8 +352,8 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
     }
   }
 
-  async registrarEntrada(v: VisitaVigilancia): Promise<void> {
-    await this.ejecutarAccion(v, () => this.visitasService.registrarEntrada(v.id), 'Entrada registrada', 'No se pudo registrar la entrada');
+  async registrarEntrada(v: VisitaVigilancia, vehiculoPlacas?: string): Promise<void> {
+    await this.ejecutarAccion(v, () => this.visitasService.registrarEntrada(v.id, vehiculoPlacas), 'Entrada registrada', 'No se pudo registrar la entrada');
   }
 
   async registrarSalida(v: VisitaVigilancia): Promise<void> {
