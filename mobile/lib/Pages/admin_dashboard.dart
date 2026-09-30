@@ -7,6 +7,7 @@ import '../Services/viviendas_service.dart';
 import 'residentes_list.dart';
 import 'viviendas_list.dart';
 import 'avisos_admin_screen.dart';
+import 'visitas_admin_screen.dart';
 import 'perfil_screen.dart';
 import '../Services/push_notifications_service.dart';
 
@@ -122,6 +123,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _buildHomePage(context, nombre, condominioId),
       ResidentesListScreen(controller: widget.controller),
       ViviendasListScreen(controller: widget.controller),
+      VisitasAdminScreen(controller: widget.controller),
       AvisosAdminScreen(controller: widget.controller),
     ];
 
@@ -244,6 +246,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               color: Color(0xFF111C99),
             ),
             label: 'Viviendas',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.badge_outlined, color: Color(0xFF64748B)),
+            selectedIcon: Icon(
+              Icons.badge_rounded,
+              color: Color(0xFF111C99),
+            ),
+            label: 'Visitas',
           ),
           NavigationDestination(
             icon: Icon(Icons.campaign_outlined, color: Color(0xFF64748B)),
