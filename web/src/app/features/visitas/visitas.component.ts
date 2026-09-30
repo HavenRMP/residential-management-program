@@ -9,7 +9,10 @@ import { VisitasService } from '../../core/services/visitas.service';
 import {
   ActualizarVisitaDto,
   CrearVisitaDto,
+  CLASES_ESTADO_VISITA,
+  ETIQUETAS_ESTADO_VISITA,
   EstadoVisita,
+  formatearFechaVisita,
   MOTIVOS_VISITA,
   MotivoVisita,
   Visita
@@ -24,22 +27,6 @@ const FILTROS: { valor: EstadoVisita | null; etiqueta: string }[] = [
   { valor: 'cancelada', etiqueta: 'Canceladas' },
   { valor: 'expirada', etiqueta: 'Expiradas' }
 ];
-
-const ETIQUETAS_ESTADO: Record<EstadoVisita, string> = {
-  programada: 'Programada',
-  en_curso: 'En curso',
-  finalizada: 'Finalizada',
-  cancelada: 'Cancelada',
-  expirada: 'Expirada'
-};
-
-const CLASES_ESTADO: Record<EstadoVisita, string> = {
-  programada: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-  en_curso: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  finalizada: 'bg-slate-100 text-slate-700 border-slate-200',
-  cancelada: 'bg-rose-50 text-rose-700 border-rose-200',
-  expirada: 'bg-amber-50 text-amber-700 border-amber-200'
-};
 
 interface FormularioVisita {
   nombreVisitante: string;
@@ -379,11 +366,11 @@ export class VisitasComponent implements OnInit {
   }
 
   etiquetaEstado(estado: EstadoVisita): string {
-    return ETIQUETAS_ESTADO[estado] ?? estado;
+    return ETIQUETAS_ESTADO_VISITA[estado] ?? estado;
   }
 
   claseEstado(estado: EstadoVisita): string {
-    return CLASES_ESTADO[estado] ?? 'bg-slate-100 text-slate-700 border-slate-200';
+    return CLASES_ESTADO_VISITA[estado] ?? 'bg-slate-100 text-slate-700 border-slate-200';
   }
 
   etiquetaMotivo(motivo: string): string {
@@ -391,8 +378,7 @@ export class VisitasComponent implements OnInit {
   }
 
   formatearFecha(iso: string | null | undefined): string {
-    if (!iso) return '';
-    return new Date(iso).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+    return formatearFechaVisita(iso);
   }
 
   cambiarFiltro(estado: EstadoVisita | null): void {
