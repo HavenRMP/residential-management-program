@@ -4,6 +4,7 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { PingService } from '../../../core/services/ping.service';
+import { traducirErrorLogin } from '../../../core/utils/auth-errors.util';
 import Swal from 'sweetalert2';
 
 @Component({
@@ -328,11 +329,7 @@ export class LoginComponent implements OnInit {
           });
         }
       } else {
-        let errText = result.error || 'Ocurrió un error al iniciar sesión.';
-        if (errText.includes('Invalid login credentials')) {
-          errText = 'Correo o contraseña incorrectos.';
-        }
-        this.errorMessage.set(errText);
+        this.errorMessage.set(traducirErrorLogin(result.error));
       }
     } finally {
       clearTimeout(wakingTimer);
