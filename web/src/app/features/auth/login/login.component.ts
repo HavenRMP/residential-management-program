@@ -56,7 +56,7 @@ import Swal from 'sweetalert2';
         </p>
 
         <!-- Skeleton de carga: sustituye al formulario mientras se valida la sesión -->
-        <div *ngIf="isSubmitting() || isSubmittingGoogle()" class="space-y-6" aria-live="polite" aria-busy="true">
+        <div *ngIf="mostrarSkeleton()" class="space-y-6" aria-live="polite" aria-busy="true">
           <div class="flex items-center gap-3 p-3.5 rounded-lg bg-[#111C99]/5 border border-[#111C99]/10">
             <span class="relative flex h-2.5 w-2.5 shrink-0">
               <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#111C99]/50"></span>
@@ -79,7 +79,7 @@ import Swal from 'sweetalert2';
         </div>
 
         <!-- Form -->
-        <form *ngIf="!isSubmitting() && !isSubmittingGoogle()" [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="space-y-6">
+        <form *ngIf="!mostrarSkeleton()" [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="space-y-6">
           <!-- Error Banner -->
           <div *ngIf="errorMessage()" class="p-3.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm font-medium flex items-center gap-2.5">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 shrink-0 text-red-600">
@@ -228,6 +228,11 @@ export class LoginComponent implements OnInit {
   readonly errorMessage = signal<string | null>(null);
   readonly modo = signal<'residente' | 'staff'>('residente');
   readonly showPassword = signal<boolean>(false);
+
+  /** También cubre la restauración de sesión al abrir la app, no solo el envío del formulario */
+  readonly mostrarSkeleton = computed(() =>
+    this.isSubmitting() || this.isSubmittingGoogle() || this.authService.isLoading()
+  );
 
   readonly mensajeEstadoCarga = computed(() => {
     if (this.isSubmittingGoogle()) return 'Redirigiendo a Google...';
