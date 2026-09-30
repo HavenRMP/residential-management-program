@@ -363,4 +363,52 @@ public class VisitasController : ControllerBase
             return StatusCode(status, new { error = mensaje });
         }
     }
+    [HttpGet("historico")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetVisitasHistorico(
+        [FromQuery] PaginationParams paginacion,
+        [FromQuery] DateTimeOffset? desde = null,
+        [FromQuery] DateTimeOffset? hasta = null,
+        [FromQuery] int? viviendaId = null,
+        [FromQuery] string? estado = null)
+    {
+        var (roleError, condominioId, _) = await ValidateRoleAsync(
+            r => r.EsAdministrador(),
+            "Se requiere rol de administrador para consultar el histórico"
+        );
+
+        if (roleError != null)
+            return roleError;
+
+        if (desde.HasValue && hasta.HasValue && desde.Value > hasta.Value)
+        {
+            return BadRequest(new { error = "La fecha 'desde' no puede ser posterior a la fecha 'hasta'." });
+        }
+
+        if (!string.IsNullOrEmpty(estado))
+        {
+            var validStates = new[] { "programada", "en_curso", "finalizada", "cancelada", "expirada" };
+            if (!validStates.Contains(estado.ToLowerInvariant()))
+            {
+                return BadRequest(new { error = "El estado proporcionado no es válido." });
+            }
+            estado = estado.ToLowerInvariant();
+        }
+
+        if (condominioId == null)
+        {
+            return Ok(PagedResult<object>.Create(new List<object>(), paginacion, 0));
+        }
+
+        var (items, totalCount) = await _supabaseService.GetVisitasHistoricoAsync(
+            condominioId.Value, desde, hasta, viviendaId, estado, paginacion);
+
+        var resultList = items.Select(ProyectarVisitaVigilancia).ToList();
+
+        var pagedResult = PagedResult<object>.Create(resultList, paginacion, totalCount);
+        return Ok(pagedResult);
+    }
 }
