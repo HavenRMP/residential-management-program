@@ -63,12 +63,14 @@ export class VisitasVigilanciaService {
   }
 
   /**
-   * Registra la entrada de una visita y notifica al residente
+   * Registra la entrada de una visita y notifica al residente. Si el guardia captura las placas
+   * del vehículo se guardan junto con la entrada.
    * (POST /api/visitas/{id}/entrada)
    */
-  async registrarEntrada(id: string): Promise<VisitaVigilancia> {
+  async registrarEntrada(id: string, vehiculoPlacas?: string): Promise<VisitaVigilancia> {
+    const placas = vehiculoPlacas?.trim().toUpperCase();
     const respuesta = await firstValueFrom(
-      this.apiService.post<VisitaVigilancia>(`/api/visitas/${id}/entrada`, {}, undefined, 'visitas')
+      this.apiService.post<VisitaVigilancia>(`/api/visitas/${id}/entrada`, placas ? { vehiculoPlacas: placas } : {}, undefined, 'visitas')
     );
     return this.aplicar(id, respuesta, 'en_curso');
   }
