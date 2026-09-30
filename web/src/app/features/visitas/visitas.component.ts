@@ -17,6 +17,7 @@ import {
   MotivoVisita,
   Visita
 } from '../../core/models/visita.model';
+import { Vivienda } from '../../core/models/vivienda.model';
 import { UserMenuComponent } from '../../core/components/user-menu/user-menu.component';
 import { generarQrDataUrl } from '../../core/utils/qr.util';
 
@@ -30,6 +31,8 @@ const FILTROS: { valor: EstadoVisita | null; etiqueta: string }[] = [
 ];
 
 interface FormularioVisita {
+  /** Vivienda para la que se programa (solo se elige cuando el residente tiene más de una) */
+  viviendaId: number;
   nombreVisitante: string;
   apellidosVisitante: string;
   telefonoVisitante: string;
@@ -167,6 +170,9 @@ function isoAInputLocal(iso: string): string {
                   <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border bg-slate-50 text-slate-600 border-slate-200">
                     {{ etiquetaMotivo(v.motivo) }}
                   </span>
+                  <span *ngIf="viviendas().length > 1" class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border bg-slate-50 text-slate-600 border-slate-200">
+                    Casa {{ v.numeroCasa }}
+                  </span>
                 </div>
                 <p class="text-xs text-slate-600">
                   Llegada: {{ formatearFecha(v.fechaLlegadaEsperada) }} · Vigente hasta {{ formatearFecha(v.vigenciaHasta) }}
@@ -266,6 +272,14 @@ function isoAInputLocal(iso: string): string {
         </div>
 
         <div class="mt-3.5 space-y-3">
+          <div *ngIf="viviendas().length > 1 && !visitaEditandoId()">
+            <label class="block text-xs font-semibold text-slate-800 mb-1">Vivienda *</label>
+            <select [(ngModel)]="form.viviendaId"
+              class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]">
+              <option *ngFor="let viv of viviendas()" [ngValue]="viv.id">{{ viv.numeroCasa }}</option>
+            </select>
+          </div>
+
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-semibold text-slate-800 mb-1">Nombre *</label>
@@ -356,6 +370,7 @@ export class VisitasComponent implements OnInit {
 
   readonly isLoadingVivienda = signal<boolean>(true);
   readonly viviendaId = signal<number | null>(null);
+  readonly viviendas = signal<Vivienda[]>([]);
   readonly filtroActivo = signal<EstadoVisita | null>(null);
   readonly modalAbierto = signal<boolean>(false);
   readonly isSaving = signal<boolean>(false);
@@ -373,6 +388,7 @@ export class VisitasComponent implements OnInit {
     this.isLoadingVivienda.set(true);
     try {
       const viviendas = await this.viviendasService.obtenerMisViviendas();
+      this.viviendas.set(viviendas);
       const id = viviendas[0]?.id ?? null;
       this.viviendaId.set(id);
       if (id) {
@@ -536,6 +552,7 @@ export class VisitasComponent implements OnInit {
     this.visitaOriginal = v;
     const horas = Math.round((new Date(v.vigenciaHasta).getTime() - new Date(v.fechaLlegadaEsperada).getTime()) / 3_600_000);
     this.form = {
+      viviendaId: v.viviendaId,
       nombreVisitante: v.nombreVisitante,
       apellidosVisitante: v.apellidosVisitante,
       telefonoVisitante: v.telefonoVisitante ?? '',
@@ -604,10 +621,10 @@ export class VisitasComponent implements OnInit {
   }
 
   private async guardarNueva(): Promise<void> {
-    const viviendaId = this.viviendaId();
+    const f = this.form;
+    const viviendaId = f.viviendaId || this.viviendaId();
     if (!viviendaId) return;
 
-    const f = this.form;
     const dto: CrearVisitaDto = {
       viviendaId,
       nombreVisitante: f.nombreVisitante.trim(),
@@ -682,6 +699,7 @@ export class VisitasComponent implements OnInit {
 
   private formularioVacio(): FormularioVisita {
     return {
+      viviendaId: this.viviendaId() ?? 0,
       nombreVisitante: '',
       apellidosVisitante: '',
       telefonoVisitante: '',
