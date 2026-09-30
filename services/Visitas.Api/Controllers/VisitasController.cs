@@ -252,7 +252,7 @@ public class VisitasController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetVisitasHoy([FromQuery] PaginationParams paginacion)
+    public async Task<IActionResult> GetVisitasHoy([FromQuery] PaginationParams paginacion, [FromQuery] string? busqueda = null)
     {
         var (roleError, condominioId, _) = await ValidateRoleAsync(
             r => r.PuedeConsultarDatosResidenciales(),
@@ -267,7 +267,7 @@ public class VisitasController : ControllerBase
             return Ok(PagedResult<object>.Create(new List<object>(), paginacion, 0));
         }
 
-        var (items, totalCount) = await _supabaseService.GetVisitasHoyAsync(condominioId.Value, paginacion);
+        var (items, totalCount) = await _supabaseService.GetVisitasHoyAsync(condominioId.Value, paginacion, busqueda);
         
         var resultList = items.Select(ProyectarVisitaVigilancia).ToList();
         
