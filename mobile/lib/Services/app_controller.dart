@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../Models/auth_user.dart';
 import '../Models/api_exceptions.dart';
+import 'push_notifications_service.dart';
 import '../main.dart';
 
 class AppController extends ChangeNotifier {
@@ -381,6 +382,10 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    final oldUserId = _currentUser?.id;
+    if (oldUserId != null) {
+      unawaited(PushNotificationsService.unsubscribeFromUserTopic(oldUserId));
+    }
     final client = _supabaseClient;
     if (client != null) {
       await client.auth.signOut();
@@ -489,6 +494,9 @@ class AppController extends ChangeNotifier {
         apellidos: resolvedApellidos,
       );
       _errorMessage = null;
+      if (_currentUser?.id != null) {
+        unawaited(PushNotificationsService.subscribeToUserTopic(_currentUser!.id));
+      }
     } on UnauthorizedException {
       rethrow;
     } catch (e) {
@@ -520,6 +528,9 @@ class AppController extends ChangeNotifier {
       apellidos: _nb(um['apellidos']) ?? _nb(um['last_name']),
     );
     _errorMessage = null;
+    if (_currentUser?.id != null) {
+      unawaited(PushNotificationsService.subscribeToUserTopic(_currentUser!.id));
+    }
     _isLoading = false;
     notifyListeners();
   }
