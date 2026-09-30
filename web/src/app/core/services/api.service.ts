@@ -5,7 +5,7 @@ import { tap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { CacheService } from './cache.service';
 
-export type MicroserviceName = 'usuarios' | 'viviendas' | 'condominios' | 'avisos' | 'default';
+export type MicroserviceName = 'usuarios' | 'viviendas' | 'condominios' | 'avisos' | 'visitas' | 'default';
 
 @Injectable({
   providedIn: 'root'
@@ -43,6 +43,9 @@ export class ApiService {
     }
     if (lower.startsWith('/api/avisos')) {
       return `${(services as any).avisos}${endpoint}`;
+    }
+    if (lower.startsWith('/api/visitas')) {
+      return `${(services as any).visitas}${endpoint}`;
     }
 
     // 3. Fallback al servicio default (monolito)
