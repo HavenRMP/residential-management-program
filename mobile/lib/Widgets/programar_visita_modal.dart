@@ -255,7 +255,7 @@ class _ProgramarVisitaModalState extends State<ProgramarVisitaModal> {
                   ),
                   const SizedBox(height: 6),
                   DropdownButtonFormField<int>(
-                    value: _selectedViviendaId != 0 ? _selectedViviendaId : null,
+                    initialValue: _selectedViviendaId != 0 ? _selectedViviendaId : null,
                     decoration: InputDecoration(
                       filled: true,
                       fillColor: const Color(0xFFF8FAFC),

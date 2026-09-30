@@ -274,8 +274,12 @@ class _VigilanteDashboardScreenState extends State<VigilanteDashboardScreen> {
 
                           if (res['success'] == true) {
                             final visita = res['visita'] as VisitaModel;
-                            Navigator.pop(dialogCtx);
-                            _mostrarResultadoValidacion(visita);
+                            if (dialogCtx.mounted) {
+                              Navigator.pop(dialogCtx);
+                            }
+                            if (mounted) {
+                              _mostrarResultadoValidacion(visita);
+                            }
                           } else {
                             setModalState(() {
                               errorLocal = res['error'] ?? 'Código inválido o expirado';
