@@ -107,6 +107,11 @@ export const routes: Routes = [
         .then(m => m.AvisoRedirectComponent)
   },
   {
+    // url_redireccion de la notificación "Tu visita ha llegado" (Visitas.Api): /visitas/{id}
+    path: 'visitas/:id',
+    redirectTo: 'dashboard/residente/visitas'
+  },
+  {
     path: 'dashboard/vigilante',
     canActivate: [authGuard, roleGuard(['vigilante'])],
     loadComponent: () =>
