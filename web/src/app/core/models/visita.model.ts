@@ -1,5 +1,27 @@
 export type EstadoVisita = 'programada' | 'en_curso' | 'finalizada' | 'cancelada' | 'expirada';
 
+export const ETIQUETAS_ESTADO_VISITA: Record<EstadoVisita, string> = {
+  programada: 'Programada',
+  en_curso: 'En curso',
+  finalizada: 'Finalizada',
+  cancelada: 'Cancelada',
+  expirada: 'Expirada'
+};
+
+export const CLASES_ESTADO_VISITA: Record<EstadoVisita, string> = {
+  programada: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  en_curso: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  finalizada: 'bg-slate-100 text-slate-700 border-slate-200',
+  cancelada: 'bg-rose-50 text-rose-700 border-rose-200',
+  expirada: 'bg-amber-50 text-amber-700 border-amber-200'
+};
+
+/** Fecha y hora local legible para mostrar en pantallas de visitas */
+export function formatearFechaVisita(iso: string | null | undefined): string {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
 export type MotivoVisita = 'personal' | 'familiar' | 'proveedor' | 'servicio' | 'paqueteria';
 
 export const MOTIVOS_VISITA: { valor: MotivoVisita; etiqueta: string }[] = [
