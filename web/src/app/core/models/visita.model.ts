@@ -50,3 +50,17 @@ export interface CrearVisitaDto {
 
 /** PUT /api/visitas/{id}: solo se envían los campos que cambian, al menos uno */
 export type ActualizarVisitaDto = Partial<Omit<CrearVisitaDto, 'viviendaId'>>;
+
+/**
+ * Visita proyectada para caseta y administración (GET /api/visitas/hoy, /codigo/{codigo},
+ * /historico y POST /{id}/entrada|salida). No incluye el código de acceso ni datos privados.
+ */
+export type VisitaVigilancia = Omit<Visita, 'codigo' | 'creadoEn'>;
+
+/** Filtros de GET /api/visitas/historico (fechas ISO-8601 UTC) */
+export interface FiltrosHistoricoVisitas {
+  desde?: string;
+  hasta?: string;
+  viviendaId?: number;
+  estado?: EstadoVisita;
+}
