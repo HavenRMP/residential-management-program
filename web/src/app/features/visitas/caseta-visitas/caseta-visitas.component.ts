@@ -8,6 +8,7 @@ import {
   ETIQUETAS_ESTADO_VISITA,
   EstadoVisita,
   formatearFechaVisita,
+  fusionarSinVacios,
   MOTIVOS_VISITA,
   VisitaVigilancia
 } from '../../../core/models/visita.model';
@@ -207,7 +208,7 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
           <dt class="text-slate-500">Placas</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.vehiculoPlacas || '—' }}</dd>
           <dt class="text-slate-500">Notas</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.notas || '—' }}</dd>
           <dt class="text-slate-500">Llegada esperada</dt><dd class="col-span-2 font-medium text-slate-900">{{ formatearFecha(d.fechaLlegadaEsperada) }}</dd>
-          <dt class="text-slate-500">Vigente hasta</dt><dd class="col-span-2 font-medium text-slate-900">{{ formatearFecha(d.vigenciaHasta) }}</dd>
+          <dt class="text-slate-500">Vigente hasta</dt><dd class="col-span-2 font-medium text-slate-900">{{ formatearFecha(d.vigenciaHasta) || '—' }}</dd>
           <dt class="text-slate-500">Entrada</dt><dd class="col-span-2 font-medium text-slate-900">{{ formatearFecha(d.horaEntrada) || '—' }}</dd>
           <dt class="text-slate-500">Salida</dt><dd class="col-span-2 font-medium text-slate-900">{{ formatearFecha(d.horaSalida) || '—' }}</dd>
           <dt class="text-slate-500">Registrada por</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.creadoPorNombre || 'el residente' }}</dd>
@@ -353,7 +354,7 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
     try {
       const actualizada = await accion();
       if (this.visitaValidada()?.id === v.id) {
-        this.visitaValidada.set({ ...this.visitaValidada()!, ...actualizada });
+        this.visitaValidada.set(fusionarSinVacios(this.visitaValidada()!, actualizada));
       }
       Swal.fire({
         toast: true,
