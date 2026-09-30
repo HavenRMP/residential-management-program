@@ -274,4 +274,38 @@ public class VisitasController : ControllerBase
         var pagedResult = PagedResult<object>.Create(resultList, paginacion, totalCount);
         return Ok(pagedResult);
     }
+
+    [HttpGet("codigo/{codigo}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status410Gone)]
+    public async Task<IActionResult> ValidarCodigo(string codigo)
+    {
+        var (roleError, _, userId) = await ValidateRoleAsync(
+            r => r.PuedeConsultarDatosResidenciales(),
+            "Se requiere rol de administrador o vigilancia"
+        );
+
+        if (roleError != null)
+            return roleError;
+
+        if (string.IsNullOrWhiteSpace(codigo) || codigo.Length > 20)
+        {
+            return BadRequest(new { error = "El código proporcionado es inválido o excede la longitud permitida." });
+        }
+
+        try
+        {
+            var visita = await _supabaseService.ValidarCodigoAsync(codigo, userId);
+            return Ok(ProyectarVisitaVigilancia(visita));
+        }
+        catch (SupabaseRpcException ex)
+        {
+            var (status, mensaje) = RpcErrorMapper.Map(ex);
+            return StatusCode(status, new { error = mensaje });
+        }
+    }
 }
