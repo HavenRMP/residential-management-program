@@ -87,6 +87,13 @@ export const routes: Routes = [
         .then(m => m.SubusuariosComponent)
   },
   {
+    path: 'dashboard/residente/visitas',
+    canActivate: [authGuard, roleGuard(['residente'])],
+    loadComponent: () =>
+      import('./features/visitas/visitas.component')
+        .then(m => m.VisitasComponent)
+  },
+  {
     path: 'avisos/:id',
     canActivate: [authGuard],
     loadComponent: () =>
