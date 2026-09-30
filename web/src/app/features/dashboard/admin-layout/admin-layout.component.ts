@@ -321,6 +321,11 @@ import { NotificacionesPopoverComponent } from '../../../core/components/notific
 
       <!-- Main Scrollable Content Area -->
       <main class="flex-1 min-w-0 lg:h-screen lg:overflow-y-auto relative z-20">
+        <!-- Barra superior solo en escritorio: en móvil la campana vive en el header -->
+        <div class="hidden lg:flex sticky top-0 z-30 h-12 items-center justify-end px-6 bg-white/90 backdrop-blur-xs border-b border-slate-200">
+          <app-notificaciones-popover />
+        </div>
+
         <router-outlet />
       </main>
 
