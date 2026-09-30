@@ -1,7 +1,30 @@
-<!-- Global Loading Screen while Auth State is settling -->
-<div *ngIf="authService.isLoading()" class="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center font-sans text-slate-800">
-  <div class="w-8 h-8 rounded-full border-2 border-slate-300 border-t-slate-800 animate-spin mb-3"></div>
-  <p class="text-sm font-medium text-slate-600">Cargando...</p>
+<!-- Skeleton global mientras el estado de auth se resuelve. El login tiene el suyo propio: no se tapa con este. -->
+<div
+  *ngIf="authService.isLoading() && !esRutaLogin()"
+  class="fixed inset-0 z-50 bg-[#F7F7F7] flex items-center justify-center p-6"
+  role="status"
+  aria-busy="true"
+>
+  <span class="sr-only">Cargando</span>
+  <div class="w-full max-w-[480px] bg-white border border-[#e2e8f0] rounded-lg p-8 shadow-sm space-y-6">
+    <div class="flex justify-center">
+      <div class="w-12 h-12 rounded-lg bg-slate-200 animate-pulse"></div>
+    </div>
+    <div class="h-10 w-full bg-slate-100 rounded-lg animate-pulse"></div>
+    <div class="space-y-2">
+      <div class="h-7 w-2/5 bg-slate-200 rounded animate-pulse"></div>
+      <div class="h-4 w-3/5 bg-slate-100 rounded animate-pulse"></div>
+    </div>
+    <div class="space-y-2">
+      <div class="h-3 w-14 bg-slate-200 rounded-sm animate-pulse"></div>
+      <div class="h-[50px] w-full bg-slate-100 rounded-lg animate-pulse"></div>
+    </div>
+    <div class="space-y-2">
+      <div class="h-3 w-24 bg-slate-200 rounded-sm animate-pulse"></div>
+      <div class="h-[50px] w-full bg-slate-100 rounded-lg animate-pulse"></div>
+    </div>
+    <div class="h-[50px] w-full bg-slate-200 rounded-lg animate-pulse"></div>
+  </div>
 </div>
 
 <!-- Main Router Outlet -->
