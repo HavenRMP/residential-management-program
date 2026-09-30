@@ -3,6 +3,7 @@ import '../Models/notificacion.dart';
 import '../Services/app_controller.dart';
 import '../Services/notificaciones_service.dart';
 import 'invitaciones_recibidas_screen.dart';
+import 'visitas_residente_screen.dart';
 
 class NotificacionesScreen extends StatefulWidget {
   const NotificacionesScreen({super.key, required this.controller});
@@ -55,6 +56,10 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
         notif.titulo.toLowerCase().contains('invita') ||
         notif.mensaje.toLowerCase().contains('invita');
 
+    final esVisita = notif.tipoEvento.toLowerCase().contains('visita') ||
+        notif.titulo.toLowerCase().contains('visita') ||
+        notif.mensaje.toLowerCase().contains('visita');
+
     if (esInvitacion && mounted) {
       Navigator.push(
         context,
@@ -62,6 +67,19 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
           builder: (_) => InvitacionesRecibidasScreen(controller: widget.controller),
         ),
       );
+    } else if (esVisita && mounted) {
+      final misViviendas = await widget.controller.obtenerMisViviendas();
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => VisitasResidenteScreen(
+              controller: widget.controller,
+              misViviendas: misViviendas,
+            ),
+          ),
+        );
+      }
     }
   }
 
