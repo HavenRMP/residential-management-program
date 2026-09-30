@@ -69,6 +69,12 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/vigilantes/vigilantes-list/vigilantes-list.component')
             .then(m => m.VigilantesListComponent)
+      },
+      {
+        path: 'visitas',
+        loadComponent: () =>
+          import('./features/visitas/visitas-historico/visitas-historico.component')
+            .then(m => m.VisitasHistoricoComponent)
       }
     ]
   },
