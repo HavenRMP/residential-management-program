@@ -101,6 +101,21 @@ describe('VisitasVigilanciaService', () => {
     expect(service.items()[0].horaEntrada).toBe('2026-10-01T15:05:00Z');
   });
 
+  it('envía las placas en mayúsculas al registrar la entrada y nada si no se capturan', async () => {
+    mockApiService.get.and.returnValue(of({ items: [visitaBase], totalCount: 1 }));
+    await service.cargarHoy();
+    mockApiService.post.and.returnValue(of({ ...visitaBase, estado: 'en_curso' }));
+
+    await service.registrarEntrada('v-1', '  abc-123 ');
+    expect(mockApiService.post.calls.mostRecent().args[1]).toEqual({ vehiculoPlacas: 'ABC-123' });
+
+    await service.registrarEntrada('v-1', '   ');
+    expect(mockApiService.post.calls.mostRecent().args[1]).toEqual({});
+
+    await service.registrarEntrada('v-1');
+    expect(mockApiService.post.calls.mostRecent().args[1]).toEqual({});
+  });
+
   it('descarta la respuesta atrasada de una búsqueda anterior', async () => {
     const lenta = new Subject<any>();
     mockApiService.get.and.returnValues(lenta.asObservable(), of({ items: [{ ...visitaBase, id: 'v-2' }], totalCount: 1 }));
