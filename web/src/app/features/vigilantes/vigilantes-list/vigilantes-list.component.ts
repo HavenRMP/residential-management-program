@@ -82,6 +82,12 @@ import { Vigilante } from '../../../core/models/vigilante.model';
         </div>
       </div>
 
+      <!-- Error de carga -->
+      <div *ngIf="vigilantesService.errorMessage() as msg" class="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 font-medium flex items-center justify-between gap-3">
+        <span>{{ msg }}</span>
+        <button type="button" (click)="vigilantesService.listar()" class="shrink-0 font-semibold underline cursor-pointer">Reintentar</button>
+      </div>
+
       <!-- Directorio -->
       <div *ngIf="!vigilantesService.isLoading()" class="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
         <table class="w-full text-left">
@@ -319,7 +325,9 @@ export class VigilantesListComponent implements OnInit {
     const darDeBaja = v.activo;
     const res = await Swal.fire({
       title: darDeBaja ? '¿Dar de baja a este vigilante?' : '¿Reactivar a este vigilante?',
-      text: `${v.nombre} ${v.apellidos}`,
+      text: darDeBaja
+        ? `${v.nombre} ${v.apellidos} ya no podrá iniciar sesión hasta que lo reactives.`
+        : `${v.nombre} ${v.apellidos} volverá a poder iniciar sesión.`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: darDeBaja ? '#EF4444' : '#059669',
@@ -328,8 +336,26 @@ export class VigilantesListComponent implements OnInit {
       cancelButtonText: 'Cancelar'
     });
 
-    if (res.isConfirmed) {
+    if (!res.isConfirmed) return;
+
+    try {
       await this.vigilantesService.cambiarEstado(v.id, !darDeBaja);
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: darDeBaja ? 'Vigilante dado de baja' : 'Vigilante reactivado',
+        showConfirmButton: false,
+        timer: 2000
+      });
+    } catch (err: any) {
+      console.error('[VigilantesListComponent] Error al cambiar el estado del vigilante:', err);
+      Swal.fire({
+        icon: 'error',
+        title: darDeBaja ? 'No se pudo dar de baja' : 'No se pudo reactivar',
+        text: err?.error?.error || 'Ocurrió un error inesperado. Intenta de nuevo.',
+        confirmButtonColor: '#111C99'
+      });
     }
   }
 }
