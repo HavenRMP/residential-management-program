@@ -28,6 +28,7 @@ describe('CasetaVisitasComponent', () => {
     isLoading: ReturnType<typeof signal<boolean>>;
     errorMessage: ReturnType<typeof signal<string | null>>;
     cargarHoy: jasmine.Spy;
+    registrarEntrada: jasmine.Spy;
   };
 
   beforeEach(() => {
@@ -38,7 +39,8 @@ describe('CasetaVisitasComponent', () => {
       page: signal(1),
       isLoading: signal(false),
       errorMessage: signal<string | null>(null),
-      cargarHoy: jasmine.createSpy('cargarHoy')
+      cargarHoy: jasmine.createSpy('cargarHoy'),
+      registrarEntrada: jasmine.createSpy('registrarEntrada').and.callFake(async () => ({ ...visita, estado: 'en_curso' }))
     };
 
     TestBed.configureTestingModule({
@@ -94,5 +96,40 @@ describe('CasetaVisitasComponent', () => {
     const textoEnCurso = fixture.nativeElement.textContent as string;
     expect(textoEnCurso).toContain('Registrar salida');
     expect(textoEnCurso).not.toContain('Registrar entrada');
+  });
+
+  describe('captura de placas', () => {
+    it('precarga las placas que indicó el residente y las muestra solo en visitas programadas', () => {
+      component.abrirDetalle({ ...visita, vehiculoPlacas: 'ABC-123' });
+      fixture.detectChanges();
+
+      expect(component.placasEntrada).toBe('ABC-123');
+      expect(fixture.nativeElement.querySelector('#placas-entrada')).not.toBeNull();
+
+      servicio.items.set([{ ...visita, estado: 'en_curso' }]);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('#placas-entrada')).toBeNull();
+    });
+
+    it('registra la entrada desde el detalle con las placas capturadas', async () => {
+      component.abrirDetalle(visita);
+      component.placasEntrada = 'XYZ-789';
+
+      await component.registrarEntrada(visita, component.placasEntrada);
+
+      expect(servicio.registrarEntrada).toHaveBeenCalledOnceWith('v-1', 'XYZ-789');
+    });
+
+    it('la entrada rápida desde la lista no manda placas aunque el detalle haya guardado otras', async () => {
+      component.abrirDetalle(visita);
+      component.placasEntrada = 'VIEJAS-1';
+      component.cerrarDetalle();
+      fixture.detectChanges();
+
+      const botones = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>);
+      botones.find(b => b.textContent?.includes('Registrar entrada'))!.click();
+
+      expect(servicio.registrarEntrada).toHaveBeenCalledOnceWith('v-1', undefined);
+    });
   });
 });
