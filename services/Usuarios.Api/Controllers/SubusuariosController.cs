@@ -168,11 +168,11 @@ public class SubusuariosController : ControllerBase
         }
 
         var accessToken = HttpContext.Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
-        var success = await _supabaseService.ResponderInvitacionAsync(id, userId, dto.Respuesta, accessToken);
+        var result = await _supabaseService.ResponderInvitacionAsync(id, userId, dto.Respuesta, accessToken);
 
-        if (!success)
+        if (!result.Success)
         {
-            return BadRequest(new { error = "No se pudo procesar la respuesta a la invitación. Puede que ya haya sido procesada o cancelada." });
+            return BadRequest(new { error = result.Error ?? "No se pudo procesar la respuesta a la invitación. Puede que ya haya sido procesada o cancelada." });
         }
 
         return Ok(new { message = $"Invitación {dto.Respuesta.ToLower()} exitosamente." });
@@ -199,26 +199,33 @@ public class SubusuariosController : ControllerBase
         var accessToken = HttpContext.Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
 
         bool success = false;
+        string? error = null;
         
         if (isInvitacion)
         {
-            success = await _supabaseService.CancelarInvitacionAsync(id, accessToken);
+            var res = await _supabaseService.CancelarInvitacionAsync(id, accessToken);
+            success = res.Success;
+            error = res.Error;
         }
         else
         {
             // Intentamos revocar usuario activo
-            success = await _supabaseService.RevocarSubusuarioAsync(viviendaId, id, accessToken);
+            var res = await _supabaseService.RevocarSubusuarioAsync(viviendaId, id, accessToken);
+            success = res.Success;
+            error = res.Error;
             
             // Si falló, tal vez era una invitación pendiente y mandaron isInvitacion=false por error
             if (!success)
             {
-                success = await _supabaseService.CancelarInvitacionAsync(id, accessToken);
+                var resInvitacion = await _supabaseService.CancelarInvitacionAsync(id, accessToken);
+                success = resInvitacion.Success;
+                if (!success) error = resInvitacion.Error ?? error;
             }
         }
 
         if (!success)
         {
-            return BadRequest(new { error = "No se pudo revocar el sub-usuario o invitación." });
+            return BadRequest(new { error = error ?? "No se pudo revocar el sub-usuario o invitación." });
         }
 
         return NoContent();

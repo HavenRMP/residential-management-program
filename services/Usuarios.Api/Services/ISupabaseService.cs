@@ -26,7 +26,7 @@ public interface ISupabaseService
     Task<List<VwInvitacionSubusuarioDto>?> GetInvitacionesViviendaAsync(int viviendaId, string accessToken);
     Task<List<VwInvitacionSubusuarioDto>?> GetMisInvitacionesPendientesAsync(Guid invitadoId, string accessToken);
     Task<(VwInvitacionSubusuarioDto? invitacion, string? error)> InvitarSubusuarioAsync(int viviendaId, string email, string parentesco, Guid creadoPor, string accessToken);
-    Task<bool> ResponderInvitacionAsync(Guid invitacionId, Guid usuarioId, string respuesta, string accessToken);
-    Task<bool> CancelarInvitacionAsync(Guid invitacionId, string accessToken);
-    Task<bool> RevocarSubusuarioAsync(int viviendaId, Guid usuarioId, string accessToken);
+    Task<(bool Success, string? Error)> ResponderInvitacionAsync(Guid invitacionId, Guid usuarioId, string respuesta, string accessToken);
+    Task<(bool Success, string? Error)> CancelarInvitacionAsync(Guid invitacionId, string accessToken);
+    Task<(bool Success, string? Error)> RevocarSubusuarioAsync(int viviendaId, Guid usuarioId, string accessToken);
 }
