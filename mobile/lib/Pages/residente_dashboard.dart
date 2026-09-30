@@ -14,6 +14,7 @@ import 'avisos_residente_screen.dart';
 import 'notificaciones_screen.dart';
 import 'subusuarios_screen.dart';
 import 'invitaciones_recibidas_screen.dart';
+import 'visitas_residente_screen.dart';
 import 'perfil_screen.dart';
 
 class ResidenteDashboardScreen extends StatefulWidget {
@@ -247,6 +248,10 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
 
     final List<Widget> pages = [
       _buildHomePage(nombre, user),
+      VisitasResidenteScreen(
+        controller: widget.controller,
+        misViviendas: _misViviendas,
+      ),
       if (hasCondominio) AvisosResidenteScreen(
         controller: widget.controller,
         onAvisoRead: () {
@@ -266,7 +271,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
         elevation: 0,
         title: GestureDetector(
           onTap: () {
-            setState(() => _currentIndex = 2);
+            setState(() => _currentIndex = pages.length - 1);
           },
           child: Row(
             children: [
@@ -392,7 +397,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
           onDestinationSelected: (index) {
             setState(() {
               _currentIndex = index;
-              if (hasCondominio && index == 1) {
+              if (hasCondominio && index == 2) {
                  _checkUnreadAvisos();
               }
             });
@@ -406,6 +411,11 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
               icon: Icon(Icons.home_outlined, color: Color(0xFF64748B)),
               selectedIcon: Icon(Icons.home_rounded, color: Color(0xFF111C99)),
               label: 'Inicio',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.badge_outlined, color: Color(0xFF64748B)),
+              selectedIcon: Icon(Icons.badge_rounded, color: Color(0xFF111C99)),
+              label: 'Visitas',
             ),
             if (hasCondominio)
               NavigationDestination(
@@ -816,6 +826,57 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                     style: const TextStyle(fontSize: 13, color: Color(0xFF475569)),
                   ),
                   const SizedBox(height: 12),
+                  const Divider(color: Color(0xFFE2E8F0), height: 1),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.badge_outlined, size: 16, color: Color(0xFF64748B)),
+                          SizedBox(width: 6),
+                          Text(
+                            'Pases de Visita',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF334155),
+                            ),
+                          ),
+                        ],
+                      ),
+                      InkWell(
+                        onTap: () {
+                          setState(() => _currentIndex = 1);
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFFBFDBFE)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Ver Visitas',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF1D4ED8),
+                                ),
+                              ),
+                              SizedBox(width: 4),
+                              Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF1D4ED8)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
                   const Divider(color: Color(0xFFE2E8F0), height: 1),
                   const SizedBox(height: 10),
                   Row(
