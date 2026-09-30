@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../Models/visita_model.dart';
 import '../Services/app_controller.dart';
 import '../Services/visitas_service.dart';
@@ -142,6 +141,8 @@ class _ProgramarVisitaModalState extends State<ProgramarVisitaModal> {
     setState(() => _isSaving = true);
     final service = VisitasService(widget.controller);
 
+    final safeAcompanantes = _numAcompanantes.clamp(0, 20);
+
     if (widget.visitaParaEditar != null) {
       final res = await service.editarVisita(
         widget.visitaParaEditar!.id,
@@ -149,7 +150,7 @@ class _ProgramarVisitaModalState extends State<ProgramarVisitaModal> {
         apellidosVisitante: _apellidosController.text,
         telefonoVisitante: _telefonoController.text,
         motivo: _motivo,
-        numAcompanantes: _numAcompanantes,
+        numAcompanantes: safeAcompanantes,
         vehiculoPlacas: _placasController.text,
         notas: _notasController.text,
         fechaLlegadaEsperada: _fechaLlegadaEsperada,
@@ -172,7 +173,7 @@ class _ProgramarVisitaModalState extends State<ProgramarVisitaModal> {
         apellidosVisitante: _apellidosController.text,
         telefonoVisitante: _telefonoController.text,
         motivo: _motivo,
-        numAcompanantes: _numAcompanantes,
+        numAcompanantes: safeAcompanantes,
         vehiculoPlacas: _placasController.text,
         notas: _notasController.text,
         fechaLlegadaEsperada: _fechaLlegadaEsperada,
@@ -428,7 +429,7 @@ class _ProgramarVisitaModalState extends State<ProgramarVisitaModal> {
                           style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
                         ),
                         Text(
-                          'Personas que vienen con el visitante',
+                          'Personas que vienen con el visitante (máx. 20)',
                           style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                         ),
                       ],
@@ -450,7 +451,9 @@ class _ProgramarVisitaModalState extends State<ProgramarVisitaModal> {
                         ),
                         IconButton.filledTonal(
                           icon: const Icon(Icons.add, size: 18),
-                          onPressed: () => setState(() => _numAcompanantes++),
+                          onPressed: _numAcompanantes < 20
+                              ? () => setState(() => _numAcompanantes++)
+                              : null,
                         ),
                       ],
                     ),

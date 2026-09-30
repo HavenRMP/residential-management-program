@@ -17,6 +17,17 @@ const AndroidNotificationChannel havenNotificationChannel = AndroidNotificationC
   enableVibration: true,
 );
 
+/// Canal adicional para asegurar compatibilidad con notificaciones enviadas
+/// por el backend con el identificador sin guion bajo ('haven_high_importancechannel').
+const AndroidNotificationChannel havenNotificationLegacyChannel = AndroidNotificationChannel(
+  'haven_high_importancechannel',
+  'Notificaciones Haven (Directo)',
+  description: 'Canal de notificaciones prioritarias del sistema Haven',
+  importance: Importance.max,
+  playSound: true,
+  enableVibration: true,
+);
+
 /// Handler de mensajes en background requerido por Firebase Cloud Messaging.
 /// Debe ser una función de nivel superior con la anotación @pragma('vm:entry-point').
 @pragma('vm:entry-point')
@@ -107,11 +118,12 @@ class PushNotificationsService {
         },
       );
 
-      // 4. Crear el canal de alta importancia en Android
+      // 4. Crear los canales de alta importancia en Android
       final androidPlugin = _localNotifications
           .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       if (androidPlugin != null) {
         await androidPlugin.createNotificationChannel(havenNotificationChannel);
+        await androidPlugin.createNotificationChannel(havenNotificationLegacyChannel);
       }
 
       // 5. Configurar listener para cuando la app está abierta en primer plano (foreground)
@@ -191,8 +203,8 @@ class PushNotificationsService {
   }
 
   /// Solicita permisos de notificación tanto a nivel del sistema (Android 13+ y iOS)
-  /// como en Firebase Cloud Messaging, y suscribe el dispositivo a los tópicos generales.
-  static Future<bool> requestPermission() async {
+  /// como en Firebase Cloud Messaging, y suscribe el dispositivo a los tópicos generales y del usuario.
+  static Future<bool> requestPermission({String? userId}) async {
     try {
       if (Firebase.apps.isEmpty) {
         try {
@@ -230,6 +242,10 @@ class PushNotificationsService {
         try {
           await _messaging.subscribeToTopic('general');
           await _messaging.subscribeToTopic('avisos');
+          await _messaging.subscribeToTopic('avisos_urgentes');
+          if (userId != null && userId.trim().isNotEmpty) {
+            await subscribeToUserTopic(userId);
+          }
         } catch (e) {
           if (kDebugMode) {
             debugPrint('[PushNotificationsService] Error suscribiendo a tópicos: $e');
@@ -258,6 +274,46 @@ class PushNotificationsService {
         debugPrint('[PushNotificationsService] requestPermission exception: $e');
       }
       return false;
+    }
+  }
+
+  /// Suscribe el dispositivo al tópico personal del usuario según la convención del backend (user{UUID sin guiones})
+  static Future<void> subscribeToUserTopic(String? userId) async {
+    if (userId == null || userId.trim().isEmpty) return;
+    try {
+      if (Firebase.apps.isEmpty) {
+        try {
+          await Firebase.initializeApp();
+        } catch (_) {}
+      }
+      if (Firebase.apps.isEmpty) return;
+
+      final cleanTopic = 'user${userId.replaceAll('-', '').trim()}';
+      await _messaging.subscribeToTopic(cleanTopic);
+      if (kDebugMode) {
+        debugPrint('[PushNotificationsService] Suscrito a tópico de usuario: $cleanTopic');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[PushNotificationsService] Error suscribiendo a tópico de usuario: $e');
+      }
+    }
+  }
+
+  /// Desuscribe el dispositivo del tópico del usuario al cerrar sesión
+  static Future<void> unsubscribeFromUserTopic(String? userId) async {
+    if (userId == null || userId.trim().isEmpty) return;
+    try {
+      if (Firebase.apps.isEmpty) return;
+      final cleanTopic = 'user${userId.replaceAll('-', '').trim()}';
+      await _messaging.unsubscribeFromTopic(cleanTopic);
+      if (kDebugMode) {
+        debugPrint('[PushNotificationsService] Desuscrito de tópico de usuario: $cleanTopic');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[PushNotificationsService] Error desuscribiendo de tópico de usuario: $e');
+      }
     }
   }
 

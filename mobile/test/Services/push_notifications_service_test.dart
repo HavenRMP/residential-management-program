@@ -12,6 +12,12 @@ void main() {
       expect(havenNotificationChannel.importance, Importance.max);
       expect(havenNotificationChannel.playSound, isTrue);
       expect(havenNotificationChannel.enableVibration, isTrue);
+
+      expect(havenNotificationLegacyChannel.id, 'haven_high_importancechannel');
+      expect(havenNotificationLegacyChannel.name, 'Notificaciones Haven (Directo)');
+      expect(havenNotificationLegacyChannel.importance, Importance.max);
+      expect(havenNotificationLegacyChannel.playSound, isTrue);
+      expect(havenNotificationLegacyChannel.enableVibration, isTrue);
     });
 
     test('initializeApp no arroja excepciones en entorno sin Firebase nativo', () async {
@@ -19,8 +25,15 @@ void main() {
     });
 
     test('requestPermission maneja llamadas sin excepción y retorna bool', () async {
-      final result = await PushNotificationsService.requestPermission();
+      final result = await PushNotificationsService.requestPermission(userId: 'test-user-123');
       expect(result, isA<bool>());
+    });
+
+    test('subscribeToUserTopic y unsubscribeFromUserTopic no fallan sin Firebase nativo', () async {
+      expect(() async => await PushNotificationsService.subscribeToUserTopic('test-user-id'), returnsNormally);
+      expect(() async => await PushNotificationsService.unsubscribeFromUserTopic('test-user-id'), returnsNormally);
+      expect(() async => await PushNotificationsService.subscribeToUserTopic(null), returnsNormally);
+      expect(() async => await PushNotificationsService.unsubscribeFromUserTopic(null), returnsNormally);
     });
 
     test('getToken maneja llamadas de forma segura', () async {

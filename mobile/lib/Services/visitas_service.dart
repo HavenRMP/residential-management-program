@@ -8,9 +8,15 @@ class VisitasService {
 
   VisitasService(this.controller);
 
-  String get baseUrl =>
-      dotenv.env['API_BASE_URL_VISITAS'] ??
-      'https://visitas-api-r66s.onrender.com';
+  String get baseUrl {
+    final envUrl = dotenv.env['API_BASE_URL_VISITAS'];
+    if (envUrl != null &&
+        envUrl.trim().isNotEmpty &&
+        !envUrl.contains('haven.app')) {
+      return envUrl.trim();
+    }
+    return 'https://visitas-api-r66s.onrender.com';
+  }
 
   Future<Map<String, String>> _getHeaders() async {
     final token = await controller.getValidAccessToken();

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../Models/visita_model.dart';
 import '../Services/app_controller.dart';
+import '../Services/push_notifications_service.dart';
 import '../Services/visitas_service.dart';
 import 'perfil_screen.dart';
 
@@ -33,6 +34,9 @@ class _VigilanteDashboardScreenState extends State<VigilanteDashboardScreen> {
     super.initState();
     _cargarVisitas(refresh: true);
     _scrollController.addListener(_onScroll);
+    PushNotificationsService.requestPermission(
+      userId: widget.controller.currentUser?.id,
+    );
   }
 
   @override

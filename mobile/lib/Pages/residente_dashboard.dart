@@ -84,7 +84,9 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
   }
 
   Future<void> _solicitarPermisos() async {
-    await PushNotificationsService.requestPermission();
+    await PushNotificationsService.requestPermission(
+      userId: widget.controller.currentUser?.id,
+    );
   }
 
   bool _isRedeeming = false;

@@ -34,7 +34,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void initState() {
     super.initState();
     _fetchStats();
-    PushNotificationsService.requestPermission();
+    PushNotificationsService.requestPermission(
+      userId: widget.controller.currentUser?.id,
+    );
   }
 
   Future<void> _fetchStats() async {
