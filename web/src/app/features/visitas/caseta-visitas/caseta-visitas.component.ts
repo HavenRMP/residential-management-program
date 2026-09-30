@@ -143,7 +143,14 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
               </p>
             </div>
 
-            <div class="shrink-0">
+            <div class="shrink-0 flex items-center gap-2">
+              <button
+                type="button"
+                (click)="abrirDetalle(v)"
+                class="h-8 px-3 rounded-md border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Detalle
+              </button>
               <ng-container *ngTemplateOutlet="acciones; context: { $implicit: v }"></ng-container>
             </div>
           </li>
@@ -169,6 +176,51 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
           </button>
         </div>
       </section>
+    </div>
+
+    <!-- Modal de detalle de visita -->
+    <div
+      *ngIf="visitaDetalle() as d"
+      class="fixed inset-0 z-50 overflow-y-auto bg-black/40 backdrop-blur-xs flex items-center justify-center p-4"
+      (click)="cerrarDetalle()"
+    >
+      <div class="bg-white rounded-lg max-w-md w-full p-5 shadow-lg border border-slate-200" (click)="$event.stopPropagation()">
+        <div class="flex items-start justify-between pb-3 border-b border-slate-100">
+          <div>
+            <h3 class="text-sm font-semibold text-slate-900">{{ d.nombreVisitante }} {{ d.apellidosVisitante }}</h3>
+            <span class="mt-1 inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border" [ngClass]="claseEstado(d.estado)">
+              {{ etiquetaEstado(d.estado) }}
+            </span>
+          </div>
+          <button type="button" (click)="cerrarDetalle()" class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer" title="Cerrar">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <dl class="mt-3 grid grid-cols-3 gap-x-3 gap-y-2 text-xs">
+          <dt class="text-slate-500">Casa</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.numeroCasa }}</dd>
+          <dt class="text-slate-500">Motivo</dt><dd class="col-span-2 font-medium text-slate-900">{{ etiquetaMotivo(d.motivo) }}</dd>
+          <dt class="text-slate-500">Teléfono</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.telefonoVisitante || '—' }}</dd>
+          <dt class="text-slate-500">Acompañantes</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.numAcompanantes }}</dd>
+          <dt class="text-slate-500">Placas</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.vehiculoPlacas || '—' }}</dd>
+          <dt class="text-slate-500">Notas</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.notas || '—' }}</dd>
+          <dt class="text-slate-500">Llegada esperada</dt><dd class="col-span-2 font-medium text-slate-900">{{ formatearFecha(d.fechaLlegadaEsperada) }}</dd>
+          <dt class="text-slate-500">Vigente hasta</dt><dd class="col-span-2 font-medium text-slate-900">{{ formatearFecha(d.vigenciaHasta) }}</dd>
+          <dt class="text-slate-500">Entrada</dt><dd class="col-span-2 font-medium text-slate-900">{{ formatearFecha(d.horaEntrada) || '—' }}</dd>
+          <dt class="text-slate-500">Salida</dt><dd class="col-span-2 font-medium text-slate-900">{{ formatearFecha(d.horaSalida) || '—' }}</dd>
+          <dt class="text-slate-500">Registrada por</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.creadoPorNombre || 'el residente' }}</dd>
+        </dl>
+
+        <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+          <button type="button" (click)="cerrarDetalle()"
+            class="h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer">
+            Cerrar
+          </button>
+          <ng-container *ngTemplateOutlet="acciones; context: { $implicit: d }"></ng-container>
+        </div>
+      </div>
     </div>
 
     <!-- Botón de acción según el estado de la visita -->
@@ -207,6 +259,12 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
   /** Id de la visita a la que se le está registrando entrada o salida */
   readonly visitaEnProceso = signal<string | null>(null);
 
+  private readonly detalleId = signal<string | null>(null);
+  /** Se deriva de la lista para que el modal refleje entrada y salida registradas sin cerrarse */
+  readonly visitaDetalle = computed(() =>
+    this.visitasService.items().find(v => v.id === this.detalleId()) ?? null
+  );
+
   readonly totalPaginas = computed(() =>
     Math.max(1, Math.ceil(this.visitasService.totalCount() / this.visitasService.PAGE_SIZE))
   );
@@ -233,6 +291,14 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
 
   formatearFecha(iso: string | null | undefined): string {
     return formatearFechaVisita(iso);
+  }
+
+  abrirDetalle(v: VisitaVigilancia): void {
+    this.detalleId.set(v.id);
+  }
+
+  cerrarDetalle(): void {
+    this.detalleId.set(null);
   }
 
   /** Espera a que el guardia deje de teclear para no disparar una petición por letra */
