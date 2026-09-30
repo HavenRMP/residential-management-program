@@ -308,4 +308,32 @@ public class VisitasController : ControllerBase
             return StatusCode(status, new { error = mensaje });
         }
     }
+    [HttpPost("{id:guid}/entrada")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status410Gone)]
+    public async Task<IActionResult> RegistrarEntrada(Guid id)
+    {
+        var (roleError, _, userId) = await ValidateRoleAsync(
+            r => r.EsVigilancia(),
+            "Se requiere rol de vigilancia para registrar entradas"
+        );
+
+        if (roleError != null)
+            return roleError;
+
+        try
+        {
+            var visita = await _supabaseService.RegistrarEntradaAsync(id, userId);
+            return Ok(ProyectarVisitaVigilancia(visita));
+        }
+        catch (SupabaseRpcException ex)
+        {
+            var (status, mensaje) = RpcErrorMapper.Map(ex);
+            return StatusCode(status, new { error = mensaje });
+        }
+    }
 }
