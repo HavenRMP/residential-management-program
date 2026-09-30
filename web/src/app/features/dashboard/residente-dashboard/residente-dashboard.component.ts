@@ -106,7 +106,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
                 {{ subusuariosService.invitacionesRecibidas().length === 1 ? 'Tienes una invitación de sub-usuario pendiente' : 'Tienes ' + subusuariosService.invitacionesRecibidas().length + ' invitaciones de sub-usuario pendientes' }}
               </p>
               <p class="text-xs text-indigo-800/80 truncate">
-                De {{ subusuariosService.invitacionesRecibidas()[0]?.titularNombre || 'un residente' }}<span *ngIf="subusuariosService.invitacionesRecibidas()[0]?.numeroCasa"> · Unidad {{ subusuariosService.invitacionesRecibidas()[0]?.numeroCasa }}</span>. Acéptala o recházala.
+                De {{ subusuariosService.invitacionesRecibidas()[0].titularNombre || 'un residente' }}<span *ngIf="subusuariosService.invitacionesRecibidas()[0].numeroCasa"> · Unidad {{ subusuariosService.invitacionesRecibidas()[0].numeroCasa }}</span>. Acéptala o recházala.
               </p>
             </div>
           </div>
