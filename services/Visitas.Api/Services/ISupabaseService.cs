@@ -13,6 +13,6 @@ public interface ISupabaseService
     Task<(List<VisitaDto> Items, int? TotalCount)> GetVisitasHoyAsync(Guid condominioId, PaginationParams paginacion, string? busqueda = null);
     Task<(List<VisitaDto> Items, int? TotalCount)> GetVisitasHistoricoAsync(Guid condominioId, DateTimeOffset? desde, DateTimeOffset? hasta, int? viviendaId, string? estado, PaginationParams paginacion);
     Task<VisitaDto> ValidarCodigoAsync(string codigo, Guid actorId);
-    Task<VisitaDto> RegistrarEntradaAsync(Guid visitaId, Guid actorId);
+    Task<VisitaDto> RegistrarEntradaAsync(Guid visitaId, Guid actorId, string? vehiculoPlacas = null);
     Task<VisitaDto> RegistrarSalidaAsync(Guid visitaId, Guid actorId);
 }
