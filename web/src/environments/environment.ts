@@ -7,7 +7,8 @@ export const environment = {
     usuarios: (import.meta as any).env?.['NG_APP_USUARIOS_API_URL'] || 'https://usuarios-api-n1qi.onrender.com',
     viviendas: (import.meta as any).env?.['NG_APP_VIVIENDAS_API_URL'] || 'https://viviendas-api.onrender.com',
     condominios: (import.meta as any).env?.['NG_APP_CONDOMINIOS_API_URL'] || 'https://condominios-api-vv32.onrender.com',
-    avisos: (import.meta as any).env?.['NG_APP_AVISOS_API_URL'] || 'https://avisos-api-qg5b.onrender.com'
+    avisos: (import.meta as any).env?.['NG_APP_AVISOS_API_URL'] || 'https://avisos-api-qg5b.onrender.com',
+    visitas: (import.meta as any).env?.['NG_APP_VISITAS_API_URL'] || 'https://visitas-api-r66s.onrender.com'
   },
   get apiUrl(): string { return this.services.default; },
   get usuariosApiUrl(): string { return this.services.usuarios; }
