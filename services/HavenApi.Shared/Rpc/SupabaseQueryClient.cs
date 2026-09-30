@@ -51,7 +51,7 @@ public static class SupabaseQueryClient
             var items = await response.Content.ReadFromJsonAsync<List<T>>();
             int? totalCount = null;
 
-            if (response.Headers.TryGetValues("Content-Range", out var contentRangeValues))
+            if (response.Headers.TryGetValues("Content-Range", out var contentRangeValues) || response.Content.Headers.TryGetValues("Content-Range", out contentRangeValues))
             {
                 var contentRange = contentRangeValues.FirstOrDefault();
                 if (!string.IsNullOrEmpty(contentRange))

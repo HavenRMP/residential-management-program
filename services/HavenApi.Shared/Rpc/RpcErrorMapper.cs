@@ -22,7 +22,7 @@ public static class RpcErrorMapper
             "VI007" => (409, "No se puede registrar la salida: la visita no ha ingresado."),
             "VI008" => (400, "Los datos de la visita no son válidos."),
             "VI009" => (404, "La vivienda no existe o está inactiva."),
-            _ => (500, "Ocurrió un error inesperado al procesar el código.")
+            _ => (500, $"Ocurrió un error inesperado al procesar el código. (Código: {ex.Code})")
         };
     }
 }
