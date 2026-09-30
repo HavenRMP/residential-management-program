@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'Pages/invitaciones_recibidas_screen.dart';
+import 'Pages/visitas_residente_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<ScaffoldMessengerState> messengerKey =
@@ -93,12 +94,24 @@ class _HavenAppState extends State<HavenApp> {
       controller = AppController.unavailable(supabaseInitError);
     }
 
-    PushNotificationsService.onMessageAction = (data) {
+    PushNotificationsService.onMessageAction = (data) async {
       final tipo = data['tipo']?.toString().toLowerCase();
-      if (tipo == 'invitacion' && controller.isAuthenticated) {
+      if (!controller.isAuthenticated) return;
+
+      if (tipo == 'invitacion') {
         navigatorKey.currentState?.push(
           MaterialPageRoute(
             builder: (_) => InvitacionesRecibidasScreen(controller: controller),
+          ),
+        );
+      } else if (tipo == 'visita_llegada' || tipo == 'visita') {
+        final misViviendas = await controller.obtenerMisViviendas();
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (_) => VisitasResidenteScreen(
+              controller: controller,
+              misViviendas: misViviendas,
+            ),
           ),
         );
       }
