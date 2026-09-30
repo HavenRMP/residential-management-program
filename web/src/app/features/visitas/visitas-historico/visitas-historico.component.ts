@@ -161,10 +161,27 @@ export class VisitasHistoricoComponent implements OnInit {
   async ngOnInit(): Promise<void> {
     this.historicoService.cargar();
     try {
-      this.viviendas.set(await this.viviendasService.listar());
+      this.viviendas.set(await this.cargarTodasLasViviendas());
     } catch (err) {
       console.error('[VisitasHistoricoComponent] Error al cargar viviendas:', err);
     }
+  }
+
+  /** El listado viene paginado (100 por página): se piden páginas hasta que una llegue incompleta */
+  private async cargarTodasLasViviendas(): Promise<Vivienda[]> {
+    const POR_PAGINA = 100;
+    const MAX_PAGINAS = 20;
+    const todas: Vivienda[] = [];
+    const vistas = new Set<number>();
+    for (let pagina = 1; pagina <= MAX_PAGINAS; pagina++) {
+      const lote = await this.viviendasService.listar(pagina, POR_PAGINA);
+      const nuevas = lote.filter(v => !vistas.has(v.id));
+      nuevas.forEach(v => vistas.add(v.id));
+      todas.push(...nuevas);
+      // Sin viviendas nuevas la API no está paginando de verdad: se corta para no repetir la misma página
+      if (lote.length < POR_PAGINA || nuevas.length === 0) break;
+    }
+    return todas;
   }
 
   rangoInvalido(): boolean {
