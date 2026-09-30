@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import Swal from 'sweetalert2';
@@ -11,6 +11,8 @@ import {
   MOTIVOS_VISITA,
   VisitaVigilancia
 } from '../../../core/models/visita.model';
+
+const BUSQUEDA_DEBOUNCE_MS = 350;
 
 @Component({
   selector: 'app-caseta-visitas',
@@ -76,24 +78,17 @@ import {
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div>
             <h2 class="text-sm font-semibold text-slate-900">Visitas de hoy</h2>
-            <p class="text-xs text-slate-500 mt-0.5">Programadas y en curso. Busca por nombre, código o número de casa.</p>
+            <p class="text-xs text-slate-500 mt-0.5">Programadas y en curso. La lista se filtra mientras escribes.</p>
           </div>
 
           <div class="flex items-center gap-2">
             <input
               type="text"
               [(ngModel)]="busqueda"
-              (keyup.enter)="buscar()"
-              placeholder="Buscar..."
-              class="h-8 w-44 text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+              (ngModelChange)="onBusquedaCambio()"
+              placeholder="Nombre, código o casa..."
+              class="h-8 w-56 text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
             />
-            <button
-              type="button"
-              (click)="buscar()"
-              class="h-8 px-3 rounded-md border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-            >
-              Buscar
-            </button>
             <button
               type="button"
               (click)="recargar()"
@@ -199,11 +194,12 @@ import {
     </ng-template>
   `
 })
-export class CasetaVisitasComponent implements OnInit {
+export class CasetaVisitasComponent implements OnInit, OnDestroy {
   readonly visitasService = inject(VisitasVigilanciaService);
 
   codigo = '';
   busqueda = '';
+  private temporizadorBusqueda?: ReturnType<typeof setTimeout>;
 
   readonly isValidando = signal<boolean>(false);
   readonly visitaValidada = signal<VisitaVigilancia | null>(null);
@@ -217,6 +213,10 @@ export class CasetaVisitasComponent implements OnInit {
 
   ngOnInit(): void {
     this.visitasService.cargarHoy();
+  }
+
+  ngOnDestroy(): void {
+    clearTimeout(this.temporizadorBusqueda);
   }
 
   etiquetaEstado(estado: EstadoVisita): string {
@@ -235,8 +235,10 @@ export class CasetaVisitasComponent implements OnInit {
     return formatearFechaVisita(iso);
   }
 
-  buscar(): void {
-    this.visitasService.cargarHoy(this.busqueda, 1);
+  /** Espera a que el guardia deje de teclear para no disparar una petición por letra */
+  onBusquedaCambio(): void {
+    clearTimeout(this.temporizadorBusqueda);
+    this.temporizadorBusqueda = setTimeout(() => this.visitasService.cargarHoy(this.busqueda, 1), BUSQUEDA_DEBOUNCE_MS);
   }
 
   recargar(): void {
