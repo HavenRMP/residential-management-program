@@ -19,11 +19,15 @@ export class VisitasHistoricoService {
   readonly isLoading = signal<boolean>(false);
   readonly errorMessage = signal<string | null>(null);
 
+  private ultimaPeticion = 0;
+
   /**
    * Histórico de visitas del condominio, filtrable por fechas, vivienda y estado (solo administrador)
    * (GET /api/visitas/historico)
    */
   async cargar(filtros: FiltrosHistoricoVisitas = {}, page: number = 1): Promise<void> {
+    // Una respuesta lenta de una búsqueda anterior no debe pisar la de los filtros más recientes
+    const peticion = ++this.ultimaPeticion;
     this.isLoading.set(true);
     this.errorMessage.set(null);
     try {
@@ -36,14 +40,16 @@ export class VisitasHistoricoService {
       const response = await firstValueFrom(
         this.apiService.get<any>('/api/visitas/historico', params, undefined, 'visitas')
       );
+      if (peticion !== this.ultimaPeticion) return;
       this.items.set(extractPagedItems<VisitaVigilancia>(response));
       this.totalCount.set(response?.totalCount ?? this.items().length);
       this.page.set(response?.page ?? page);
     } catch (err: any) {
+      if (peticion !== this.ultimaPeticion) return;
       console.error('[VisitasHistoricoService] Error al cargar el histórico:', err);
       this.errorMessage.set(err?.error?.error || 'No se pudo cargar el histórico de visitas.');
     } finally {
-      this.isLoading.set(false);
+      if (peticion === this.ultimaPeticion) this.isLoading.set(false);
     }
   }
 }
