@@ -7,7 +7,8 @@ export const environment = {
     usuarios: 'https://usuarios-api-n1qi.onrender.com',
     viviendas: 'https://viviendas-api.onrender.com',
     condominios: 'https://condominios-api-vv32.onrender.com',
-    avisos: 'https://avisos-api-qg5b.onrender.com'
+    avisos: 'https://avisos-api-qg5b.onrender.com',
+    visitas: 'https://visitas-api-r66s.onrender.com'
   },
   get apiUrl(): string { return this.services.default; },
   get usuariosApiUrl(): string { return this.services.usuarios; }
