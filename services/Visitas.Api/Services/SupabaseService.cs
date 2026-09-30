@@ -306,13 +306,18 @@ public class SupabaseService : ISupabaseService
         return result;
     }
 
-    public async Task<VisitaDto> RegistrarEntradaAsync(Guid visitaId, Guid actorId)
+    public async Task<VisitaDto> RegistrarEntradaAsync(Guid visitaId, Guid actorId, string? vehiculoPlacas = null)
     {
-        var payload = new
+        var payload = new Dictionary<string, object>
         {
-            p_visita_id = visitaId,
-            p_actor_id = actorId
+            { "p_visita_id", visitaId },
+            { "p_actor_id", actorId }
         };
+
+        if (!string.IsNullOrWhiteSpace(vehiculoPlacas))
+        {
+            payload["p_vehiculo_placas"] = vehiculoPlacas;
+        }
 
         var result = await SupabaseRpcClient.PostRpcAsync<VisitaDto>(
             _httpClient, _supabaseUrl, _serviceRoleKey, RpcRegistrarEntradaVisita, payload, actorId);

@@ -92,6 +92,17 @@ public class VisitasController : ControllerBase
 
         try
         {
+            var expectedEnd = dto.FechaLlegadaEsperada;
+            if (dto.HorasVigencia.HasValue)
+            {
+                expectedEnd = expectedEnd.AddHours(dto.HorasVigencia.Value);
+            }
+
+            if (expectedEnd < DateTimeOffset.UtcNow)
+            {
+                return BadRequest(new { error = "VI008: La visita ya expiró o su vigencia ha concluido respecto a la fecha actual." });
+            }
+
             var result = await _supabaseService.CreateVisitaAsync(dto, userId);
             
             return StatusCode(201, new
@@ -315,7 +326,7 @@ public class VisitasController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status410Gone)]
-    public async Task<IActionResult> RegistrarEntrada(Guid id)
+    public async Task<IActionResult> RegistrarEntrada(Guid id, [FromBody] RegistrarEntradaRequestDto? dto = null)
     {
         var (roleError, _, userId) = await ValidateRoleAsync(
             r => r.EsVigilancia(),
@@ -327,7 +338,7 @@ public class VisitasController : ControllerBase
 
         try
         {
-            var visita = await _supabaseService.RegistrarEntradaAsync(id, userId);
+            var visita = await _supabaseService.RegistrarEntradaAsync(id, userId, dto?.VehiculoPlacas);
             return Ok(ProyectarVisitaVigilancia(visita));
         }
         catch (SupabaseRpcException ex)
