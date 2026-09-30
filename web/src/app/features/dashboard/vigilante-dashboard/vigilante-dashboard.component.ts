@@ -2,11 +2,12 @@ import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AuthService } from '../../../core/services/auth.service';
 import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.component';
+import { CasetaVisitasComponent } from '../../visitas/caseta-visitas/caseta-visitas.component';
 
 @Component({
   selector: 'app-vigilante-dashboard',
   standalone: true,
-  imports: [CommonModule, UserMenuComponent],
+  imports: [CommonModule, UserMenuComponent, CasetaVisitasComponent],
   template: `
     <div class="min-h-screen bg-[#F7F7F7] text-[#0f172a] font-sans antialiased">
       <!-- Navbar -->
@@ -27,7 +28,7 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
       </header>
 
       <!-- Main Content -->
-      <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         <!-- Welcome Hero -->
         <div class="bg-white border border-slate-200 rounded-xl p-6 sm:p-8 shadow-xs">
           <h1 class="text-2xl sm:text-3xl font-bold text-slate-900">
@@ -37,6 +38,8 @@ import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.
             Bienvenido al portal de vigilancia y control de accesos.
           </p>
         </div>
+
+        <app-caseta-visitas />
       </main>
     </div>
   `
