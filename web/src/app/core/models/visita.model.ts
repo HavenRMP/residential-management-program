@@ -16,10 +16,31 @@ export const CLASES_ESTADO_VISITA: Record<EstadoVisita, string> = {
   expirada: 'bg-amber-50 text-amber-700 border-amber-200'
 };
 
-/** Fecha y hora local legible para mostrar en pantallas de visitas */
+/**
+ * Fecha y hora local legible para mostrar en pantallas de visitas.
+ * Devuelve '' para fechas ausentes o inválidas, incluida la fecha por defecto de .NET (0001-01-01)
+ * que el backend manda cuando no logra leer una columna.
+ */
 export function formatearFechaVisita(iso: string | null | undefined): string {
   if (!iso) return '';
-  return new Date(iso).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+  const fecha = new Date(iso);
+  if (isNaN(fecha.getTime()) || fecha.getFullYear() < 2000) return '';
+  return fecha.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+/**
+ * Combina una respuesta parcial sobre la visita que ya se tiene sin pisar datos buenos con
+ * valores vacíos (null, undefined, '' o 0). Las respuestas de entrada y salida del backend
+ * traen campos en blanco que borrarían el estado, la casa y la vigencia de la lista.
+ */
+export function fusionarSinVacios<T extends object>(actual: T, nueva: Partial<T>): T {
+  const resultado = { ...actual };
+  for (const [clave, valor] of Object.entries(nueva)) {
+    if (valor !== null && valor !== undefined && valor !== '' && valor !== 0) {
+      (resultado as Record<string, unknown>)[clave] = valor;
+    }
+  }
+  return resultado;
 }
 
 export type MotivoVisita = 'personal' | 'familiar' | 'proveedor' | 'servicio' | 'paqueteria';
