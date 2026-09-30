@@ -1,0 +1,68 @@
+@Visitas.Api_HostAddress = http://localhost:5217
+@VisitaId = 00000000-0000-0000-0000-000000000000
+@Codigo = XYZ123
+
+### POST /api/visitas (Crear visita, rol: residente)
+POST {{Visitas.Api_HostAddress}}/api/visitas
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Content-Type: application/json
+Accept: application/json
+
+{
+  "viviendaId": 1,
+  "nombreVisitante": "Juan",
+  "apellidosVisitante": "Perez",
+  "telefonoVisitante": "5551234567",
+  "motivo": "personal",
+  "numAcompanantes": 0,
+  "vehiculoPlacas": "ABC-123",
+  "notas": "Trae paquete",
+  "fechaLlegadaEsperada": "2026-10-01T15:00:00Z",
+  "horasVigencia": 12
+}
+
+### GET /api/visitas/mis-visitas (Listar mis visitas, rol: residente)
+GET {{Visitas.Api_HostAddress}}/api/visitas/mis-visitas?page=1&pageSize=10&estado=programada
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+### PUT /api/visitas/{id} (Editar visita, rol: residente)
+PUT {{Visitas.Api_HostAddress}}/api/visitas/{{VisitaId}}
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Content-Type: application/json
+Accept: application/json
+
+{
+  "nombreVisitante": "Juan Modificado",
+  "numAcompanantes": 2
+}
+
+### POST /api/visitas/{id}/cancelar (Cancelar visita, rol: residente)
+POST {{Visitas.Api_HostAddress}}/api/visitas/{{VisitaId}}/cancelar
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+### GET /api/visitas/hoy (Listar visitas de hoy, rol: vigilancia/admin)
+GET {{Visitas.Api_HostAddress}}/api/visitas/hoy?page=1&pageSize=20&busqueda=Juan
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+### GET /api/visitas/codigo/{codigo} (Validar código, rol: vigilancia/admin)
+GET {{Visitas.Api_HostAddress}}/api/visitas/codigo/{{Codigo}}
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+### POST /api/visitas/{id}/entrada (Registrar entrada, rol: vigilancia)
+POST {{Visitas.Api_HostAddress}}/api/visitas/{{VisitaId}}/entrada
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+### POST /api/visitas/{id}/salida (Registrar salida, rol: vigilancia)
+POST {{Visitas.Api_HostAddress}}/api/visitas/{{VisitaId}}/salida
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+### GET /api/visitas/historico (Histórico de visitas, rol: admin)
+GET {{Visitas.Api_HostAddress}}/api/visitas/historico?page=1&pageSize=20&viviendaId=1&estado=finalizada
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
