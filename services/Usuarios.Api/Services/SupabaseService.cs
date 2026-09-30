@@ -593,7 +593,7 @@ public class SupabaseService : ISupabaseService
     public async Task<(bool Success, string? Error)> CancelarInvitacionAsync(Guid invitacionId, string accessToken)
     {
         var url = $"{_supabaseUrl}/rest/v1/rpc/cancelar_invitacion_subusuario";
-        var payload = new { p_id = invitacionId };
+        var payload = new { p_invitacion_id = invitacionId };
 
         var request = new HttpRequestMessage(HttpMethod.Post, url);
         request.Headers.Add("apikey", _anonKey);
