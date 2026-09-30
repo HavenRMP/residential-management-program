@@ -350,6 +350,58 @@ public class SupabaseService : ISupabaseService
         return (updatedUsuario, null);
     }
 
+    // Vigilantes
+    public async Task<(List<VigilanteDto>? Items, int? TotalCount)> GetVigilantesAsync(Guid condominioId, PaginationParams paginacion)
+    {
+        var resourcePath = $"vw_vigilantes?condominio_id=eq.{condominioId}&select=*&order=creado_en.desc";
+        return await SupabaseQueryClient.GetPagedAsync<VigilanteDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, _serviceRoleKey, resourcePath, paginacion, true, condominioId);
+    }
+
+    public async Task<(bool Success, string? Error)> BajaVigilanteAsync(Guid id, string accessToken)
+    {
+        var url = $"{_supabaseUrl}/rest/v1/rpc/baja_usuario";
+        var payload = new { p_id = id };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Add("apikey", _serviceRoleKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
+        
+        var jsonString = JsonSerializer.Serialize(payload);
+        request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await SendRequestAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogError("Failed to deactivate vigilante {Id}. Status: {StatusCode}, Body: {Body}", id, response.StatusCode, errorBody);
+            return (false, $"Error desde Supabase: {errorBody}");
+        }
+        return (true, null);
+    }
+
+    public async Task<(bool Success, string? Error)> ReactivarVigilanteAsync(Guid id, string accessToken)
+    {
+        var url = $"{_supabaseUrl}/rest/v1/rpc/reactivar_usuario";
+        var payload = new { p_id = id };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Add("apikey", _serviceRoleKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
+        
+        var jsonString = JsonSerializer.Serialize(payload);
+        request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await SendRequestAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogError("Failed to reactivate vigilante {Id}. Status: {StatusCode}, Body: {Body}", id, response.StatusCode, errorBody);
+            return (false, $"Error desde Supabase: {errorBody}");
+        }
+        return (true, null);
+    }
+
     // Notificaciones
     public async Task<(List<NotificacionDto>? Notificaciones, string? Error)> GetNotificacionesAsync(Guid userId, string accessToken)
     {
