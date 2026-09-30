@@ -307,6 +307,9 @@ function isoAInputLocal(iso: string): string {
               <p class="mt-1 text-[11px] text-slate-500">Entre 1 y 72 horas.</p>
             </div>
           </div>
+          <p *ngIf="visitaYaVencida()" class="text-[11px] text-red-600 font-medium">
+            Con esa llegada y vigencia la visita ya estaría vencida. Ajusta la fecha o aumenta la vigencia.
+          </p>
 
           <div class="grid grid-cols-2 gap-3">
             <div>
@@ -494,6 +497,18 @@ export class VisitasComponent implements OnInit {
     this.visitasService.cargar(this.filtroActivo(), pagina);
   }
 
+  /**
+   * La llegada esperada más la vigencia ya pasó: la visita nacería expirada y nadie podría usarla.
+   * Una llegada pasada con vigencia todavía abierta sí es válida (ej. el visitante ya está en camino).
+   */
+  visitaYaVencida(): boolean {
+    const f = this.form;
+    const vigencia = Number(f.horasVigencia);
+    const llegada = new Date(f.fechaLlegada).getTime();
+    if (!f.fechaLlegada || isNaN(llegada) || !(vigencia >= 1)) return false;
+    return llegada + vigencia * 3_600_000 < Date.now();
+  }
+
   esFormularioValido(): boolean {
     const f = this.form;
     const vigencia = Number(f.horasVigencia);
@@ -504,7 +519,8 @@ export class VisitasComponent implements OnInit {
       f.motivo &&
       f.fechaLlegada &&
       vigencia >= 1 && vigencia <= 72 &&
-      acompanantes >= 0 && acompanantes <= 20
+      acompanantes >= 0 && acompanantes <= 20 &&
+      !this.visitaYaVencida()
     );
   }
 
