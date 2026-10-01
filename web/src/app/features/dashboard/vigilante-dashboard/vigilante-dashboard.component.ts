@@ -4,11 +4,12 @@ import { AuthService } from '../../../core/services/auth.service';
 import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.component';
 import { CasetaVisitasComponent } from '../../visitas/caseta-visitas/caseta-visitas.component';
 import { AvisosCasetaComponent } from '../../avisos/avisos-caseta/avisos-caseta.component';
+import { DirectorioCasasComponent } from '../../visitas/directorio-casas/directorio-casas.component';
 
 @Component({
   selector: 'app-vigilante-dashboard',
   standalone: true,
-  imports: [CommonModule, UserMenuComponent, CasetaVisitasComponent, AvisosCasetaComponent],
+  imports: [CommonModule, UserMenuComponent, CasetaVisitasComponent, DirectorioCasasComponent, AvisosCasetaComponent],
   template: `
     <div class="min-h-screen bg-[#F7F7F7] text-[#0f172a] font-sans antialiased">
       <!-- Navbar -->
@@ -40,12 +41,13 @@ import { AvisosCasetaComponent } from '../../avisos/avisos-caseta/avisos-caseta.
           </p>
         </div>
 
-        <!-- Caseta a la izquierda; avisos vigentes (solo lectura) a la derecha en pantallas grandes -->
+        <!-- Caseta a la izquierda; a la derecha en pantallas grandes, el directorio de casas y los avisos vigentes (solo lectura) -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           <div class="lg:col-span-2 min-w-0">
             <app-caseta-visitas />
           </div>
-          <aside class="lg:sticky lg:top-24 min-w-0">
+          <aside class="min-w-0 space-y-6">
+            <app-directorio-casas />
             <app-avisos-caseta />
           </aside>
         </div>
