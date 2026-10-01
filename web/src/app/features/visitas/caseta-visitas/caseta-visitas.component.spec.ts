@@ -3,6 +3,7 @@ import { signal } from '@angular/core';
 import { CasetaVisitasComponent } from './caseta-visitas.component';
 import { VisitasVigilanciaService } from '../../../core/services/visitas-vigilancia.service';
 import { DirectorioCasasService } from '../../../core/services/directorio-casas.service';
+import { VisitasHistoricoService } from '../../../core/services/visitas-historico.service';
 import { VisitaVigilancia } from '../../../core/models/visita.model';
 
 const visita: VisitaVigilancia = {
@@ -36,6 +37,15 @@ describe('CasetaVisitasComponent', () => {
     cargar: jasmine.Spy;
     residentesDeCasa: jasmine.Spy;
   };
+  let historico: {
+    PAGE_SIZE: number;
+    items: ReturnType<typeof signal<VisitaVigilancia[]>>;
+    totalCount: ReturnType<typeof signal<number>>;
+    page: ReturnType<typeof signal<number>>;
+    isLoading: ReturnType<typeof signal<boolean>>;
+    errorMessage: ReturnType<typeof signal<string | null>>;
+    cargar: jasmine.Spy;
+  };
 
   beforeEach(() => {
     servicio = {
@@ -62,11 +72,22 @@ describe('CasetaVisitasComponent', () => {
       )
     };
 
+    historico = {
+      PAGE_SIZE: 20,
+      items: signal<VisitaVigilancia[]>([]),
+      totalCount: signal(0),
+      page: signal(1),
+      isLoading: signal(false),
+      errorMessage: signal<string | null>(null),
+      cargar: jasmine.createSpy('cargarHistorico')
+    };
+
     TestBed.configureTestingModule({
       imports: [CasetaVisitasComponent],
       providers: [
         { provide: VisitasVigilanciaService, useValue: servicio },
-        { provide: DirectorioCasasService, useValue: directorio }
+        { provide: DirectorioCasasService, useValue: directorio },
+        { provide: VisitasHistoricoService, useValue: historico }
       ]
     });
 
@@ -118,6 +139,89 @@ describe('CasetaVisitasComponent', () => {
     const textoEnCurso = fixture.nativeElement.textContent as string;
     expect(textoEnCurso).toContain('Registrar salida');
     expect(textoEnCurso).not.toContain('Registrar entrada');
+  });
+
+  describe('pestañas Hoy e Historial', () => {
+    const pestanas = () => Array.from(fixture.nativeElement.querySelectorAll('[role="tab"]') as NodeListOf<HTMLButtonElement>);
+    const texto = () => (fixture.nativeElement.textContent as string).replace(/\s+/g, ' ');
+    const visitaVieja: VisitaVigilancia = { ...visita, id: 'v-vieja', nombreVisitante: 'Rosa', estado: 'finalizada', horaEntrada: '2026-09-20T10:00:00Z', horaSalida: '2026-09-20T11:00:00Z' };
+
+    it('abre en "Hoy" con su conteo y sin pedir el historial hasta que se abra su pestaña', () => {
+      expect(pestanas().map(p => p.getAttribute('aria-selected'))).toEqual(['true', 'false']);
+      expect(pestanas()[0].textContent).toContain('1');
+      expect(historico.cargar).not.toHaveBeenCalled();
+    });
+
+    it('al abrir "Historial" lo pide una sola vez y lo muestra con las visitas más recientes primero', () => {
+      historico.items.set([{ ...visita, id: 'v-nueva', nombreVisitante: 'Marta' }, visitaVieja]);
+      historico.totalCount.set(2);
+
+      pestanas()[1].click();
+      fixture.detectChanges();
+      pestanas()[0].click();
+      pestanas()[1].click();
+      fixture.detectChanges();
+
+      expect(historico.cargar).toHaveBeenCalledOnceWith({}, 1);
+      const nombres = Array.from(fixture.nativeElement.querySelectorAll('li p.font-semibold') as NodeListOf<HTMLElement>).map(p => p.textContent!.trim());
+      expect(nombres).toEqual(['Marta Pérez', 'Rosa Pérez']);
+      expect(texto()).toContain('Salió');
+      expect(texto()).toContain('Todas las visitas del condominio, la más reciente primero.');
+    });
+
+    it('filtra el historial por estado y vuelve a la primera página', () => {
+      component.cambiarPestana('historial');
+      historico.cargar.calls.reset();
+
+      component.cambiarEstadoHistorial('finalizada');
+
+      expect(historico.cargar).toHaveBeenCalledOnceWith({ estado: 'finalizada' }, 1);
+    });
+
+    it('pagina el historial', () => {
+      historico.totalCount.set(45);
+      historico.page.set(2);
+      component.cambiarPestana('historial');
+      fixture.detectChanges();
+      historico.cargar.calls.reset();
+
+      expect(texto()).toContain('Página 2 de 3');
+      component.irAPaginaHistorial(3);
+      component.irAPaginaHistorial(4);
+
+      expect(historico.cargar).toHaveBeenCalledOnceWith({}, 3);
+    });
+
+    it('si el backend no permite el historial muestra su mensaje en vez de una lista vacía', () => {
+      historico.errorMessage.set('Tu cuenta no tiene permiso para consultar el historial de visitas.');
+      pestanas()[1].click();
+      fixture.detectChanges();
+
+      expect(texto()).toContain('Tu cuenta no tiene permiso para consultar el historial de visitas.');
+      expect(texto()).not.toContain('Todavía no hay visitas registradas.');
+    });
+
+    it('el detalle de una visita del historial es de consulta: sin placas ni entrada o salida', () => {
+      historico.items.set([{ ...visitaVieja, estado: 'programada' }]);
+      pestanas()[1].click();
+      fixture.detectChanges();
+
+      component.abrirDetalle({ ...visitaVieja, estado: 'programada' });
+      fixture.detectChanges();
+
+      expect(component.detalleEsDeHoy()).toBeFalse();
+      expect(texto()).toContain('Rosa Pérez');
+      expect(fixture.nativeElement.querySelector('#placas-entrada')).toBeNull();
+      expect(texto()).not.toContain('Registrar entrada');
+    });
+
+    it('el detalle de una visita de hoy sí permite registrar la entrada', () => {
+      component.abrirDetalle(visita);
+      fixture.detectChanges();
+
+      expect(component.detalleEsDeHoy()).toBeTrue();
+      expect(fixture.nativeElement.querySelector('#placas-entrada')).not.toBeNull();
+    });
   });
 
   describe('a quién avisar en la casa', () => {
