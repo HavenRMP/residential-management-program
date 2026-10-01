@@ -633,7 +633,16 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
     let validada: VisitaVigilancia | null = null;
     try {
       validada = await this.visitasService.validarCodigo(codigo);
-      this.visitaValidada.set(validada);
+      if (validada.estado) {
+        this.visitaValidada.set(validada);
+      } else {
+        // Código válido pero la visita no está en las próximas 24 horas: no hay nada que atender ahora
+        this.errorCodigo.set(
+          `${validada.nombreVisitante} ${validada.apellidosVisitante}: el código es válido, pero la visita no está por atender ` +
+          '(llega en más de 24 horas, ya terminó o se canceló).'
+        );
+        validada = null;
+      }
     } catch (err: any) {
       console.error('[CasetaVisitasComponent] Error al validar código:', err);
       this.errorCodigo.set(this.mensajeError(err));
