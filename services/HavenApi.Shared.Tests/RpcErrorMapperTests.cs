@@ -21,6 +21,10 @@ public class RpcErrorMapperTests
     [InlineData("VI007", 409)]
     [InlineData("VI008", 400)]
     [InlineData("VI009", 404)]
+    [InlineData("P0002", 404)]
+    [InlineData("SU004", 400)]
+    [InlineData("42501", 403)]
+    [InlineData("22023", 400)]
     [InlineData("ALGO_DESCONOCIDO", 500)]
     [InlineData("", 500)]
     public void Map_ShouldReturnExpectedStatusCode(string code, int expectedStatusCode)
