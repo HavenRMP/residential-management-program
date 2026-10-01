@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testin
 import { signal } from '@angular/core';
 import { CasetaVisitasComponent } from './caseta-visitas.component';
 import { VisitasVigilanciaService } from '../../../core/services/visitas-vigilancia.service';
+import { DirectorioCasasService } from '../../../core/services/directorio-casas.service';
 import { VisitaVigilancia } from '../../../core/models/visita.model';
 
 const visita: VisitaVigilancia = {
@@ -30,6 +31,11 @@ describe('CasetaVisitasComponent', () => {
     cargarHoy: jasmine.Spy;
     registrarEntrada: jasmine.Spy;
   };
+  let directorio: {
+    isLoading: ReturnType<typeof signal<boolean>>;
+    cargar: jasmine.Spy;
+    residentesDeCasa: jasmine.Spy;
+  };
 
   beforeEach(() => {
     servicio = {
@@ -43,9 +49,25 @@ describe('CasetaVisitasComponent', () => {
       registrarEntrada: jasmine.createSpy('registrarEntrada').and.callFake(async () => ({ ...visita, estado: 'en_curso' }))
     };
 
+    directorio = {
+      isLoading: signal(false),
+      cargar: jasmine.createSpy('cargar').and.returnValue(Promise.resolve()),
+      residentesDeCasa: jasmine.createSpy('residentesDeCasa').and.callFake((casa: string) =>
+        casa === 'PRUEBA-01'
+          ? [
+              { id: 'r1', nombre: 'Ana', apellidos: 'López', telefono: '55 1234 5678' },
+              { id: 'r2', nombre: 'Luis', apellidos: 'Ruiz', telefono: null }
+            ]
+          : []
+      )
+    };
+
     TestBed.configureTestingModule({
       imports: [CasetaVisitasComponent],
-      providers: [{ provide: VisitasVigilanciaService, useValue: servicio }]
+      providers: [
+        { provide: VisitasVigilanciaService, useValue: servicio },
+        { provide: DirectorioCasasService, useValue: directorio }
+      ]
     });
 
     fixture = TestBed.createComponent(CasetaVisitasComponent);
@@ -96,6 +118,37 @@ describe('CasetaVisitasComponent', () => {
     const textoEnCurso = fixture.nativeElement.textContent as string;
     expect(textoEnCurso).toContain('Registrar salida');
     expect(textoEnCurso).not.toContain('Registrar entrada');
+  });
+
+  describe('a quién avisar en la casa', () => {
+    it('carga el directorio al iniciar', () => {
+      expect(directorio.cargar).toHaveBeenCalled();
+    });
+
+    it('el detalle lista los residentes de la casa con su teléfono como enlace para llamar', () => {
+      component.abrirDetalle(visita);
+      fixture.detectChanges();
+
+      const texto = (fixture.nativeElement.textContent as string).replace(/\s+/g, ' ');
+      expect(texto).toContain('A quién avisar en la casa PRUEBA-01');
+      expect(texto).toContain('Ana López');
+      expect(texto).toContain('Luis Ruiz');
+      expect(texto).toContain('Sin teléfono');
+      const enlace = fixture.nativeElement.querySelector('a[href^="tel:"]') as HTMLAnchorElement;
+      expect(enlace.getAttribute('href')).toBe('tel:5512345678');
+      expect(enlace.textContent!.trim()).toBe('55 1234 5678');
+    });
+
+    it('si la casa no tiene residentes lo dice, y si el directorio aún carga lo indica', () => {
+      component.abrirDetalle({ ...visita, id: 'v-2', numeroCasa: 'B-07' });
+      servicio.items.set([{ ...visita, id: 'v-2', numeroCasa: 'B-07' }]);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('No hay residentes registrados en esta casa.');
+
+      directorio.isLoading.set(true);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Cargando residentes');
+    });
   });
 
   describe('captura de placas', () => {
