@@ -1,6 +1,5 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import Swal from 'sweetalert2';
 import { DirectorioCasasService } from '../../../core/services/directorio-casas.service';
 import { FilaDirectorio, filasDelDirectorio, telefonoParaLlamar } from '../../../core/utils/directorio-casas.util';
 
@@ -69,27 +68,21 @@ const POR_PAGINA = 30;
 
       <ng-container *ngIf="!directorio.isLoading() && !directorio.errorMessage()">
         <!-- Encabezado de columnas (escritorio) -->
-        <div *ngIf="mostradas().length > 0" class="hidden md:grid grid-cols-[minmax(0,2fr)_7rem_minmax(0,1.4fr)_9rem] gap-x-4 px-4 py-2 bg-slate-50/90 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+        <div *ngIf="mostradas().length > 0" class="hidden md:grid grid-cols-[minmax(0,2fr)_7rem_minmax(0,1.4fr)] gap-x-4 px-4 py-2 bg-slate-50/90 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
           <span>Persona</span>
           <span>Casa</span>
           <span>Teléfono</span>
-          <span class="text-right">Contacto</span>
         </div>
 
         <ul *ngIf="mostradas().length > 0" class="divide-y divide-slate-100">
           <li *ngFor="let f of mostradas()" class="px-4 py-3">
             <!-- Escritorio: persona, casa y teléfono en columnas -->
-            <div class="hidden md:grid grid-cols-[minmax(0,2fr)_7rem_minmax(0,1.4fr)_9rem] gap-x-4 items-center">
+            <div class="hidden md:grid grid-cols-[minmax(0,2fr)_7rem_minmax(0,1.4fr)] gap-x-4 items-center">
               <p class="text-sm truncate" [ngClass]="f.nombreCompleto ? 'font-semibold text-slate-900' : 'text-slate-400'">
                 {{ f.nombreCompleto ?? 'Sin residentes registrados' }}
               </p>
               <span class="justify-self-start font-mono text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-200 rounded-md px-2 py-1">{{ f.numeroCasa }}</span>
-              <p class="font-mono text-xs" [ngClass]="f.telefono ? 'text-slate-700' : 'text-slate-400'">
-                {{ f.telefono ?? (f.nombreCompleto ? 'Sin teléfono' : '') }}
-              </p>
-              <div class="justify-self-end">
-                <ng-container *ngTemplateOutlet="contacto; context: { $implicit: f }"></ng-container>
-              </div>
+              <ng-container *ngTemplateOutlet="telefono; context: { $implicit: f }"></ng-container>
             </div>
 
             <!-- Móvil: se apila -->
@@ -100,10 +93,9 @@ const POR_PAGINA = 30;
                 </p>
                 <p class="mt-1 flex items-center gap-2 text-xs">
                   <span class="font-mono font-semibold text-slate-700 bg-slate-100 border border-slate-200 rounded-md px-1.5 py-0.5">{{ f.numeroCasa }}</span>
-                  <span class="font-mono" [ngClass]="f.telefono ? 'text-slate-700' : 'text-slate-400'">{{ f.telefono ?? (f.nombreCompleto ? 'Sin teléfono' : '') }}</span>
+                  <ng-container *ngTemplateOutlet="telefono; context: { $implicit: f }"></ng-container>
                 </p>
               </div>
-              <ng-container *ngTemplateOutlet="contacto; context: { $implicit: f }"></ng-container>
             </div>
           </li>
         </ul>
@@ -133,28 +125,16 @@ const POR_PAGINA = 30;
       </ng-container>
     </section>
 
-    <!-- Acciones de contacto: llamar y copiar el teléfono -->
-    <ng-template #contacto let-f>
-      <div *ngIf="f.telefono" class="flex items-center gap-1">
-        <a
-          [href]="enlaceTelefono(f.telefono)"
-          [attr.aria-label]="'Llamar a ' + f.nombreCompleto"
-          class="h-8 px-2.5 inline-flex items-center rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
-        >
-          Llamar
-        </a>
-        <button
-          type="button"
-          (click)="copiarTelefono(f.telefono)"
-          [attr.aria-label]="'Copiar el teléfono de ' + f.nombreCompleto"
-          title="Copiar teléfono"
-          class="h-8 w-8 inline-flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
-        >
-          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-          </svg>
-        </button>
-      </div>
+    <!-- El teléfono es el enlace: en un celular o tableta se toca para llamar, sin botones aparte -->
+    <ng-template #telefono let-f>
+      <a
+        *ngIf="f.telefono; else sinTelefono"
+        [href]="enlaceTelefono(f.telefono)"
+        class="font-mono text-xs text-slate-700 hover:text-[#111C99] underline-offset-2 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99] rounded"
+      >{{ f.telefono }}</a>
+      <ng-template #sinTelefono>
+        <span class="font-mono text-xs text-slate-400">{{ f.nombreCompleto ? 'Sin teléfono' : '' }}</span>
+      </ng-template>
     </ng-template>
   `
 })
@@ -186,15 +166,5 @@ export class DirectorioCasasComponent implements OnInit {
 
   enlaceTelefono(telefono: string): string {
     return `tel:${telefonoParaLlamar(telefono)}`;
-  }
-
-  async copiarTelefono(telefono: string): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(telefono);
-      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Teléfono copiado', showConfirmButton: false, timer: 2000 });
-    } catch (err) {
-      console.error('[DirectorioCasasComponent] No se pudo copiar el teléfono:', err);
-      Swal.fire({ icon: 'info', title: 'Teléfono', text: telefono, confirmButtonColor: '#111C99' });
-    }
   }
 }
