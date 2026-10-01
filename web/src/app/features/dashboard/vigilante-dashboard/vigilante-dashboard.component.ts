@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { AuthService } from '../../../core/services/auth.service';
 import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.component';
 import { CasetaVisitasComponent } from '../../visitas/caseta-visitas/caseta-visitas.component';
+import { AvisosCasetaComponent } from '../../avisos/avisos-caseta/avisos-caseta.component';
 
 @Component({
   selector: 'app-vigilante-dashboard',
   standalone: true,
-  imports: [CommonModule, UserMenuComponent, CasetaVisitasComponent],
+  imports: [CommonModule, UserMenuComponent, CasetaVisitasComponent, AvisosCasetaComponent],
   template: `
     <div class="min-h-screen bg-[#F7F7F7] text-[#0f172a] font-sans antialiased">
       <!-- Navbar -->
@@ -39,7 +40,15 @@ import { CasetaVisitasComponent } from '../../visitas/caseta-visitas/caseta-visi
           </p>
         </div>
 
-        <app-caseta-visitas />
+        <!-- Caseta a la izquierda; avisos vigentes (solo lectura) a la derecha en pantallas grandes -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          <div class="lg:col-span-2 min-w-0">
+            <app-caseta-visitas />
+          </div>
+          <aside class="lg:sticky lg:top-24 min-w-0">
+            <app-avisos-caseta />
+          </aside>
+        </div>
       </main>
     </div>
   `
