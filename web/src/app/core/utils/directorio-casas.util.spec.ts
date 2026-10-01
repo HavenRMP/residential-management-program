@@ -1,5 +1,5 @@
 import { ViviendaConResidentes } from '../models/vivienda.model';
-import { filtrarDirectorio, normalizarBusqueda, telefonoParaLlamar } from './directorio-casas.util';
+import { filasDelDirectorio, filtrarDirectorio, normalizarBusqueda, telefonoParaLlamar, todasLasPersonas } from './directorio-casas.util';
 
 const casas: ViviendaConResidentes[] = [
   {
@@ -56,5 +56,21 @@ describe('directorio-casas.util', () => {
   it('busca por teléfono ignorando espacios y guiones, con al menos 3 dígitos', () => {
     expect(filtrarDirectorio(casas, '1234 5678').map(f => f.casaId)).toEqual([1, 3]);
     expect(filtrarDirectorio(casas, '55').some(f => f.casaId === 1 && f.nombreCompleto === 'José Pérez Ruiz')).toBeFalse();
+  });
+
+  it('lista a todas las personas con su casa y teléfono, sin las casas vacías', () => {
+    const personas = todasLasPersonas(casas);
+
+    expect(personas.map(p => `${p.numeroCasa}|${p.nombreCompleto}|${p.telefono}`)).toEqual([
+      'A-12|José Pérez Ruiz|55 1234 5678',
+      'A-12|Ana López|null',
+      'PRUEBA-01|Residente Prueba|5512345678'
+    ]);
+  });
+
+  it('sin consulta lista todo y con consulta filtra', () => {
+    expect(filasDelDirectorio(casas, '  ').length).toBe(3);
+    expect(filasDelDirectorio(casas, 'ana').map(f => f.nombreCompleto)).toEqual(['Ana López']);
+    expect(filasDelDirectorio(casas, 'b-07').length).toBe(1);
   });
 });

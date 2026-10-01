@@ -19,10 +19,27 @@ export function telefonoParaLlamar(telefono: string | null | undefined): string 
   return (telefono ?? '').replace(/[^\d+]/g, '');
 }
 
+/** Todas las personas del directorio, una fila por residente, en el orden de las casas recibidas. Las casas sin residentes no aparecen. */
+export function todasLasPersonas(casas: ViviendaConResidentes[]): FilaDirectorio[] {
+  return casas.flatMap(casa =>
+    casa.residentes.map(r => ({
+      casaId: casa.id,
+      numeroCasa: casa.numeroCasa,
+      nombreCompleto: `${r.nombre} ${r.apellidos}`.trim(),
+      telefono: r.telefono
+    }))
+  );
+}
+
+/** Con consulta, las filas que coinciden; sin consulta, todas las personas del directorio. */
+export function filasDelDirectorio(casas: ViviendaConResidentes[], consulta: string): FilaDirectorio[] {
+  return normalizarBusqueda(consulta) ? filtrarDirectorio(casas, consulta) : todasLasPersonas(casas);
+}
+
 /**
  * Filas del directorio que coinciden con la consulta (número de casa, nombre, apellidos o teléfono).
  * Una casa sin residentes aparece como una fila sin nombre, solo si coincide por su número.
- * Sin consulta no se devuelve nada: el directorio se consulta, no se lista completo.
+ * Sin consulta no se devuelve nada; para listar todo se usa `filasDelDirectorio`.
  */
 export function filtrarDirectorio(casas: ViviendaConResidentes[], consulta: string): FilaDirectorio[] {
   const q = normalizarBusqueda(consulta);
