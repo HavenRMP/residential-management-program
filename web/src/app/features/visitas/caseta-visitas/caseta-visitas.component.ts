@@ -12,9 +12,12 @@ import {
   CLASES_ESTADO_VISITA,
   ETIQUETAS_ESTADO_VISITA,
   EstadoVisita,
+  FiltrosHistoricoVisitas,
   formatearFechaVisita,
   fusionarSinVacios,
   MOTIVOS_VISITA,
+  rangoFechasInvalido,
+  rangoFechasIso,
   VisitaVigilancia
 } from '../../../core/models/visita.model';
 
@@ -288,9 +291,42 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
 
         <!-- Historial: visitas que ya pasaron (finalizadas, canceladas o expiradas), la más reciente primero -->
         <ng-container *ngIf="pestana() === 'historial'">
-          <div class="flex items-center justify-between gap-2">
+          <!-- Filtros del historial: se aplican solos al cambiar -->
+          <div class="flex flex-wrap items-end gap-3">
             <div>
-              <label class="sr-only" for="estado-historial">Filtrar por estado</label>
+              <label class="block text-[11px] font-semibold text-slate-700 mb-1" for="desde-historial">Desde</label>
+              <input
+                id="desde-historial"
+                type="date"
+                [ngModel]="desdeHistorial()"
+                (ngModelChange)="cambiarDesdeHistorial($event)"
+                class="h-8 text-xs rounded-lg border border-slate-300 bg-white px-2 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+              />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-700 mb-1" for="hasta-historial">Hasta</label>
+              <input
+                id="hasta-historial"
+                type="date"
+                [ngModel]="hastaHistorial()"
+                (ngModelChange)="cambiarHastaHistorial($event)"
+                class="h-8 text-xs rounded-lg border border-slate-300 bg-white px-2 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+              />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-700 mb-1" for="casa-historial">Casa</label>
+              <select
+                id="casa-historial"
+                [ngModel]="viviendaHistorial()"
+                (ngModelChange)="cambiarViviendaHistorial($event)"
+                class="h-8 max-w-[11rem] text-xs rounded-lg border border-slate-300 bg-white px-2 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+              >
+                <option [ngValue]="null">Todas</option>
+                <option *ngFor="let c of directorio.casas()" [ngValue]="c.id">{{ c.numeroCasa }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-700 mb-1" for="estado-historial">Estado</label>
               <select
                 id="estado-historial"
                 [ngModel]="estadoHistorial()"
@@ -301,16 +337,25 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
               </select>
             </div>
             <button
+              *ngIf="hayFiltrosHistorial()"
+              type="button"
+              (click)="limpiarFiltrosHistorial()"
+              class="h-8 px-3 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              Limpiar filtros
+            </button>
+            <button
               type="button"
               (click)="cargarHistorial(historico.page())"
               title="Actualizar"
-              class="h-8 w-8 inline-flex items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+              class="h-8 w-8 inline-flex items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer sm:ml-auto"
             >
               <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </button>
           </div>
+          <p *ngIf="rangoHistorialInvalido()" class="text-[11px] text-red-600 font-medium">La fecha "desde" no puede ser posterior a "hasta".</p>
 
           <div *ngIf="historico.isLoading()" class="space-y-2" aria-busy="true">
             <div *ngFor="let s of [1, 2, 3]" class="p-4 rounded-md bg-white border border-slate-200 animate-pulse h-16"></div>
@@ -324,7 +369,7 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
             *ngIf="!historico.isLoading() && !historico.errorMessage() && historico.items().length === 0"
             class="py-10 text-center text-xs text-slate-500 font-medium"
           >
-            No hay visitas con este estado.
+            {{ hayFiltrosHistorial() ? 'No hay visitas con estos filtros.' : 'No hay visitas con este estado.' }}
           </div>
 
           <ul *ngIf="!historico.isLoading() && !historico.errorMessage()" class="space-y-2">
@@ -524,6 +569,11 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
   readonly estados: EstadoVisita[] = ['finalizada', 'cancelada', 'expirada'];
   readonly pestana = signal<'proximas' | 'programadas' | 'historial'>('proximas');
   readonly estadoHistorial = signal<EstadoVisita>('finalizada');
+  readonly desdeHistorial = signal<string>('');
+  readonly hastaHistorial = signal<string>('');
+  readonly viviendaHistorial = signal<number | null>(null);
+  readonly rangoHistorialInvalido = computed(() => rangoFechasInvalido(this.desdeHistorial(), this.hastaHistorial()));
+  readonly hayFiltrosHistorial = computed(() => !!(this.desdeHistorial() || this.hastaHistorial() || this.viviendaHistorial()));
   private programadasSolicitadas = false;
   private historialSolicitado = false;
   readonly descripcionPestana = computed(() => {
@@ -551,11 +601,42 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
   }
 
   cargarHistorial(page: number = 1): void {
-    this.historico.cargar({ estado: this.estadoHistorial() }, page);
+    const filtros: FiltrosHistoricoVisitas = { estado: this.estadoHistorial(), ...rangoFechasIso(this.desdeHistorial(), this.hastaHistorial()) };
+    const viviendaId = this.viviendaHistorial();
+    if (viviendaId) filtros.viviendaId = viviendaId;
+    this.historico.cargar(filtros, page);
   }
 
   cambiarEstadoHistorial(estado: EstadoVisita): void {
     this.estadoHistorial.set(estado);
+    this.cargarHistorial(1);
+  }
+
+  cambiarDesdeHistorial(fecha: string): void {
+    this.desdeHistorial.set(fecha ?? '');
+    this.aplicarFiltrosHistorial();
+  }
+
+  cambiarHastaHistorial(fecha: string): void {
+    this.hastaHistorial.set(fecha ?? '');
+    this.aplicarFiltrosHistorial();
+  }
+
+  cambiarViviendaHistorial(viviendaId: number | null): void {
+    this.viviendaHistorial.set(viviendaId);
+    this.aplicarFiltrosHistorial();
+  }
+
+  limpiarFiltrosHistorial(): void {
+    this.desdeHistorial.set('');
+    this.hastaHistorial.set('');
+    this.viviendaHistorial.set(null);
+    this.cargarHistorial(1);
+  }
+
+  /** Con un rango al revés no se consulta: el aviso explica por qué no cambia la lista */
+  private aplicarFiltrosHistorial(): void {
+    if (this.rangoHistorialInvalido()) return;
     this.cargarHistorial(1);
   }
 
