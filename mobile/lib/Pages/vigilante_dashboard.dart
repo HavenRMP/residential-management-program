@@ -1196,7 +1196,9 @@ class _VisitasProgramadasTabState extends State<_VisitasProgramadasTab> {
 
     final hora = '${fecha.hour.toString().padLeft(2, '0')}:${fecha.minute.toString().padLeft(2, '0')}';
 
-    if (diff == 1) {
+    if (diff == 0) {
+      return 'Hoy a las $hora';
+    } else if (diff == 1) {
       return 'Mañana a las $hora';
     } else if (diff == 2) {
       return 'En 2 días · $hora';
@@ -1258,7 +1260,7 @@ class _VisitasProgramadasTabState extends State<_VisitasProgramadasTab> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Visitas Futuras Programadas',
+                            'Visitas Programadas',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
@@ -1267,7 +1269,7 @@ class _VisitasProgramadasTabState extends State<_VisitasProgramadasTab> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '${_visitas.length} visita(s) agendada(s) para los próximos días.',
+                            '${_visitas.length} visita(s) agendada(s).',
                             style: const TextStyle(
                               fontSize: 12,
                               color: Color(0xFFB45309),
@@ -1341,7 +1343,7 @@ class _VisitasProgramadasTabState extends State<_VisitasProgramadasTab> {
                         Text(
                           _busquedaActual.isNotEmpty
                               ? 'No hay visitas que coincidan con "$_busquedaActual"'
-                              : 'No hay visitas programadas para los próximos días',
+                              : 'No hay visitas programadas',
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             fontSize: 15,
@@ -1351,7 +1353,7 @@ class _VisitasProgramadasTabState extends State<_VisitasProgramadasTab> {
                         ),
                         const SizedBox(height: 6),
                         const Text(
-                          'Cuando los residentes agenden visitas futuras, aparecerán aquí automáticamente.',
+                          'Cuando los residentes agenden visitas, aparecerán aquí automáticamente.',
                           textAlign: TextAlign.center,
                           style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
                         ),

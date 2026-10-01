@@ -377,24 +377,21 @@ class VisitasService {
     }
   }
 
-  /// GET /api/visitas/historico para visitas programadas a futuro (desde mañana)
+  /// GET /api/visitas/historico para visitas programadas activas
   Future<Map<String, dynamic>> getVisitasProgramadas({
     int page = 1,
     int pageSize = 20,
     int? viviendaId,
   }) async {
-    final now = DateTime.now();
-    final manana = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
     return getHistorico(
       page: page,
       pageSize: pageSize,
-      desde: manana,
       viviendaId: viviendaId,
       estado: 'programada',
     );
   }
 
-  /// GET /api/visitas/historico para todas las visitas pasadas del condominio
+  /// GET /api/visitas/historico para todas las visitas del historial
   Future<Map<String, dynamic>> getVisitasPasadas({
     int page = 1,
     int pageSize = 20,
@@ -403,11 +400,10 @@ class VisitasService {
     DateTime? desde,
     DateTime? hasta,
   }) async {
-    final now = DateTime.now();
     return getHistorico(
       page: page,
       pageSize: pageSize,
-      hasta: hasta ?? now,
+      hasta: hasta,
       desde: desde,
       viviendaId: viviendaId,
       estado: estado,
