@@ -565,7 +565,7 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.visitasService.cargarHoy();
+    this.visitasService.cargarProximas();
     // El directorio es compartido: se carga una sola vez aunque también lo use su propia tarjeta
     this.directorio.cargar();
   }
@@ -611,16 +611,16 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
   /** Espera a que el guardia deje de teclear para no disparar una petición por letra */
   onBusquedaCambio(): void {
     clearTimeout(this.temporizadorBusqueda);
-    this.temporizadorBusqueda = setTimeout(() => this.visitasService.cargarHoy(this.busqueda, 1), BUSQUEDA_DEBOUNCE_MS);
+    this.temporizadorBusqueda = setTimeout(() => this.visitasService.cargarProximas(this.busqueda, 1), BUSQUEDA_DEBOUNCE_MS);
   }
 
   recargar(): void {
-    this.visitasService.cargarHoy(this.busqueda, this.visitasService.page());
+    this.visitasService.cargarProximas(this.busqueda, this.visitasService.page());
   }
 
   irAPagina(pagina: number): void {
     if (pagina < 1 || pagina > this.totalPaginas()) return;
-    this.visitasService.cargarHoy(this.busqueda, pagina);
+    this.visitasService.cargarProximas(this.busqueda, pagina);
   }
 
   async validarCodigo(): Promise<void> {

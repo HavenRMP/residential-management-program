@@ -119,7 +119,7 @@ export interface CrearVisitaDto {
 export type ActualizarVisitaDto = Partial<Omit<CrearVisitaDto, 'viviendaId'>>;
 
 /**
- * Visita proyectada para caseta y administración (GET /api/visitas/hoy, /codigo/{codigo},
+ * Visita proyectada para caseta y administración (GET /api/visitas/proximas, /codigo/{codigo},
  * /historico y POST /{id}/entrada|salida). No incluye el código de acceso ni datos privados.
  */
 export type VisitaVigilancia = Omit<Visita, 'codigo' | 'creadoEn'>;

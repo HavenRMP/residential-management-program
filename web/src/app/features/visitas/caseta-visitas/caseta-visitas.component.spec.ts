@@ -31,7 +31,7 @@ describe('CasetaVisitasComponent', () => {
     page: ReturnType<typeof signal<number>>;
     isLoading: ReturnType<typeof signal<boolean>>;
     errorMessage: ReturnType<typeof signal<string | null>>;
-    cargarHoy: jasmine.Spy;
+    cargarProximas: jasmine.Spy;
     registrarEntrada: jasmine.Spy;
     validarCodigo: jasmine.Spy;
   };
@@ -64,7 +64,7 @@ describe('CasetaVisitasComponent', () => {
       page: signal(1),
       isLoading: signal(false),
       errorMessage: signal<string | null>(null),
-      cargarHoy: jasmine.createSpy('cargarHoy'),
+      cargarProximas: jasmine.createSpy('cargarProximas'),
       registrarEntrada: jasmine.createSpy('registrarEntrada').and.callFake(async () => ({ ...visita, estado: 'en_curso' })),
       validarCodigo: jasmine.createSpy('validarCodigo').and.callFake(async () => visita)
     };
@@ -112,7 +112,7 @@ describe('CasetaVisitasComponent', () => {
     fixture = TestBed.createComponent(CasetaVisitasComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
-    servicio.cargarHoy.calls.reset();
+    servicio.cargarProximas.calls.reset();
   });
 
   it('espera a que el guardia deje de teclear y hace una sola búsqueda', fakeAsync(() => {
@@ -122,10 +122,10 @@ describe('CasetaVisitasComponent', () => {
     component.busqueda = 'Perez';
     component.onBusquedaCambio();
     tick(349);
-    expect(servicio.cargarHoy).not.toHaveBeenCalled();
+    expect(servicio.cargarProximas).not.toHaveBeenCalled();
 
     tick(1);
-    expect(servicio.cargarHoy).toHaveBeenCalledOnceWith('Perez', 1);
+    expect(servicio.cargarProximas).toHaveBeenCalledOnceWith('Perez', 1);
   }));
 
   it('abre y cierra el modal de detalle mostrando los datos de la visita', () => {
