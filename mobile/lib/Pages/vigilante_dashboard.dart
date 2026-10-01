@@ -1247,7 +1247,7 @@ class _VisitasProgramadasTabState extends State<_VisitasProgramadasTab> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Icon(
-                        Icons.event_upcoming_rounded,
+                        Icons.calendar_today_rounded,
                         color: Colors.white,
                         size: 20,
                       ),
