@@ -38,7 +38,9 @@ class _ViviendasListScreenState extends State<ViviendasListScreen> {
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -50,7 +52,9 @@ class _ViviendasListScreenState extends State<ViviendasListScreen> {
           'Vivienda eliminada correctamente',
           success: true,
         );
-        _fetchViviendas();
+        if (mounted) {
+          _fetchViviendas();
+        }
       } else {
         widget.controller.notifyToast(
           'No se pudo eliminar la vivienda',
