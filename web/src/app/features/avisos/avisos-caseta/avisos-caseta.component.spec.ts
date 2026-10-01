@@ -1,6 +1,5 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { signal } from '@angular/core';
-import Swal from 'sweetalert2';
 import { AvisosCasetaComponent } from './avisos-caseta.component';
 import { AvisosService } from '../../../core/services/avisos.service';
 import { AuthService } from '../../../core/services/auth.service';
@@ -11,8 +10,10 @@ const aviso = (id: string, titulo: string, prioridad: AvisoPrioridad, dias: numb
   condominioId: 'cond-1',
   titulo,
   contenido: `Contenido de ${titulo}`,
+  fechaPublicacion: '2026-09-30T00:00:00Z',
   fechaExpiracion: new Date(Date.now() + dias * 86_400_000).toISOString(),
   activo: true,
+  creadoPorNombre: 'Administrador Gomez',
   creadoEn: '2026-09-30T00:00:00Z',
   prioridad
 });
@@ -27,12 +28,12 @@ describe('AvisosCasetaComponent', () => {
   };
 
   beforeEach(() => {
-    spyOn(Swal, 'fire').and.returnValue(Promise.resolve({} as any));
     servicio = {
       vigentes: signal<Aviso[]>([
         aviso('1', 'Aviso general', 'informativo', 10),
-        aviso('2', 'Corte de agua', 'urgente', 2),
-        aviso('3', 'Fiesta en el salón', 'evento', 5)
+        aviso('2', 'Corte de agua', 'urgente', 0.5),
+        aviso('3', 'Fiesta en el salón', 'evento', 5),
+        aviso('4', 'Reparación de bomba', 'urgente', 4)
       ]),
       isLoading: signal(false),
       errorMessage: signal<string | null>(null),
@@ -50,18 +51,37 @@ describe('AvisosCasetaComponent', () => {
     fixture.detectChanges();
   });
 
-  const texto = () => fixture.nativeElement.textContent as string;
+  const texto = () => (fixture.nativeElement.textContent as string).replace(/\s+/g, ' ');
+  const botonesAviso = () => Array.from(fixture.nativeElement.querySelectorAll('ul li button') as NodeListOf<HTMLButtonElement>);
+  const panel = () => fixture.nativeElement.querySelector('[role="dialog"]') as HTMLElement | null;
 
   it('carga los avisos del condominio del vigilante al iniciar', () => {
     expect(servicio.cargarAvisos).toHaveBeenCalledOnceWith('cond-1');
   });
 
-  it('muestra los avisos con el urgente primero y el conteo', () => {
+  it('muestra los urgentes primero (el que vence antes, primero) y el conteo con los urgentes aparte', () => {
     const titulos = Array.from(fixture.nativeElement.querySelectorAll('h3') as NodeListOf<HTMLElement>).map(h => h.textContent!.trim());
 
-    expect(titulos).toEqual(['Corte de agua', 'Fiesta en el salón', 'Aviso general']);
-    expect(texto()).toContain('3 vigentes');
-    expect(texto()).toContain('Urgente');
+    expect(titulos).toEqual(['Corte de agua', 'Reparación de bomba', 'Fiesta en el salón', 'Aviso general']);
+    expect(texto()).toContain('4 vigentes');
+    expect(texto()).toContain('2 urgentes');
+  });
+
+  it('cada aviso lleva su prioridad como etiqueta e ícono, no solo como color', () => {
+    const primero = botonesAviso()[0];
+
+    expect(primero.textContent).toContain('Urgente');
+    expect(primero.querySelector('svg')).not.toBeNull();
+    expect(primero.className).toContain('border-l-rose-500');
+    expect(botonesAviso()[2].className).toContain('border-l-indigo-500');
+  });
+
+  it('resalta el aviso que vence en un día o menos', () => {
+    const vencePronto = botonesAviso()[0].querySelector('span.text-amber-700');
+    const normal = botonesAviso()[1].querySelector('span.text-amber-700');
+
+    expect(vencePronto).not.toBeNull();
+    expect(normal).toBeNull();
   });
 
   it('es de solo lectura: no ofrece publicar, editar ni borrar', () => {
@@ -72,13 +92,54 @@ describe('AvisosCasetaComponent', () => {
     expect(t).not.toContain('eliminar');
   });
 
-  it('abre el detalle del aviso al hacer clic', () => {
-    (fixture.nativeElement.querySelector('li button') as HTMLButtonElement).click();
+  describe('panel de detalle', () => {
+    it('al hacer clic abre un panel lateral accesible con el contenido, la vigencia y quién lo publicó', () => {
+      botonesAviso()[0].click();
+      fixture.detectChanges();
 
-    const opciones = (Swal.fire as unknown as jasmine.Spy).calls.mostRecent().args[0] as { title: string; text: string; icon: string };
-    expect(opciones.title).toBe('Corte de agua');
-    expect(opciones.text).toContain('Contenido de Corte de agua');
-    expect(opciones.icon).toBe('warning');
+      const p = panel()!;
+      expect(p).not.toBeNull();
+      expect(p.getAttribute('aria-modal')).toBe('true');
+      const t = p.textContent!.replace(/\s+/g, ' ');
+      expect(t).toContain('Corte de agua');
+      expect(t).toContain('Contenido de Corte de agua');
+      expect(t).toContain('Vigente hasta');
+      expect(t).toContain('Administrador Gomez');
+      expect(document.getElementById(p.getAttribute('aria-labelledby')!)?.textContent).toContain('Corte de agua');
+    });
+
+    it('se cierra con el botón, con Escape y al hacer clic fuera', () => {
+      const abrir = () => { botonesAviso()[0].click(); fixture.detectChanges(); };
+
+      abrir();
+      (panel()!.querySelector('button[aria-label="Cerrar detalle del aviso"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(panel()).toBeNull();
+
+      abrir();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      fixture.detectChanges();
+      expect(panel()).toBeNull();
+
+      abrir();
+      (fixture.nativeElement.querySelector('[aria-hidden="true"].absolute') as HTMLElement).click();
+      fixture.detectChanges();
+      expect(panel()).toBeNull();
+    });
+
+    it('lleva el foco al botón de cerrar al abrir y lo devuelve al aviso al cerrar', fakeAsync(() => {
+      const disparador = botonesAviso()[0];
+      disparador.focus();
+      disparador.click();
+      fixture.detectChanges();
+      tick();
+
+      expect(document.activeElement?.getAttribute('aria-label')).toBe('Cerrar detalle del aviso');
+
+      (document.activeElement as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(document.activeElement).toBe(disparador);
+    }));
   });
 
   it('muestra el estado vacío cuando no hay avisos', () => {
@@ -87,6 +148,7 @@ describe('AvisosCasetaComponent', () => {
 
     expect(texto()).toContain('No hay avisos vigentes en este momento.');
     expect(texto()).toContain('0 vigentes');
+    expect(texto()).not.toContain('urgente');
   });
 
   it('muestra el error de carga en vez del estado vacío', () => {
