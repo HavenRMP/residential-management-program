@@ -11,7 +11,6 @@ import '../Models/auth_user.dart';
 import '../Models/api_exceptions.dart';
 import 'push_notifications_service.dart';
 import '../main.dart';
-import 'push_notifications_service.dart';
 
 class AppController extends ChangeNotifier {
   AppController(this._supabaseClient, {http.Client? client})
@@ -383,12 +382,10 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    // Desuscribir del tópico personal antes de cerrar sesión
-    final userId = _currentUser?.id;
-    if (userId != null && userId.isNotEmpty) {
-      unawaited(PushNotificationsService.unsubscribeFromUserTopic(userId));
+    final oldUserId = _currentUser?.id;
+    if (oldUserId != null) {
+      unawaited(PushNotificationsService.unsubscribeFromUserTopic(oldUserId));
     }
-
     final client = _supabaseClient;
     if (client != null) {
       await client.auth.signOut();
