@@ -30,3 +30,26 @@ DROP INDEX IF EXISTS public.idx_codigo_invitacion_subusuario_vigente;
 CREATE UNIQUE INDEX idx_codigo_invitacion_subusuario_vigente 
 ON public.invitaciones_subusuarios (codigo_invitacion) 
 WHERE estado = 'pendiente';
+
+-- ==============================================================================
+-- 2. TABLA DE BITÁCORA (AUDITORÍA FORENSE)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.invitaciones_subusuarios_bitacora (
+    id BIGSERIAL PRIMARY KEY,
+    registro_id TEXT NOT NULL,
+    operacion VARCHAR(10) NOT NULL CHECK (operacion IN ('INSERT', 'UPDATE', 'DELETE')),
+    datos_anteriores JSONB,
+    datos_nuevos JSONB,
+    modificado_por TEXT,
+    modificado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Índices para optimizar búsquedas en el historial forense
+CREATE INDEX IF NOT EXISTS idx_invitaciones_subusuarios_bitacora_registro 
+    ON public.invitaciones_subusuarios_bitacora(registro_id);
+
+CREATE INDEX IF NOT EXISTS idx_invitaciones_subusuarios_bitacora_fecha 
+    ON public.invitaciones_subusuarios_bitacora(modificado_en);
+
+-- Revocar accesos directos por seguridad
+REVOKE ALL ON public.invitaciones_subusuarios_bitacora FROM authenticated, anon, service_role;
