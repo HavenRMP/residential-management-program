@@ -58,3 +58,11 @@ WHERE (
     -- Y que sigan vigentes (no hayan caducado en tiempo absoluto)
     AND (v.fecha_llegada_esperada + (v.horas_vigencia || ' hours')::interval) > now()
 ) OR (v.estado = 'en_curso');
+
+-- ==============================================================================
+-- 3. PERMISOS Y RECARGA DE POSTGREST
+-- ==============================================================================
+GRANT SELECT ON public.vw_visitas_proximas TO authenticated, service_role;
+
+-- Recarga de catálogo en PostgREST
+NOTIFY pgrst, 'reload schema';
