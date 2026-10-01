@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { signal } from '@angular/core';
+import Swal from 'sweetalert2';
 import { CasetaVisitasComponent } from './caseta-visitas.component';
 import { VisitasVigilanciaService } from '../../../core/services/visitas-vigilancia.service';
 import { DirectorioCasasService } from '../../../core/services/directorio-casas.service';
@@ -31,6 +32,7 @@ describe('CasetaVisitasComponent', () => {
     errorMessage: ReturnType<typeof signal<string | null>>;
     cargarHoy: jasmine.Spy;
     registrarEntrada: jasmine.Spy;
+    validarCodigo: jasmine.Spy;
   };
   let directorio: {
     isLoading: ReturnType<typeof signal<boolean>>;
@@ -56,7 +58,8 @@ describe('CasetaVisitasComponent', () => {
       isLoading: signal(false),
       errorMessage: signal<string | null>(null),
       cargarHoy: jasmine.createSpy('cargarHoy'),
-      registrarEntrada: jasmine.createSpy('registrarEntrada').and.callFake(async () => ({ ...visita, estado: 'en_curso' }))
+      registrarEntrada: jasmine.createSpy('registrarEntrada').and.callFake(async () => ({ ...visita, estado: 'en_curso' })),
+      validarCodigo: jasmine.createSpy('validarCodigo').and.callFake(async () => visita)
     };
 
     directorio = {
@@ -287,6 +290,51 @@ describe('CasetaVisitasComponent', () => {
       botones.find(b => b.textContent?.includes('Registrar entrada'))!.click();
 
       expect(servicio.registrarEntrada).toHaveBeenCalledOnceWith('v-1', undefined);
+    });
+  });
+
+  describe('validar código', () => {
+    beforeEach(() => spyOn(Swal, 'fire').and.returnValue(Promise.resolve({} as any)));
+
+    it('al validar una visita programada registra la entrada con las placas que ya tenía', async () => {
+      servicio.validarCodigo.and.callFake(async () => ({ ...visita, vehiculoPlacas: 'ABC-123' }));
+      component.codigo = ' ab12cd ';
+
+      await component.validarCodigo();
+
+      expect(servicio.validarCodigo).toHaveBeenCalledOnceWith('ab12cd');
+      expect(servicio.registrarEntrada).toHaveBeenCalledOnceWith('v-1', 'ABC-123');
+      expect(component.visitaValidada()?.estado).toBe('en_curso');
+      expect(component.codigo).toBe('');
+    });
+
+    it('no registra nada si la visita ya está en curso: se queda para dar la salida', async () => {
+      servicio.validarCodigo.and.callFake(async () => ({ ...visita, estado: 'en_curso' }));
+      component.codigo = 'ab12cd';
+
+      await component.validarCodigo();
+
+      expect(servicio.registrarEntrada).not.toHaveBeenCalled();
+      expect(component.visitaValidada()?.estado).toBe('en_curso');
+    });
+
+    it('con un código inválido muestra el error y no registra entrada', async () => {
+      servicio.validarCodigo.and.returnValue(Promise.reject({ error: { error: 'Código no encontrado.' } }));
+      component.codigo = 'nope';
+
+      await component.validarCodigo();
+
+      expect(servicio.registrarEntrada).not.toHaveBeenCalled();
+      expect(component.errorCodigo()).toBe('Código no encontrado.');
+    });
+
+    it('si la entrada falla conserva la visita validada para reintentar con el botón', async () => {
+      servicio.registrarEntrada.and.returnValue(Promise.reject({ error: { error: 'Fuera de vigencia.' } }));
+      component.codigo = 'ab12cd';
+
+      await component.validarCodigo();
+
+      expect(component.visitaValidada()?.estado).toBe('programada');
     });
   });
 });
