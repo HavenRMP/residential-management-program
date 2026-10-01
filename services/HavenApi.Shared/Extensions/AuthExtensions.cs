@@ -21,6 +21,7 @@ public static class AuthExtensions
             .AddJwtBearer(options =>
             {
                 options.Authority = supabaseIssuer;
+                options.RequireHttpsMetadata = false;
 
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
