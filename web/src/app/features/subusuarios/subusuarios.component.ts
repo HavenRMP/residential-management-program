@@ -21,7 +21,7 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
 
       <!-- Top Bar Spartan UI -->
       <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
-        <div class="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+        <div class="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div class="flex items-center gap-3">
             <a
               routerLink="/dashboard/residente"
@@ -45,7 +45,7 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
       </header>
 
       <!-- Main Container -->
-      <main class="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+      <main class="w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
         <!-- Breadcrumb -->
         <nav class="flex items-center gap-2 text-xs text-slate-500 font-medium">
@@ -150,7 +150,7 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
             </div>
 
             <!-- Grid de Sub-usuarios -->
-            <div *ngIf="!subusuariosService.isLoading()" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div *ngIf="!subusuariosService.isLoading()" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
               <div
                 *ngFor="let item of subusuariosService.items()"
                 class="p-4 rounded-md bg-slate-50 border border-slate-200 flex flex-col justify-between"
