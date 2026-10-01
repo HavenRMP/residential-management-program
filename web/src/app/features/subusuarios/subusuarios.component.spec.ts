@@ -57,6 +57,35 @@ describe('SubusuariosComponent', () => {
     });
   });
 
+  describe('errores al invitar', () => {
+    it('si el backend devuelve el JSON técnico de Supabase muestra un mensaje claro', async () => {
+      const fire = spyOn(Swal, 'fire').and.returnValue(Promise.resolve({} as any));
+      servicio.invitar = jasmine.createSpy('invitar').and.returnValue(
+        Promise.reject({ status: 400, error: { error: 'Error al generar invitación: {"code":"23505","details":null,"message":"duplicate key"}' } })
+      );
+      component.viviendaId.set(7);
+      component.nuevoSub = { email: 'hijo@example.com', parentesco: 'Familiar' };
+
+      await component.generarInvitacion();
+
+      const aviso = fire.calls.mostRecent().args[0] as any;
+      expect(aviso.icon).toBe('error');
+      expect(aviso.text).not.toContain('23505');
+      expect(aviso.text).toContain('no tenga ya una invitación pendiente');
+    });
+
+    it('conserva el mensaje claro del backend cuando lo hay', async () => {
+      const fire = spyOn(Swal, 'fire').and.returnValue(Promise.resolve({} as any));
+      servicio.invitar = jasmine.createSpy('invitar').and.returnValue(Promise.reject({ status: 400, error: { error: 'Ya alcanzaste el máximo de sub-usuarios.' } }));
+      component.viviendaId.set(7);
+      component.nuevoSub = { email: 'hijo@example.com', parentesco: 'Familiar' };
+
+      await component.generarInvitacion();
+
+      expect((fire.calls.mostRecent().args[0] as any).text).toBe('Ya alcanzaste el máximo de sub-usuarios.');
+    });
+  });
+
   describe('errores al responder una invitación', () => {
     const invitacion = { id: 'inv-1', titularNombre: 'Ana' } as InvitacionRecibida;
     let fire: jasmine.Spy;
