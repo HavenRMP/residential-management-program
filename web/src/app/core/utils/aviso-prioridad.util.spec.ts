@@ -34,9 +34,9 @@ describe('aviso-prioridad.util', () => {
   });
 
   it('un aviso sin prioridad se trata como informativo', () => {
-    const lista = [
-      { id: 'sin', prioridad: undefined, fechaExpiracion: '2026-10-02T00:00:00Z' },
-      { id: 'evt', prioridad: 'evento' as AvisoPrioridad, fechaExpiracion: '2026-10-09T00:00:00Z' }
+    const lista: { id: string; prioridad?: AvisoPrioridad; fechaExpiracion: string }[] = [
+      { id: 'sin', fechaExpiracion: '2026-10-02T00:00:00Z' },
+      { id: 'evt', prioridad: 'evento', fechaExpiracion: '2026-10-09T00:00:00Z' }
     ];
 
     expect(ordenarAvisosPorPrioridad(lista).map(a => a.id)).toEqual(['evt', 'sin']);
