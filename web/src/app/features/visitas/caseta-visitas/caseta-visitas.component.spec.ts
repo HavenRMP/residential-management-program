@@ -354,6 +354,12 @@ describe('CasetaVisitasComponent', () => {
     });
   });
 
+  it('el buscador anuncia que se puede buscar por casa', () => {
+    const input = fixture.nativeElement.querySelector('input[placeholder^="Nombre, "]') as HTMLInputElement;
+
+    expect(input.placeholder).toBe('Nombre, casa, placas o código...');
+  });
+
   describe('validar código', () => {
     beforeEach(() => spyOn(Swal, 'fire').and.returnValue(Promise.resolve({} as any)));
 
