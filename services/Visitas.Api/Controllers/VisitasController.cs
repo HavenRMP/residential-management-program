@@ -387,8 +387,8 @@ public class VisitasController : ControllerBase
         [FromQuery] string? estado = null)
     {
         var (roleError, condominioId, _) = await ValidateRoleAsync(
-            r => r.EsAdministrador(),
-            "Se requiere rol de administrador para consultar el histórico"
+            r => r.PuedeConsultarDatosResidenciales(),
+            "Se requiere rol de administrador o vigilancia para consultar el histórico"
         );
 
         if (roleError != null)
