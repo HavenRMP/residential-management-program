@@ -25,7 +25,7 @@ import { claseBadgePrioridad, etiquetaPrioridad, tiempoRestanteAviso } from '../
       
       <!-- Top Navbar Spartan UI -->
       <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
-        <div class="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+        <div class="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div class="flex items-center gap-3">
             <img src="/haven-logo.png" alt="Haven" class="w-7 h-7 rounded-lg object-contain" />
             <div class="flex items-center gap-2">
@@ -50,10 +50,10 @@ import { claseBadgePrioridad, etiquetaPrioridad, tiempoRestanteAviso } from '../
       </header>
 
       <!-- Main Container -->
-      <main class="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+      <main class="w-full px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
         
         <!-- Header Section -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200">
+        <div class="lg:col-span-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200">
           <div>
             <h1 class="text-2xl font-bold tracking-tight text-slate-900">
               Portal del residente
@@ -94,7 +94,7 @@ import { claseBadgePrioridad, etiquetaPrioridad, tiempoRestanteAviso } from '../
         <a
           *ngIf="subusuariosService.invitacionesRecibidas().length > 0"
           routerLink="/dashboard/residente/subusuarios"
-          class="flex items-center justify-between gap-3 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 hover:bg-indigo-100/70 transition-colors"
+          class="lg:col-span-3 flex items-center justify-between gap-3 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 hover:bg-indigo-100/70 transition-colors"
         >
           <div class="flex items-center gap-3 min-w-0">
             <span class="shrink-0 h-8 w-8 inline-flex items-center justify-center rounded-full bg-indigo-600 text-white">
@@ -114,6 +114,8 @@ import { claseBadgePrioridad, etiquetaPrioridad, tiempoRestanteAviso } from '../
           <span class="shrink-0 text-xs font-semibold text-indigo-700">Ver invitaciones →</span>
         </a>
 
+        <!-- Columna principal: la vivienda y su vinculación -->
+        <div class="space-y-5 min-w-0" [ngClass]="tieneCondominio() ? 'lg:col-span-2' : 'lg:col-span-3'">
         <!-- Estado de Carga -->
         <div *ngIf="isLoadingVivienda()" class="rounded-xl border border-slate-200/90 bg-white p-6 shadow-xs animate-pulse">
           <div class="h-4 bg-slate-200 rounded w-1/4 mb-3"></div>
@@ -226,8 +228,10 @@ import { claseBadgePrioridad, etiquetaPrioridad, tiempoRestanteAviso } from '../
           </div>
         </div>
 
+        </div>
+
         <!-- Card: Avisos del Condominio Spartan UI (Solo visible si pertenece a un condominio) -->
-        <div *ngIf="tieneCondominio()" class="rounded-xl border border-slate-200/90 bg-white shadow-xs">
+        <div *ngIf="tieneCondominio()" class="lg:col-span-1 min-w-0 rounded-xl border border-slate-200/90 bg-white shadow-xs">
           <div class="p-4 border-b border-slate-200 flex items-center justify-between">
             <div>
               <h2 class="text-sm font-semibold text-slate-900">Avisos del condominio</h2>
