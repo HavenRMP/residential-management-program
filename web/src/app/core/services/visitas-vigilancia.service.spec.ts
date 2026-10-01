@@ -44,6 +44,21 @@ describe('VisitasVigilanciaService', () => {
     expect(service.items().length).toBe(1);
   });
 
+  it('muestra las visitas de la más reciente a la más antigua aunque el backend las entregue al revés', async () => {
+    mockApiService.get.and.returnValue(of({
+      items: [
+        { ...visitaBase, id: 'v-vieja', fechaLlegadaEsperada: '2026-10-01T08:00:00Z' },
+        { ...visitaBase, id: 'v-nueva', fechaLlegadaEsperada: '2026-10-01T20:00:00Z' },
+        { ...visitaBase, id: 'v-media', fechaLlegadaEsperada: '2026-10-01T14:00:00Z' }
+      ],
+      totalCount: 3
+    }));
+
+    await service.cargarHoy();
+
+    expect(service.items().map(v => v.id)).toEqual(['v-nueva', 'v-media', 'v-vieja']);
+  });
+
   it('no envía el parámetro busqueda cuando está vacío', async () => {
     mockApiService.get.and.returnValue(of({ items: [], totalCount: 0 }));
 
