@@ -339,3 +339,153 @@ BEGIN
     RETURN public.invitar_subusuario(p_vivienda_id, p_email, p_parentesco, p_creado_por);
 END;
 $$;
+-- ==============================================================================
+-- 8. STORED PROCEDURES: responder_invitacion_subusuario Y CANJE
+-- ==============================================================================
+-- Asegurar que la restricción CHECK admita estados en mayúsculas/minúsculas
+ALTER TABLE public.invitaciones_subusuarios DROP CONSTRAINT IF EXISTS invitaciones_subusuarios_estado_check;
+ALTER TABLE public.invitaciones_subusuarios ADD CONSTRAINT invitaciones_subusuarios_estado_check 
+    CHECK (UPPER(estado) IN ('PENDIENTE', 'ACEPTADA', 'RECHAZADA', 'EXPIRADA', 'CANCELADA', 'REVOCADA'));
+
+-- Soportar ambas columnas de referencia para total compatibilidad
+ALTER TABLE public.invitaciones_subusuarios ADD COLUMN IF NOT EXISTS usuario_id UUID REFERENCES public.usuarios(id);
+ALTER TABLE public.invitaciones_subusuarios ADD COLUMN IF NOT EXISTS invitado_id UUID REFERENCES public.usuarios(id);
+
+DROP FUNCTION IF EXISTS public.responder_invitacion_subusuario(UUID, UUID, VARCHAR);
+
+CREATE OR REPLACE FUNCTION public.responder_invitacion_subusuario(
+    p_invitacion_id UUID,
+    p_usuario_id UUID DEFAULT NULL,
+    p_respuesta VARCHAR DEFAULT 'ACEPTADA'
+)
+RETURNS BOOLEAN
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_invitacion public.invitaciones_subusuarios%ROWTYPE;
+    v_condominio_id UUID;
+    v_respuesta_limpia VARCHAR;
+    v_actor_id UUID;
+    v_invitado_esperado UUID;
+BEGIN
+    -- 1. Resolver usuario ejecutor (parámetro explícito o contexto de auth)
+    v_actor_id := COALESCE(p_usuario_id, auth.uid());
+    IF v_actor_id IS NULL THEN
+        RAISE EXCEPTION 'No se proporcionó un ID de usuario válido ni existe una sesión activa'
+            USING ERRCODE = '42501';
+    END IF;
+
+    -- 2. Limpiar y validar respuesta permitida
+    v_respuesta_limpia := UPPER(TRIM(COALESCE(p_respuesta, 'ACEPTADA')));
+    IF v_respuesta_limpia NOT IN ('ACEPTADA', 'RECHAZADA') THEN
+        RAISE EXCEPTION 'Respuesta no válida. Los valores permitidos son ACEPTADA o RECHAZADA'
+            USING ERRCODE = '22023';
+    END IF;
+
+    -- 3. Validar existencia de la invitación
+    SELECT * INTO v_invitacion
+    FROM public.invitaciones_subusuarios
+    WHERE id = p_invitacion_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Invitación con ID % no encontrada', p_invitacion_id
+            USING ERRCODE = 'P0002';
+    END IF;
+
+    -- 4. Validar estado PENDIENTE
+    IF UPPER(v_invitacion.estado) <> 'PENDIENTE' THEN
+        RAISE EXCEPTION 'La invitación no se encuentra en estado PENDIENTE (estado actual: %)', v_invitacion.estado
+            USING ERRCODE = 'SU004';
+    END IF;
+
+    -- 5. Validar que quien responde sea el invitado destinatario
+    v_invitado_esperado := COALESCE(v_invitacion.usuario_id, v_invitacion.invitado_id);
+    IF v_invitado_esperado IS NULL THEN
+        SELECT id INTO v_invitado_esperado 
+        FROM public.usuarios 
+        WHERE LOWER(email) = LOWER(v_invitacion.email_invitado);
+    END IF;
+
+    IF v_invitado_esperado IS NOT NULL AND v_invitado_esperado <> v_actor_id THEN
+        RAISE EXCEPTION 'El usuario no tiene autorización para responder esta invitación. [invitado esperado: %, recibido: %]', 
+            v_invitado_esperado, v_actor_id
+            USING ERRCODE = '42501';
+    END IF;
+
+    -- 6. Actualizar estado y fecha de respuesta
+    UPDATE public.invitaciones_subusuarios
+    SET estado = v_respuesta_limpia,
+        respondido_en = timezone('utc'::text, now()),
+        usuario_id = COALESCE(usuario_id, v_actor_id)
+    WHERE id = p_invitacion_id;
+
+    -- 7. Si fue ACEPTADA: registrar en vivienda_subusuarios (sin titular_id) y sincronizar condominio_id
+    IF v_respuesta_limpia = 'ACEPTADA' THEN
+        INSERT INTO public.vivienda_subusuarios (
+            vivienda_id, 
+            usuario_id, 
+            parentesco, 
+            activo
+        )
+        VALUES (
+            v_invitacion.vivienda_id, 
+            v_actor_id, 
+            COALESCE(v_invitacion.parentesco, 'Familiar'), 
+            true
+        )
+        ON CONFLICT (vivienda_id, usuario_id) DO UPDATE
+        SET activo = true,
+            parentesco = EXCLUDED.parentesco;
+
+        -- Obtener condominio_id de la casa asignada
+        SELECT condominio_id INTO v_condominio_id
+        FROM public.viviendas
+        WHERE id = v_invitacion.vivienda_id;
+
+        -- Sincronizar condominio_id en el perfil del usuario
+        UPDATE public.usuarios
+        SET condominio_id = v_condominio_id
+        WHERE id = v_actor_id;
+    END IF;
+
+    RETURN TRUE;
+END;
+$$;
+
+-- Stored procedure para redimir/canjear mediante código alfanumérico
+DROP FUNCTION IF EXISTS public.redimir_codigo_subusuario(VARCHAR, UUID);
+CREATE OR REPLACE FUNCTION public.redimir_codigo_subusuario(
+    p_codigo VARCHAR,
+    p_usuario_id UUID DEFAULT NULL
+)
+RETURNS BOOLEAN
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_invitacion_id UUID;
+    v_actor_id UUID;
+BEGIN
+    v_actor_id := COALESCE(p_usuario_id, auth.uid());
+    IF v_actor_id IS NULL THEN
+        RAISE EXCEPTION 'No se proporcionó un ID de usuario válido ni existe una sesión activa'
+            USING ERRCODE = '42501';
+    END IF;
+
+    SELECT id INTO v_invitacion_id
+    FROM public.invitaciones_subusuarios
+    WHERE codigo_invitacion = UPPER(TRIM(p_codigo))
+      AND UPPER(estado) = 'PENDIENTE'
+      AND expira_en > now();
+
+    IF v_invitacion_id IS NULL THEN
+        RAISE EXCEPTION 'El código de invitación no existe, ya fue utilizado o ha expirado'
+            USING ERRCODE = 'CD001';
+    END IF;
+
+    RETURN public.responder_invitacion_subusuario(v_invitacion_id, v_actor_id, 'ACEPTADA');
+END;
+$$;
