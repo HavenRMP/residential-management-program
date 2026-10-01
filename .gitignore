@@ -9,3 +9,9 @@ appsettings.Development.json
 *.log
 .DS_Store
 firebase-admin.json
+
+# Scratch / analysis scripts and data in root
+/*.json
+!appsettings*.json
+!firebase-admin.json
+/*.js
