@@ -238,7 +238,7 @@ class _VisitasCasetaSectionState extends State<_VisitasCasetaSection>
               labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
               tabs: const [
-                Tab(text: 'Hoy'),
+                Tab(text: 'Próximas'),
                 Tab(text: 'Programadas'),
                 Tab(text: 'Historial'),
               ],
@@ -325,7 +325,7 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
 
     try {
       final service = VisitasService(widget.controller);
-      final res = await service.getVisitasHoy(
+      final res = await service.getVisitasProximas(
         page: _currentPage,
         pageSize: 20,
         busqueda: _busquedaActual.isEmpty ? null : _busquedaActual,
@@ -785,7 +785,7 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
                           ),
                           SizedBox(height: 4),
                           Text(
-                            'Visitas programadas y en curso para hoy',
+                            'Visitas programadas y en curso para las próximas horas',
                             style: TextStyle(fontSize: 13, color: Colors.white70),
                           ),
                         ],

@@ -195,8 +195,8 @@ class VisitasService {
 
   // --- VIGILANCIA & ADMIN ---
 
-  /// GET /api/visitas/hoy
-  Future<Map<String, dynamic>> getVisitasHoy({
+  /// GET /api/visitas/proximas
+  Future<Map<String, dynamic>> getVisitasProximas({
     int page = 1,
     int pageSize = 20,
     String? busqueda,
@@ -207,7 +207,7 @@ class VisitasService {
         query += '&busqueda=${Uri.encodeComponent(busqueda.trim())}';
       }
 
-      final url = '$baseUrl/api/visitas/hoy?$query';
+      final url = '$baseUrl/api/visitas/proximas?$query';
       final response = await controller.httpClient.get(
         Uri.parse(url),
         headers: await _getHeaders(),
