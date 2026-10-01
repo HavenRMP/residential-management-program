@@ -328,6 +328,36 @@ class PushNotificationsService {
     }
   }
 
+  /// Suscribe el dispositivo a un tópico FCM arbitrario (ej. 'avisos', 'avisos_urgentes').
+  static Future<void> subscribeToTopic(String topic) async {
+    try {
+      if (Firebase.apps.isEmpty) return;
+      await _messaging.subscribeToTopic(topic);
+      if (kDebugMode) {
+        debugPrint('[PushNotificationsService] Suscrito al tópico: $topic');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[PushNotificationsService] Error suscribiendo al tópico $topic: $e');
+      }
+    }
+  }
+
+  /// Desuscribe el dispositivo de un tópico FCM arbitrario.
+  static Future<void> unsubscribeFromTopic(String topic) async {
+    try {
+      if (Firebase.apps.isEmpty) return;
+      await _messaging.unsubscribeFromTopic(topic);
+      if (kDebugMode) {
+        debugPrint('[PushNotificationsService] Desuscrito del tópico: $topic');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[PushNotificationsService] Error desuscribiendo del tópico $topic: $e');
+      }
+    }
+  }
+
   /// Obtiene el token FCM actual del dispositivo
   static Future<String?> getToken() async {
     try {
