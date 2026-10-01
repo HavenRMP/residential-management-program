@@ -37,8 +37,14 @@ export function tiempoRestanteAviso(aviso: Pick<Aviso, 'fechaExpiracion'>, ahora
   return dias === 1 ? '1 día restante' : `${dias} días restantes`;
 }
 
+/** Lo mínimo que necesita un aviso para poder ordenarse; la prioridad puede faltar (se trata como informativo) */
+interface AvisoOrdenable {
+  prioridad?: AvisoPrioridad;
+  fechaExpiracion: string;
+}
+
 /** Ordena por prioridad (urgentes primero) y, a igual prioridad, el que vence antes primero. No muta la lista. */
-export function ordenarAvisosPorPrioridad<T extends Pick<Aviso, 'prioridad' | 'fechaExpiracion'>>(avisos: T[]): T[] {
+export function ordenarAvisosPorPrioridad<T extends AvisoOrdenable>(avisos: T[]): T[] {
   return [...avisos].sort((a, b) => {
     const porPrioridad = ORDEN_PRIORIDAD[a.prioridad ?? 'informativo'] - ORDEN_PRIORIDAD[b.prioridad ?? 'informativo'];
     return porPrioridad !== 0
