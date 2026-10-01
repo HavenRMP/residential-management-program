@@ -120,3 +120,56 @@ JOIN public.viviendas v ON v.id = i.vivienda_id
 LEFT JOIN public.condominios c ON c.id = v.condominio_id
 LEFT JOIN public.usuarios u_titular ON u_titular.id = i.creado_por
 LEFT JOIN public.usuarios u_invitado ON u_invitado.id = i.usuario_id;
+
+-- ==============================================================================
+-- 6. TABLA RELACIONAL Y VISTAS DE SUB-USUARIOS ACTIVOS
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.vivienda_subusuarios (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    vivienda_id INTEGER NOT NULL REFERENCES public.viviendas(id) ON DELETE CASCADE,
+    usuario_id UUID NOT NULL REFERENCES public.usuarios(id) ON DELETE CASCADE,
+    titular_id UUID REFERENCES public.usuarios(id) ON DELETE SET NULL,
+    parentesco VARCHAR(50) NOT NULL DEFAULT 'Familiar',
+    activo BOOLEAN NOT NULL DEFAULT true,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    CONSTRAINT uq_vivienda_subusuarios UNIQUE (vivienda_id, usuario_id)
+);
+
+-- Asegurar columnas en caso de existencia previa
+ALTER TABLE public.vivienda_subusuarios ADD COLUMN IF NOT EXISTS titular_id UUID REFERENCES public.usuarios(id) ON DELETE SET NULL;
+ALTER TABLE public.vivienda_subusuarios ADD COLUMN IF NOT EXISTS parentesco VARCHAR(50) DEFAULT 'Familiar';
+ALTER TABLE public.vivienda_subusuarios ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT true;
+
+-- Índices de consulta y rendimiento
+CREATE INDEX IF NOT EXISTS idx_vivienda_subusuarios_vivienda ON public.vivienda_subusuarios(vivienda_id);
+CREATE INDEX IF NOT EXISTS idx_vivienda_subusuarios_usuario ON public.vivienda_subusuarios(usuario_id);
+
+-- Vista desacoplada para consultas de residentes y backend (VwViviendaSubusuarioDto)
+DROP VIEW IF EXISTS public.vw_subusuarios_vivienda CASCADE;
+DROP VIEW IF EXISTS public.vw_vivienda_subusuarios CASCADE;
+
+CREATE VIEW public.vw_vivienda_subusuarios AS
+SELECT 
+    vs.id,
+    vs.vivienda_id,
+    v.numero_casa,
+    v.condominio_id,
+    c.nombre AS condominio_nombre,
+    vs.titular_id,
+    TRIM(u_titular.nombre || ' ' || COALESCE(u_titular.apellidos, '')) AS titular_nombre,
+    vs.usuario_id,
+    TRIM(u.nombre || ' ' || COALESCE(u.apellidos, '')) AS usuario_nombre,
+    u.email AS usuario_email,
+    u.telefono AS usuario_telefono,
+    vs.parentesco,
+    vs.activo,
+    vs.creado_en
+FROM public.vivienda_subusuarios vs
+JOIN public.viviendas v ON v.id = vs.vivienda_id
+LEFT JOIN public.condominios c ON c.id = v.condominio_id
+JOIN public.usuarios u ON u.id = vs.usuario_id
+LEFT JOIN public.usuarios u_titular ON u_titular.id = vs.titular_id;
+
+-- Vista sinónima para total compatibilidad
+CREATE OR REPLACE VIEW public.vw_subusuarios_vivienda AS
+SELECT * FROM public.vw_vivienda_subusuarios;
