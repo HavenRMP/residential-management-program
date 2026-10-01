@@ -173,3 +173,169 @@ LEFT JOIN public.usuarios u_titular ON u_titular.id = vs.titular_id;
 -- Vista sinónima para total compatibilidad
 CREATE OR REPLACE VIEW public.vw_subusuarios_vivienda AS
 SELECT * FROM public.vw_vivienda_subusuarios;
+
+-- ==============================================================================
+-- 7. STORED PROCEDURE: invitar_subusuario / invitar_subusuario_por_email
+-- ==============================================================================
+DROP FUNCTION IF EXISTS public.invitar_subusuario(INTEGER, VARCHAR, VARCHAR, UUID);
+DROP FUNCTION IF EXISTS public.invitar_subusuario_por_email(INTEGER, VARCHAR, VARCHAR, UUID);
+
+CREATE OR REPLACE FUNCTION public.invitar_subusuario(
+    p_vivienda_id INTEGER,
+    p_email VARCHAR,
+    p_parentesco VARCHAR DEFAULT 'Familiar',
+    p_creado_por UUID DEFAULT NULL
+)
+RETURNS public.vw_invitaciones_subusuarios
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_actor_id UUID;
+    v_invitado_id UUID;
+    v_subusuarios_activos INTEGER := 0;
+    v_invitaciones_pendientes INTEGER := 0;
+    v_codigo VARCHAR(8);
+    v_invitacion_id UUID;
+    v_resultado public.vw_invitaciones_subusuarios;
+BEGIN
+    -- 1. Resolver ejecutor (parámetro explícito o contexto de sesión)
+    v_actor_id := COALESCE(p_creado_por, auth.uid());
+    IF v_actor_id IS NULL THEN
+        RAISE EXCEPTION 'No se proporcionó un ID de usuario creador válido'
+            USING ERRCODE = '42501';
+    END IF;
+
+    -- 2. Validar existencia del usuario por correo electrónico
+    SELECT id INTO v_invitado_id 
+    FROM public.usuarios 
+    WHERE LOWER(TRIM(email)) = LOWER(TRIM(p_email));
+
+    IF v_invitado_id IS NULL THEN
+        RAISE EXCEPTION 'Usuario con email % no encontrado en el sistema', p_email
+            USING ERRCODE = 'P0002';
+    END IF;
+
+    -- Validar que no sea auto-invitación
+    IF v_invitado_id = v_actor_id THEN
+        RAISE EXCEPTION 'No puedes invitarte a ti mismo como sub-usuario'
+            USING ERRCODE = 'SU003';
+    END IF;
+
+    -- 3. Validar que el invitado no sea el residente titular de esta casa
+    IF EXISTS (
+        SELECT 1 FROM public.vivienda_residente 
+        WHERE vivienda_id = p_vivienda_id AND usuario_id = v_invitado_id
+    ) THEN
+        RAISE EXCEPTION 'El usuario ya es el residente titular de esta vivienda'
+            USING ERRCODE = 'SU002';
+    END IF;
+
+    -- 4. Validar que el usuario no sea ya sub-usuario activo
+    IF EXISTS (
+        SELECT 1 FROM public.vivienda_subusuarios
+        WHERE vivienda_id = p_vivienda_id 
+          AND usuario_id = v_invitado_id 
+          AND activo = true
+    ) THEN
+        RAISE EXCEPTION 'El usuario ya es sub-usuario activo de esta vivienda'
+            USING ERRCODE = '23505';
+    END IF;
+
+    -- 5. REGLA ESTRICTA DE CUPO: Máximo 2 entre residentes secundarios activos e invitaciones vigentes
+    SELECT COUNT(*) INTO v_subusuarios_activos
+    FROM public.vivienda_subusuarios
+    WHERE vivienda_id = p_vivienda_id AND activo = true;
+
+    SELECT COUNT(*) INTO v_invitaciones_pendientes
+    FROM public.invitaciones_subusuarios
+    WHERE vivienda_id = p_vivienda_id 
+      AND LOWER(estado) = 'pendiente'
+      AND expira_en > now();
+
+    IF (v_subusuarios_activos + v_invitaciones_pendientes) >= 2 THEN
+        RAISE EXCEPTION 'Límite de sub-usuarios excedido para esta vivienda (máximo 2 entre residentes activos e invitaciones pendientes)'
+            USING ERRCODE = 'SU001';
+    END IF;
+
+    -- 6. Validar que no exista ya una invitación pendiente vigente para este mismo usuario
+    IF EXISTS (
+        SELECT 1 FROM public.invitaciones_subusuarios
+        WHERE vivienda_id = p_vivienda_id 
+          AND (usuario_id = v_invitado_id OR LOWER(email_invitado) = LOWER(TRIM(p_email)))
+          AND LOWER(estado) = 'pendiente'
+          AND expira_en > now()
+    ) THEN
+        RAISE EXCEPTION 'Ya existe una invitación pendiente vigente para este usuario en esta vivienda'
+            USING ERRCODE = 'SU002';
+    END IF;
+
+    -- 7. Generar código alfanumérico único con resolución de colisiones
+    LOOP
+        v_codigo := public.fn_generar_codigo_invitacion_subusuario();
+        BEGIN
+            INSERT INTO public.invitaciones_subusuarios (
+                vivienda_id,
+                creado_por,
+                email_invitado,
+                codigo_invitacion,
+                estado,
+                usuario_id,
+                parentesco,
+                expira_en
+            ) VALUES (
+                p_vivienda_id,
+                v_actor_id,
+                LOWER(TRIM(p_email)),
+                v_codigo,
+                'pendiente',
+                v_invitado_id,
+                COALESCE(NULLIF(TRIM(p_parentesco), ''), 'Familiar'),
+                timezone('utc'::text, now()) + INTERVAL '24 hours'
+            ) RETURNING id INTO v_invitacion_id;
+
+            EXIT;
+        EXCEPTION WHEN unique_violation THEN
+            -- Reintenta generar otro código si choca con uno pendiente activo
+        END;
+    END LOOP;
+
+    -- 8. Disparar notificación interna al usuario invitado
+    BEGIN
+        PERFORM public.alta_notificacion(
+            v_invitado_id, 
+            'INVITACION', 
+            'Invitación a vivienda', 
+            'Has recibido una invitación para unirte a una vivienda como co-habitante.', 
+            '/panel/invitaciones'
+        );
+    EXCEPTION WHEN OTHERS THEN
+        -- Silenciar si la notificación opcional no está en el entorno
+    END;
+
+    -- 9. Retornar fila formateada desde la vista
+    SELECT * INTO v_resultado 
+    FROM public.vw_invitaciones_subusuarios 
+    WHERE id = v_invitacion_id;
+
+    RETURN v_resultado;
+END;
+$$;
+
+-- Wrapper para compatibilidad retroactiva con la firma anterior del backend
+CREATE OR REPLACE FUNCTION public.invitar_subusuario_por_email(
+    p_vivienda_id INTEGER,
+    p_email VARCHAR,
+    p_parentesco VARCHAR,
+    p_creado_por UUID
+)
+RETURNS public.vw_invitaciones_subusuarios
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN public.invitar_subusuario(p_vivienda_id, p_email, p_parentesco, p_creado_por);
+END;
+$$;
