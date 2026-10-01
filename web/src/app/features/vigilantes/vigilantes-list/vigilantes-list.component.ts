@@ -11,7 +11,7 @@ import { Vigilante } from '../../../core/models/vigilante.model';
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, RouterLink],
   template: `
-    <div class="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
+    <div class="p-4 sm:p-6 w-full space-y-4">
 
       <!-- Breadcrumb -->
       <nav class="flex items-center gap-2 text-xs text-slate-600 font-semibold">

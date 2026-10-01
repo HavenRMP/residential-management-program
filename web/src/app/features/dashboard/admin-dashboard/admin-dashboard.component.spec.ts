@@ -149,3 +149,43 @@ describe('AdminDashboardComponent', () => {
     expect(compiled.textContent).toContain('No hay viviendas registradas aún.');
   });
 });
+
+describe('AdminDashboardComponent (estado de viviendas)', () => {
+  let fixture: ComponentFixture<AdminDashboardComponent>;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [AdminDashboardComponent],
+      providers: [
+        { provide: AuthService, useValue: { currentUser: signal({ id: 'a', nombre: 'Admin', rol: 'administrador', condominioId: 'c1' }) } },
+        {
+          provide: ViviendasService,
+          useValue: {
+            listar: () => Promise.resolve([{ id: 7, numeroCasa: 'A-12', tipo: 'Casa' }, { id: 8, numeroCasa: 'B-07', tipo: 'Casa' }]),
+            obtenerResidentesVivienda: (id: number) => Promise.resolve(id === 7 ? [{ id: 'r' }] : [])
+          }
+        },
+        { provide: ResidentesService, useValue: { listar: () => Promise.resolve([]) } },
+        {
+          provide: CondominiosService,
+          useValue: { condominioActual: signal({ id: 'c1', nombre: 'Haven' }), cargarCondominioUsuario: () => Promise.resolve() }
+        },
+        provideRouter([])
+      ]
+    }).compileComponents();
+    fixture = TestBed.createComponent(AdminDashboardComponent);
+    fixture.detectChanges();
+    await fixture.componentInstance.cargarMetricas();
+    fixture.detectChanges();
+  });
+
+  it('cada vivienda enlaza a su detalle en el directorio y se marca ocupada o disponible', () => {
+    const filas = Array.from(fixture.nativeElement.querySelectorAll('a[aria-label^="Ver el detalle"]') as NodeListOf<HTMLAnchorElement>);
+
+    expect(filas.length).toBe(2);
+    expect(filas[0].getAttribute('href')).toContain('/dashboard/admin/viviendas?vivienda=7');
+    expect(filas[0].textContent).toContain('Ocupada');
+    expect(filas[1].getAttribute('href')).toContain('vivienda=8');
+    expect(filas[1].textContent).toContain('Disponible');
+  });
+});

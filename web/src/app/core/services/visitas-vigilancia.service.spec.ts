@@ -32,13 +32,13 @@ describe('VisitasVigilanciaService', () => {
     service = TestBed.inject(VisitasVigilanciaService);
   });
 
-  it('carga las visitas de hoy y envía la búsqueda sin espacios sobrantes', async () => {
+  it('carga las visitas próximas y envía la búsqueda sin espacios sobrantes', async () => {
     mockApiService.get.and.returnValue(of({ items: [visitaBase], page: 1, totalCount: 1 }));
 
-    await service.cargarHoy('  Perez ');
+    await service.cargarProximas('  Perez ');
 
     const [endpoint, params, , servicio] = mockApiService.get.calls.mostRecent().args as [string, HttpParams, unknown, string];
-    expect(endpoint).toBe('/api/visitas/hoy');
+    expect(endpoint).toBe('/api/visitas/proximas');
     expect(params.get('busqueda')).toBe('Perez');
     expect(servicio).toBe('visitas');
     expect(service.items().length).toBe(1);
@@ -54,7 +54,7 @@ describe('VisitasVigilanciaService', () => {
       totalCount: 3
     }));
 
-    await service.cargarHoy();
+    await service.cargarProximas();
 
     expect(service.items().map(v => v.id)).toEqual(['v-nueva', 'v-media', 'v-vieja']);
   });
@@ -62,7 +62,7 @@ describe('VisitasVigilanciaService', () => {
   it('no envía el parámetro busqueda cuando está vacío', async () => {
     mockApiService.get.and.returnValue(of({ items: [], totalCount: 0 }));
 
-    await service.cargarHoy('   ');
+    await service.cargarProximas('   ');
 
     const params = mockApiService.get.calls.mostRecent().args[1] as HttpParams;
     expect(params.has('busqueda')).toBeFalse();
@@ -71,7 +71,7 @@ describe('VisitasVigilanciaService', () => {
   it('expone el mensaje del backend cuando falla la carga', async () => {
     mockApiService.get.and.returnValue(throwError(() => ({ error: { error: 'Se requiere rol de administrador o vigilancia' } })));
 
-    await service.cargarHoy();
+    await service.cargarProximas();
 
     expect(service.errorMessage()).toBe('Se requiere rol de administrador o vigilancia');
   });
@@ -84,9 +84,28 @@ describe('VisitasVigilanciaService', () => {
     expect(mockApiService.get.calls.mostRecent().args[0]).toBe('/api/visitas/codigo/AB%2F12');
   });
 
+  it('completa el estado vacío de la validación con la visita de la lista de próximas', async () => {
+    mockApiService.get.and.returnValue(of({ items: [{ ...visitaBase, estado: 'programada', vehiculoPlacas: 'ABC-123' }], totalCount: 1 }));
+    await service.cargarProximas();
+    mockApiService.get.and.returnValue(of({ ...visitaBase, estado: '', vigenciaHasta: '0001-01-01T00:00:00+00:00' }));
+
+    const validada = await service.validarCodigo('AB12');
+
+    expect(validada.estado).toBe('programada');
+    expect(validada.vehiculoPlacas).toBe('ABC-123');
+  });
+
+  it('si la visita no está en la lista de próximas deja el estado vacío', async () => {
+    mockApiService.get.and.returnValue(of({ ...visitaBase, estado: '' }));
+
+    const validada = await service.validarCodigo('AB12');
+
+    expect(validada.estado).toBe('');
+  });
+
   it('actualiza la visita en la lista al registrar entrada y salida', async () => {
     mockApiService.get.and.returnValue(of({ items: [visitaBase], totalCount: 1 }));
-    await service.cargarHoy();
+    await service.cargarProximas();
 
     mockApiService.post.and.returnValue(of({ ...visitaBase, estado: 'en_curso', horaEntrada: '2026-10-01T15:05:00Z' }));
     await service.registrarEntrada('v-1');
@@ -101,7 +120,7 @@ describe('VisitasVigilanciaService', () => {
 
   it('no borra estado, casa ni vigencia cuando el backend responde la entrada con campos vacíos', async () => {
     mockApiService.get.and.returnValue(of({ items: [visitaBase], totalCount: 1 }));
-    await service.cargarHoy();
+    await service.cargarProximas();
 
     // Respuesta real observada: estado '', numeroCasa '', vigenciaHasta 0001-01-01, viviendaId 0
     mockApiService.post.and.returnValue(of({
@@ -118,7 +137,7 @@ describe('VisitasVigilanciaService', () => {
 
   it('envía las placas en mayúsculas al registrar la entrada y nada si no se capturan', async () => {
     mockApiService.get.and.returnValue(of({ items: [visitaBase], totalCount: 1 }));
-    await service.cargarHoy();
+    await service.cargarProximas();
     mockApiService.post.and.returnValue(of({ ...visitaBase, estado: 'en_curso' }));
 
     await service.registrarEntrada('v-1', '  abc-123 ');
@@ -135,8 +154,8 @@ describe('VisitasVigilanciaService', () => {
     const lenta = new Subject<any>();
     mockApiService.get.and.returnValues(lenta.asObservable(), of({ items: [{ ...visitaBase, id: 'v-2' }], totalCount: 1 }));
 
-    const primera = service.cargarHoy('Pe');
-    const segunda = service.cargarHoy('Perez');
+    const primera = service.cargarProximas('Pe');
+    const segunda = service.cargarProximas('Perez');
     await segunda;
     lenta.next({ items: [visitaBase], totalCount: 1 });
     lenta.complete();

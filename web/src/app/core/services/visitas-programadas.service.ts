@@ -6,6 +6,8 @@ import { extractPagedItems } from '../models/pagination.model';
 import { ordenarVisitasProximasPrimero, VisitaVigilancia } from '../models/visita.model';
 
 const POR_PAGINA = 50;
+/** El backend atiende en "próximas" lo que llega dentro de esta ventana; aquí solo va lo posterior */
+const VENTANA_PROXIMAS_MS = 24 * 3_600_000;
 /** Tope de seguridad: 10 páginas son 500 visitas programadas a futuro */
 const MAX_PAGINAS = 10;
 
@@ -22,16 +24,16 @@ export class VisitasProgramadasService {
   private ultimaPeticion = 0;
 
   /**
-   * Visitas programadas que todavía no llegan (su llegada esperada es posterior a este momento), la más próxima primero.
-   * Las que ya están vigentes se atienden en "Hoy". Se piden todas las páginas para poder ordenarlas completas.
-   * (GET /api/visitas/historico?estado=programada&desde=ahora)
+   * Visitas programadas que llegan después de las próximas 24 horas, la más próxima primero.
+   * Las que llegan antes se atienden en "Próximas 24 h". Se piden todas las páginas para poder ordenarlas completas.
+   * (GET /api/visitas/historico?estado=programada&desde=ahora+24h)
    */
   async cargar(): Promise<void> {
     const peticion = ++this.ultimaPeticion;
     this.isLoading.set(true);
     this.errorMessage.set(null);
     try {
-      const desde = new Date().toISOString();
+      const desde = new Date(Date.now() + VENTANA_PROXIMAS_MS).toISOString();
       const porId = new Map<string, VisitaVigilancia>();
       for (let page = 1; page <= MAX_PAGINAS; page++) {
         const params = new HttpParams()

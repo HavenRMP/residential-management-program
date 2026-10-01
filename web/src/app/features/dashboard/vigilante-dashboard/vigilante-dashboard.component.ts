@@ -14,7 +14,7 @@ import { DirectorioCasasComponent } from '../../visitas/directorio-casas/directo
     <div class="min-h-screen bg-[#F7F7F7] text-[#0f172a] font-sans antialiased">
       <!-- Navbar -->
       <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div class="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div class="flex items-center gap-3">
             <img src="/haven-logo.png" alt="Haven" class="w-9 h-9 rounded-lg object-contain" />
             <div>
@@ -30,7 +30,7 @@ import { DirectorioCasasComponent } from '../../visitas/directorio-casas/directo
       </header>
 
       <!-- Main Content -->
-      <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <main class="w-full px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         <!-- Welcome Hero -->
         <div class="bg-white border border-slate-200 rounded-xl px-5 py-4 shadow-xs">
           <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">

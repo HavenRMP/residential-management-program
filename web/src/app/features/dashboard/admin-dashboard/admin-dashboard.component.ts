@@ -15,7 +15,7 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
   standalone: true,
   imports: [CommonModule, RouterLink],
   template: `
-    <div class="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
+    <div class="p-4 sm:p-6 w-full space-y-6">
       
       <!-- Top Header Spartan UI -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200">
@@ -193,7 +193,13 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
 
           <!-- Lista de viviendas -->
           <div *ngIf="!loading() && !errorMessage() && viviendasResumen().length > 0" class="divide-y divide-slate-100">
-            <div *ngFor="let v of viviendasResumen()" class="p-3.5 hover:bg-slate-50/90 transition-colors flex items-center justify-between">
+            <a
+              *ngFor="let v of viviendasResumen()"
+              [routerLink]="['/dashboard/admin/viviendas']"
+              [queryParams]="{ vivienda: v.id }"
+              [attr.aria-label]="'Ver el detalle de la vivienda ' + v.numeroCasa + ' en el directorio'"
+              class="group p-3.5 hover:bg-slate-50/90 transition-colors flex items-center justify-between focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#111C99]"
+            >
               <div class="flex items-center gap-3">
                 <div class="h-8 min-w-8 px-2 rounded-md bg-slate-100 border border-slate-300 flex items-center justify-center text-xs font-mono font-bold text-slate-900">
                   {{ formatearBadge(v.numeroCasa) }}
@@ -218,18 +224,12 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
                   [class.text-slate-700]="!v.asignada"
                   [class.border-slate-300]="!v.asignada"
                 >
-                  {{ v.asignada ? 'Asignada' : 'Disponible' }}
+                  {{ v.asignada ? 'Ocupada' : 'Disponible' }}
                 </span>
 
-                <a
-                  [routerLink]="['/dashboard/admin/viviendas']"
-                  class="text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors p-1 rounded focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
-                  aria-label="Ver detalles de la vivienda"
-                >
-                  →
-                </a>
+                <span class="text-xs font-bold text-slate-500 group-hover:text-slate-900 transition-colors p-1" aria-hidden="true">→</span>
               </div>
-            </div>
+            </a>
           </div>
 
           <!-- Empty State Legítimo (Catálogo vacío real) -->

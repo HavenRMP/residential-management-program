@@ -1,9 +1,10 @@
 import { Component, inject, signal, computed, OnInit, HostListener } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import Swal from 'sweetalert2';
 import { ViviendasService } from '../../../core/services/viviendas.service';
+import { DirectorioCasasService } from '../../../core/services/directorio-casas.service';
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { CondominiosService } from '../../../core/services/condominios.service';
 import { Condominio } from '../../../core/models/condominio.model';
@@ -14,7 +15,7 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, DatePipe, ViviendasDetalleComponent],
   template: `
-    <div class="p-4 sm:p-5 lg:p-6 max-w-7xl mx-auto space-y-4 selection:bg-[#111C99] selection:text-white">
+    <div class="p-4 sm:p-5 lg:p-6 w-full space-y-4 selection:bg-[#111C99] selection:text-white">
 
       <!-- Breadcrumb & Top Navigation -->
       <nav class="flex items-center gap-2 text-xs text-slate-500 font-medium">
@@ -83,7 +84,7 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
 
       <!-- Live Search & Control Toolbar -->
       <div class="bg-white border border-slate-200 rounded-lg p-2.5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div class="flex items-center gap-2 flex-1 max-w-xl">
+        <div class="flex items-center gap-2 flex-1 max-w-2xl">
           <!-- Input Búsqueda -->
           <div class="relative flex-1">
             <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -116,6 +117,18 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
           >
             <option value="todos">Todos los tipos</option>
             <option *ngFor="let t of tiposDisponibles()" [value]="t">{{ t }}</option>
+          </select>
+
+          <!-- Selector de Ocupación -->
+          <select
+            [ngModel]="filtroOcupacion()"
+            (ngModelChange)="onOcupacionChange($event)"
+            aria-label="Filtrar por ocupación"
+            class="h-8 px-2 text-xs bg-slate-50/70 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#111C99]/10 focus:border-[#111C99] transition-all cursor-pointer shrink-0"
+          >
+            <option value="todas">Todas</option>
+            <option value="ocupadas">Ocupadas</option>
+            <option value="disponibles">Disponibles</option>
           </select>
         </div>
 
@@ -186,7 +199,7 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
       >
         <p class="text-xs text-slate-500">No se encontraron viviendas con los filtros actuales.</p>
         <button
-          (click)="searchQuery.set(''); filtroTipo.set('todos')"
+          (click)="searchQuery.set(''); filtroTipo.set('todos'); filtroOcupacion.set('todas')"
           class="mt-2 text-xs font-semibold text-[#111C99] hover:underline cursor-pointer"
         >
           Limpiar filtros de búsqueda
@@ -207,6 +220,9 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
                 </th>
                 <th class="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Tipo de Unidad
+                </th>
+                <th class="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Ocupación
                 </th>
                 <th class="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Fecha de Alta
@@ -243,6 +259,26 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
                   <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200">
                     {{ v.tipo || 'Sin especificar' }}
                   </span>
+                </td>
+
+                <!-- Ocupación: ocupada (con cuántos residentes) o disponible -->
+                <td class="px-6 py-4.5 whitespace-nowrap">
+                  <ng-container *ngIf="ocupacionDe(v.id) as o; else sinOcupacion">
+                    <span
+                      class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border"
+                      [ngClass]="o.ocupada ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-slate-100 text-slate-700 border-slate-300'"
+                    >
+                      <span class="w-1.5 h-1.5 rounded-full" [ngClass]="o.ocupada ? 'bg-emerald-500' : 'bg-slate-400'" aria-hidden="true"></span>
+                      {{ o.ocupada ? 'Ocupada' : 'Disponible' }}
+                    </span>
+                    <span *ngIf="o.ocupada" class="ml-2 text-xs text-slate-500 font-medium">
+                      {{ o.total }} {{ o.total === 1 ? 'residente' : 'residentes' }}
+                    </span>
+                  </ng-container>
+                  <ng-template #sinOcupacion>
+                    <span *ngIf="directorio.isLoading()" class="inline-block h-6 w-20 rounded-lg bg-slate-100 animate-pulse" aria-label="Cargando ocupación"></span>
+                    <span *ngIf="!directorio.isLoading()" class="text-xs text-slate-400" title="No se pudo consultar la ocupación">—</span>
+                  </ng-template>
                 </td>
 
                 <!-- Fecha de Alta -->
@@ -517,10 +553,14 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
 export class ViviendasListComponent implements OnInit {
   private readonly viviendasService = inject(ViviendasService);
   private readonly condominiosService = inject(CondominiosService);
+  readonly directorio = inject(DirectorioCasasService);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   readonly viviendas = signal<Vivienda[]>([]);
   readonly searchQuery = signal<string>('');
   readonly filtroTipo = signal<string>('todos');
+  readonly filtroOcupacion = signal<'todas' | 'ocupadas' | 'disponibles'>('todas');
   readonly isLoading = signal<boolean>(true);
   readonly errorMessage = signal<string | null>(null);
 
@@ -539,6 +579,8 @@ export class ViviendasListComponent implements OnInit {
   readonly viviendaSeleccionada = signal<Vivienda | null>(null);
   readonly isDetalleOpen = signal<boolean>(false);
 
+  private ocupacionSolicitada = false;
+
   formNumeroCasa: string = '';
   formTipo: string = '';
   formCondominioId: string = '';
@@ -554,17 +596,36 @@ export class ViviendasListComponent implements OnInit {
     return Array.from(set);
   });
 
+  /** Ocupación por id de vivienda, tomada del directorio con residentes */
+  private readonly ocupacionPorId = computed(() => {
+    const mapa = new Map<number, { ocupada: boolean; total: number }>();
+    for (const c of this.directorio.casas()) {
+      mapa.set(c.id, { ocupada: c.estaOcupada || c.totalResidentes > 0, total: c.totalResidentes });
+    }
+    return mapa;
+  });
+
+  ocupacionDe(id: number): { ocupada: boolean; total: number } | null {
+    return this.ocupacionPorId().get(id) ?? null;
+  }
+
   readonly viviendasFiltradas = computed(() => {
     const normalizar = (texto: string) =>
       texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
     const query = normalizar(this.searchQuery());
     const tipo = this.filtroTipo();
+    const ocupacion = this.filtroOcupacion();
+    const ocupaciones = this.ocupacionPorId();
     const list = this.viviendas();
 
     return list.filter(v => {
       const matchQuery = !query || (v.numeroCasa && normalizar(v.numeroCasa).includes(query));
       const matchTipo = tipo === 'todos' || (v.tipo && v.tipo.trim().toLowerCase() === tipo.toLowerCase());
-      return matchQuery && matchTipo;
+      const ocupada = ocupaciones.get(v.id)?.ocupada;
+      const matchOcupacion =
+        ocupacion === 'todas' ||
+        (ocupacion === 'ocupadas' ? ocupada === true : ocupada === false);
+      return matchQuery && matchTipo && matchOcupacion;
     });
   });
 
@@ -614,6 +675,11 @@ export class ViviendasListComponent implements OnInit {
     this.paginaActual.set(1);
   }
 
+  onOcupacionChange(val: 'todas' | 'ocupadas' | 'disponibles'): void {
+    this.filtroOcupacion.set(val);
+    this.paginaActual.set(1);
+  }
+
   irAPagina(pagina: number): void {
     if (pagina >= 1 && pagina <= this.totalPaginas()) {
       this.paginaActual.set(pagina);
@@ -630,6 +696,25 @@ export class ViviendasListComponent implements OnInit {
       this.cargarCondominios(),
       this.cargarViviendas()
     ]);
+    this.abrirDetalleDesdeEnlace();
+  }
+
+  /** Enlace desde el dashboard: /dashboard/admin/viviendas?vivienda=ID abre el detalle de esa vivienda */
+  private abrirDetalleDesdeEnlace(): void {
+    const id = Number(this.route.snapshot.queryParamMap.get('vivienda'));
+    if (!id) return;
+    const vivienda = this.viviendas().find(v => v.id === id);
+    if (vivienda) {
+      this.abrirDetalle(vivienda);
+    } else {
+      this.quitarParametroVivienda();
+    }
+  }
+
+  private quitarParametroVivienda(): void {
+    if (this.route.snapshot.queryParamMap.has('vivienda')) {
+      this.router.navigate([], { relativeTo: this.route, queryParams: { vivienda: null }, queryParamsHandling: 'merge', replaceUrl: true });
+    }
   }
 
   async cargarCondominios(): Promise<void> {
@@ -650,6 +735,9 @@ export class ViviendasListComponent implements OnInit {
     try {
       const data = await this.viviendasService.listar(undefined, undefined, forceRefresh);
       this.viviendas.set(data || []);
+      // La ocupación se consulta aparte: si falla, la lista de viviendas sigue funcionando
+      this.directorio.cargar(this.ocupacionSolicitada);
+      this.ocupacionSolicitada = true;
     } catch {
       this.errorMessage.set('No fue posible cargar la lista de viviendas desde el servidor.');
     } finally {
@@ -664,6 +752,7 @@ export class ViviendasListComponent implements OnInit {
 
   cerrarDetalle(): void {
     this.isDetalleOpen.set(false);
+    this.quitarParametroVivienda();
   }
 
   abrirModalCrear(): void {
