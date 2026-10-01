@@ -36,6 +36,7 @@ describe('CasetaVisitasComponent', () => {
     validarCodigo: jasmine.Spy;
   };
   let directorio: {
+    casas: ReturnType<typeof signal<{ id: number; numeroCasa: string }[]>>;
     isLoading: ReturnType<typeof signal<boolean>>;
     cargar: jasmine.Spy;
     residentesDeCasa: jasmine.Spy;
@@ -70,6 +71,7 @@ describe('CasetaVisitasComponent', () => {
     };
 
     directorio = {
+      casas: signal([{ id: 33, numeroCasa: 'PRUEBA-01' }, { id: 34, numeroCasa: '16-B' }]),
       isLoading: signal(false),
       cargar: jasmine.createSpy('cargar').and.returnValue(Promise.resolve()),
       residentesDeCasa: jasmine.createSpy('residentesDeCasa').and.callFake((casa: string) =>
@@ -195,6 +197,58 @@ describe('CasetaVisitasComponent', () => {
       component.cambiarEstadoHistorial('finalizada');
 
       expect(historico.cargar).toHaveBeenCalledOnceWith({ estado: 'finalizada' }, 1);
+    });
+
+    it('filtra el historial por fechas y casa y los aplica solos', () => {
+      component.cambiarPestana('historial');
+      historico.cargar.calls.reset();
+
+      component.cambiarDesdeHistorial('2026-09-28');
+      component.cambiarHastaHistorial('2026-09-30');
+      component.cambiarViviendaHistorial(33);
+
+      expect(historico.cargar).toHaveBeenCalledTimes(3);
+      const [filtros, pagina] = historico.cargar.calls.mostRecent().args as [any, number];
+      expect(filtros.estado).toBe('finalizada');
+      expect(filtros.viviendaId).toBe(33);
+      expect(new Date(filtros.desde).getTime()).toBe(new Date('2026-09-28T00:00:00').getTime());
+      expect(new Date(filtros.hasta).getTime()).toBe(new Date('2026-09-30T23:59:59.999').getTime());
+      expect(pagina).toBe(1);
+    });
+
+    it('con el rango al revés no consulta y lo explica', () => {
+      component.cambiarPestana('historial');
+      component.cambiarDesdeHistorial('2026-09-20');
+      historico.cargar.calls.reset();
+
+      component.cambiarHastaHistorial('2026-09-10');
+      fixture.detectChanges();
+
+      expect(historico.cargar).not.toHaveBeenCalled();
+      expect(texto()).toContain('La fecha "desde" no puede ser posterior a "hasta".');
+    });
+
+    it('limpiar los filtros vuelve a pedir el historial solo con el estado', () => {
+      component.cambiarPestana('historial');
+      component.cambiarViviendaHistorial(33);
+      component.cambiarDesdeHistorial('2026-09-28');
+      historico.cargar.calls.reset();
+
+      component.limpiarFiltrosHistorial();
+
+      expect(historico.cargar).toHaveBeenCalledOnceWith({ estado: 'finalizada' }, 1);
+      expect(component.hayFiltrosHistorial()).toBeFalse();
+    });
+
+    it('la lista de casas del historial sale del directorio y lo dice cuando no hay resultados con filtros', () => {
+      component.cambiarPestana('historial');
+      component.cambiarViviendaHistorial(34);
+      fixture.detectChanges();
+
+      const opciones = Array.from(fixture.nativeElement.querySelectorAll('#casa-historial option') as NodeListOf<HTMLOptionElement>)
+        .map(o => o.textContent!.trim());
+      expect(opciones).toEqual(['Todas', 'PRUEBA-01', '16-B']);
+      expect(texto()).toContain('No hay visitas con estos filtros.');
     });
 
     it('pagina el historial', () => {
