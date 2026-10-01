@@ -6,6 +6,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../Services/app_controller.dart';
 import '../Services/viviendas_service.dart';
+import 'vivienda_detalle_screen.dart';
 
 class ResidentesListScreen extends StatefulWidget {
   const ResidentesListScreen({super.key, required this.controller});
@@ -19,6 +20,7 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   List<dynamic> _residentes = [];
+  List<dynamic> _viviendas = [];
   bool _soloSinVivienda = false;
 
   @override
@@ -54,20 +56,23 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
 
         try {
           final viviendasSrv = ViviendasService(widget.controller);
-          final viviendas = await viviendasSrv.listar();
+          final viviendas = await viviendasSrv.listarConResidentes();
+          _viviendas = viviendas;
           if (viviendas.isNotEmpty) {
-            final asignaciones = await Future.wait(
-              viviendas.map((v) => viviendasSrv.obtenerResidentesVivienda(v['id']).catchError((_) => <dynamic>[]))
-            );
-            
             final Map<String, dynamic> residenteViviendaMap = {};
             for (int i = 0; i < viviendas.length; i++) {
               final v = viviendas[i];
-              final res = asignaciones[i];
-              for (var r in res) {
-                final rId = r['id'] ?? r['usuarioId'];
-                if (rId != null) {
-                  residenteViviendaMap[rId.toString()] = v;
+              if (v is Map) {
+                final res = v['residentes'];
+                if (res is List) {
+                  for (var r in res) {
+                    if (r is Map) {
+                      final rId = r['id'] ?? r['usuarioId'];
+                      if (rId != null) {
+                        residenteViviendaMap[rId.toString()] = v;
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -94,6 +99,40 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
     }
   }
 
+  Map<String, dynamic>? _getViviendaForResidente(Map<String, dynamic> r) {
+    if (r['vivienda'] is Map) {
+      return Map<String, dynamic>.from(r['vivienda'] as Map);
+    }
+    if (r['viviendas'] is List && (r['viviendas'] as List).isNotEmpty) {
+      final first = (r['viviendas'] as List).first;
+      if (first is Map) {
+        return Map<String, dynamic>.from(first);
+      }
+    }
+    final vId = (r['viviendaId'] ?? r['vivienda_id'] ?? r['idVivienda'])?.toString();
+    final numCasa = (r['numeroCasa'] ?? '').toString().trim();
+    for (final item in _viviendas) {
+      if (item is Map) {
+        final v = Map<String, dynamic>.from(item);
+        if (vId != null && v['id']?.toString() == vId) {
+          return v;
+        }
+        if (numCasa.isNotEmpty &&
+            v['numeroCasa']?.toString().trim().toLowerCase() ==
+                numCasa.toLowerCase()) {
+          return v;
+        }
+      }
+    }
+    if (numCasa.isNotEmpty && numCasa.toLowerCase() != 'sin vivienda asignada') {
+      return {
+        if (vId != null) 'id': int.tryParse(vId) ?? vId,
+        'numeroCasa': numCasa,
+      };
+    }
+    return null;
+  }
+
   void _mostrarDetalleResidente(Map<String, dynamic> r) {
     final n = (r['nombre'] ?? '').toString();
     final a = (r['apellidos'] ?? '').toString();
@@ -115,14 +154,18 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
       }
     }
 
+    final targetVivienda = _getViviendaForResidente(r);
+    final bool hasVivienda = targetVivienda != null;
+
     String viviendaStr = 'Sin vivienda asignada';
     if (r['viviendas'] != null && r['viviendas'] is List && (r['viviendas'] as List).isNotEmpty) {
       viviendaStr = (r['viviendas'] as List).map((v) => v['numeroCasa'] ?? 'S/N').join(', ');
-    } else if (r['vivienda'] != null && r['vivienda'] is Map) {
-      viviendaStr = r['vivienda']['numeroCasa']?.toString() ?? 'Vinculada';
+    } else if (targetVivienda != null) {
+      viviendaStr = targetVivienda['numeroCasa']?.toString() ?? 'Vinculada';
     } else if (r['numeroCasa'] != null) {
       viviendaStr = r['numeroCasa'].toString();
     }
+
 
     showModalBottomSheet(
       context: context,
@@ -279,7 +322,58 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
                               label: 'VIVIENDA',
                               value: viviendaStr,
                               icon: Icons.home_outlined,
+                              isInteractive: hasVivienda,
+                              onTap: hasVivienda
+                                  ? () {
+                                      Navigator.pop(ctx);
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => ViviendaDetalleScreen(
+                                            controller: widget.controller,
+                                            vivienda: targetVivienda!,
+                                            onChanged: _fetchResidentes,
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  : null,
+                              trailing: hasVivienda
+                                  ? Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFEEF2FF),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: const Color(0xFFC7D2FE),
+                                        ),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            'Ver casa',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF111C99),
+                                            ),
+                                          ),
+                                          SizedBox(width: 3),
+                                          Icon(
+                                            Icons.arrow_forward_ios_rounded,
+                                            size: 10,
+                                            color: Color(0xFF111C99),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  : null,
                             ),
+
                           ],
                         ),
                       ),
@@ -334,11 +428,14 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
     required String label,
     required String value,
     required IconData icon,
+    VoidCallback? onTap,
+    Widget? trailing,
+    bool isInteractive = false,
   }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final content = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(icon, size: 18, color: const Color(0xFF111C99)),
+        Icon(icon, size: 20, color: const Color(0xFF111C99)),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -356,17 +453,38 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
               const SizedBox(height: 4),
               Text(
                 value,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF0F172A),
+                  color: isInteractive
+                      ? const Color(0xFF111C99)
+                      : const Color(0xFF0F172A),
+                  decoration: isInteractive ? TextDecoration.underline : null,
+                  decorationColor: const Color(0xFF111C99),
                 ),
               ),
             ],
           ),
         ),
+        if (trailing != null) trailing,
       ],
     );
+
+    if (onTap != null) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+            child: content,
+          ),
+        ),
+      );
+    }
+
+    return content;
   }
 
   @override
@@ -680,6 +798,16 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
                                   ),
                                   DataColumn(
                                     label: Text(
+                                      'VIVIENDA',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ),
+                                  DataColumn(
+                                    label: Text(
                                       'CONTACTO',
                                       style: TextStyle(
                                         fontSize: 12,
@@ -764,6 +892,88 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
                                               ],
                                             ),
                                           ],
+                                        ),
+                                      ),
+                                      DataCell(
+                                        Builder(
+                                          builder: (context) {
+                                            final targetViv =
+                                                _getViviendaForResidente(r);
+                                            final numCasa =
+                                                targetViv?['numeroCasa'] ??
+                                                    r['numeroCasa'];
+                                            if (targetViv != null &&
+                                                numCasa != null &&
+                                                numCasa.toString().isNotEmpty) {
+                                              return InkWell(
+                                                onTap: () {
+                                                  Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      builder: (_) =>
+                                                          ViviendaDetalleScreen(
+                                                        controller:
+                                                            widget.controller,
+                                                        vivienda: targetViv,
+                                                        onChanged:
+                                                            _fetchResidentes,
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                                child: Padding(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 4,
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      const Icon(
+                                                        Icons.home_outlined,
+                                                        size: 16,
+                                                        color:
+                                                            Color(0xFF111C99),
+                                                      ),
+                                                      const SizedBox(width: 6),
+                                                      Text(
+                                                        numCasa.toString(),
+                                                        style: const TextStyle(
+                                                          fontSize: 14,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                          color: Color(
+                                                              0xFF111C99),
+                                                          decoration:
+                                                              TextDecoration
+                                                                  .underline,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      const Icon(
+                                                        Icons.open_in_new,
+                                                        size: 13,
+                                                        color:
+                                                            Color(0xFF111C99),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                            return const Text(
+                                              'Sin vivienda',
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                color: Color(0xFF94A3B8),
+                                                fontStyle: FontStyle.italic,
+                                              ),
+                                            );
+                                          },
                                         ),
                                       ),
                                       DataCell(
