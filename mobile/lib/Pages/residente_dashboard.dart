@@ -84,9 +84,12 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
   }
 
   Future<void> _solicitarPermisos() async {
-    await PushNotificationsService.requestPermission(
-      userId: widget.controller.currentUser?.id,
-    );
+    await PushNotificationsService.requestPermission();
+    // Suscribir al tópico personal para recibir notificaciones de invitaciones de sub-usuarios
+    final userId = widget.controller.currentUser?.id;
+    if (userId != null && userId.isNotEmpty) {
+      await PushNotificationsService.subscribeToUserTopic(userId);
+    }
   }
 
   bool _isRedeeming = false;
