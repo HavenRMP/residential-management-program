@@ -16,7 +16,7 @@ public class SupabaseService : ISupabaseService
     private readonly string _serviceRoleKey;
 
     private const string VwMisVisitas = "vw_mis_visitas";
-    private const string VwVisitasHoy = "vw_visitas_hoy";
+    private const string VwVisitasProximas = "vw_visitas_proximas";
     private const string VwVisitasHistorico = "vw_visitas_historico";
 
     private const string RpcAltaVisita = "alta_visita";
@@ -236,9 +236,9 @@ public class SupabaseService : ISupabaseService
         return (result.Items ?? new List<VisitaDto>(), result.TotalCount);
     }
 
-    public async Task<(List<VisitaDto> Items, int? TotalCount)> GetVisitasHoyAsync(Guid condominioId, PaginationParams paginacion, string? busqueda = null)
+    public async Task<(List<VisitaDto> Items, int? TotalCount)> GetVisitasProximasAsync(Guid condominioId, PaginationParams paginacion, string? busqueda = null)
     {
-        string resourcePath = $"{VwVisitasHoy}?condominio_id=eq.{condominioId}&select=*";
+        string resourcePath = $"{VwVisitasProximas}?condominio_id=eq.{condominioId}&select=*";
         
         if (!string.IsNullOrWhiteSpace(busqueda))
         {
