@@ -1,4 +1,4 @@
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { signal } from '@angular/core';
 import Swal from 'sweetalert2';
@@ -10,9 +10,12 @@ import { InvitacionRecibida } from '../../core/models/subusuario.model';
 
 describe('SubusuariosComponent', () => {
   let component: SubusuariosComponent;
+  let fixture: ComponentFixture<SubusuariosComponent>;
   let servicio: any;
+  let usuario: ReturnType<typeof signal<any>>;
 
   beforeEach(() => {
+    usuario = signal<any>(null);
     servicio = {
       MAX_SUBUSUARIOS: 2,
       items: signal([]),
@@ -35,11 +38,66 @@ describe('SubusuariosComponent', () => {
         provideRouter([]),
         { provide: SubusuariosService, useValue: servicio },
         { provide: ViviendasService, useValue: { obtenerMisViviendas: () => Promise.resolve([]) } },
-        { provide: AuthService, useValue: { currentUser: signal(null), logout: () => undefined } }
+        { provide: AuthService, useValue: { currentUser: usuario, logout: () => undefined } }
       ]
     });
 
-    component = TestBed.createComponent(SubusuariosComponent).componentInstance;
+    fixture = TestBed.createComponent(SubusuariosComponent);
+    component = fixture.componentInstance;
+  });
+
+  describe('perfil de sub-usuario (solo consulta)', () => {
+    const acceso = { id: 'sub-1', nombre: 'Luis Prueba', email: 'luis@example.com', telefono: '', parentesco: 'Familiar', activo: true, creadoEn: null };
+    const texto = () => (fixture.nativeElement.textContent as string).replace(/\s+/g, ' ');
+    const botones = () => Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>);
+
+    function mostrar(usuarioId: string): void {
+      usuario.set({ id: usuarioId, nombre: 'Persona', rol: 'residente' });
+      servicio.items.set([acceso]);
+      servicio.cuposDisponibles.set(1);
+      fixture.detectChanges();
+      component.viviendaId.set(33);
+      fixture.detectChanges();
+    }
+
+    it('el titular puede invitar y revocar', () => {
+      mostrar('titular-1');
+
+      expect(component.esSubusuario()).toBeFalse();
+      expect(botones().some(b => b.textContent!.includes('Invitar'))).toBeTrue();
+      expect(fixture.nativeElement.querySelector('button[title="Revocar"]')).not.toBeNull();
+      expect(texto()).toContain('Hasta 2 accesos por vivienda');
+    });
+
+    it('un sub-usuario activo ve la lista pero no puede invitar ni revocar', () => {
+      mostrar('sub-1');
+
+      expect(component.esSubusuario()).toBeTrue();
+      expect(botones().some(b => b.textContent!.includes('Invitar'))).toBeFalse();
+      expect(fixture.nativeElement.querySelector('button[title="Revocar"]')).toBeNull();
+      expect(texto()).toContain('Solo el titular puede invitar o revocar accesos.');
+      expect(texto()).toContain('Luis Prueba');
+      expect(texto()).not.toContain('Invitar sub-usuario');
+    });
+
+    it('un sub-usuario no abre el formulario de invitación ni revoca aunque lo intente', async () => {
+      mostrar('sub-1');
+      const fire = spyOn(Swal, 'fire').and.returnValue(Promise.resolve({ isConfirmed: true } as any));
+
+      component.abrirModalInvitacion();
+      await component.confirmarRevocar(acceso);
+
+      expect(component.modalInvitarAbierto()).toBeFalse();
+      expect(fire).not.toHaveBeenCalled();
+      expect(servicio.revocar).not.toHaveBeenCalled();
+    });
+
+    it('una invitación pendiente con el mismo id no convierte a nadie en sub-usuario', () => {
+      usuario.set({ id: 'sub-1', nombre: 'Persona', rol: 'residente' });
+      servicio.items.set([{ ...acceso, activo: false }]);
+
+      expect(component.esSubusuario()).toBeFalse();
+    });
   });
 
   describe('validación de correo', () => {
