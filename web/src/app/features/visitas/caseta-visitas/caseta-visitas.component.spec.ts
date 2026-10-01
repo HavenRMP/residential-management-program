@@ -159,12 +159,12 @@ describe('CasetaVisitasComponent', () => {
     expect(textoEnCurso).not.toContain('Registrar entrada');
   });
 
-  describe('pestañas Hoy, Programadas e Historial', () => {
+  describe('pestañas Próximas, Programadas e Historial', () => {
     const pestanas = () => Array.from(fixture.nativeElement.querySelectorAll('[role="tab"]') as NodeListOf<HTMLButtonElement>);
     const texto = () => (fixture.nativeElement.textContent as string).replace(/\s+/g, ' ');
     const visitaVieja: VisitaVigilancia = { ...visita, id: 'v-vieja', nombreVisitante: 'Rosa', estado: 'finalizada', horaEntrada: '2026-09-20T10:00:00Z', horaSalida: '2026-09-20T11:00:00Z' };
 
-    it('abre en "Hoy" con su conteo y sin pedir el historial hasta que se abra su pestaña', () => {
+    it('abre en "Próximas 24 h" con su conteo y sin pedir el historial hasta que se abra su pestaña', () => {
       expect(pestanas().map(p => p.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false']);
       expect(pestanas()[0].textContent).toContain('1');
       expect(historico.cargar).not.toHaveBeenCalled();
@@ -242,7 +242,7 @@ describe('CasetaVisitasComponent', () => {
       expect(programadas.cargar).toHaveBeenCalledTimes(1);
       expect(texto()).toContain('Lucía Pérez');
       expect(texto()).toContain('Llega');
-      expect(texto()).toContain('Visitas que todavía no llegan, la más próxima primero.');
+      expect(texto()).toContain('Visitas que llegan después de las próximas 24 horas, la más próxima primero.');
       expect(texto()).not.toContain('Registrar entrada');
     });
 
@@ -253,7 +253,7 @@ describe('CasetaVisitasComponent', () => {
       component.abrirDetalle(futura);
       fixture.detectChanges();
 
-      expect(component.detalleEsDeHoy()).toBeFalse();
+      expect(component.detalleEsProxima()).toBeFalse();
       expect(texto()).toContain('Lucía Pérez');
       expect(fixture.nativeElement.querySelector('#placas-entrada')).toBeNull();
     });
@@ -273,17 +273,17 @@ describe('CasetaVisitasComponent', () => {
       component.abrirDetalle({ ...visitaVieja, estado: 'programada' });
       fixture.detectChanges();
 
-      expect(component.detalleEsDeHoy()).toBeFalse();
+      expect(component.detalleEsProxima()).toBeFalse();
       expect(texto()).toContain('Rosa Pérez');
       expect(fixture.nativeElement.querySelector('#placas-entrada')).toBeNull();
       expect(texto()).not.toContain('Registrar entrada');
     });
 
-    it('el detalle de una visita de hoy sí permite registrar la entrada', () => {
+    it('el detalle de una visita por atender sí permite registrar la entrada', () => {
       component.abrirDetalle(visita);
       fixture.detectChanges();
 
-      expect(component.detalleEsDeHoy()).toBeTrue();
+      expect(component.detalleEsProxima()).toBeTrue();
       expect(fixture.nativeElement.querySelector('#placas-entrada')).not.toBeNull();
     });
   });

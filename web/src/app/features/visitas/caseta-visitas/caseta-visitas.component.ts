@@ -79,7 +79,7 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
         </div>
       </section>
 
-      <!-- Visitas de hoy -->
+      <!-- Visitas por atender (próximas 24 horas y en curso) -->
       <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div>
@@ -93,12 +93,12 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
             <button
               type="button"
               role="tab"
-              [attr.aria-selected]="pestana() === 'hoy'"
-              (click)="cambiarPestana('hoy')"
+              [attr.aria-selected]="pestana() === 'proximas'"
+              (click)="cambiarPestana('proximas')"
               class="px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
-              [ngClass]="pestana() === 'hoy' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-700'"
+              [ngClass]="pestana() === 'proximas' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-700'"
             >
-              <span>Hoy</span>
+              <span>Próximas 24 h</span>
               <span class="text-[10px] px-1.5 rounded-full font-mono bg-slate-100 text-slate-800 border border-slate-200">{{ visitasService.totalCount() }}</span>
             </button>
             <button
@@ -124,13 +124,13 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
           </div>
         </div>
 
-        <!-- Herramientas de "Hoy": búsqueda y actualizar -->
-        <div *ngIf="pestana() === 'hoy'" class="flex items-center justify-end gap-2">
+        <!-- Herramientas de "Próximas": búsqueda y actualizar -->
+        <div *ngIf="pestana() === 'proximas'" class="flex items-center justify-end gap-2">
             <input
               type="text"
               [(ngModel)]="busqueda"
               (ngModelChange)="onBusquedaCambio()"
-              placeholder="Nombre, código o casa..."
+              placeholder="Nombre, placas o código..."
               class="h-8 w-56 text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
             />
             <button
@@ -145,7 +145,7 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
             </button>
         </div>
 
-        <ng-container *ngIf="pestana() === 'hoy'">
+        <ng-container *ngIf="pestana() === 'proximas'">
         <div *ngIf="visitasService.isLoading()" class="space-y-2">
           <div *ngFor="let s of [1, 2, 3]" class="p-4 rounded-md bg-white border border-slate-200 animate-pulse h-16"></div>
         </div>
@@ -158,7 +158,7 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
           *ngIf="!visitasService.isLoading() && !visitasService.errorMessage() && visitasService.items().length === 0"
           class="py-10 text-center text-xs text-slate-500 font-medium"
         >
-          No hay visitas vigentes para hoy.
+          No hay visitas por atender en las próximas 24 horas.
         </div>
 
         <ul *ngIf="!visitasService.isLoading()" class="space-y-2">
@@ -438,7 +438,7 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
         </div>
 
         <!-- Captura de placas al dar ingreso -->
-        <div *ngIf="d.estado === 'programada' && detalleEsDeHoy()" class="mt-3">
+        <div *ngIf="d.estado === 'programada' && detalleEsProxima()" class="mt-3">
           <label class="block text-xs font-semibold text-slate-800 mb-1" for="placas-entrada">Placas del vehículo (opcional)</label>
           <input
             id="placas-entrada"
@@ -456,8 +456,8 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
             class="h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer">
             Cerrar
           </button>
-          <!-- Entrada y salida solo para las visitas de hoy; las del historial son de consulta -->
-          <ng-container *ngIf="detalleEsDeHoy()">
+          <!-- Entrada y salida solo para las visitas de la ventana de 24 horas; las programadas a futuro y las del historial son de consulta -->
+          <ng-container *ngIf="detalleEsProxima()">
             <ng-container *ngTemplateOutlet="acciones; context: { $implicit: d, conPlacas: true }"></ng-container>
           </ng-container>
         </div>
@@ -506,15 +506,15 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
   readonly visitaEnProceso = signal<string | null>(null);
 
   private readonly detalleId = signal<string | null>(null);
-  /** Se deriva de las listas (hoy o historial) para que el modal refleje entrada y salida registradas sin cerrarse */
+  /** Se deriva de las listas (próximas, programadas o historial) para que el modal refleje entrada y salida registradas sin cerrarse */
   readonly visitaDetalle = computed(() =>
     this.visitasService.items().find(v => v.id === this.detalleId())
       ?? this.programadas.items().find(v => v.id === this.detalleId())
       ?? this.historico.items().find(v => v.id === this.detalleId())
       ?? null
   );
-  /** El detalle es de una visita de hoy (se puede dar entrada o salida) y no solo del historial */
-  readonly detalleEsDeHoy = computed(() => this.visitasService.items().some(v => v.id === this.detalleId()));
+  /** El detalle es de una visita por atender (se puede dar entrada o salida), no de una programada a futuro ni del historial */
+  readonly detalleEsProxima = computed(() => this.visitasService.items().some(v => v.id === this.detalleId()));
 
   readonly totalPaginas = computed(() =>
     Math.max(1, Math.ceil(this.visitasService.totalCount() / this.visitasService.PAGE_SIZE))
@@ -522,14 +522,14 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
 
   /** El historial es solo de visitas que ya pasaron; las programadas y en curso viven en sus propias pestañas */
   readonly estados: EstadoVisita[] = ['finalizada', 'cancelada', 'expirada'];
-  readonly pestana = signal<'hoy' | 'programadas' | 'historial'>('hoy');
+  readonly pestana = signal<'proximas' | 'programadas' | 'historial'>('proximas');
   readonly estadoHistorial = signal<EstadoVisita>('finalizada');
   private programadasSolicitadas = false;
   private historialSolicitado = false;
   readonly descripcionPestana = computed(() => {
     switch (this.pestana()) {
-      case 'hoy': return 'Programadas y en curso, la más reciente primero.';
-      case 'programadas': return 'Visitas que todavía no llegan, la más próxima primero.';
+      case 'proximas': return 'Llegan en las próximas 24 horas o ya están en curso, la más reciente primero.';
+      case 'programadas': return 'Visitas que llegan después de las próximas 24 horas, la más próxima primero.';
       default: return 'Visitas que ya pasaron, la más reciente primero.';
     }
   });
@@ -538,7 +538,7 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
   );
 
   /** El historial se pide la primera vez que se abre su pestaña, no al entrar a la caseta */
-  cambiarPestana(pestana: 'hoy' | 'programadas' | 'historial'): void {
+  cambiarPestana(pestana: 'proximas' | 'programadas' | 'historial'): void {
     this.pestana.set(pestana);
     if (pestana === 'programadas' && !this.programadasSolicitadas) {
       this.programadasSolicitadas = true;
