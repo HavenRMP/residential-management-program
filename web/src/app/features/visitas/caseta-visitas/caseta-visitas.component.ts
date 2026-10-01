@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import { VisitasVigilanciaService } from '../../../core/services/visitas-vigilancia.service';
 import { DirectorioCasasService } from '../../../core/services/directorio-casas.service';
 import { VisitasHistoricoService } from '../../../core/services/visitas-historico.service';
+import { VisitasProgramadasService } from '../../../core/services/visitas-programadas.service';
 import { ResidenteContacto } from '../../../core/models/vivienda.model';
 import { telefonoParaLlamar } from '../../../core/utils/directorio-casas.util';
 import {
@@ -84,7 +85,7 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
           <div>
             <h2 class="text-sm font-semibold text-slate-900">Visitas</h2>
             <p class="text-xs text-slate-500 mt-0.5">
-              {{ pestana() === 'hoy' ? 'Programadas y en curso, la más reciente primero.' : 'Todas las visitas del condominio, la más reciente primero.' }}
+              {{ descripcionPestana() }}
             </p>
           </div>
 
@@ -99,6 +100,16 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
             >
               <span>Hoy</span>
               <span class="text-[10px] px-1.5 rounded-full font-mono bg-slate-100 text-slate-800 border border-slate-200">{{ visitasService.totalCount() }}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              [attr.aria-selected]="pestana() === 'programadas'"
+              (click)="cambiarPestana('programadas')"
+              class="px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
+              [ngClass]="pestana() === 'programadas' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-700'"
+            >
+              Programadas
             </button>
             <button
               type="button"
@@ -210,7 +221,72 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
         </div>
         </ng-container>
 
-        <!-- Historial: todas las visitas del condominio, la más reciente primero -->
+        <!-- Programadas: visitas que todavía no llegan, la más próxima primero. Solo de consulta -->
+        <ng-container *ngIf="pestana() === 'programadas'">
+          <div class="flex justify-end">
+            <button
+              type="button"
+              (click)="programadas.cargar()"
+              title="Actualizar"
+              class="h-8 w-8 inline-flex items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+          </div>
+
+          <div *ngIf="programadas.isLoading()" class="space-y-2" aria-busy="true">
+            <div *ngFor="let s of [1, 2, 3]" class="p-4 rounded-md bg-white border border-slate-200 animate-pulse h-16"></div>
+          </div>
+
+          <div *ngIf="!programadas.isLoading() && programadas.errorMessage() as msg" class="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 font-medium">
+            {{ msg }}
+          </div>
+
+          <div
+            *ngIf="!programadas.isLoading() && !programadas.errorMessage() && programadas.items().length === 0"
+            class="py-10 text-center text-xs text-slate-500 font-medium"
+          >
+            No hay visitas programadas para los próximos días.
+          </div>
+
+          <ul *ngIf="!programadas.isLoading() && !programadas.errorMessage()" class="space-y-2">
+            <li
+              *ngFor="let v of programadas.items()"
+              class="p-4 rounded-md border border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+            >
+              <div class="min-w-0 space-y-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <p class="text-sm font-semibold text-slate-900">{{ v.nombreVisitante }} {{ v.apellidosVisitante }}</p>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border" [ngClass]="claseEstado(v.estado)">
+                    {{ etiquetaEstado(v.estado) }}
+                  </span>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border bg-slate-50 text-slate-600 border-slate-200">
+                    Casa {{ v.numeroCasa }}
+                  </span>
+                </div>
+                <p class="text-xs text-slate-600">
+                  {{ etiquetaMotivo(v.motivo) }} · Llega {{ formatearFecha(v.fechaLlegadaEsperada) }} · Vigente hasta {{ formatearFecha(v.vigenciaHasta) }}
+                </p>
+                <p class="text-xs text-slate-500">
+                  <span *ngIf="v.numAcompanantes > 0">{{ v.numAcompanantes }} acompañante(s) · </span>
+                  <span *ngIf="v.vehiculoPlacas">Placas {{ v.vehiculoPlacas }} · </span>
+                  <span>Registrada por {{ v.creadoPorNombre || 'el residente' }}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                (click)="abrirDetalle(v)"
+                class="shrink-0 h-8 px-3 rounded-md border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Detalle
+              </button>
+            </li>
+          </ul>
+        </ng-container>
+
+        <!-- Historial: visitas que ya pasaron (finalizadas, canceladas o expiradas), la más reciente primero -->
         <ng-container *ngIf="pestana() === 'historial'">
           <div class="flex items-center justify-between gap-2">
             <div>
@@ -221,7 +297,6 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
                 (ngModelChange)="cambiarEstadoHistorial($event)"
                 class="h-8 text-xs rounded-lg border border-slate-300 bg-white px-2 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
               >
-                <option [ngValue]="null">Todos los estados</option>
                 <option *ngFor="let e of estados" [ngValue]="e">{{ etiquetaEstado(e) }}</option>
               </select>
             </div>
@@ -249,7 +324,7 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
             *ngIf="!historico.isLoading() && !historico.errorMessage() && historico.items().length === 0"
             class="py-10 text-center text-xs text-slate-500 font-medium"
           >
-            {{ estadoHistorial() ? 'No hay visitas con este estado.' : 'Todavía no hay visitas registradas.' }}
+            No hay visitas con este estado.
           </div>
 
           <ul *ngIf="!historico.isLoading() && !historico.errorMessage()" class="space-y-2">
@@ -416,6 +491,7 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
   readonly visitasService = inject(VisitasVigilanciaService);
   readonly directorio = inject(DirectorioCasasService);
   readonly historico = inject(VisitasHistoricoService);
+  readonly programadas = inject(VisitasProgramadasService);
 
   codigo = '';
   busqueda = '';
@@ -433,6 +509,7 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
   /** Se deriva de las listas (hoy o historial) para que el modal refleje entrada y salida registradas sin cerrarse */
   readonly visitaDetalle = computed(() =>
     this.visitasService.items().find(v => v.id === this.detalleId())
+      ?? this.programadas.items().find(v => v.id === this.detalleId())
       ?? this.historico.items().find(v => v.id === this.detalleId())
       ?? null
   );
@@ -443,17 +520,30 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
     Math.max(1, Math.ceil(this.visitasService.totalCount() / this.visitasService.PAGE_SIZE))
   );
 
-  readonly estados: EstadoVisita[] = ['programada', 'en_curso', 'finalizada', 'cancelada', 'expirada'];
-  readonly pestana = signal<'hoy' | 'historial'>('hoy');
-  readonly estadoHistorial = signal<EstadoVisita | null>(null);
+  /** El historial es solo de visitas que ya pasaron; las programadas y en curso viven en sus propias pestañas */
+  readonly estados: EstadoVisita[] = ['finalizada', 'cancelada', 'expirada'];
+  readonly pestana = signal<'hoy' | 'programadas' | 'historial'>('hoy');
+  readonly estadoHistorial = signal<EstadoVisita>('finalizada');
+  private programadasSolicitadas = false;
   private historialSolicitado = false;
+  readonly descripcionPestana = computed(() => {
+    switch (this.pestana()) {
+      case 'hoy': return 'Programadas y en curso, la más reciente primero.';
+      case 'programadas': return 'Visitas que todavía no llegan, la más próxima primero.';
+      default: return 'Visitas que ya pasaron, la más reciente primero.';
+    }
+  });
   readonly totalPaginasHistorial = computed(() =>
     Math.max(1, Math.ceil(this.historico.totalCount() / this.historico.PAGE_SIZE))
   );
 
   /** El historial se pide la primera vez que se abre su pestaña, no al entrar a la caseta */
-  cambiarPestana(pestana: 'hoy' | 'historial'): void {
+  cambiarPestana(pestana: 'hoy' | 'programadas' | 'historial'): void {
     this.pestana.set(pestana);
+    if (pestana === 'programadas' && !this.programadasSolicitadas) {
+      this.programadasSolicitadas = true;
+      this.programadas.cargar();
+    }
     if (pestana === 'historial' && !this.historialSolicitado) {
       this.historialSolicitado = true;
       this.cargarHistorial();
@@ -461,11 +551,10 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
   }
 
   cargarHistorial(page: number = 1): void {
-    const estado = this.estadoHistorial();
-    this.historico.cargar(estado ? { estado } : {}, page);
+    this.historico.cargar({ estado: this.estadoHistorial() }, page);
   }
 
-  cambiarEstadoHistorial(estado: EstadoVisita | null): void {
+  cambiarEstadoHistorial(estado: EstadoVisita): void {
     this.estadoHistorial.set(estado);
     this.cargarHistorial(1);
   }
