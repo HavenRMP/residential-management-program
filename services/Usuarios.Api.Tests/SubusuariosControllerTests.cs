@@ -180,7 +180,7 @@ public class SubusuariosControllerTests : IAsyncLifetime
 
         var mockSupabaseService = new Mock<ISupabaseService>();
         mockSupabaseService.Setup(s => s.ResponderInvitacionAsync(invitacionId, _userId, "ACEPTADA", It.IsAny<string>()))
-            .ReturnsAsync((true, null));
+            .ReturnsAsync(true);
 
         await using var application = BuildApplication(mockSupabaseService);
         var client = application.CreateClient();

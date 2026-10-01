@@ -626,7 +626,7 @@ public class SupabaseService : ISupabaseService
         return (invitacion, null);
     }
 
-    public async Task<(bool Success, string? Error)> ResponderInvitacionAsync(Guid invitacionId, Guid usuarioId, string respuesta, string accessToken)
+    public async Task<bool> ResponderInvitacionAsync(Guid invitacionId, Guid usuarioId, string respuesta, string accessToken)
     {
         var url = $"{_supabaseUrl}/rest/v1/rpc/responder_invitacion_subusuario";
         var payload = new { p_invitacion_id = invitacionId, p_usuario_id = usuarioId, p_respuesta = respuesta };
@@ -639,13 +639,31 @@ public class SupabaseService : ISupabaseService
         request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
 
         var response = await SendRequestAsync(request);
-        if (!response.IsSuccessStatusCode)
+        
+        if (response.IsSuccessStatusCode)
         {
-            var errorBody = await response.Content.ReadAsStringAsync();
-            _logger.LogError("Failed to respond to invitation. Status: {StatusCode}, Body: {Body}", response.StatusCode, errorBody);
-            return (false, $"Error desde Supabase: {errorBody}");
+            return true;
         }
-        return (true, null);
+
+        var errorBody = await response.Content.ReadAsStringAsync();
+        _logger.LogError("Failed to respond to invitation. Status: {StatusCode}, Body: {Body}", response.StatusCode, errorBody);
+        
+        try
+        {
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var errorData = JsonSerializer.Deserialize<RpcErrorResponse>(errorBody, options);
+
+            if (errorData != null && !string.IsNullOrEmpty(errorData.Code))
+            {
+                throw new SupabaseRpcException(errorData.Code, errorData.Message ?? string.Empty);
+            }
+        }
+        catch (JsonException)
+        {
+            // Ignore JSON exception and fall back to the unknown error
+        }
+
+        throw new SupabaseRpcException("UNKNOWN", $"Error inesperado del servidor: {errorBody}");
     }
 
     public async Task<(bool Success, string? Error)> CancelarInvitacionAsync(Guid invitacionId, string accessToken)

@@ -170,14 +170,20 @@ public class SubusuariosController : ControllerBase
         }
 
         var accessToken = HttpContext.Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
-        var result = await _supabaseService.ResponderInvitacionAsync(id, userId, dto.Respuesta, accessToken);
-
-        if (!result.Success)
+        try
         {
-            return BadRequest(new { error = result.Error ?? "No se pudo procesar la respuesta a la invitación. Puede que ya haya sido procesada o cancelada." });
+            var result = await _supabaseService.ResponderInvitacionAsync(id, userId, dto.Respuesta, accessToken);
+            if (!result)
+            {
+                return BadRequest(new { error = "No se pudo procesar la respuesta a la invitación." });
+            }
+            return Ok(new { message = $"Invitación {dto.Respuesta.ToLower()} exitosamente." });
         }
-
-        return Ok(new { message = $"Invitación {dto.Respuesta.ToLower()} exitosamente." });
+        catch (SupabaseRpcException ex)
+        {
+            var (status, mensaje) = RpcErrorMapper.Map(ex);
+            return StatusCode(status, new { error = mensaje });
+        }
     }
 
     // Usado por el titular para revocar el acceso
