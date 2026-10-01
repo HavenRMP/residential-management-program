@@ -15,7 +15,8 @@ import {
   formatearFechaVisita,
   MOTIVOS_VISITA,
   MotivoVisita,
-  Visita
+  Visita,
+  visitaVencida
 } from '../../core/models/visita.model';
 import { Vivienda } from '../../core/models/vivienda.model';
 import { UserMenuComponent } from '../../core/components/user-menu/user-menu.component';
@@ -164,8 +165,8 @@ function isoAInputLocal(iso: string): string {
               <div class="min-w-0 space-y-1">
                 <div class="flex flex-wrap items-center gap-2">
                   <p class="text-sm font-semibold text-slate-900">{{ v.nombreVisitante }} {{ v.apellidosVisitante }}</p>
-                  <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border" [ngClass]="claseEstado(v.estado)">
-                    {{ etiquetaEstado(v.estado) }}
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border" [ngClass]="claseEstado(estadoMostrado(v))">
+                    {{ etiquetaEstado(estadoMostrado(v)) }}
                   </span>
                   <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border bg-slate-50 text-slate-600 border-slate-200">
                     {{ etiquetaMotivo(v.motivo) }}
@@ -189,7 +190,7 @@ function isoAInputLocal(iso: string): string {
               </div>
 
               <div class="flex flex-col items-start sm:items-end gap-2 shrink-0">
-                <div *ngIf="v.codigo && (v.estado === 'programada' || v.estado === 'en_curso')" class="text-right">
+                <div *ngIf="v.codigo && !estaVencida(v) && (v.estado === 'programada' || v.estado === 'en_curso')" class="text-right">
                   <p class="text-[10px] uppercase tracking-wide font-semibold text-slate-500">Código de acceso</p>
                   <p class="font-mono text-base font-bold tracking-widest text-[#111C99]">{{ v.codigo }}</p>
                   <div class="mt-1 flex items-center justify-end gap-1">
@@ -212,7 +213,7 @@ function isoAInputLocal(iso: string): string {
                   </div>
                 </div>
 
-                <div *ngIf="v.estado === 'programada'" class="flex items-center gap-1.5">
+                <div *ngIf="v.estado === 'programada' && !estaVencida(v)" class="flex items-center gap-1.5">
                   <button
                     type="button"
                     (click)="abrirModalEditar(v)"
@@ -403,6 +404,16 @@ export class VisitasComponent implements OnInit {
     this.authService.logout();
   }
 
+  /** La visita programada cuyo día ya pasó sin que llegara el visitante: no se puede editar ni cancelar */
+  estaVencida(v: Visita): boolean {
+    return visitaVencida(v);
+  }
+
+  /** Mientras el backend la marca como expirada, se muestra así para que el residente no la crea vigente */
+  estadoMostrado(v: Visita): EstadoVisita {
+    return visitaVencida(v) ? 'expirada' : v.estado;
+  }
+
   etiquetaEstado(estado: EstadoVisita): string {
     return ETIQUETAS_ESTADO_VISITA[estado] ?? estado;
   }
@@ -548,6 +559,7 @@ export class VisitasComponent implements OnInit {
   }
 
   abrirModalEditar(v: Visita): void {
+    if (visitaVencida(v)) return;
     this.visitaEditandoId.set(v.id);
     this.visitaOriginal = v;
     const horas = Math.round((new Date(v.vigenciaHasta).getTime() - new Date(v.fechaLlegadaEsperada).getTime()) / 3_600_000);
