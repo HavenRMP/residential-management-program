@@ -34,7 +34,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void initState() {
     super.initState();
     _fetchStats();
-    PushNotificationsService.requestPermission();
+    _solicitarPermisos();
+  }
+
+  Future<void> _solicitarPermisos() async {
+    await PushNotificationsService.requestPermission();
+    // Suscribir al tópico personal para recibir notificaciones de invitaciones
+    final userId = widget.controller.currentUser?.id;
+    if (userId != null && userId.isNotEmpty) {
+      await PushNotificationsService.subscribeToUserTopic(userId);
+    }
   }
 
   Future<void> _fetchStats() async {
@@ -625,7 +634,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               _buildActionCard(
                 title: 'Gestión de Avisos',
                 icon: Icons.campaign_outlined,
-                onTap: () => setState(() => _currentIndex = 3),
+                onTap: () => setState(() => _currentIndex = 4),
               ),
               const SizedBox(height: 12),
               _buildActionCard(
