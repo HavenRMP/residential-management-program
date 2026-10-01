@@ -489,3 +489,112 @@ BEGIN
     RETURN public.responder_invitacion_subusuario(v_invitacion_id, v_actor_id, 'ACEPTADA');
 END;
 $$;
+-- ==============================================================================
+-- 9. STORED PROCEDURES: CANCELACIÓN Y BAJA DE SUB-USUARIOS
+-- ==============================================================================
+-- Asegurar soporte de columna titular_id en invitaciones si no existiera
+ALTER TABLE public.invitaciones_subusuarios ADD COLUMN IF NOT EXISTS titular_id UUID REFERENCES public.usuarios(id);
+
+-- A) cancelar_invitacion_subusuario
+DROP FUNCTION IF EXISTS public.cancelar_invitacion_subusuario(UUID);
+DROP FUNCTION IF EXISTS public.cancelar_invitacion_subusuario(UUID, UUID);
+
+CREATE OR REPLACE FUNCTION public.cancelar_invitacion_subusuario(
+    p_invitacion_id UUID,
+    p_actor_id UUID DEFAULT NULL
+)
+RETURNS BOOLEAN
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_invitacion public.invitaciones_subusuarios%ROWTYPE;
+    v_usuario_ejecutor UUID;
+    v_titular_esperado UUID;
+BEGIN
+    -- 1. Resolver usuario ejecutor
+    v_usuario_ejecutor := COALESCE(p_actor_id, auth.uid());
+
+    -- 2. Validar existencia de la invitación
+    SELECT * INTO v_invitacion
+    FROM public.invitaciones_subusuarios
+    WHERE id = p_invitacion_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Invitación con ID % no encontrada', p_invitacion_id
+            USING ERRCODE = 'P0002';
+    END IF;
+
+    -- 3. Validar estado PENDIENTE
+    IF UPPER(v_invitacion.estado) <> 'PENDIENTE' THEN
+        RAISE EXCEPTION 'La invitación no se puede cancelar porque no está en estado PENDIENTE'
+            USING ERRCODE = 'SU004';
+    END IF;
+
+    -- 4. Validar que quien cancela sea el titular emisor
+    v_titular_esperado := COALESCE(v_invitacion.titular_id, v_invitacion.creado_por);
+    IF v_usuario_ejecutor IS NOT NULL AND v_titular_esperado IS NOT NULL AND v_titular_esperado <> v_usuario_ejecutor THEN
+        RAISE EXCEPTION 'Solo el residente titular puede cancelar esta invitación'
+            USING ERRCODE = '42501';
+    END IF;
+
+    -- 5. Actualizar a CANCELADA
+    UPDATE public.invitaciones_subusuarios
+    SET estado = 'CANCELADA'
+    WHERE id = p_invitacion_id;
+
+    RETURN TRUE;
+END;
+$$;
+
+-- B) baja_subusuario (Baja lógica de acceso)
+DROP FUNCTION IF EXISTS public.baja_subusuario(INTEGER, UUID);
+
+CREATE OR REPLACE FUNCTION public.baja_subusuario(
+    p_vivienda_id INTEGER,
+    p_usuario_id UUID
+)
+RETURNS BOOLEAN
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_filas INTEGER;
+BEGIN
+    -- Desactivar el vínculo activo (baja lógica)
+    UPDATE public.vivienda_subusuarios
+    SET activo = false
+    WHERE vivienda_id = p_vivienda_id 
+      AND usuario_id = p_usuario_id
+      AND activo = true;
+
+    GET DIAGNOSTICS v_filas = ROW_COUNT;
+
+    -- Fallback: si no estaba con activo=true, verificar eliminación directa
+    IF v_filas = 0 THEN
+        DELETE FROM public.vivienda_subusuarios
+        WHERE vivienda_id = p_vivienda_id 
+          AND usuario_id = p_usuario_id;
+        GET DIAGNOSTICS v_filas = ROW_COUNT;
+    END IF;
+
+    RETURN v_filas > 0;
+END;
+$$;
+
+-- C) eliminar_subusuario_vivienda (Sinónimo para controladores)
+CREATE OR REPLACE FUNCTION public.eliminar_subusuario_vivienda(
+    p_vivienda_id INTEGER,
+    p_usuario_id UUID
+)
+RETURNS BOOLEAN
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN public.baja_subusuario(p_vivienda_id, p_usuario_id);
+END;
+$$;
