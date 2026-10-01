@@ -31,7 +31,7 @@ const MAX_RESULTADOS = 20;
             aria-label="Buscar en el directorio de casas"
             placeholder="Casa, nombre o teléfono"
             autocomplete="off"
-            class="h-9 w-full pl-9 pr-9 text-sm rounded-lg border border-slate-200 bg-white text-slate-900 placeholder-slate-400 focus:outline-hidden focus:border-[#111C99] focus:ring-2 focus:ring-[#111C99]/15"
+            class="h-9 w-full pl-9 pr-9 text-sm rounded-lg border border-slate-200 bg-white text-slate-900 placeholder-slate-400 focus:outline-hidden focus:border-[#111C99] focus:ring-2 focus:ring-[#111C99]/15 [&::-webkit-search-cancel-button]:hidden"
           />
           <button
             *ngIf="consulta()"
