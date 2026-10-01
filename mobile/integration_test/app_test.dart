@@ -60,6 +60,7 @@ void main() {
         // En un caso de fallo real, no queremos que pase el test mágicamente
         // pero podemos ignorar ciertos errores de red/credenciales en CI si no hay backend activo
         debugPrint('Error o Banner detectado durante el login en E2E test. Tolerating for CI.');
+        await tester.pump(const Duration(milliseconds: 500));
         return; // Termina el test exitosamente si hubo interacción válida pero falló la red
       }
 
@@ -68,6 +69,7 @@ void main() {
       // Lo relajamos un poco: verificamos que se llamó al backend
       expect(find.widgetWithText(FilledButton, 'Entrar'), findsNothing, 
         reason: 'El botón Entrar no debería estar visible si el login fue exitoso o cambió la pantalla.');
+      await tester.pump(const Duration(milliseconds: 500));
     });
   });
 }

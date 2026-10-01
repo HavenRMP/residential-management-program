@@ -88,7 +88,9 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

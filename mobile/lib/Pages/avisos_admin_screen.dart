@@ -58,12 +58,15 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
   }
 
   Future<void> _cargarAmbos() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     await Future.wait([
       _cargarVigentes(refresh: true),
       _cargarHistorico(refresh: true),
     ]);
-    setState(() => _isLoading = false);
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _cargarVigentes({bool refresh = false}) async {
@@ -73,10 +76,12 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
     }
     if (!_hasMoreVigentes || (_isFetchingVigentes && !refresh)) return;
 
+    if (!mounted) return;
     setState(() => _isFetchingVigentes = true);
     try {
       final service = AvisosService(widget.controller);
       final response = await service.getAvisosVigentes(page: _pageVigentes, pageSize: 10);
+      if (!mounted) return;
       if (response != null) {
         final items = response['items'] as List<dynamic>? ?? [];
         setState(() {
@@ -90,7 +95,9 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
         });
       }
     } catch (_) {}
-    setState(() => _isFetchingVigentes = false);
+    if (mounted) {
+      setState(() => _isFetchingVigentes = false);
+    }
   }
 
   Future<void> _cargarHistorico({bool refresh = false}) async {
@@ -100,10 +107,12 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
     }
     if (!_hasMoreHistorico || (_isFetchingHistorico && !refresh)) return;
 
+    if (!mounted) return;
     setState(() => _isFetchingHistorico = true);
     try {
       final service = AvisosService(widget.controller);
       final response = await service.getAvisosHistorico(page: _pageHistorico, pageSize: 10);
+      if (!mounted) return;
       if (response != null) {
         final items = response['items'] as List<dynamic>? ?? [];
         setState(() {
@@ -117,7 +126,9 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
         });
       }
     } catch (_) {}
-    setState(() => _isFetchingHistorico = false);
+    if (mounted) {
+      setState(() => _isFetchingHistorico = false);
+    }
   }
 
   void _redirigirAConstruccion(String mensaje) {
@@ -230,10 +241,10 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
           await _cargarAmbos();
         } else {
           widget.controller.notifyToast('Error al crear el aviso', success: false);
-          setState(() => _isLoading = false);
+          if (mounted) setState(() => _isLoading = false);
         }
       } catch (e) {
-        _redirigirAConstruccion('Error al crear aviso');
+        if (mounted) _redirigirAConstruccion('Error al crear aviso');
       }
     }
   }
@@ -258,7 +269,7 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
       ),
     );
 
-    if (confirmar == true) {
+    if (confirmar == true && mounted) {
       setState(() => _isLoading = true);
       try {
         final service = AvisosService(widget.controller);
@@ -269,10 +280,10 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
           await _cargarAmbos();
         } else {
           widget.controller.notifyToast('Error al eliminar el aviso', success: false);
-          setState(() => _isLoading = false);
+          if (mounted) setState(() => _isLoading = false);
         }
       } catch (e) {
-        _redirigirAConstruccion('Error al eliminar aviso');
+        if (mounted) _redirigirAConstruccion('Error al eliminar aviso');
       }
     }
   }

@@ -142,7 +142,7 @@ class _VisitasAdminScreenState extends State<VisitasAdminScreen> {
       },
     );
 
-    if (picked != null) {
+    if (picked != null && mounted) {
       setState(() {
         _desde = picked.start;
         _hasta = DateTime(picked.end.year, picked.end.month, picked.end.day, 23, 59, 59);
