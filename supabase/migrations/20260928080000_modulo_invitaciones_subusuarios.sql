@@ -88,3 +88,35 @@ BEGIN
     RETURN v_resultado;
 END;
 $$ LANGUAGE plpgsql VOLATILE;
+
+-- ==============================================================================
+-- 5. VISTA DE CONSULTA: vw_invitaciones_subusuarios
+-- ==============================================================================
+-- Asegurar soporte de columna parentesco para compatibilidad con backend
+ALTER TABLE public.invitaciones_subusuarios 
+    ADD COLUMN IF NOT EXISTS parentesco VARCHAR(50) DEFAULT 'Familiar';
+
+DROP VIEW IF EXISTS public.vw_invitaciones_subusuarios CASCADE;
+
+CREATE VIEW public.vw_invitaciones_subusuarios AS
+SELECT 
+    i.id,
+    i.vivienda_id,
+    v.numero_casa,
+    v.condominio_id,
+    c.nombre AS condominio_nombre,
+    i.creado_por AS titular_id,
+    TRIM(u_titular.nombre || ' ' || COALESCE(u_titular.apellidos, '')) AS titular_nombre,
+    i.usuario_id AS invitado_id,
+    i.email_invitado AS invitado_email,
+    i.codigo_invitacion AS codigo,
+    i.codigo_invitacion,
+    COALESCE(i.parentesco, 'Familiar') AS parentesco,
+    i.estado,
+    i.expira_en,
+    i.creado_en
+FROM public.invitaciones_subusuarios i
+JOIN public.viviendas v ON v.id = i.vivienda_id
+LEFT JOIN public.condominios c ON c.id = v.condominio_id
+LEFT JOIN public.usuarios u_titular ON u_titular.id = i.creado_por
+LEFT JOIN public.usuarios u_invitado ON u_invitado.id = i.usuario_id;
