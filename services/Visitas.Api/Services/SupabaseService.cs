@@ -243,7 +243,7 @@ public class SupabaseService : ISupabaseService
         if (!string.IsNullOrWhiteSpace(busqueda))
         {
             var b = Uri.EscapeDataString($"*{busqueda.Trim()}*");
-            resourcePath += $"&or=(numero_casa.ilike.{b},nombre_visitante.ilike.{b},apellidos_visitante.ilike.{b},vehiculo_placas.ilike.{b},codigo.{b})";
+            resourcePath += $"&or=(numero_casa.ilike.{b},nombre_visitante.ilike.{b},apellidos_visitante.ilike.{b},vehiculo_placas.ilike.{b},codigo.ilike.{b})";
         }
 
         resourcePath += "&order=fecha_llegada_esperada.asc";
