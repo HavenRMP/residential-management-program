@@ -50,6 +50,22 @@ export function ordenarVisitasRecientesPrimero<T extends { fechaLlegadaEsperada:
   );
 }
 
+/**
+ * Rango de un par de inputs `type="date"` (yyyy-MM-dd, hora local) como filtros del histórico: cubre el día completo
+ * de "desde" y de "hasta" y se manda en UTC. Una fecha vacía no genera filtro.
+ */
+export function rangoFechasIso(desde: string, hasta: string): { desde?: string; hasta?: string } {
+  const rango: { desde?: string; hasta?: string } = {};
+  if (desde) rango.desde = new Date(`${desde}T00:00:00`).toISOString();
+  if (hasta) rango.hasta = new Date(`${hasta}T23:59:59.999`).toISOString();
+  return rango;
+}
+
+/** "Desde" posterior a "hasta" */
+export function rangoFechasInvalido(desde: string, hasta: string): boolean {
+  return !!(desde && hasta && desde > hasta);
+}
+
 /** Ordena de la visita con llegada más próxima a la más lejana, sin mutar la lista */
 export function ordenarVisitasProximasPrimero<T extends { fechaLlegadaEsperada: string }>(visitas: T[]): T[] {
   return [...visitas].sort(
