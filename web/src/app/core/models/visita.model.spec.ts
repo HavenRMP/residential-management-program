@@ -1,6 +1,17 @@
-import { formatearFechaVisita, fusionarSinVacios } from './visita.model';
+import { formatearFechaVisita, fusionarSinVacios, ordenarVisitasRecientesPrimero } from './visita.model';
 
 describe('visita.model', () => {
+  it('ordena las visitas de la llegada más reciente a la más antigua sin mutar la lista', () => {
+    const lista = [
+      { id: 'a', fechaLlegadaEsperada: '2026-10-01T08:00:00Z' },
+      { id: 'c', fechaLlegadaEsperada: '2026-10-03T08:00:00Z' },
+      { id: 'b', fechaLlegadaEsperada: '2026-10-02T08:00:00Z' }
+    ];
+
+    expect(ordenarVisitasRecientesPrimero(lista).map(v => v.id)).toEqual(['c', 'b', 'a']);
+    expect(lista.map(v => v.id)).toEqual(['a', 'c', 'b']);
+  });
+
   describe('formatearFechaVisita', () => {
     it('devuelve vacío para fechas ausentes o inválidas', () => {
       expect(formatearFechaVisita(null)).toBe('');
