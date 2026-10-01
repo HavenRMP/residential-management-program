@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using Usuarios.Api.DTOs;
 using Usuarios.Api.Services;
+using HavenApi.Shared.Exceptions;
+using HavenApi.Shared.Rpc;
 
 namespace Usuarios.Api.Controllers;
 
@@ -183,6 +185,8 @@ public class SubusuariosController : ControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RevocarSubusuario(Guid id, [FromQuery] int viviendaId, [FromQuery] bool isInvitacion = false)
     {
         if (viviendaId <= 0)
@@ -203,9 +207,21 @@ public class SubusuariosController : ControllerBase
         
         if (isInvitacion)
         {
-            var res = await _supabaseService.CancelarInvitacionAsync(id, accessToken);
-            success = res.Success;
-            error = res.Error;
+            // Este camino valida titularidad utilizando el token del usuario.
+            try
+            {
+                var result = await _supabaseService.CancelarInvitacionSubusuarioAsync(id, userId, accessToken);
+                if (result)
+                {
+                    return NoContent();
+                }
+                return NotFound(new { error = "Invitación no encontrada" });
+            }
+            catch (SupabaseRpcException ex)
+            {
+                var (status, mensaje) = RpcErrorMapper.Map(ex);
+                return StatusCode(status, new { error = mensaje });
+            }
         }
         else
         {
