@@ -24,8 +24,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // 3. Obtener credenciales del .env
-      final email = dotenv.env['ADMIN_USER_EMAIL'] ?? 'admin@haven.com';
-      final password = dotenv.env['ADMIN_USER_PASSWORD'] ?? 'AdminPassword1';
+      final email = dotenv.env['ADMIN_USER_EMAIL'] ?? '';
+      final password = dotenv.env['ADMIN_USER_PASSWORD'] ?? '';
 
       // 4. Llenar los campos de texto
       // Encontrar los TextFormFields (asumiendo que el primero es correo y el segundo password)
