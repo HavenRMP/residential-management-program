@@ -1,6 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
-import Swal from 'sweetalert2';
 import { DirectorioCasasComponent } from './directorio-casas.component';
 import { DirectorioCasasService } from '../../../core/services/directorio-casas.service';
 import { ViviendaConResidentes } from '../../../core/models/vivienda.model';
@@ -24,7 +23,6 @@ describe('DirectorioCasasComponent', () => {
     errorMessage: ReturnType<typeof signal<string | null>>;
     cargar: jasmine.Spy;
   };
-  let clipboard: jasmine.Spy;
 
   const texto = () => (fixture.nativeElement.textContent as string).replace(/\s+/g, ' ');
   const filas = () => Array.from(fixture.nativeElement.querySelectorAll('li') as NodeListOf<HTMLElement>);
@@ -36,10 +34,6 @@ describe('DirectorioCasasComponent', () => {
   };
 
   beforeEach(() => {
-    spyOn(Swal, 'fire').and.returnValue(Promise.resolve({} as any));
-    clipboard = jasmine.createSpy('writeText').and.returnValue(Promise.resolve());
-    spyOnProperty(navigator, 'clipboard', 'get').and.returnValue({ writeText: clipboard } as unknown as Clipboard);
-
     servicio = {
       casas: signal(casas),
       isLoading: signal(false),
@@ -70,10 +64,13 @@ describe('DirectorioCasasComponent', () => {
     expect(fila).toContain('55 1234 5678');
   });
 
-  it('el botón Llamar usa un enlace tel: solo con dígitos', () => {
-    const enlace = fixture.nativeElement.querySelector('a[aria-label="Llamar a José Pérez Ruiz"]') as HTMLAnchorElement;
+  it('el teléfono es un enlace tel: solo con dígitos y no hay botones de llamar ni copiar', () => {
+    const enlace = fixture.nativeElement.querySelector('a[href^="tel:"]') as HTMLAnchorElement;
 
     expect(enlace.getAttribute('href')).toBe('tel:5512345678');
+    expect(enlace.textContent!.trim()).toBe('55 1234 5678');
+    expect(texto()).not.toContain('Llamar');
+    expect(fixture.nativeElement.querySelector('button[aria-label^="Copiar"]')).toBeNull();
   });
 
   it('una persona sin teléfono lo indica y no ofrece llamar', () => {
@@ -81,7 +78,7 @@ describe('DirectorioCasasComponent', () => {
 
     expect(texto()).toContain('Ana López');
     expect(texto()).toContain('Sin teléfono');
-    expect(fixture.nativeElement.querySelector('a[aria-label^="Llamar a Ana"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('a[href^="tel:"]')).toBeNull();
   });
 
   it('al buscar filtra por nombre y una casa sin residentes aparece al buscar por su número', () => {
@@ -91,14 +88,6 @@ describe('DirectorioCasasComponent', () => {
     escribir('b-07');
     expect(filas().length).toBe(1);
     expect(texto()).toContain('Sin residentes registrados');
-  });
-
-  it('copia el teléfono y avisa', async () => {
-    (fixture.nativeElement.querySelector('button[aria-label="Copiar el teléfono de José Pérez Ruiz"]') as HTMLButtonElement).click();
-    await fixture.whenStable();
-
-    expect(clipboard).toHaveBeenCalledOnceWith('55 1234 5678');
-    expect((Swal.fire as unknown as jasmine.Spy).calls.mostRecent().args[0].title).toBe('Teléfono copiado');
   });
 
   it('indica cuando no hay coincidencias y permite borrar la búsqueda', () => {
