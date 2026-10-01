@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../firebase_options.dart';
 
 /// Canal principal de alta importancia para Android.
 /// Nota: el backend envía el channelId "haven_high_importancechannel" (sin guion bajo).
@@ -34,7 +35,9 @@ const AndroidNotificationChannel havenNotificationChannelBackend = AndroidNotifi
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
     if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp();
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
     }
   } catch (e) {
     if (kDebugMode) {
@@ -65,7 +68,9 @@ class PushNotificationsService {
 
     if (Firebase.apps.isEmpty) {
       try {
-        await Firebase.initializeApp();
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        );
       } catch (e) {
         if (kDebugMode) {
           debugPrint('[PushNotificationsService] Firebase.initializeApp aviso: $e');
@@ -208,7 +213,9 @@ class PushNotificationsService {
     try {
       if (Firebase.apps.isEmpty) {
         try {
-          await Firebase.initializeApp();
+          await Firebase.initializeApp(
+            options: DefaultFirebaseOptions.currentPlatform,
+          );
         } catch (_) {}
       }
 
@@ -318,7 +325,9 @@ class PushNotificationsService {
     try {
       if (Firebase.apps.isEmpty) {
         try {
-          await Firebase.initializeApp();
+          await Firebase.initializeApp(
+            options: DefaultFirebaseOptions.currentPlatform,
+          );
         } catch (_) {}
       }
 
