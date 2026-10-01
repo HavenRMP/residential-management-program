@@ -27,6 +27,7 @@ describe('DirectorioCasasComponent', () => {
   let clipboard: jasmine.Spy;
 
   const texto = () => (fixture.nativeElement.textContent as string).replace(/\s+/g, ' ');
+  const filas = () => Array.from(fixture.nativeElement.querySelectorAll('li') as NodeListOf<HTMLElement>);
   const escribir = (valor: string) => {
     const input = fixture.nativeElement.querySelector('input[type="search"]') as HTMLInputElement;
     input.value = valor;
@@ -53,51 +54,47 @@ describe('DirectorioCasasComponent', () => {
     fixture.detectChanges();
   });
 
-  it('carga el directorio al iniciar y no lista teléfonos hasta que se busca', () => {
+  it('carga el directorio al iniciar y lista a todas las personas sin tener que buscar', () => {
     expect(servicio.cargar).toHaveBeenCalled();
-    expect(texto()).toContain('Escribe un número de casa o un nombre');
-    expect(fixture.nativeElement.querySelectorAll('li').length).toBe(0);
-    expect(texto()).not.toContain('5678');
+    expect(filas().length).toBe(2);
+    expect(texto()).toContain('José Pérez Ruiz');
+    expect(texto()).toContain('Ana López');
+    expect(texto()).toContain('2 resultados');
   });
 
-  it('al buscar muestra casa, nombre y teléfono en una misma fila', () => {
-    escribir('jose');
+  it('cada fila trae la persona, su casa y su teléfono', () => {
+    const fila = filas()[0].textContent!.replace(/\s+/g, ' ');
 
-    const filas = fixture.nativeElement.querySelectorAll('li') as NodeListOf<HTMLElement>;
-    expect(filas.length).toBe(1);
-    const fila = filas[0].textContent!.replace(/\s+/g, ' ');
-    expect(fila).toContain('A-12');
     expect(fila).toContain('José Pérez Ruiz');
+    expect(fila).toContain('A-12');
     expect(fila).toContain('55 1234 5678');
   });
 
   it('el botón Llamar usa un enlace tel: solo con dígitos', () => {
-    escribir('a-12');
+    const enlace = fixture.nativeElement.querySelector('a[aria-label="Llamar a José Pérez Ruiz"]') as HTMLAnchorElement;
 
-    const enlace = fixture.nativeElement.querySelector('a[aria-label^="Llamar a"]') as HTMLAnchorElement;
     expect(enlace.getAttribute('href')).toBe('tel:5512345678');
-    expect(enlace.getAttribute('aria-label')).toBe('Llamar a José Pérez Ruiz');
   });
 
-  it('un residente sin teléfono muestra el aviso y no ofrece llamar', () => {
+  it('una persona sin teléfono lo indica y no ofrece llamar', () => {
     escribir('lopez');
 
     expect(texto()).toContain('Ana López');
-    expect(texto()).toContain('Sin teléfono registrado');
-    expect(fixture.nativeElement.querySelector('a[aria-label^="Llamar a"]')).toBeNull();
+    expect(texto()).toContain('Sin teléfono');
+    expect(fixture.nativeElement.querySelector('a[aria-label^="Llamar a Ana"]')).toBeNull();
   });
 
-  it('una casa sin residentes lo dice claramente', () => {
-    escribir('b-07');
+  it('al buscar filtra por nombre y una casa sin residentes aparece al buscar por su número', () => {
+    escribir('jose');
+    expect(filas().length).toBe(1);
 
-    expect(texto()).toContain('B-07');
+    escribir('b-07');
+    expect(filas().length).toBe(1);
     expect(texto()).toContain('Sin residentes registrados');
   });
 
   it('copia el teléfono y avisa', async () => {
-    escribir('jose');
-
-    (fixture.nativeElement.querySelector('button[aria-label^="Copiar el teléfono"]') as HTMLButtonElement).click();
+    (fixture.nativeElement.querySelector('button[aria-label="Copiar el teléfono de José Pérez Ruiz"]') as HTMLButtonElement).click();
     await fixture.whenStable();
 
     expect(clipboard).toHaveBeenCalledOnceWith('55 1234 5678');
@@ -110,19 +107,33 @@ describe('DirectorioCasasComponent', () => {
 
     (fixture.nativeElement.querySelector('button[aria-label="Borrar búsqueda"]') as HTMLButtonElement).click();
     fixture.detectChanges();
-    expect(texto()).toContain('Escribe un número de casa o un nombre');
+    expect(filas().length).toBe(2);
   });
 
-  it('limita los resultados a 20 e invita a afinar la búsqueda', () => {
-    servicio.casas.set(Array.from({ length: 35 }, (_, i) => ({
+  it('pagina de 30 en 30 con "Mostrar más" y vuelve al inicio al cambiar la búsqueda', () => {
+    servicio.casas.set(Array.from({ length: 70 }, (_, i) => ({
       id: i, numeroCasa: `Calle-${i}`, tipo: 'Casa', totalResidentes: 1, estaOcupada: true,
       residentes: [{ id: `r${i}`, nombre: 'Vecino', apellidos: `${i}`, telefono: '5500000000' }]
     })));
     fixture.detectChanges();
-    escribir('calle');
 
-    expect(fixture.nativeElement.querySelectorAll('li').length).toBe(20);
-    expect(texto()).toContain('Mostrando 20 de 35');
+    expect(filas().length).toBe(30);
+    expect(texto()).toContain('Mostrando 30 de 70');
+
+    const mas = () => ([...fixture.nativeElement.querySelectorAll('button')] as HTMLButtonElement[]).find(b => b.textContent!.includes('Mostrar más'))!;
+    mas().click();
+    fixture.detectChanges();
+    expect(filas().length).toBe(60);
+
+    escribir('vecino');
+    expect(filas().length).toBe(30);
+  });
+
+  it('avisa cuando todavía no hay residentes registrados', () => {
+    servicio.casas.set([]);
+    fixture.detectChanges();
+
+    expect(texto()).toContain('Todavía no hay residentes registrados en el condominio.');
   });
 
   it('muestra el esqueleto mientras carga y el error con reintento si falla', () => {
