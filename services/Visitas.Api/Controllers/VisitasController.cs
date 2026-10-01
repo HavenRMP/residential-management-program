@@ -17,11 +17,13 @@ public class VisitasController : ControllerBase
 {
     private readonly ISupabaseService _supabaseService;
     private readonly ILogger<VisitasController> _logger;
+    private readonly HavenApi.Shared.Services.IFirebaseNotificationService _firebaseNotificationService;
 
-    public VisitasController(ISupabaseService supabaseService, ILogger<VisitasController> logger)
+    public VisitasController(ISupabaseService supabaseService, ILogger<VisitasController> logger, HavenApi.Shared.Services.IFirebaseNotificationService firebaseNotificationService)
     {
         _supabaseService = supabaseService;
         _logger = logger;
+        _firebaseNotificationService = firebaseNotificationService;
     }
 
     private async Task<(IActionResult? Error, Guid? CondominioId, Guid UserId)> ValidateRoleAsync(Func<string, bool> rolValidator, string errorMessage)
@@ -339,6 +341,18 @@ public class VisitasController : ControllerBase
         try
         {
             var visita = await _supabaseService.RegistrarEntradaAsync(id, userId, dto?.VehiculoPlacas);
+
+            if (visita.CreadoPor.HasValue)
+            {
+                var topic = "user" + visita.CreadoPor.Value.ToString().Replace("-", "");
+                await _firebaseNotificationService.SendToTopicAsync(
+                    topic,
+                    "Visita en caseta",
+                    $"Tu visita {visita.NombreVisitante} {visita.ApellidosVisitante} acaba de llegar.",
+                    new Dictionary<string, string> { { "tipo", "visita_entrada" }, { "visita_id", visita.Id.ToString() }, { "click_action", "FLUTTER_NOTIFICATION_CLICK" } }
+                );
+            }
+
             return Ok(ProyectarVisitaVigilancia(visita));
         }
         catch (SupabaseRpcException ex)
