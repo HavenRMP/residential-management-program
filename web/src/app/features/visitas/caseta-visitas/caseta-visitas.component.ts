@@ -541,13 +541,22 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
     this.isValidando.set(true);
     this.errorCodigo.set(null);
     this.visitaValidada.set(null);
+    let validada: VisitaVigilancia | null = null;
     try {
-      this.visitaValidada.set(await this.visitasService.validarCodigo(codigo));
+      validada = await this.visitasService.validarCodigo(codigo);
+      this.visitaValidada.set(validada);
     } catch (err: any) {
       console.error('[CasetaVisitasComponent] Error al validar código:', err);
       this.errorCodigo.set(this.mensajeError(err));
     } finally {
       this.isValidando.set(false);
+    }
+
+    // Un código válido de una visita programada da el ingreso de inmediato, con las placas que ya indicó el residente.
+    // Si falla, la tarjeta conserva el botón "Registrar entrada" para reintentar.
+    if (validada?.estado === 'programada') {
+      this.codigo = '';
+      await this.registrarEntrada(validada, validada.vehiculoPlacas ?? undefined);
     }
   }
 
