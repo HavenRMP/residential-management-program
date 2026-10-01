@@ -84,6 +84,25 @@ describe('VisitasVigilanciaService', () => {
     expect(mockApiService.get.calls.mostRecent().args[0]).toBe('/api/visitas/codigo/AB%2F12');
   });
 
+  it('completa el estado vacío de la validación con la visita de la lista de próximas', async () => {
+    mockApiService.get.and.returnValue(of({ items: [{ ...visitaBase, estado: 'programada', vehiculoPlacas: 'ABC-123' }], totalCount: 1 }));
+    await service.cargarProximas();
+    mockApiService.get.and.returnValue(of({ ...visitaBase, estado: '', vigenciaHasta: '0001-01-01T00:00:00+00:00' }));
+
+    const validada = await service.validarCodigo('AB12');
+
+    expect(validada.estado).toBe('programada');
+    expect(validada.vehiculoPlacas).toBe('ABC-123');
+  });
+
+  it('si la visita no está en la lista de próximas deja el estado vacío', async () => {
+    mockApiService.get.and.returnValue(of({ ...visitaBase, estado: '' }));
+
+    const validada = await service.validarCodigo('AB12');
+
+    expect(validada.estado).toBe('');
+  });
+
   it('actualiza la visita en la lista al registrar entrada y salida', async () => {
     mockApiService.get.and.returnValue(of({ items: [visitaBase], totalCount: 1 }));
     await service.cargarProximas();
