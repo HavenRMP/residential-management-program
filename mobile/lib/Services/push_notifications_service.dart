@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../firebase_options.dart';
 
-/// Canal de alta importancia para Android para garantizar que las notificaciones
-/// se muestren como banner heads-up con sonido y vibración en el sistema operativo.
+/// Canal principal de alta importancia para Android.
+/// Nota: el backend envía el channelId "haven_high_importancechannel" (sin guion bajo).
+/// Registramos ambos IDs para compatibilidad.
 const AndroidNotificationChannel havenNotificationChannel = AndroidNotificationChannel(
   'haven_high_importance_channel',
   'Notificaciones Haven',
@@ -17,16 +19,17 @@ const AndroidNotificationChannel havenNotificationChannel = AndroidNotificationC
   enableVibration: true,
 );
 
-/// Canal adicional para asegurar compatibilidad con notificaciones enviadas
-/// por el backend con el identificador sin guion bajo ('haven_high_importancechannel').
+/// Canal legacy/alias que coincide con el channelId que envía el backend.
 const AndroidNotificationChannel havenNotificationLegacyChannel = AndroidNotificationChannel(
   'haven_high_importancechannel',
   'Notificaciones Haven (Directo)',
-  description: 'Canal de notificaciones prioritarias del sistema Haven',
+  description: 'Canal de notificaciones y avisos prioritarios de Haven (directo)',
   importance: Importance.max,
   playSound: true,
   enableVibration: true,
 );
+
+const AndroidNotificationChannel havenNotificationChannelBackend = havenNotificationLegacyChannel;
 
 /// Handler de mensajes en background requerido por Firebase Cloud Messaging.
 /// Debe ser una función de nivel superior con la anotación @pragma('vm:entry-point').
@@ -34,7 +37,9 @@ const AndroidNotificationChannel havenNotificationLegacyChannel = AndroidNotific
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
     if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp();
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
     }
   } catch (e) {
     if (kDebugMode) {
@@ -65,7 +70,9 @@ class PushNotificationsService {
 
     if (Firebase.apps.isEmpty) {
       try {
-        await Firebase.initializeApp();
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        );
       } catch (e) {
         if (kDebugMode) {
           debugPrint('[PushNotificationsService] Firebase.initializeApp aviso: $e');
@@ -118,12 +125,12 @@ class PushNotificationsService {
         },
       );
 
-      // 4. Crear los canales de alta importancia en Android
+      // 4. Crear ambos canales para compatibilidad con el backend
       final androidPlugin = _localNotifications
           .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       if (androidPlugin != null) {
         await androidPlugin.createNotificationChannel(havenNotificationChannel);
-        await androidPlugin.createNotificationChannel(havenNotificationLegacyChannel);
+        await androidPlugin.createNotificationChannel(havenNotificationChannelBackend);
       }
 
       // 5. Configurar listener para cuando la app está abierta en primer plano (foreground)
@@ -208,7 +215,9 @@ class PushNotificationsService {
     try {
       if (Firebase.apps.isEmpty) {
         try {
-          await Firebase.initializeApp();
+          await Firebase.initializeApp(
+            options: DefaultFirebaseOptions.currentPlatform,
+          );
         } catch (_) {}
       }
 
@@ -277,42 +286,44 @@ class PushNotificationsService {
     }
   }
 
-  /// Suscribe el dispositivo al tópico personal del usuario según la convención del backend (user{UUID sin guiones})
+  /// Suscribe el dispositivo al tópico personal del usuario ("user" + userId sin guiones).
+  /// El backend envía invitaciones de sub-usuario a este tópico específico.
+  /// Llamar después de autenticar al usuario.
   static Future<void> subscribeToUserTopic(String? userId) async {
-    if (userId == null || userId.trim().isEmpty) return;
     try {
-      if (Firebase.apps.isEmpty) {
-        try {
-          await Firebase.initializeApp();
-        } catch (_) {}
-      }
+      if (userId == null || userId.trim().isEmpty) return;
       if (Firebase.apps.isEmpty) return;
 
-      final cleanTopic = 'user${userId.replaceAll('-', '').trim()}';
-      await _messaging.subscribeToTopic(cleanTopic);
+      // El backend genera el topic como: "user" + userId.Replace("-", "")
+      final topic = 'user${userId.replaceAll('-', '')}';
+      await _messaging.subscribeToTopic(topic);
+
       if (kDebugMode) {
-        debugPrint('[PushNotificationsService] Suscrito a tópico de usuario: $cleanTopic');
+        debugPrint('[PushNotificationsService] Suscrito al tópico personal: $topic');
       }
     } catch (e) {
       if (kDebugMode) {
-        debugPrint('[PushNotificationsService] Error suscribiendo a tópico de usuario: $e');
+        debugPrint('[PushNotificationsService] Error suscribiendo a tópico personal: $e');
       }
     }
   }
 
-  /// Desuscribe el dispositivo del tópico del usuario al cerrar sesión
+  /// Desuscribe el dispositivo del tópico personal del usuario.
+  /// Llamar al cerrar sesión.
   static Future<void> unsubscribeFromUserTopic(String? userId) async {
-    if (userId == null || userId.trim().isEmpty) return;
     try {
+      if (userId == null || userId.trim().isEmpty) return;
       if (Firebase.apps.isEmpty) return;
-      final cleanTopic = 'user${userId.replaceAll('-', '').trim()}';
-      await _messaging.unsubscribeFromTopic(cleanTopic);
+
+      final topic = 'user${userId.replaceAll('-', '')}';
+      await _messaging.unsubscribeFromTopic(topic);
+
       if (kDebugMode) {
-        debugPrint('[PushNotificationsService] Desuscrito de tópico de usuario: $cleanTopic');
+        debugPrint('[PushNotificationsService] Desuscrito del tópico personal: $topic');
       }
     } catch (e) {
       if (kDebugMode) {
-        debugPrint('[PushNotificationsService] Error desuscribiendo de tópico de usuario: $e');
+        debugPrint('[PushNotificationsService] Error desuscribiendo de tópico personal: $e');
       }
     }
   }
@@ -322,7 +333,9 @@ class PushNotificationsService {
     try {
       if (Firebase.apps.isEmpty) {
         try {
-          await Firebase.initializeApp();
+          await Firebase.initializeApp(
+            options: DefaultFirebaseOptions.currentPlatform,
+          );
         } catch (_) {}
       }
 

@@ -382,10 +382,12 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    final oldUserId = _currentUser?.id;
-    if (oldUserId != null) {
-      unawaited(PushNotificationsService.unsubscribeFromUserTopic(oldUserId));
+    // Desuscribir del tópico personal antes de cerrar sesión
+    final userId = _currentUser?.id;
+    if (userId != null && userId.isNotEmpty) {
+      unawaited(PushNotificationsService.unsubscribeFromUserTopic(userId));
     }
+
     final client = _supabaseClient;
     if (client != null) {
       await client.auth.signOut();
