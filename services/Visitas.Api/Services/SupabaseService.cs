@@ -163,15 +163,34 @@ public class SupabaseService : ISupabaseService
             payload["p_horas_vigencia"] = dto.HorasVigencia.Value;
         }
 
-        var result = await SupabaseRpcClient.PostRpcAsync<VisitaDto>(
+        var success = await SupabaseRpcClient.PostRpcAsync<bool?>(
             _httpClient, _supabaseUrl, _serviceRoleKey, RpcCambioVisita, payload, actorId);
 
-        if (result == null)
+        if (success != true)
         {
-            throw new SupabaseResponseException("Error inesperado: la base de datos no devolvió la visita actualizada.");
+            throw new SupabaseResponseException("Error inesperado: la base de datos no actualizó la visita.");
         }
 
-        return result;
+        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_visitas_historico?id=eq.{id}&select=*";
+        var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+        request.Headers.Add("apikey", _serviceRoleKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
+        
+        var response = await SendRequestAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new SupabaseResponseException("Error al recuperar la visita actualizada.");
+        }
+        
+        var visitas = await ParseJsonAsync<List<VisitaDto>>(response.Content);
+        var updatedVisita = visitas?.FirstOrDefault();
+        
+        if (updatedVisita == null)
+        {
+            throw new SupabaseResponseException("Error inesperado: no se encontró la visita actualizada.");
+        }
+        
+        return updatedVisita;
     }
 
     public async Task<bool> CancelVisitaAsync(Guid id, Guid actorId)
