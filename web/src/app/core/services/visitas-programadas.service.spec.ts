@@ -18,7 +18,7 @@ describe('VisitasProgramadasService', () => {
     service = TestBed.inject(VisitasProgramadasService);
   });
 
-  it('pide las programadas desde este momento y las ordena de la más próxima a la más lejana', async () => {
+  it('pide las programadas que llegan después de 24 horas y las ordena de la más próxima a la más lejana', async () => {
     api.get.and.returnValue(of({
       items: [visita('c', '2026-10-05T10:00:00Z'), visita('a', '2026-10-02T10:00:00Z'), visita('b', '2026-10-03T10:00:00Z')],
       totalCount: 3
@@ -29,7 +29,9 @@ describe('VisitasProgramadasService', () => {
     const [endpoint, params] = api.get.calls.mostRecent().args as [string, HttpParams];
     expect(endpoint).toBe('/api/visitas/historico');
     expect(params.get('estado')).toBe('programada');
-    expect(isNaN(Date.parse(params.get('desde')!))).toBeFalse();
+    const horasHastaDesde = (Date.parse(params.get('desde')!) - Date.now()) / 3_600_000;
+    expect(horasHastaDesde).toBeGreaterThan(23.9);
+    expect(horasHastaDesde).toBeLessThanOrEqual(24);
     expect(service.items().map(v => v.id)).toEqual(['a', 'b', 'c']);
   });
 
