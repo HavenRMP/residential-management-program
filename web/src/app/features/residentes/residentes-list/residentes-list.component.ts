@@ -15,7 +15,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, DatePipe, ResidentesDetalleComponent],
   template: `
-    <div class="p-4 sm:p-5 lg:p-6 max-w-7xl mx-auto space-y-4 selection:bg-[#111C99] selection:text-white">
+    <div class="p-4 sm:p-5 lg:p-6 w-full space-y-4 selection:bg-[#111C99] selection:text-white">
 
       <!-- Breadcrumb & Top Navigation -->
       <nav class="flex items-center gap-2 text-xs text-slate-500 font-medium">

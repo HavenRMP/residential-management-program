@@ -21,7 +21,7 @@ const ESTADOS = Object.keys(ETIQUETAS_ESTADO_VISITA) as EstadoVisita[];
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   template: `
-    <div class="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
+    <div class="p-4 sm:p-6 w-full space-y-4">
 
       <nav class="flex items-center gap-2 text-xs text-slate-600 font-semibold">
         <a routerLink="/dashboard/admin" class="hover:text-slate-900 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99] rounded">Panel</a>
