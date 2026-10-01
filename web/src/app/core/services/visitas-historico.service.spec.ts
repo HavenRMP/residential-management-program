@@ -37,4 +37,12 @@ describe('VisitasHistoricoService', () => {
 
     expect(service.errorMessage()).toBe("La fecha 'desde' no puede ser posterior a la fecha 'hasta'.");
   });
+
+  it('explica con claridad cuando la cuenta no tiene permiso para consultar el historial (403)', async () => {
+    mockApiService.get.and.returnValue(throwError(() => ({ status: 403, error: { error: 'Se requiere rol de administrador para consultar el histórico' } })));
+
+    await service.cargar();
+
+    expect(service.errorMessage()).toBe('Tu cuenta no tiene permiso para consultar el historial de visitas.');
+  });
 });

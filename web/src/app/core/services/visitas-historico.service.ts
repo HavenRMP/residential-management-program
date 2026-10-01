@@ -47,7 +47,11 @@ export class VisitasHistoricoService {
     } catch (err: any) {
       if (peticion !== this.ultimaPeticion) return;
       console.error('[VisitasHistoricoService] Error al cargar el histórico:', err);
-      this.errorMessage.set(err?.error?.error || 'No se pudo cargar el histórico de visitas.');
+      this.errorMessage.set(
+        err?.status === 403
+          ? 'Tu cuenta no tiene permiso para consultar el historial de visitas.'
+          : err?.error?.error || 'No se pudo cargar el histórico de visitas.'
+      );
     } finally {
       if (peticion === this.ultimaPeticion) this.isLoading.set(false);
     }
