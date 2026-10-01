@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'Pages/invitaciones_recibidas_screen.dart';
 import 'Pages/visitas_residente_screen.dart';
+import 'Pages/avisos_residente_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<ScaffoldMessengerState> messengerKey =
@@ -104,7 +105,7 @@ class _HavenAppState extends State<HavenApp> {
             builder: (_) => InvitacionesRecibidasScreen(controller: controller),
           ),
         );
-      } else if (tipo == 'visita_llegada' || tipo == 'visita') {
+      } else if (tipo == 'visita_llegada' || tipo == 'visita' || tipo == 'visita_entrada') {
         final misViviendas = await controller.obtenerMisViviendas();
         navigatorKey.currentState?.push(
           MaterialPageRoute(
@@ -112,6 +113,12 @@ class _HavenAppState extends State<HavenApp> {
               controller: controller,
               misViviendas: misViviendas,
             ),
+          ),
+        );
+      } else if (tipo == 'aviso' || tipo == 'aviso_urgente') {
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (_) => AvisosResidenteScreen(controller: controller),
           ),
         );
       }
