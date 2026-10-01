@@ -15,9 +15,9 @@ using Xunit;
 
 namespace Visitas.Api.Tests;
 
-public class GetVisitasHoyTests
+public class GetVisitasProximasTests
 {
-    public GetVisitasHoyTests()
+    public GetVisitasProximasTests()
     {
         Environment.SetEnvironmentVariable("Supabase__Url", "https://localhost:54321");
     }
@@ -63,20 +63,20 @@ public class GetVisitasHoyTests
     }
 
     [Fact]
-    public async Task GetVisitasHoy_SinToken_ReturnsUnauthorized()
+    public async Task GetVisitasProximas_SinToken_ReturnsUnauthorized()
     {
         var mockSupabaseService = new Mock<ISupabaseService>();
         await using var application = BuildApplication(mockSupabaseService);
         var client = application.CreateClient();
 
-        var response = await client.GetAsync("/api/visitas/hoy");
+        var response = await client.GetAsync("/api/visitas/proximas");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-        mockSupabaseService.Verify(s => s.GetVisitasHoyAsync(It.IsAny<Guid>(), It.IsAny<PaginationParams>(), It.IsAny<string?>()), Times.Never);
+        mockSupabaseService.Verify(s => s.GetVisitasProximasAsync(It.IsAny<Guid>(), It.IsAny<PaginationParams>(), It.IsAny<string?>()), Times.Never);
     }
 
     [Fact]
-    public async Task GetVisitasHoy_Vigilancia_ReturnsOk()
+    public async Task GetVisitasProximas_Vigilancia_ReturnsOk()
     {
         var userId = Guid.NewGuid();
         var token = GenerateFakeToken(userId);
@@ -89,7 +89,7 @@ public class GetVisitasHoyTests
         var expectedVisitas = new List<VisitaDto>();
 
         PaginationParams capturedParams = null!;
-        mockSupabaseService.Setup(s => s.GetVisitasHoyAsync(condominioId, It.IsAny<PaginationParams>(), It.IsAny<string?>()))
+        mockSupabaseService.Setup(s => s.GetVisitasProximasAsync(condominioId, It.IsAny<PaginationParams>(), It.IsAny<string?>()))
             .Callback<Guid, PaginationParams, string?>((id, p, b) => capturedParams = p)
             .ReturnsAsync((expectedVisitas, 0));
 
@@ -97,10 +97,10 @@ public class GetVisitasHoyTests
         var client = application.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var response = await client.GetAsync("/api/visitas/hoy");
+        var response = await client.GetAsync("/api/visitas/proximas");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        mockSupabaseService.Verify(s => s.GetVisitasHoyAsync(condominioId, It.IsAny<PaginationParams>()), Times.Once);
+        mockSupabaseService.Verify(s => s.GetVisitasProximasAsync(condominioId, It.IsAny<PaginationParams>()), Times.Once);
         
         Assert.NotNull(capturedParams);
         Assert.Equal(1, capturedParams.Page);
@@ -108,7 +108,7 @@ public class GetVisitasHoyTests
     }
 
     [Fact]
-    public async Task GetVisitasHoy_Administrador_ReturnsOk_PagParamsPropagados()
+    public async Task GetVisitasProximas_Administrador_ReturnsOk_PagParamsPropagados()
     {
         var userId = Guid.NewGuid();
         var token = GenerateFakeToken(userId);
@@ -123,7 +123,7 @@ public class GetVisitasHoyTests
         PaginationParams capturedParams = null!;
         string? capturedBusqueda = null;
         
-        mockSupabaseService.Setup(s => s.GetVisitasHoyAsync(condominioId, It.IsAny<PaginationParams>(), It.IsAny<string?>()))
+        mockSupabaseService.Setup(s => s.GetVisitasProximasAsync(condominioId, It.IsAny<PaginationParams>(), It.IsAny<string?>()))
             .Callback<Guid, PaginationParams, string?>((id, p, b) => {
                 capturedParams = p;
                 capturedBusqueda = b;
@@ -134,10 +134,10 @@ public class GetVisitasHoyTests
         var client = application.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var response = await client.GetAsync("/api/visitas/hoy?page=2&pageSize=10&busqueda=juanito");
+        var response = await client.GetAsync("/api/visitas/proximas?page=2&pageSize=10&busqueda=juanito");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        mockSupabaseService.Verify(s => s.GetVisitasHoyAsync(condominioId, It.IsAny<PaginationParams>(), "juanito"), Times.Once);
+        mockSupabaseService.Verify(s => s.GetVisitasProximasAsync(condominioId, It.IsAny<PaginationParams>(), "juanito"), Times.Once);
         
         Assert.NotNull(capturedParams);
         Assert.Equal(2, capturedParams.Page);
@@ -146,7 +146,7 @@ public class GetVisitasHoyTests
     }
 
     [Fact]
-    public async Task GetVisitasHoy_Residente_ReturnsForbiddenYNuncaLlamaAlServicio()
+    public async Task GetVisitasProximas_Residente_ReturnsForbiddenYNuncaLlamaAlServicio()
     {
         var userId = Guid.NewGuid();
         var token = GenerateFakeToken(userId);
@@ -160,14 +160,14 @@ public class GetVisitasHoyTests
         var client = application.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var response = await client.GetAsync("/api/visitas/hoy");
+        var response = await client.GetAsync("/api/visitas/proximas");
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        mockSupabaseService.Verify(s => s.GetVisitasHoyAsync(It.IsAny<Guid>(), It.IsAny<PaginationParams>(), It.IsAny<string?>()), Times.Never);
+        mockSupabaseService.Verify(s => s.GetVisitasProximasAsync(It.IsAny<Guid>(), It.IsAny<PaginationParams>(), It.IsAny<string?>()), Times.Never);
     }
 
     [Fact]
-    public async Task GetVisitasHoy_Mantenimiento_ReturnsForbidden()
+    public async Task GetVisitasProximas_Mantenimiento_ReturnsForbidden()
     {
         var userId = Guid.NewGuid();
         var token = GenerateFakeToken(userId);
@@ -181,14 +181,14 @@ public class GetVisitasHoyTests
         var client = application.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var response = await client.GetAsync("/api/visitas/hoy");
+        var response = await client.GetAsync("/api/visitas/proximas");
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        mockSupabaseService.Verify(s => s.GetVisitasHoyAsync(It.IsAny<Guid>(), It.IsAny<PaginationParams>(), It.IsAny<string?>()), Times.Never);
+        mockSupabaseService.Verify(s => s.GetVisitasProximasAsync(It.IsAny<Guid>(), It.IsAny<PaginationParams>(), It.IsAny<string?>()), Times.Never);
     }
 
     [Fact]
-    public async Task GetVisitasHoy_VigilanciaSinCondominio_ReturnsOkVacioYNuncaLlamaAlServicio()
+    public async Task GetVisitasProximas_VigilanciaSinCondominio_ReturnsOkVacioYNuncaLlamaAlServicio()
     {
         var userId = Guid.NewGuid();
         var token = GenerateFakeToken(userId);
@@ -201,10 +201,10 @@ public class GetVisitasHoyTests
         var client = application.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var response = await client.GetAsync("/api/visitas/hoy");
+        var response = await client.GetAsync("/api/visitas/proximas");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        mockSupabaseService.Verify(s => s.GetVisitasHoyAsync(It.IsAny<Guid>(), It.IsAny<PaginationParams>(), It.IsAny<string?>()), Times.Never);
+        mockSupabaseService.Verify(s => s.GetVisitasProximasAsync(It.IsAny<Guid>(), It.IsAny<PaginationParams>(), It.IsAny<string?>()), Times.Never);
 
         var content = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(content.TryGetProperty("items", out var itemsElement));
@@ -214,7 +214,7 @@ public class GetVisitasHoyTests
     }
 
     [Fact]
-    public async Task GetVisitasHoy_StructureAndPrivacyAreCorrect()
+    public async Task GetVisitasProximas_StructureAndPrivacyAreCorrect()
     {
         var userId = Guid.NewGuid();
         var token = GenerateFakeToken(userId);
@@ -238,14 +238,14 @@ public class GetVisitasHoyTests
             }
         };
 
-        mockSupabaseService.Setup(s => s.GetVisitasHoyAsync(condominioId, It.IsAny<PaginationParams>(), It.IsAny<string?>()))
+        mockSupabaseService.Setup(s => s.GetVisitasProximasAsync(condominioId, It.IsAny<PaginationParams>(), It.IsAny<string?>()))
             .ReturnsAsync((expectedVisitas, 1));
 
         await using var application = BuildApplication(mockSupabaseService);
         var client = application.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var response = await client.GetAsync("/api/visitas/hoy");
+        var response = await client.GetAsync("/api/visitas/proximas");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var content = await response.Content.ReadFromJsonAsync<JsonElement>();
