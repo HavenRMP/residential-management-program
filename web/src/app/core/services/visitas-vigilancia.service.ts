@@ -23,7 +23,7 @@ export class VisitasVigilanciaService {
 
   /**
    * Visitas por atender: las programadas que llegan en las próximas 24 horas (y siguen vigentes) y las que están en curso.
-   * Con `busqueda` filtra por nombre, apellidos, placas o código
+   * Con `busqueda` filtra por casa, nombre, apellidos, placas o código
    * (GET /api/visitas/proximas)
    */
   async cargarProximas(busqueda?: string, page: number = 1): Promise<void> {

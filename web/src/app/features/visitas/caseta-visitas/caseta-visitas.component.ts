@@ -130,7 +130,7 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
               type="text"
               [(ngModel)]="busqueda"
               (ngModelChange)="onBusquedaCambio()"
-              placeholder="Nombre, placas o código..."
+              placeholder="Nombre, casa, placas o código..."
               class="h-8 w-56 text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
             />
             <button
