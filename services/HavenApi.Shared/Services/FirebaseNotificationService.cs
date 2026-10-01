@@ -40,7 +40,7 @@ public class FirebaseNotificationService : IFirebaseNotificationService
                     Priority = Priority.High,
                     Notification = new AndroidNotification
                     {
-                        ChannelId = "haven_high_importancechannel"
+                        ChannelId = "haven_high_importance_channel"
                     }
                 }
             };
