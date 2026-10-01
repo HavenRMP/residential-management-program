@@ -598,3 +598,46 @@ BEGIN
     RETURN public.baja_subusuario(p_vivienda_id, p_usuario_id);
 END;
 $$;
+-- ==============================================================================
+-- 10. PERMISOS DE ACCESO, SEGURIDAD Y RECARGA DE POSTGREST
+-- ==============================================================================
+-- Revocar accesos directos a tablas físicas
+REVOKE ALL ON public.invitaciones_subusuarios FROM authenticated, anon, service_role;
+REVOKE ALL ON public.vivienda_subusuarios FROM authenticated, anon, service_role;
+
+-- Concesión de lectura sobre vistas desacopladas
+GRANT SELECT ON public.vw_invitaciones_subusuarios TO authenticated, service_role;
+GRANT SELECT ON public.vw_vivienda_subusuarios TO authenticated, service_role;
+GRANT SELECT ON public.vw_subusuarios_vivienda TO authenticated, service_role;
+
+-- Concesión de ejecución sobre funciones y RPCs
+GRANT EXECUTE ON FUNCTION public.fn_generar_codigo_invitacion_subusuario() TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.invitar_subusuario(INTEGER, VARCHAR, VARCHAR, UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.invitar_subusuario_por_email(INTEGER, VARCHAR, VARCHAR, UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.responder_invitacion_subusuario(UUID, UUID, VARCHAR) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.redimir_codigo_subusuario(VARCHAR, UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.cancelar_invitacion_subusuario(UUID, UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.baja_subusuario(INTEGER, UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.eliminar_subusuario_vivienda(INTEGER, UUID) TO authenticated, service_role;
+
+-- ==============================================================================
+-- 11. INCREMENTO SEMÁNTICO DE VERSIÓN (SemVer Minor)
+-- ==============================================================================
+DO $$
+DECLARE
+    v_actual TEXT;
+    v_partes TEXT[];
+    v_nueva TEXT;
+BEGIN
+    SELECT numero_version INTO v_actual FROM public.version ORDER BY updated_at DESC LIMIT 1;
+    IF v_actual IS NOT NULL THEN
+        v_partes := string_to_array(v_actual, '.');
+        v_nueva := v_partes[1] || '.' || (v_partes[2]::INT + 1) || '.0';
+        UPDATE public.version 
+        SET numero_version = v_nueva, 
+            updated_at = timezone('utc'::text, now());
+    END IF;
+END $$;
+
+-- Recarga de esquema PostgREST
+NOTIFY pgrst, 'reload schema';
