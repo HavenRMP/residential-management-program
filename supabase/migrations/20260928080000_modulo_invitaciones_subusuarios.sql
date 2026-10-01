@@ -53,3 +53,21 @@ CREATE INDEX IF NOT EXISTS idx_invitaciones_subusuarios_bitacora_fecha
 
 -- Revocar accesos directos por seguridad
 REVOKE ALL ON public.invitaciones_subusuarios_bitacora FROM authenticated, anon, service_role;
+
+-- ==============================================================================
+-- 3. TRIGGERS DE AUDITORÍA CONECTADOS A fn_auditoria()
+-- ==============================================================================
+DROP TRIGGER IF EXISTS trg_invitaciones_subusuarios_auditoria_insert ON public.invitaciones_subusuarios;
+CREATE TRIGGER trg_invitaciones_subusuarios_auditoria_insert
+    AFTER INSERT ON public.invitaciones_subusuarios
+    FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+
+DROP TRIGGER IF EXISTS trg_invitaciones_subusuarios_auditoria_update ON public.invitaciones_subusuarios;
+CREATE TRIGGER trg_invitaciones_subusuarios_auditoria_update
+    BEFORE UPDATE ON public.invitaciones_subusuarios
+    FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+
+DROP TRIGGER IF EXISTS trg_invitaciones_subusuarios_auditoria_delete ON public.invitaciones_subusuarios;
+CREATE TRIGGER trg_invitaciones_subusuarios_auditoria_delete
+    BEFORE DELETE ON public.invitaciones_subusuarios
+    FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
