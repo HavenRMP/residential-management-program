@@ -7,6 +7,7 @@ import { AvisosService } from '../../../core/services/avisos.service';
 import { CondominiosService } from '../../../core/services/condominios.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { Aviso, AvisoPrioridad, CrearAvisoDto } from '../../../core/models/aviso.model';
+import { etiquetaPrioridad, tiempoRestanteAviso } from '../../../core/utils/aviso-prioridad.util';
 
 @Component({
   selector: 'app-avisos-list',
@@ -736,13 +737,7 @@ export class AvisosListComponent implements OnInit {
   }
 
   getPrioridadLabel(prioridad: AvisoPrioridad): string {
-    switch (prioridad) {
-      case 'urgente': return 'Urgente';
-      case 'mantenimiento': return 'Mantenimiento';
-      case 'evento': return 'Evento';
-      case 'informativo':
-      default: return 'Informativo';
-    }
+    return etiquetaPrioridad(prioridad);
   }
 
   esVencido(aviso: Aviso): boolean {
@@ -750,10 +745,6 @@ export class AvisosListComponent implements OnInit {
   }
 
   tiempoRestante(aviso: Aviso): string {
-    const diff = new Date(aviso.fechaExpiracion).getTime() - Date.now();
-    if (diff <= 0) return 'Expirado';
-
-    const dias = Math.ceil(diff / (1000 * 60 * 60 * 24));
-    return dias === 1 ? '1 día restante' : `${dias} días restantes`;
+    return tiempoRestanteAviso(aviso);
   }
 }
