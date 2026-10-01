@@ -3,6 +3,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { VisitasVigilanciaService } from '../../../core/services/visitas-vigilancia.service';
+import { DirectorioCasasService } from '../../../core/services/directorio-casas.service';
+import { ResidenteContacto } from '../../../core/models/vivienda.model';
+import { telefonoParaLlamar } from '../../../core/utils/directorio-casas.util';
 import {
   CLASES_ESTADO_VISITA,
   ETIQUETAS_ESTADO_VISITA,
@@ -214,6 +217,27 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
           <dt class="text-slate-500">Registrada por</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.creadoPorNombre || 'el residente' }}</dd>
         </dl>
 
+        <!-- A quién avisar en la casa (del directorio de casas) -->
+        <div class="mt-4 pt-3 border-t border-slate-100">
+          <p class="text-xs font-semibold text-slate-800 mb-2">A quién avisar en la casa {{ d.numeroCasa }}</p>
+          <ng-container *ngIf="residentesDeCasa(d.numeroCasa) as residentes">
+            <p *ngIf="residentes.length === 0" class="text-xs text-slate-500">
+              {{ directorio.isLoading() ? 'Cargando residentes…' : 'No hay residentes registrados en esta casa.' }}
+            </p>
+            <ul *ngIf="residentes.length > 0" class="space-y-1.5">
+              <li *ngFor="let r of residentes" class="flex items-center justify-between gap-3 text-xs">
+                <span class="font-medium text-slate-900 truncate">{{ r.nombre }} {{ r.apellidos }}</span>
+                <a
+                  *ngIf="r.telefono"
+                  [href]="enlaceTelefono(r.telefono)"
+                  class="shrink-0 font-mono text-slate-700 hover:text-[#111C99] underline-offset-2 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99] rounded"
+                >{{ r.telefono }}</a>
+                <span *ngIf="!r.telefono" class="shrink-0 text-slate-400">Sin teléfono</span>
+              </li>
+            </ul>
+          </ng-container>
+        </div>
+
         <!-- Captura de placas al dar ingreso -->
         <div *ngIf="d.estado === 'programada'" class="mt-3">
           <label class="block text-xs font-semibold text-slate-800 mb-1" for="placas-entrada">Placas del vehículo (opcional)</label>
@@ -263,6 +287,7 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
 })
 export class CasetaVisitasComponent implements OnInit, OnDestroy {
   readonly visitasService = inject(VisitasVigilanciaService);
+  readonly directorio = inject(DirectorioCasasService);
 
   codigo = '';
   busqueda = '';
@@ -288,6 +313,8 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.visitasService.cargarHoy();
+    // El directorio es compartido: se carga una sola vez aunque también lo use su propia tarjeta
+    this.directorio.cargar();
   }
 
   ngOnDestroy(): void {
@@ -308,6 +335,14 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
 
   formatearFecha(iso: string | null | undefined): string {
     return formatearFechaVisita(iso);
+  }
+
+  residentesDeCasa(numeroCasa: string): ResidenteContacto[] {
+    return this.directorio.residentesDeCasa(numeroCasa);
+  }
+
+  enlaceTelefono(telefono: string): string {
+    return `tel:${telefonoParaLlamar(telefono)}`;
   }
 
   abrirDetalle(v: VisitaVigilancia): void {
