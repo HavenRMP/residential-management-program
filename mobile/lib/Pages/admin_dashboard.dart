@@ -48,23 +48,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Future<void> _fetchStats() async {
     try {
       final viviendasSrv = ViviendasService(widget.controller);
-      final viviendas = await viviendasSrv.listar();
+      final viviendas = await viviendasSrv.listarConResidentes();
       
       int ocupadas = 0;
-      if (viviendas.isNotEmpty) {
-        final asignaciones = await Future.wait(
-          viviendas.map((v) => viviendasSrv.obtenerResidentesVivienda(v['id']).catchError((_) => <dynamic>[]))
-        );
-
-        for (int i = 0; i < viviendas.length; i++) {
-          final res = asignaciones[i];
-          if (res.isNotEmpty) {
+      for (final item in viviendas) {
+        if (item is Map) {
+          if (item['estaOcupada'] == true ||
+              (item['totalResidentes'] is num &&
+                  (item['totalResidentes'] as num) > 0) ||
+              (item['residentes'] is List &&
+                  (item['residentes'] as List).isNotEmpty) ||
+              item['asignada'] == true) {
             ocupadas++;
           }
-          // We can also attach the asignada state to the map if we want
-          viviendas[i]['asignada'] = res.isNotEmpty;
         }
       }
+
 
       int residentesCount = 0;
       final token = await widget.controller.getValidAccessToken();
