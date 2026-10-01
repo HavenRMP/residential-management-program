@@ -380,3 +380,97 @@ BEGIN
         ON CONFLICT (id) DO NOTHING;
     END IF;
 END $$;
+
+-- ============================================================================
+-- SEED: SUB-USUARIOS E INVITACIONES DE PRUEBA
+-- ============================================================================
+
+-- 1. Usuarios de prueba en auth.users para pruebas de sub-usuarios
+INSERT INTO auth.users (id, email, raw_user_meta_data, raw_app_meta_data, aud, role)
+VALUES 
+  (
+    'c0000000-0000-0000-0000-000000000001',
+    'subusuario.activo@haven.com',
+    '{"nombre": "Carlos", "apellidos": "Residente Hijo"}'::jsonb,
+    '{"provider": "email", "providers": ["email"]}'::jsonb,
+    'authenticated',
+    'authenticated'
+  ),
+  (
+    'c0000000-0000-0000-0000-000000000002',
+    'invitado.pendiente@haven.com',
+    '{"nombre": "Mariana", "apellidos": "Familiar Invitado"}'::jsonb,
+    '{"provider": "email", "providers": ["email"]}'::jsonb,
+    'authenticated',
+    'authenticated'
+  )
+ON CONFLICT (id) DO NOTHING;
+
+-- 2. Perfiles complementarios en public.usuarios
+INSERT INTO public.usuarios (id, rol_id, email, nombre, apellidos, telefono, condominio_id, activo)
+VALUES
+  (
+    'c0000000-0000-0000-0000-000000000001',
+    2,
+    'subusuario.activo@haven.com',
+    'Carlos',
+    'Residente Hijo',
+    '4421112233',
+    'a0000000-0000-0000-0000-000000000001',
+    true
+  ),
+  (
+    'c0000000-0000-0000-0000-000000000002',
+    2,
+    'invitado.pendiente@haven.com',
+    'Mariana',
+    'Familiar Invitado',
+    '4424445566',
+    'a0000000-0000-0000-0000-000000000001',
+    true
+  )
+ON CONFLICT (id) DO UPDATE SET
+    nombre = EXCLUDED.nombre,
+    apellidos = EXCLUDED.apellidos,
+    condominio_id = EXCLUDED.condominio_id,
+    activo = EXCLUDED.activo;
+
+-- 3. Vínculo de sub-usuario activo e invitación pendiente en Casa 101
+DO $$
+DECLARE
+    v_casa_id INTEGER;
+BEGIN
+    SELECT id INTO v_casa_id FROM public.viviendas WHERE numero_casa = 'Casa 101' LIMIT 1;
+
+    IF v_casa_id IS NOT NULL THEN
+        -- Sub-usuario activo consolidado
+        INSERT INTO public.vivienda_subusuarios (vivienda_id, usuario_id, parentesco, activo)
+        VALUES (v_casa_id, 'c0000000-0000-0000-0000-000000000001', 'Hijo', true)
+        ON CONFLICT (vivienda_id, usuario_id) DO UPDATE
+        SET activo = true, parentesco = EXCLUDED.parentesco;
+
+        -- Invitación pendiente de prueba con vigencia de 24 horas
+        INSERT INTO public.invitaciones_subusuarios (
+            id,
+            vivienda_id,
+            creado_por,
+            email_invitado,
+            codigo_invitacion,
+            estado,
+            usuario_id,
+            parentesco,
+            expira_en
+        ) VALUES (
+            'd0000000-0000-0000-0000-000000000001',
+            v_casa_id,
+            '6754a566-e529-40fb-8610-bd136ec77fd5',
+            'invitado.pendiente@haven.com',
+            'HAVEN24K',
+            'pendiente',
+            'c0000000-0000-0000-0000-000000000002',
+            'Hermana',
+            timezone('utc'::text, now()) + INTERVAL '24 hours'
+        )
+        ON CONFLICT (id) DO NOTHING;
+    END IF;
+END $$;
