@@ -1,6 +1,26 @@
-import { formatearFechaVisita, fusionarSinVacios, ordenarVisitasProximasPrimero, ordenarVisitasRecientesPrimero, visitaVencida } from './visita.model';
+import { formatearFechaVisita, fusionarSinVacios, ordenarVisitasProximasPrimero, ordenarVisitasRecientesPrimero, rangoFechasInvalido, rangoFechasIso, visitaVencida } from './visita.model';
 
 describe('visita.model', () => {
+  describe('rangoFechasIso', () => {
+    it('cubre el día completo de desde y de hasta en UTC', () => {
+      const r = rangoFechasIso('2026-10-01', '2026-10-03');
+
+      expect(new Date(r.desde!).getTime()).toBe(new Date('2026-10-01T00:00:00').getTime());
+      expect(new Date(r.hasta!).getTime()).toBe(new Date('2026-10-03T23:59:59.999').getTime());
+    });
+
+    it('una fecha vacía no genera filtro', () => {
+      expect(rangoFechasIso('', '')).toEqual({});
+      expect(rangoFechasIso('2026-10-01', '').hasta).toBeUndefined();
+    });
+
+    it('detecta un desde posterior al hasta', () => {
+      expect(rangoFechasInvalido('2026-10-05', '2026-10-01')).toBeTrue();
+      expect(rangoFechasInvalido('2026-10-01', '2026-10-01')).toBeFalse();
+      expect(rangoFechasInvalido('', '2026-10-01')).toBeFalse();
+    });
+  });
+
   describe('visitaVencida', () => {
     const ahora = new Date('2026-10-02T12:00:00Z').getTime();
 
