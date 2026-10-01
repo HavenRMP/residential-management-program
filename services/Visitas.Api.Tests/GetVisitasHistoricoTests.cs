@@ -107,7 +107,7 @@ public class GetVisitasHistoricoTests
     }
 
     [Fact]
-    public async Task GetVisitasHistorico_Vigilancia_ReturnsForbidden()
+    public async Task GetVisitasHistorico_Vigilancia_ReturnsOk()
     {
         var userId = Guid.NewGuid();
         var token = GenerateFakeToken(userId);
@@ -117,14 +117,18 @@ public class GetVisitasHistoricoTests
         mockSupabaseService.Setup(s => s.GetContextoUsuarioAsync(userId, It.IsAny<string>()))
             .ReturnsAsync(("Vigilancia", condominioId));
 
+        mockSupabaseService.Setup(s => s.GetVisitasHistoricoAsync(
+                condominioId, null, null, null, null, It.IsAny<PaginationParams>()))
+            .ReturnsAsync((new List<VisitaDto>(), 0));
+
         await using var application = BuildApplication(mockSupabaseService);
         var client = application.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var response = await client.GetAsync("/api/visitas/historico");
 
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        mockSupabaseService.Verify(s => s.GetVisitasHistoricoAsync(It.IsAny<Guid>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<PaginationParams>()), Times.Never);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        mockSupabaseService.Verify(s => s.GetVisitasHistoricoAsync(condominioId, null, null, null, null, It.IsAny<PaginationParams>()), Times.Once);
     }
 
     [Fact]
