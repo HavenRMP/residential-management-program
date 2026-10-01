@@ -402,7 +402,7 @@ export class SubusuariosComponent implements OnInit {
       Swal.fire({
         icon: 'error',
         title: 'No se pudo invitar',
-        text: err?.error?.error || err?.message || 'No es posible crear más sub-usuarios.',
+        text: mensajeAmigable(err, 'No se pudo enviar la invitación. Revisa que ese correo no tenga ya una invitación pendiente ni sea ya sub-usuario de tu vivienda.'),
         confirmButtonColor: '#111C99'
       });
     } finally {
