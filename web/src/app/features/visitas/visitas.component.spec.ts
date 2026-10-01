@@ -166,3 +166,62 @@ describe('VisitasComponent (fecha y vigencia)', () => {
     expect(component.esFormularioValido()).toBeFalse();
   });
 });
+
+describe('VisitasComponent (visitas vencidas)', () => {
+  const enHoras = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString();
+  const vencida: Visita = {
+    ...visita, id: 'v-vencida', nombreVisitante: 'Beto',
+    fechaLlegadaEsperada: enHoras(-30), vigenciaHasta: enHoras(-6)
+  };
+  const vigente: Visita = {
+    ...visita, id: 'v-vigente', nombreVisitante: 'Ana',
+    fechaLlegadaEsperada: enHoras(2), vigenciaHasta: enHoras(26)
+  };
+
+  let fixture: ReturnType<typeof TestBed.createComponent<VisitasComponent>>;
+
+  beforeEach(async () => {
+    TestBed.configureTestingModule({
+      imports: [VisitasComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: VisitasService,
+          useValue: {
+            PAGE_SIZE: 10, items: signal([vencida, vigente]), totalCount: signal(2), page: signal(1),
+            isLoading: signal(false), errorMessage: signal(null), cargar: jasmine.createSpy('cargar')
+          }
+        },
+        { provide: ViviendasService, useValue: { obtenerMisViviendas: () => Promise.resolve([{ id: 33 }]) } },
+        { provide: AuthService, useValue: { currentUser: signal(null), logout: () => undefined } }
+      ]
+    });
+    fixture = TestBed.createComponent(VisitasComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+  });
+
+  const tarjeta = (nombre: string) =>
+    (Array.from(fixture.nativeElement.querySelectorAll('li')) as HTMLElement[]).find(li => li.textContent!.includes(nombre))!;
+  const botones = (li: HTMLElement) => Array.from(li.querySelectorAll('button')).map(b => b.textContent!.trim());
+
+  it('una programada vigente se puede editar y cancelar', () => {
+    expect(botones(tarjeta('Ana'))).toEqual(jasmine.arrayContaining(['Editar', 'Cancelar']));
+  });
+
+  it('una programada cuyo día ya pasó se muestra expirada, sin editar, cancelar ni código', () => {
+    const li = tarjeta('Beto');
+
+    expect(li.textContent).toContain('Expirada');
+    expect(botones(li)).not.toContain('Editar');
+    expect(botones(li)).not.toContain('Cancelar');
+    expect(li.textContent).not.toContain('ABC123');
+  });
+
+  it('no abre el formulario de edición de una visita vencida', () => {
+    fixture.componentInstance.abrirModalEditar(vencida);
+
+    expect(fixture.componentInstance.modalAbierto()).toBeFalse();
+  });
+});
