@@ -71,3 +71,20 @@ DROP TRIGGER IF EXISTS trg_invitaciones_subusuarios_auditoria_delete ON public.i
 CREATE TRIGGER trg_invitaciones_subusuarios_auditoria_delete
     BEFORE DELETE ON public.invitaciones_subusuarios
     FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+
+    -- ==============================================================================
+-- 4. FUNCIÓN GENERADORA DE CÓDIGOS DE INVITACIÓN
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.fn_generar_codigo_invitacion_subusuario()
+RETURNS VARCHAR(8) AS $$
+DECLARE
+    v_caracteres TEXT := '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; -- Excluye caracteres ambiguos (0, O, 1, I)
+    v_resultado TEXT := '';
+    i INTEGER;
+BEGIN
+    FOR i IN 1..8 LOOP
+        v_resultado := v_resultado || substr(v_caracteres, (random() * length(v_caracteres) + 1)::integer, 1);
+    END LOOP;
+    RETURN v_resultado;
+END;
+$$ LANGUAGE plpgsql VOLATILE;
