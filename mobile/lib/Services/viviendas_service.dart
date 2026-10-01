@@ -36,6 +36,53 @@ class ViviendasService {
     }
   }
 
+  Future<List<dynamic>> listarConResidentes({int page = 1, int pageSize = 100}) async {
+    try {
+      final url = '$baseUrl/api/Viviendas/con-residentes?page=$page&pageSize=$pageSize';
+      final response = await controller.httpClient.get(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      );
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final decoded = jsonDecode(response.body);
+        List<dynamic> items = [];
+        if (decoded is Map && decoded['items'] is List) {
+          items = decoded['items'];
+        } else if (decoded is List) {
+          items = decoded;
+        } else if (decoded is Map && decoded['data'] is List) {
+          items = decoded['data'];
+        }
+        if (items.isNotEmpty) {
+          return items;
+        }
+      }
+    } catch (_) {}
+
+    final list = await listar();
+    if (list.isNotEmpty) {
+      try {
+        final asignaciones = await Future.wait(
+          list.map(
+            (v) => (v is Map && v['id'] != null)
+                ? obtenerResidentesVivienda(v['id']).catchError((_) => <dynamic>[])
+                : Future.value(<dynamic>[]),
+          ),
+        );
+        for (int i = 0; i < list.length; i++) {
+          final res = asignaciones[i];
+          if (list[i] is Map) {
+            list[i]['residentes'] = res;
+            list[i]['totalResidentes'] = res.length;
+            list[i]['estaOcupada'] = res.isNotEmpty;
+          }
+        }
+      } catch (_) {}
+    }
+    return list;
+  }
+
+
   Future<Map<String, dynamic>?> crear({required String numeroCasa, String? tipo}) async {
     final url = '$baseUrl/api/Viviendas';
     final payload = {'numeroCasa': numeroCasa, 'tipo': tipo};
