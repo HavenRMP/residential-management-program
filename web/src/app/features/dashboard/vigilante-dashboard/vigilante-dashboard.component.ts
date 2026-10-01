@@ -32,12 +32,12 @@ import { DirectorioCasasComponent } from '../../visitas/directorio-casas/directo
       <!-- Main Content -->
       <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         <!-- Welcome Hero -->
-        <div class="bg-white border border-slate-200 rounded-xl p-6 sm:p-8 shadow-xs">
-          <h1 class="text-2xl sm:text-3xl font-bold text-slate-900">
+        <div class="bg-white border border-slate-200 rounded-xl px-5 py-4 shadow-xs">
+          <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
             Control de Caseta y Accesos
           </h1>
-          <p class="text-slate-600 mt-2">
-            Bienvenido al portal de vigilancia y control de accesos.
+          <p class="text-sm text-slate-600 mt-1">
+            Valida códigos, registra entradas y salidas, y consulta a quién llamar en cada casa.
           </p>
         </div>
 
@@ -46,7 +46,7 @@ import { DirectorioCasasComponent } from '../../visitas/directorio-casas/directo
           <div class="lg:col-span-2 min-w-0">
             <app-caseta-visitas />
           </div>
-          <aside class="min-w-0 space-y-6">
+          <aside class="min-w-0 flex flex-col gap-6">
             <app-directorio-casas />
             <app-avisos-caseta />
           </aside>
