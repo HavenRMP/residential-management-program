@@ -22,11 +22,11 @@ export class VisitasVigilanciaService {
   private ultimaPeticion = 0;
 
   /**
-   * Visitas vigentes del día (programadas y en curso). Con `busqueda` filtra por nombre,
-   * apellidos, código exacto o número de casa
-   * (GET /api/visitas/hoy)
+   * Visitas por atender: las programadas que llegan en las próximas 24 horas (y siguen vigentes) y las que están en curso.
+   * Con `busqueda` filtra por nombre, apellidos, placas o código
+   * (GET /api/visitas/proximas)
    */
-  async cargarHoy(busqueda?: string, page: number = 1): Promise<void> {
+  async cargarProximas(busqueda?: string, page: number = 1): Promise<void> {
     // Si el guardia sigue escribiendo, una respuesta lenta de una búsqueda anterior no debe pisar la última
     const peticion = ++this.ultimaPeticion;
     this.isLoading.set(true);
@@ -37,7 +37,7 @@ export class VisitasVigilanciaService {
         params = params.set('busqueda', busqueda.trim());
       }
       const response = await firstValueFrom(
-        this.apiService.get<any>('/api/visitas/hoy', params, undefined, 'visitas')
+        this.apiService.get<any>('/api/visitas/proximas', params, undefined, 'visitas')
       );
       if (peticion !== this.ultimaPeticion) return;
       // El backend las entrega de la más antigua a la más reciente; en caseta se muestran al revés
@@ -46,8 +46,8 @@ export class VisitasVigilanciaService {
       this.page.set(response?.page ?? page);
     } catch (err: any) {
       if (peticion !== this.ultimaPeticion) return;
-      console.error('[VisitasVigilanciaService] Error al cargar visitas de hoy:', err);
-      this.errorMessage.set(err?.error?.error || 'No se pudieron cargar las visitas de hoy.');
+      console.error('[VisitasVigilanciaService] Error al cargar las visitas próximas:', err);
+      this.errorMessage.set(err?.error?.error || 'No se pudieron cargar las visitas próximas.');
     } finally {
       if (peticion === this.ultimaPeticion) this.isLoading.set(false);
     }
