@@ -61,7 +61,7 @@ function isoAInputLocal(iso: string): string {
     <div class="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans antialiased">
 
       <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
-        <div class="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+        <div class="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div class="flex items-center gap-3">
             <a
               routerLink="/dashboard/residente"
@@ -84,7 +84,7 @@ function isoAInputLocal(iso: string): string {
         </div>
       </header>
 
-      <main class="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+      <main class="w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
         <nav class="flex items-center gap-2 text-xs text-slate-500 font-medium">
           <a routerLink="/dashboard/residente" class="hover:text-slate-900 transition-colors">Portal</a>
@@ -157,7 +157,7 @@ function isoAInputLocal(iso: string): string {
             {{ filtroActivo() ? 'No hay visitas con este estado.' : 'Todavía no has programado ninguna visita.' }}
           </div>
 
-          <ul *ngIf="!visitasService.isLoading()" class="space-y-2">
+          <ul *ngIf="!visitasService.isLoading()" class="grid grid-cols-1 xl:grid-cols-2 gap-2.5 items-start">
             <li
               *ngFor="let v of visitasService.items()"
               class="p-4 rounded-md border border-slate-200 bg-white flex flex-col sm:flex-row sm:items-start justify-between gap-3"
