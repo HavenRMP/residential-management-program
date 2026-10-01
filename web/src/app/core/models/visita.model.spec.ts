@@ -1,6 +1,38 @@
-import { formatearFechaVisita, fusionarSinVacios, ordenarVisitasRecientesPrimero } from './visita.model';
+import { formatearFechaVisita, fusionarSinVacios, ordenarVisitasProximasPrimero, ordenarVisitasRecientesPrimero, visitaVencida } from './visita.model';
 
 describe('visita.model', () => {
+  describe('visitaVencida', () => {
+    const ahora = new Date('2026-10-02T12:00:00Z').getTime();
+
+    it('una programada cuya vigencia ya terminó está vencida', () => {
+      expect(visitaVencida({ estado: 'programada', vigenciaHasta: '2026-10-02T11:59:00Z' }, ahora)).toBeTrue();
+    });
+
+    it('una programada con vigencia abierta no está vencida', () => {
+      expect(visitaVencida({ estado: 'programada', vigenciaHasta: '2026-10-02T12:01:00Z' }, ahora)).toBeFalse();
+    });
+
+    it('solo aplica a las programadas y tolera fechas ausentes o inválidas', () => {
+      expect(visitaVencida({ estado: 'en_curso', vigenciaHasta: '2026-10-01T00:00:00Z' }, ahora)).toBeFalse();
+      expect(visitaVencida({ estado: 'finalizada', vigenciaHasta: '2026-10-01T00:00:00Z' }, ahora)).toBeFalse();
+      expect(visitaVencida({ estado: 'programada', vigenciaHasta: null }, ahora)).toBeFalse();
+      expect(visitaVencida({ estado: 'programada', vigenciaHasta: 'basura' }, ahora)).toBeFalse();
+    });
+  });
+
+  describe('ordenarVisitasProximasPrimero', () => {
+    it('ordena de la llegada más cercana a la más lejana sin mutar la lista', () => {
+      const lista = [
+        { id: 'c', fechaLlegadaEsperada: '2026-10-05T10:00:00Z' },
+        { id: 'a', fechaLlegadaEsperada: '2026-10-02T10:00:00Z' },
+        { id: 'b', fechaLlegadaEsperada: '2026-10-03T10:00:00Z' }
+      ];
+
+      expect(ordenarVisitasProximasPrimero(lista).map(v => v.id)).toEqual(['a', 'b', 'c']);
+      expect(lista[0].id).toBe('c');
+    });
+  });
+
   it('ordena las visitas de la llegada más reciente a la más antigua sin mutar la lista', () => {
     const lista = [
       { id: 'a', fechaLlegadaEsperada: '2026-10-01T08:00:00Z' },

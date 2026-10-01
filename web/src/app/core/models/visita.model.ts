@@ -50,6 +50,23 @@ export function ordenarVisitasRecientesPrimero<T extends { fechaLlegadaEsperada:
   );
 }
 
+/** Ordena de la visita con llegada más próxima a la más lejana, sin mutar la lista */
+export function ordenarVisitasProximasPrimero<T extends { fechaLlegadaEsperada: string }>(visitas: T[]): T[] {
+  return [...visitas].sort(
+    (a, b) => new Date(a.fechaLlegadaEsperada).getTime() - new Date(b.fechaLlegadaEsperada).getTime()
+  );
+}
+
+/**
+ * La visita sigue "programada" pero su vigencia ya terminó: el visitante no llegó a tiempo.
+ * El backend la marca como expirada, pero puede tardar; mientras tanto no debe poder editarse ni usarse.
+ */
+export function visitaVencida(v: { estado: string; vigenciaHasta?: string | null }, ahora: number = Date.now()): boolean {
+  if (v.estado !== 'programada' || !v.vigenciaHasta) return false;
+  const fin = new Date(v.vigenciaHasta).getTime();
+  return !isNaN(fin) && fin < ahora;
+}
+
 export type MotivoVisita = 'personal' | 'familiar' | 'proveedor' | 'servicio' | 'paqueteria';
 
 export const MOTIVOS_VISITA: { valor: MotivoVisita; etiqueta: string }[] = [
