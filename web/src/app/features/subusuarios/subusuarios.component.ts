@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, computed, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -116,8 +116,11 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
               <div>
                 <h2 class="text-sm font-semibold text-slate-900">Sub-usuarios autorizados</h2>
-                <p class="text-xs text-slate-500 mt-0.5">
+                <p *ngIf="!esSubusuario()" class="text-xs text-slate-500 mt-0.5">
                   Hasta 2 accesos por vivienda. Invita a alguien por su correo — debe tener cuenta en Haven.
+                </p>
+                <p *ngIf="esSubusuario()" class="text-xs text-slate-500 mt-0.5">
+                  Eres sub-usuario de esta vivienda. Solo el titular puede invitar o revocar accesos.
                 </p>
               </div>
 
@@ -127,7 +130,7 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
                 </span>
 
                 <button
-                  *ngIf="subusuariosService.cuposDisponibles() > 0"
+                  *ngIf="!esSubusuario() && subusuariosService.cuposDisponibles() > 0"
                   type="button"
                   (click)="abrirModalInvitacion()"
                   class="h-8 px-3 inline-flex items-center gap-1.5 rounded-md bg-[#111C99] hover:bg-[#0d1577] text-white text-xs font-medium transition-colors shadow-2xs cursor-pointer"
@@ -175,6 +178,7 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
                     </div>
 
                     <button
+                      *ngIf="!esSubusuario()"
                       type="button"
                       (click)="confirmarRevocar(item)"
                       class="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
@@ -193,7 +197,7 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
 
               <!-- Empty slot if available -->
               <div
-                *ngIf="subusuariosService.cuposDisponibles() > 0"
+                *ngIf="!esSubusuario() && subusuariosService.cuposDisponibles() > 0"
                 (click)="abrirModalInvitacion()"
                 class="p-4 rounded-md border border-dashed border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition-colors flex flex-col items-center justify-center text-center cursor-pointer min-h-[100px]"
               >
@@ -205,7 +209,7 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
               </div>
 
               <div *ngIf="!subusuariosService.isLoading() && subusuariosService.items().length === 0" class="sm:col-span-2 p-6 text-center text-xs text-slate-500 font-medium">
-                Todavía no has invitado a ningún sub-usuario.
+                {{ esSubusuario() ? 'No hay accesos para mostrar.' : 'Todavía no has invitado a ningún sub-usuario.' }}
               </div>
             </div>
           </section>
@@ -214,7 +218,9 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
           <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-2xs space-y-3">
             <div>
               <h2 class="text-sm font-semibold text-slate-900">Permisos habilitados</h2>
-              <p class="text-xs text-slate-500">Funcionalidades a las que tendrán acceso los sub-usuarios de tu vivienda.</p>
+              <p class="text-xs text-slate-500">
+                {{ esSubusuario() ? 'Funcionalidades a las que tienes acceso como sub-usuario de esta vivienda.' : 'Funcionalidades a las que tendrán acceso los sub-usuarios de tu vivienda.' }}
+              </p>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
@@ -334,6 +340,15 @@ export class SubusuariosComponent implements OnInit {
   readonly subusuariosService = inject(SubusuariosService);
 
   readonly currentUser = this.authService.currentUser;
+
+  /**
+   * El titular nunca figura en la lista de sub-usuarios de su vivienda; si la persona que entra aparece como acceso
+   * activo, es sub-usuario y la pantalla es de consulta: solo el titular invita o revoca.
+   */
+  readonly esSubusuario = computed(() => {
+    const id = this.currentUser()?.id;
+    return !!id && this.subusuariosService.items().some(i => i.id === id && i.activo);
+  });
   readonly parentescos = PARENTESCOS;
 
   modalInvitarAbierto = signal<boolean>(false);
@@ -371,6 +386,7 @@ export class SubusuariosComponent implements OnInit {
   }
 
   abrirModalInvitacion(): void {
+    if (this.esSubusuario()) return;
     this.nuevoSub = { email: '', parentesco: PARENTESCOS[0] };
     this.modalInvitarAbierto.set(true);
   }
@@ -411,6 +427,7 @@ export class SubusuariosComponent implements OnInit {
   }
 
   async confirmarRevocar(item: SubUsuarioItem): Promise<void> {
+    if (this.esSubusuario()) return;
     const res = await Swal.fire({
       title: item.activo ? '¿Revocar acceso?' : '¿Cancelar invitación?',
       text: item.nombre || 'Invitación pendiente',
