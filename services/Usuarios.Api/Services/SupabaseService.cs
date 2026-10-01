@@ -17,6 +17,12 @@ public class SupabaseService : ISupabaseService
     private readonly string _serviceRoleKey;
     private readonly IFirebaseNotificationService _firebaseNotificationService;
 
+    private class RpcErrorResponse
+    {
+        public string? Code { get; set; }
+        public string? Message { get; set; }
+    }
+
     public SupabaseService(HttpClient httpClient, IConfiguration configuration, ILogger<SupabaseService> logger, IFirebaseNotificationService firebaseNotificationService)
     {
         _httpClient = httpClient;
@@ -662,6 +668,47 @@ public class SupabaseService : ISupabaseService
             return (false, $"Error desde Supabase: {errorBody}");
         }
         return (true, null);
+    }
+
+    public async Task<bool> CancelarInvitacionSubusuarioAsync(Guid invitacionId, Guid actorId, string accessToken)
+    {
+        var url = $"{_supabaseUrl}/rest/v1/rpc/cancelar_invitacion_subusuario";
+        var payload = new { p_id = invitacionId };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        request.Headers.Add("x-actor-id", actorId.ToString());
+        
+        var jsonString = JsonSerializer.Serialize(payload);
+        request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await SendRequestAsync(request);
+        
+        if (response.IsSuccessStatusCode)
+        {
+            return await ParseJsonAsync<bool>(response.Content);
+        }
+
+        var errorBody = await response.Content.ReadAsStringAsync();
+        _logger.LogError("Failed to cancel subusuario invitation {InvitacionId}. Status: {StatusCode}", invitacionId, response.StatusCode);
+
+        try
+        {
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var errorData = JsonSerializer.Deserialize<RpcErrorResponse>(errorBody, options);
+
+            if (errorData != null && !string.IsNullOrEmpty(errorData.Code))
+            {
+                throw new SupabaseRpcException(errorData.Code, errorData.Message ?? string.Empty);
+            }
+        }
+        catch (JsonException)
+        {
+            // Ignore JSON exception and fall back to the unknown error
+        }
+
+        throw new SupabaseRpcException("UNKNOWN", $"Error inesperado del servidor: {errorBody}");
     }
 
     public async Task<(bool Success, string? Error)> RevocarSubusuarioAsync(int viviendaId, Guid usuarioId, string accessToken)

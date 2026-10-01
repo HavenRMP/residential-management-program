@@ -33,5 +33,6 @@ public interface ISupabaseService
     Task<(VwInvitacionSubusuarioDto? invitacion, string? error)> InvitarSubusuarioAsync(int viviendaId, string email, string parentesco, Guid creadoPor, string accessToken);
     Task<(bool Success, string? Error)> ResponderInvitacionAsync(Guid invitacionId, Guid usuarioId, string respuesta, string accessToken);
     Task<(bool Success, string? Error)> CancelarInvitacionAsync(Guid invitacionId, string accessToken);
+    Task<bool> CancelarInvitacionSubusuarioAsync(Guid invitacionId, Guid actorId, string accessToken);
     Task<(bool Success, string? Error)> RevocarSubusuarioAsync(int viviendaId, Guid usuarioId, string accessToken);
 }
