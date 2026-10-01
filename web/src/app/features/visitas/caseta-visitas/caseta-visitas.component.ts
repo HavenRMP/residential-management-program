@@ -40,7 +40,7 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
             maxlength="20"
             placeholder="Código de la visita"
             autocomplete="off"
-            class="h-10 flex-1 text-sm font-mono uppercase tracking-widest rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 placeholder:normal-case placeholder:tracking-normal focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+            class="h-10 sm:flex-1 text-sm font-mono uppercase tracking-widest rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 placeholder:normal-case placeholder:tracking-normal focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
           />
           <button
             type="button"
