@@ -379,6 +379,17 @@ describe('CasetaVisitasComponent', () => {
       expect(component.visitaValidada()?.estado).toBe('en_curso');
     });
 
+    it('si el código es válido pero la visita no está por atender, lo explica y no registra nada', async () => {
+      servicio.validarCodigo.and.callFake(async () => ({ ...visita, estado: '' }));
+      component.codigo = 'ab12cd';
+
+      await component.validarCodigo();
+
+      expect(servicio.registrarEntrada).not.toHaveBeenCalled();
+      expect(component.visitaValidada()).toBeNull();
+      expect(component.errorCodigo()).toContain('Juan Pérez: el código es válido, pero la visita no está por atender');
+    });
+
     it('con un código inválido muestra el error y no registra entrada', async () => {
       servicio.validarCodigo.and.returnValue(Promise.reject({ error: { error: 'Código no encontrado.' } }));
       component.codigo = 'nope';
