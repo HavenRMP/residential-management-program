@@ -43,6 +43,13 @@ export function fusionarSinVacios<T extends object>(actual: T, nueva: Partial<T>
   return resultado;
 }
 
+/** Ordena de la visita con llegada más reciente a la más antigua, sin mutar la lista */
+export function ordenarVisitasRecientesPrimero<T extends { fechaLlegadaEsperada: string }>(visitas: T[]): T[] {
+  return [...visitas].sort(
+    (a, b) => new Date(b.fechaLlegadaEsperada).getTime() - new Date(a.fechaLlegadaEsperada).getTime()
+  );
+}
+
 export type MotivoVisita = 'personal' | 'familiar' | 'proveedor' | 'servicio' | 'paqueteria';
 
 export const MOTIVOS_VISITA: { valor: MotivoVisita; etiqueta: string }[] = [

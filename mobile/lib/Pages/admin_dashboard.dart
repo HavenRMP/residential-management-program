@@ -28,7 +28,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _viviendasOcupadas = 0;
   bool _isLoadingStats = true;
   bool _isSystemOnline = false;
-  String _dbVersionText = 'Base de datos operativa';
 
   @override
   void initState() {
@@ -89,27 +88,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       }
 
       bool isOnline = false;
-      String dbVersionTxt = 'Base de datos operativa';
       try {
         final healthRes = await widget.controller.httpClient.get(
           Uri.parse('${dotenv.env['API_BASE_URL_USUARIOS'] ?? 'https://usuarios-api-n1qi.onrender.com'}/api/Auth/ping')
         ).timeout(const Duration(seconds: 5));
         isOnline = healthRes.statusCode == 200;
-        if (isOnline) {
-          try {
-            final body = jsonDecode(healthRes.body);
-            if (body is Map && body['dbVersion'] != null) {
-              dbVersionTxt = 'BD v${body['dbVersion']}';
-            }
-          } catch (_) {}
-        }
       } catch (_) {
         isOnline = false;
       }
 
       if (mounted) {
         setState(() {
-          _dbVersionText = dbVersionTxt;
           _totalViviendas = viviendas.length;
           _viviendasOcupadas = ocupadas;
           _totalResidentes = residentesCount;
@@ -664,7 +653,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   if (mounted) {
                     setState(() {
                       _isSystemOnline = isOnline;
-                      _dbVersionText = dbVersionTxt;
                     });
                   }
 

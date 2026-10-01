@@ -8,6 +8,7 @@ import { ViviendasService } from '../../core/services/viviendas.service';
 import { SubusuariosService } from '../../core/services/subusuarios.service';
 import { SubUsuarioItem, InvitacionRecibida, RespuestaInvitacion } from '../../core/models/subusuario.model';
 import { UserMenuComponent } from '../../core/components/user-menu/user-menu.component';
+import { esRecursoYaNoDisponible, mensajeAmigable } from '../../core/utils/api-errors.util';
 
 const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
 
@@ -425,10 +426,15 @@ export class SubusuariosComponent implements OnInit {
       try {
         await this.subusuariosService.revocar(item.id, !item.activo);
       } catch (err: any) {
+        if (esRecursoYaNoDisponible(err)) {
+          await this.refrescarListas();
+          this.avisarListaActualizada('Ese acceso ya no está disponible. Actualizamos la lista.');
+          return;
+        }
         Swal.fire({
           icon: 'error',
           title: 'No se pudo completar',
-          text: err?.error?.error || 'Intenta de nuevo en unos segundos.',
+          text: mensajeAmigable(err, 'Intenta de nuevo en unos segundos.'),
           confirmButtonColor: '#111C99'
         });
       }
@@ -463,13 +469,31 @@ export class SubusuariosComponent implements OnInit {
         timer: 2000
       });
     } catch (err: any) {
+      if (esRecursoYaNoDisponible(err)) {
+        await this.refrescarListas();
+        this.avisarListaActualizada('Esa invitación ya fue respondida o cancelada. Actualizamos tu lista.');
+        return;
+      }
       Swal.fire({
         icon: 'error',
         title: 'No se pudo responder',
-        text: err?.error?.error || 'Intenta de nuevo en unos segundos.',
+        text: mensajeAmigable(err, 'Intenta de nuevo en unos segundos.'),
         confirmButtonColor: '#111C99'
       });
     }
+  }
+
+  /** Vuelve a pedir las invitaciones recibidas y los sub-usuarios de la vivienda, sin romper si alguna falla. */
+  private async refrescarListas(): Promise<void> {
+    const viviendaId = this.viviendaId();
+    await Promise.allSettled([
+      this.subusuariosService.cargarInvitacionesRecibidas(),
+      viviendaId ? this.subusuariosService.cargar(viviendaId) : Promise.resolve()
+    ]);
+  }
+
+  private avisarListaActualizada(mensaje: string): void {
+    Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: mensaje, showConfirmButton: false, timer: 3500 });
   }
 
   onLogout(): void {

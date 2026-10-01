@@ -17,6 +17,12 @@ public class SupabaseService : ISupabaseService
     private readonly string _serviceRoleKey;
     private readonly IFirebaseNotificationService _firebaseNotificationService;
 
+    private class RpcErrorResponse
+    {
+        public string? Code { get; set; }
+        public string? Message { get; set; }
+    }
+
     public SupabaseService(HttpClient httpClient, IConfiguration configuration, ILogger<SupabaseService> logger, IFirebaseNotificationService firebaseNotificationService)
     {
         _httpClient = httpClient;
@@ -350,6 +356,58 @@ public class SupabaseService : ISupabaseService
         return (updatedUsuario, null);
     }
 
+    // Vigilantes
+    public async Task<(List<VigilanteDto>? Items, int? TotalCount)> GetVigilantesAsync(Guid condominioId, PaginationParams paginacion)
+    {
+        var resourcePath = $"vw_vigilantes?condominio_id=eq.{condominioId}&select=*&order=creado_en.desc";
+        return await SupabaseQueryClient.GetPagedAsync<VigilanteDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, _serviceRoleKey, resourcePath, paginacion, true, condominioId);
+    }
+
+    public async Task<(bool Success, string? Error)> BajaVigilanteAsync(Guid id, string accessToken)
+    {
+        var url = $"{_supabaseUrl}/rest/v1/rpc/baja_usuario";
+        var payload = new { p_id = id };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Add("apikey", _serviceRoleKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
+        
+        var jsonString = JsonSerializer.Serialize(payload);
+        request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await SendRequestAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogError("Failed to deactivate vigilante {Id}. Status: {StatusCode}, Body: {Body}", id, response.StatusCode, errorBody);
+            return (false, $"Error desde Supabase: {errorBody}");
+        }
+        return (true, null);
+    }
+
+    public async Task<(bool Success, string? Error)> ReactivarVigilanteAsync(Guid id, string accessToken)
+    {
+        var url = $"{_supabaseUrl}/rest/v1/rpc/reactivar_usuario";
+        var payload = new { p_id = id };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Add("apikey", _serviceRoleKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
+        
+        var jsonString = JsonSerializer.Serialize(payload);
+        request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await SendRequestAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogError("Failed to reactivate vigilante {Id}. Status: {StatusCode}, Body: {Body}", id, response.StatusCode, errorBody);
+            return (false, $"Error desde Supabase: {errorBody}");
+        }
+        return (true, null);
+    }
+
     // Notificaciones
     public async Task<(List<NotificacionDto>? Notificaciones, string? Error)> GetNotificacionesAsync(Guid userId, string accessToken)
     {
@@ -568,7 +626,7 @@ public class SupabaseService : ISupabaseService
         return (invitacion, null);
     }
 
-    public async Task<(bool Success, string? Error)> ResponderInvitacionAsync(Guid invitacionId, Guid usuarioId, string respuesta, string accessToken)
+    public async Task<bool> ResponderInvitacionAsync(Guid invitacionId, Guid usuarioId, string respuesta, string accessToken)
     {
         var url = $"{_supabaseUrl}/rest/v1/rpc/responder_invitacion_subusuario";
         var payload = new { p_invitacion_id = invitacionId, p_usuario_id = usuarioId, p_respuesta = respuesta };
@@ -581,19 +639,37 @@ public class SupabaseService : ISupabaseService
         request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
 
         var response = await SendRequestAsync(request);
-        if (!response.IsSuccessStatusCode)
+        
+        if (response.IsSuccessStatusCode)
         {
-            var errorBody = await response.Content.ReadAsStringAsync();
-            _logger.LogError("Failed to respond to invitation. Status: {StatusCode}, Body: {Body}", response.StatusCode, errorBody);
-            return (false, $"Error desde Supabase: {errorBody}");
+            return true;
         }
-        return (true, null);
+
+        var errorBody = await response.Content.ReadAsStringAsync();
+        _logger.LogError("Failed to respond to invitation. Status: {StatusCode}, Body: {Body}", response.StatusCode, errorBody);
+        
+        try
+        {
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var errorData = JsonSerializer.Deserialize<RpcErrorResponse>(errorBody, options);
+
+            if (errorData != null && !string.IsNullOrEmpty(errorData.Code))
+            {
+                throw new SupabaseRpcException(errorData.Code, errorData.Message ?? string.Empty);
+            }
+        }
+        catch (JsonException)
+        {
+            // Ignore JSON exception and fall back to the unknown error
+        }
+
+        throw new SupabaseRpcException("UNKNOWN", $"Error inesperado del servidor: {errorBody}");
     }
 
     public async Task<(bool Success, string? Error)> CancelarInvitacionAsync(Guid invitacionId, string accessToken)
     {
         var url = $"{_supabaseUrl}/rest/v1/rpc/cancelar_invitacion_subusuario";
-        var payload = new { p_id = invitacionId };
+        var payload = new { p_invitacion_id = invitacionId };
 
         var request = new HttpRequestMessage(HttpMethod.Post, url);
         request.Headers.Add("apikey", _anonKey);
@@ -610,6 +686,47 @@ public class SupabaseService : ISupabaseService
             return (false, $"Error desde Supabase: {errorBody}");
         }
         return (true, null);
+    }
+
+    public async Task<bool> CancelarInvitacionSubusuarioAsync(Guid invitacionId, Guid actorId, string accessToken)
+    {
+        var url = $"{_supabaseUrl}/rest/v1/rpc/cancelar_invitacion_subusuario";
+        var payload = new { p_id = invitacionId };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Add("apikey", _anonKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        request.Headers.Add("x-actor-id", actorId.ToString());
+        
+        var jsonString = JsonSerializer.Serialize(payload);
+        request.Content = new StringContent(jsonString, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await SendRequestAsync(request);
+        
+        if (response.IsSuccessStatusCode)
+        {
+            return await ParseJsonAsync<bool>(response.Content);
+        }
+
+        var errorBody = await response.Content.ReadAsStringAsync();
+        _logger.LogError("Failed to cancel subusuario invitation {InvitacionId}. Status: {StatusCode}", invitacionId, response.StatusCode);
+
+        try
+        {
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var errorData = JsonSerializer.Deserialize<RpcErrorResponse>(errorBody, options);
+
+            if (errorData != null && !string.IsNullOrEmpty(errorData.Code))
+            {
+                throw new SupabaseRpcException(errorData.Code, errorData.Message ?? string.Empty);
+            }
+        }
+        catch (JsonException)
+        {
+            // Ignore JSON exception and fall back to the unknown error
+        }
+
+        throw new SupabaseRpcException("UNKNOWN", $"Error inesperado del servidor: {errorBody}");
     }
 
     public async Task<(bool Success, string? Error)> RevocarSubusuarioAsync(int viviendaId, Guid usuarioId, string accessToken)

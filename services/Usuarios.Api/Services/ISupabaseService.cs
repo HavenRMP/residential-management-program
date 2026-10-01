@@ -15,6 +15,11 @@ public interface ISupabaseService
     Task<(List<UsuarioDto>? Items, int? TotalCount)> GetResidentesSinViviendaAsync(Guid condominioId, PaginationParams paginacion);
     Task<(UsuarioDto? usuario, string? error)> AsignarCondominioAdminAsync(Guid adminId, Guid condominioId);
     
+    // Vigilantes
+    Task<(List<VigilanteDto>? Items, int? TotalCount)> GetVigilantesAsync(Guid condominioId, PaginationParams paginacion);
+    Task<(bool Success, string? Error)> BajaVigilanteAsync(Guid id, string accessToken);
+    Task<(bool Success, string? Error)> ReactivarVigilanteAsync(Guid id, string accessToken);
+    
     // Notificaciones
     Task<(List<NotificacionDto>? Notificaciones, string? Error)> GetNotificacionesAsync(Guid userId, string accessToken);
     Task<(int? Count, string? Error)> GetContadorNoLeidasAsync(Guid userId, string accessToken);
@@ -26,7 +31,8 @@ public interface ISupabaseService
     Task<List<VwInvitacionSubusuarioDto>?> GetInvitacionesViviendaAsync(int viviendaId, string accessToken);
     Task<List<VwInvitacionSubusuarioDto>?> GetMisInvitacionesPendientesAsync(Guid invitadoId, string accessToken);
     Task<(VwInvitacionSubusuarioDto? invitacion, string? error)> InvitarSubusuarioAsync(int viviendaId, string email, string parentesco, Guid creadoPor, string accessToken);
-    Task<(bool Success, string? Error)> ResponderInvitacionAsync(Guid invitacionId, Guid usuarioId, string respuesta, string accessToken);
+    Task<bool> ResponderInvitacionAsync(Guid invitacionId, Guid usuarioId, string respuesta, string accessToken);
     Task<(bool Success, string? Error)> CancelarInvitacionAsync(Guid invitacionId, string accessToken);
+    Task<bool> CancelarInvitacionSubusuarioAsync(Guid invitacionId, Guid actorId, string accessToken);
     Task<(bool Success, string? Error)> RevocarSubusuarioAsync(int viviendaId, Guid usuarioId, string accessToken);
 }

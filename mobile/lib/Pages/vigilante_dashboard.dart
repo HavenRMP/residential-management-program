@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../Models/visita_model.dart';
 import '../Services/app_controller.dart';
+import '../Services/push_notifications_service.dart';
 import '../Services/visitas_service.dart';
 import '../Services/push_notifications_service.dart';
 import 'perfil_screen.dart';
@@ -195,6 +196,9 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
     super.initState();
     _cargarVisitas(refresh: true);
     _scrollController.addListener(_onScroll);
+    PushNotificationsService.requestPermission(
+      userId: widget.controller.currentUser?.id,
+    );
   }
 
   @override
@@ -415,8 +419,12 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
                           setModalState(() => isValidating = false);
                           if (res['success'] == true) {
                             final visita = res['visita'] as VisitaModel;
-                            Navigator.pop(dialogCtx);
-                            _mostrarResultadoValidacion(visita);
+                            if (dialogCtx.mounted) {
+                              Navigator.pop(dialogCtx);
+                            }
+                            if (mounted) {
+                              _mostrarResultadoValidacion(visita);
+                            }
                           } else {
                             setModalState(() {
                               errorLocal = res['error'] ?? 'Código inválido o expirado';

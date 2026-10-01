@@ -44,6 +44,21 @@ describe('VisitasVigilanciaService', () => {
     expect(service.items().length).toBe(1);
   });
 
+  it('muestra las visitas de la más reciente a la más antigua aunque el backend las entregue al revés', async () => {
+    mockApiService.get.and.returnValue(of({
+      items: [
+        { ...visitaBase, id: 'v-vieja', fechaLlegadaEsperada: '2026-10-01T08:00:00Z' },
+        { ...visitaBase, id: 'v-nueva', fechaLlegadaEsperada: '2026-10-01T20:00:00Z' },
+        { ...visitaBase, id: 'v-media', fechaLlegadaEsperada: '2026-10-01T14:00:00Z' }
+      ],
+      totalCount: 3
+    }));
+
+    await service.cargarHoy();
+
+    expect(service.items().map(v => v.id)).toEqual(['v-nueva', 'v-media', 'v-vieja']);
+  });
+
   it('no envía el parámetro busqueda cuando está vacío', async () => {
     mockApiService.get.and.returnValue(of({ items: [], totalCount: 0 }));
 
@@ -99,6 +114,21 @@ describe('VisitasVigilanciaService', () => {
     expect(service.items()[0].numeroCasa).toBe('PRUEBA-01');
     expect(service.items()[0].viviendaId).toBe(33);
     expect(service.items()[0].horaEntrada).toBe('2026-10-01T15:05:00Z');
+  });
+
+  it('envía las placas en mayúsculas al registrar la entrada y nada si no se capturan', async () => {
+    mockApiService.get.and.returnValue(of({ items: [visitaBase], totalCount: 1 }));
+    await service.cargarHoy();
+    mockApiService.post.and.returnValue(of({ ...visitaBase, estado: 'en_curso' }));
+
+    await service.registrarEntrada('v-1', '  abc-123 ');
+    expect(mockApiService.post.calls.mostRecent().args[1]).toEqual({ vehiculoPlacas: 'ABC-123' });
+
+    await service.registrarEntrada('v-1', '   ');
+    expect(mockApiService.post.calls.mostRecent().args[1]).toEqual({});
+
+    await service.registrarEntrada('v-1');
+    expect(mockApiService.post.calls.mostRecent().args[1]).toEqual({});
   });
 
   it('descarta la respuesta atrasada de una búsqueda anterior', async () => {

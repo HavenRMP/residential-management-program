@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../Models/auth_user.dart';
 import '../Models/api_exceptions.dart';
+import 'push_notifications_service.dart';
 import '../main.dart';
 import 'push_notifications_service.dart';
 
@@ -496,6 +497,9 @@ class AppController extends ChangeNotifier {
         apellidos: resolvedApellidos,
       );
       _errorMessage = null;
+      if (_currentUser?.id != null) {
+        unawaited(PushNotificationsService.subscribeToUserTopic(_currentUser!.id));
+      }
     } on UnauthorizedException {
       rethrow;
     } catch (e) {
@@ -527,6 +531,9 @@ class AppController extends ChangeNotifier {
       apellidos: _nb(um['apellidos']) ?? _nb(um['last_name']),
     );
     _errorMessage = null;
+    if (_currentUser?.id != null) {
+      unawaited(PushNotificationsService.subscribeToUserTopic(_currentUser!.id));
+    }
     _isLoading = false;
     notifyListeners();
   }

@@ -3,7 +3,7 @@ import { firstValueFrom } from 'rxjs';
 import { HttpParams } from '@angular/common/http';
 import { ApiService } from './api.service';
 import { extractPagedItems } from '../models/pagination.model';
-import { EstadoVisita, fusionarSinVacios, VisitaVigilancia } from '../models/visita.model';
+import { EstadoVisita, fusionarSinVacios, ordenarVisitasRecientesPrimero, VisitaVigilancia } from '../models/visita.model';
 
 @Injectable({
   providedIn: 'root'
@@ -40,7 +40,8 @@ export class VisitasVigilanciaService {
         this.apiService.get<any>('/api/visitas/hoy', params, undefined, 'visitas')
       );
       if (peticion !== this.ultimaPeticion) return;
-      this.items.set(extractPagedItems<VisitaVigilancia>(response));
+      // El backend las entrega de la más antigua a la más reciente; en caseta se muestran al revés
+      this.items.set(ordenarVisitasRecientesPrimero(extractPagedItems<VisitaVigilancia>(response)));
       this.totalCount.set(response?.totalCount ?? this.items().length);
       this.page.set(response?.page ?? page);
     } catch (err: any) {
@@ -63,12 +64,14 @@ export class VisitasVigilanciaService {
   }
 
   /**
-   * Registra la entrada de una visita y notifica al residente
+   * Registra la entrada de una visita y notifica al residente. Si el guardia captura las placas
+   * del vehículo se guardan junto con la entrada.
    * (POST /api/visitas/{id}/entrada)
    */
-  async registrarEntrada(id: string): Promise<VisitaVigilancia> {
+  async registrarEntrada(id: string, vehiculoPlacas?: string): Promise<VisitaVigilancia> {
+    const placas = vehiculoPlacas?.trim().toUpperCase();
     const respuesta = await firstValueFrom(
-      this.apiService.post<VisitaVigilancia>(`/api/visitas/${id}/entrada`, {}, undefined, 'visitas')
+      this.apiService.post<VisitaVigilancia>(`/api/visitas/${id}/entrada`, placas ? { vehiculoPlacas: placas } : {}, undefined, 'visitas')
     );
     return this.aplicar(id, respuesta, 'en_curso');
   }

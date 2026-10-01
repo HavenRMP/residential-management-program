@@ -3,6 +3,10 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { VisitasVigilanciaService } from '../../../core/services/visitas-vigilancia.service';
+import { DirectorioCasasService } from '../../../core/services/directorio-casas.service';
+import { VisitasHistoricoService } from '../../../core/services/visitas-historico.service';
+import { ResidenteContacto } from '../../../core/models/vivienda.model';
+import { telefonoParaLlamar } from '../../../core/utils/directorio-casas.util';
 import {
   CLASES_ESTADO_VISITA,
   ETIQUETAS_ESTADO_VISITA,
@@ -37,7 +41,7 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
             maxlength="20"
             placeholder="Código de la visita"
             autocomplete="off"
-            class="h-10 flex-1 text-sm font-mono uppercase tracking-widest rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 placeholder:normal-case placeholder:tracking-normal focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+            class="h-10 sm:flex-1 text-sm font-mono uppercase tracking-widest rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 placeholder:normal-case placeholder:tracking-normal focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
           />
           <button
             type="button"
@@ -78,11 +82,39 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
       <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div>
-            <h2 class="text-sm font-semibold text-slate-900">Visitas de hoy</h2>
-            <p class="text-xs text-slate-500 mt-0.5">Programadas y en curso. La lista se filtra mientras escribes.</p>
+            <h2 class="text-sm font-semibold text-slate-900">Visitas</h2>
+            <p class="text-xs text-slate-500 mt-0.5">
+              {{ pestana() === 'hoy' ? 'Programadas y en curso, la más reciente primero.' : 'Todas las visitas del condominio, la más reciente primero.' }}
+            </p>
           </div>
 
-          <div class="flex items-center gap-2">
+          <div class="flex items-center p-1 bg-slate-200/80 rounded-lg text-xs font-semibold text-slate-700 w-fit" role="tablist" aria-label="Lista de visitas">
+            <button
+              type="button"
+              role="tab"
+              [attr.aria-selected]="pestana() === 'hoy'"
+              (click)="cambiarPestana('hoy')"
+              class="px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
+              [ngClass]="pestana() === 'hoy' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-700'"
+            >
+              <span>Hoy</span>
+              <span class="text-[10px] px-1.5 rounded-full font-mono bg-slate-100 text-slate-800 border border-slate-200">{{ visitasService.totalCount() }}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              [attr.aria-selected]="pestana() === 'historial'"
+              (click)="cambiarPestana('historial')"
+              class="px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
+              [ngClass]="pestana() === 'historial' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-700'"
+            >
+              Historial
+            </button>
+          </div>
+        </div>
+
+        <!-- Herramientas de "Hoy": búsqueda y actualizar -->
+        <div *ngIf="pestana() === 'hoy'" class="flex items-center justify-end gap-2">
             <input
               type="text"
               [(ngModel)]="busqueda"
@@ -100,9 +132,9 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </button>
-          </div>
         </div>
 
+        <ng-container *ngIf="pestana() === 'hoy'">
         <div *ngIf="visitasService.isLoading()" class="space-y-2">
           <div *ngFor="let s of [1, 2, 3]" class="p-4 rounded-md bg-white border border-slate-200 animate-pulse h-16"></div>
         </div>
@@ -176,6 +208,101 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
             Siguiente
           </button>
         </div>
+        </ng-container>
+
+        <!-- Historial: todas las visitas del condominio, la más reciente primero -->
+        <ng-container *ngIf="pestana() === 'historial'">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <label class="sr-only" for="estado-historial">Filtrar por estado</label>
+              <select
+                id="estado-historial"
+                [ngModel]="estadoHistorial()"
+                (ngModelChange)="cambiarEstadoHistorial($event)"
+                class="h-8 text-xs rounded-lg border border-slate-300 bg-white px-2 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+              >
+                <option [ngValue]="null">Todos los estados</option>
+                <option *ngFor="let e of estados" [ngValue]="e">{{ etiquetaEstado(e) }}</option>
+              </select>
+            </div>
+            <button
+              type="button"
+              (click)="cargarHistorial(historico.page())"
+              title="Actualizar"
+              class="h-8 w-8 inline-flex items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+          </div>
+
+          <div *ngIf="historico.isLoading()" class="space-y-2" aria-busy="true">
+            <div *ngFor="let s of [1, 2, 3]" class="p-4 rounded-md bg-white border border-slate-200 animate-pulse h-16"></div>
+          </div>
+
+          <div *ngIf="!historico.isLoading() && historico.errorMessage() as msg" class="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 font-medium">
+            {{ msg }}
+          </div>
+
+          <div
+            *ngIf="!historico.isLoading() && !historico.errorMessage() && historico.items().length === 0"
+            class="py-10 text-center text-xs text-slate-500 font-medium"
+          >
+            {{ estadoHistorial() ? 'No hay visitas con este estado.' : 'Todavía no hay visitas registradas.' }}
+          </div>
+
+          <ul *ngIf="!historico.isLoading() && !historico.errorMessage()" class="space-y-2">
+            <li
+              *ngFor="let v of historico.items()"
+              class="p-4 rounded-md border border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+            >
+              <div class="min-w-0 space-y-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <p class="text-sm font-semibold text-slate-900">{{ v.nombreVisitante }} {{ v.apellidosVisitante }}</p>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border" [ngClass]="claseEstado(v.estado)">
+                    {{ etiquetaEstado(v.estado) }}
+                  </span>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border bg-slate-50 text-slate-600 border-slate-200">
+                    Casa {{ v.numeroCasa }}
+                  </span>
+                </div>
+                <p class="text-xs text-slate-600">
+                  {{ etiquetaMotivo(v.motivo) }} · Llegada {{ formatearFecha(v.fechaLlegadaEsperada) }}
+                  <span *ngIf="v.horaEntrada"> · Entró {{ formatearFecha(v.horaEntrada) }}</span>
+                  <span *ngIf="v.horaSalida"> · Salió {{ formatearFecha(v.horaSalida) }}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                (click)="abrirDetalle(v)"
+                class="shrink-0 h-8 px-3 rounded-md border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Detalle
+              </button>
+            </li>
+          </ul>
+
+          <div *ngIf="totalPaginasHistorial() > 1" class="flex items-center justify-between pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              (click)="irAPaginaHistorial(historico.page() - 1)"
+              [disabled]="historico.page() <= 1"
+              class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+            >
+              Anterior
+            </button>
+            <span class="text-xs text-slate-500 font-medium">Página {{ historico.page() }} de {{ totalPaginasHistorial() }}</span>
+            <button
+              type="button"
+              (click)="irAPaginaHistorial(historico.page() + 1)"
+              [disabled]="historico.page() >= totalPaginasHistorial()"
+              class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+            >
+              Siguiente
+            </button>
+          </div>
+        </ng-container>
       </section>
     </div>
 
@@ -214,22 +341,60 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
           <dt class="text-slate-500">Registrada por</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.creadoPorNombre || 'el residente' }}</dd>
         </dl>
 
+        <!-- A quién avisar en la casa (del directorio de casas) -->
+        <div class="mt-4 pt-3 border-t border-slate-100">
+          <p class="text-xs font-semibold text-slate-800 mb-2">A quién avisar en la casa {{ d.numeroCasa }}</p>
+          <ng-container *ngIf="residentesDeCasa(d.numeroCasa) as residentes">
+            <p *ngIf="residentes.length === 0" class="text-xs text-slate-500">
+              {{ directorio.isLoading() ? 'Cargando residentes…' : 'No hay residentes registrados en esta casa.' }}
+            </p>
+            <ul *ngIf="residentes.length > 0" class="space-y-1.5">
+              <li *ngFor="let r of residentes" class="flex items-center justify-between gap-3 text-xs">
+                <span class="font-medium text-slate-900 truncate">{{ r.nombre }} {{ r.apellidos }}</span>
+                <a
+                  *ngIf="r.telefono"
+                  [href]="enlaceTelefono(r.telefono)"
+                  class="shrink-0 font-mono text-slate-700 hover:text-[#111C99] underline-offset-2 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99] rounded"
+                >{{ r.telefono }}</a>
+                <span *ngIf="!r.telefono" class="shrink-0 text-slate-400">Sin teléfono</span>
+              </li>
+            </ul>
+          </ng-container>
+        </div>
+
+        <!-- Captura de placas al dar ingreso -->
+        <div *ngIf="d.estado === 'programada' && detalleEsDeHoy()" class="mt-3">
+          <label class="block text-xs font-semibold text-slate-800 mb-1" for="placas-entrada">Placas del vehículo (opcional)</label>
+          <input
+            id="placas-entrada"
+            type="text"
+            [(ngModel)]="placasEntrada"
+            maxlength="15"
+            autocomplete="off"
+            placeholder="Ej. ABC-123"
+            class="h-9 w-full text-xs uppercase rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 placeholder:normal-case focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+          />
+        </div>
+
         <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
           <button type="button" (click)="cerrarDetalle()"
             class="h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer">
             Cerrar
           </button>
-          <ng-container *ngTemplateOutlet="acciones; context: { $implicit: d }"></ng-container>
+          <!-- Entrada y salida solo para las visitas de hoy; las del historial son de consulta -->
+          <ng-container *ngIf="detalleEsDeHoy()">
+            <ng-container *ngTemplateOutlet="acciones; context: { $implicit: d, conPlacas: true }"></ng-container>
+          </ng-container>
         </div>
       </div>
     </div>
 
     <!-- Botón de acción según el estado de la visita -->
-    <ng-template #acciones let-v>
+    <ng-template #acciones let-v let-conPlacas="conPlacas">
       <button
         *ngIf="v.estado === 'programada'"
         type="button"
-        (click)="registrarEntrada(v)"
+        (click)="registrarEntrada(v, conPlacas ? placasEntrada : undefined)"
         [disabled]="visitaEnProceso() === v.id"
         class="h-8 px-3 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
       >
@@ -249,9 +414,13 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
 })
 export class CasetaVisitasComponent implements OnInit, OnDestroy {
   readonly visitasService = inject(VisitasVigilanciaService);
+  readonly directorio = inject(DirectorioCasasService);
+  readonly historico = inject(VisitasHistoricoService);
 
   codigo = '';
   busqueda = '';
+  /** Placas que el guardia captura en el detalle al dar ingreso */
+  placasEntrada = '';
   private temporizadorBusqueda?: ReturnType<typeof setTimeout>;
 
   readonly isValidando = signal<boolean>(false);
@@ -261,17 +430,55 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
   readonly visitaEnProceso = signal<string | null>(null);
 
   private readonly detalleId = signal<string | null>(null);
-  /** Se deriva de la lista para que el modal refleje entrada y salida registradas sin cerrarse */
+  /** Se deriva de las listas (hoy o historial) para que el modal refleje entrada y salida registradas sin cerrarse */
   readonly visitaDetalle = computed(() =>
-    this.visitasService.items().find(v => v.id === this.detalleId()) ?? null
+    this.visitasService.items().find(v => v.id === this.detalleId())
+      ?? this.historico.items().find(v => v.id === this.detalleId())
+      ?? null
   );
+  /** El detalle es de una visita de hoy (se puede dar entrada o salida) y no solo del historial */
+  readonly detalleEsDeHoy = computed(() => this.visitasService.items().some(v => v.id === this.detalleId()));
 
   readonly totalPaginas = computed(() =>
     Math.max(1, Math.ceil(this.visitasService.totalCount() / this.visitasService.PAGE_SIZE))
   );
 
+  readonly estados: EstadoVisita[] = ['programada', 'en_curso', 'finalizada', 'cancelada', 'expirada'];
+  readonly pestana = signal<'hoy' | 'historial'>('hoy');
+  readonly estadoHistorial = signal<EstadoVisita | null>(null);
+  private historialSolicitado = false;
+  readonly totalPaginasHistorial = computed(() =>
+    Math.max(1, Math.ceil(this.historico.totalCount() / this.historico.PAGE_SIZE))
+  );
+
+  /** El historial se pide la primera vez que se abre su pestaña, no al entrar a la caseta */
+  cambiarPestana(pestana: 'hoy' | 'historial'): void {
+    this.pestana.set(pestana);
+    if (pestana === 'historial' && !this.historialSolicitado) {
+      this.historialSolicitado = true;
+      this.cargarHistorial();
+    }
+  }
+
+  cargarHistorial(page: number = 1): void {
+    const estado = this.estadoHistorial();
+    this.historico.cargar(estado ? { estado } : {}, page);
+  }
+
+  cambiarEstadoHistorial(estado: EstadoVisita | null): void {
+    this.estadoHistorial.set(estado);
+    this.cargarHistorial(1);
+  }
+
+  irAPaginaHistorial(pagina: number): void {
+    if (pagina < 1 || pagina > this.totalPaginasHistorial()) return;
+    this.cargarHistorial(pagina);
+  }
+
   ngOnInit(): void {
     this.visitasService.cargarHoy();
+    // El directorio es compartido: se carga una sola vez aunque también lo use su propia tarjeta
+    this.directorio.cargar();
   }
 
   ngOnDestroy(): void {
@@ -294,8 +501,18 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
     return formatearFechaVisita(iso);
   }
 
+  residentesDeCasa(numeroCasa: string): ResidenteContacto[] {
+    return this.directorio.residentesDeCasa(numeroCasa);
+  }
+
+  enlaceTelefono(telefono: string): string {
+    return `tel:${telefonoParaLlamar(telefono)}`;
+  }
+
   abrirDetalle(v: VisitaVigilancia): void {
     this.detalleId.set(v.id);
+    // Si el residente ya indicó las placas al programar, se precargan para confirmarlas o corregirlas
+    this.placasEntrada = v.vehiculoPlacas ?? '';
   }
 
   cerrarDetalle(): void {
@@ -334,8 +551,8 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
     }
   }
 
-  async registrarEntrada(v: VisitaVigilancia): Promise<void> {
-    await this.ejecutarAccion(v, () => this.visitasService.registrarEntrada(v.id), 'Entrada registrada', 'No se pudo registrar la entrada');
+  async registrarEntrada(v: VisitaVigilancia, vehiculoPlacas?: string): Promise<void> {
+    await this.ejecutarAccion(v, () => this.visitasService.registrarEntrada(v.id, vehiculoPlacas), 'Entrada registrada', 'No se pudo registrar la entrada');
   }
 
   async registrarSalida(v: VisitaVigilancia): Promise<void> {

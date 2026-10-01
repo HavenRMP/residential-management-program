@@ -93,7 +93,8 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         
         <!-- Total Viviendas -->
-        <div class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs">
+        <a routerLink="/dashboard/admin/viviendas" aria-label="Ver directorio de viviendas"
+          class="block rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs transition hover:border-slate-300 hover:shadow-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99] cursor-pointer">
           <div class="flex items-center justify-between">
             <span class="text-xs font-semibold text-slate-600">Total viviendas</span>
             <svg class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -106,10 +107,11 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
           <p class="text-[11px] font-medium text-slate-600 mt-1">
             Inmuebles en catálogo
           </p>
-        </div>
+        </a>
 
         <!-- Residentes -->
-        <div class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs">
+        <a routerLink="/dashboard/admin/residentes" aria-label="Ver directorio de residentes"
+          class="block rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs transition hover:border-slate-300 hover:shadow-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99] cursor-pointer">
           <div class="flex items-center justify-between">
             <span class="text-xs font-semibold text-slate-600">Residentes</span>
             <svg class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -122,10 +124,11 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
           <p class="text-[11px] font-medium text-slate-600 mt-1">
             Padrón registrado
           </p>
-        </div>
+        </a>
 
         <!-- Ocupación % -->
-        <div class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs">
+        <a routerLink="/dashboard/admin/viviendas" aria-label="Ver viviendas y su ocupación"
+          class="block rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs transition hover:border-slate-300 hover:shadow-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99] cursor-pointer">
           <div class="flex items-center justify-between">
             <span class="text-xs font-semibold text-slate-600">Ocupación</span>
             <span class="text-xs font-mono font-bold" [ngClass]="colorTextoOcupacion()">
@@ -138,10 +141,11 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
           <div class="w-full h-1.5 bg-slate-200 rounded-full mt-2 overflow-hidden">
             <div class="h-full rounded-full transition-all duration-500" [ngClass]="colorBarraOcupacion()" [style.width.%]="errorMessage() ? 0 : porcentajeOcupacion()"></div>
           </div>
-        </div>
+        </a>
 
         <!-- Viviendas Libres -->
-        <div class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs">
+        <a routerLink="/dashboard/admin/viviendas" aria-label="Ver viviendas disponibles"
+          class="block rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs transition hover:border-slate-300 hover:shadow-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99] cursor-pointer">
           <div class="flex items-center justify-between">
             <span class="text-xs font-semibold text-slate-600">Disponibilidad</span>
             <span class="text-xs font-semibold text-slate-700">
@@ -154,7 +158,7 @@ import { extractPagedItems } from '../../../core/models/pagination.model';
           <p class="text-[11px] font-medium text-slate-600 mt-1">
             Viviendas disponibles
           </p>
-        </div>
+        </a>
 
       </div>
 

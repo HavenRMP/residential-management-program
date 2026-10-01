@@ -17,7 +17,9 @@ import {
   MotivoVisita,
   Visita
 } from '../../core/models/visita.model';
+import { Vivienda } from '../../core/models/vivienda.model';
 import { UserMenuComponent } from '../../core/components/user-menu/user-menu.component';
+import { generarQrDataUrl } from '../../core/utils/qr.util';
 
 const FILTROS: { valor: EstadoVisita | null; etiqueta: string }[] = [
   { valor: null, etiqueta: 'Todas' },
@@ -29,6 +31,8 @@ const FILTROS: { valor: EstadoVisita | null; etiqueta: string }[] = [
 ];
 
 interface FormularioVisita {
+  /** Vivienda para la que se programa (solo se elige cuando el residente tiene más de una) */
+  viviendaId: number;
   nombreVisitante: string;
   apellidosVisitante: string;
   telefonoVisitante: string;
@@ -166,6 +170,9 @@ function isoAInputLocal(iso: string): string {
                   <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border bg-slate-50 text-slate-600 border-slate-200">
                     {{ etiquetaMotivo(v.motivo) }}
                   </span>
+                  <span *ngIf="viviendas().length > 1" class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border bg-slate-50 text-slate-600 border-slate-200">
+                    Casa {{ v.numeroCasa }}
+                  </span>
                 </div>
                 <p class="text-xs text-slate-600">
                   Llegada: {{ formatearFecha(v.fechaLlegadaEsperada) }} · Vigente hasta {{ formatearFecha(v.vigenciaHasta) }}
@@ -189,6 +196,10 @@ function isoAInputLocal(iso: string): string {
                     <button type="button" (click)="copiarCodigo(v)"
                       class="h-6 px-2 text-[11px] font-medium rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">
                       Copiar
+                    </button>
+                    <button type="button" (click)="verQr(v)"
+                      class="h-6 px-2 text-[11px] font-medium rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">
+                      QR
                     </button>
                     <button type="button" (click)="compartirCodigo(v)"
                       class="h-6 px-2 text-[11px] font-medium rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">
@@ -261,6 +272,14 @@ function isoAInputLocal(iso: string): string {
         </div>
 
         <div class="mt-3.5 space-y-3">
+          <div *ngIf="viviendas().length > 1 && !visitaEditandoId()">
+            <label class="block text-xs font-semibold text-slate-800 mb-1">Vivienda *</label>
+            <select [(ngModel)]="form.viviendaId"
+              class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]">
+              <option *ngFor="let viv of viviendas()" [ngValue]="viv.id">{{ viv.numeroCasa }}</option>
+            </select>
+          </div>
+
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-semibold text-slate-800 mb-1">Nombre *</label>
@@ -302,6 +321,9 @@ function isoAInputLocal(iso: string): string {
               <p class="mt-1 text-[11px] text-slate-500">Entre 1 y 72 horas.</p>
             </div>
           </div>
+          <p *ngIf="visitaYaVencida()" class="text-[11px] text-red-600 font-medium">
+            Con esa llegada y vigencia la visita ya estaría vencida. Ajusta la fecha o aumenta la vigencia.
+          </p>
 
           <div class="grid grid-cols-2 gap-3">
             <div>
@@ -348,6 +370,7 @@ export class VisitasComponent implements OnInit {
 
   readonly isLoadingVivienda = signal<boolean>(true);
   readonly viviendaId = signal<number | null>(null);
+  readonly viviendas = signal<Vivienda[]>([]);
   readonly filtroActivo = signal<EstadoVisita | null>(null);
   readonly modalAbierto = signal<boolean>(false);
   readonly isSaving = signal<boolean>(false);
@@ -365,6 +388,7 @@ export class VisitasComponent implements OnInit {
     this.isLoadingVivienda.set(true);
     try {
       const viviendas = await this.viviendasService.obtenerMisViviendas();
+      this.viviendas.set(viviendas);
       const id = viviendas[0]?.id ?? null;
       this.viviendaId.set(id);
       if (id) {
@@ -434,6 +458,21 @@ export class VisitasComponent implements OnInit {
     }
   }
 
+  /** Muestra el QR del código para que el visitante lo escanee en caseta (el QR contiene solo el código) */
+  verQr(v: Visita): void {
+    if (!v.codigo) return;
+    Swal.fire({
+      title: `${v.nombreVisitante} ${v.apellidosVisitante}`,
+      text: `Código ${v.codigo} · Casa ${v.numeroCasa}`,
+      imageUrl: generarQrDataUrl(v.codigo, 240),
+      imageWidth: 240,
+      imageHeight: 240,
+      imageAlt: `Código QR ${v.codigo}`,
+      confirmButtonColor: '#111C99',
+      confirmButtonText: 'Cerrar'
+    });
+  }
+
   imprimirCodigo(v: Visita): void {
     if (!v.codigo) return;
     const ventana = window.open('', '_blank', 'width=420,height=520');
@@ -449,13 +488,15 @@ export class VisitasComponent implements OnInit {
       <h2>Acceso de visita</h2>
       <p>${e(v.nombreVisitante)} ${e(v.apellidosVisitante)}</p>
       <div class="codigo">${e(v.codigo)}</div>
+      <img src="${generarQrDataUrl(v.codigo, 200)}" width="200" height="200" alt="Código QR" />
       <p>Casa ${e(v.numeroCasa)}</p>
       <p>Llegada: ${e(this.formatearFecha(v.fechaLlegadaEsperada))}</p>
       <p>Válido hasta: ${e(this.formatearFecha(v.vigenciaHasta))}</p>
       <p>Presenta este código en caseta.</p></body></html>`);
     ventana.document.close();
     ventana.focus();
-    ventana.print();
+    // Se imprime al terminar de cargar para que el QR ya esté dibujado
+    ventana.onload = () => ventana.print();
   }
 
   private avisarExito(titulo: string): void {
@@ -472,6 +513,18 @@ export class VisitasComponent implements OnInit {
     this.visitasService.cargar(this.filtroActivo(), pagina);
   }
 
+  /**
+   * La llegada esperada más la vigencia ya pasó: la visita nacería expirada y nadie podría usarla.
+   * Una llegada pasada con vigencia todavía abierta sí es válida (ej. el visitante ya está en camino).
+   */
+  visitaYaVencida(): boolean {
+    const f = this.form;
+    const vigencia = Number(f.horasVigencia);
+    const llegada = new Date(f.fechaLlegada).getTime();
+    if (!f.fechaLlegada || isNaN(llegada) || !(vigencia >= 1)) return false;
+    return llegada + vigencia * 3_600_000 < Date.now();
+  }
+
   esFormularioValido(): boolean {
     const f = this.form;
     const vigencia = Number(f.horasVigencia);
@@ -482,7 +535,8 @@ export class VisitasComponent implements OnInit {
       f.motivo &&
       f.fechaLlegada &&
       vigencia >= 1 && vigencia <= 72 &&
-      acompanantes >= 0 && acompanantes <= 20
+      acompanantes >= 0 && acompanantes <= 20 &&
+      !this.visitaYaVencida()
     );
   }
 
@@ -498,6 +552,7 @@ export class VisitasComponent implements OnInit {
     this.visitaOriginal = v;
     const horas = Math.round((new Date(v.vigenciaHasta).getTime() - new Date(v.fechaLlegadaEsperada).getTime()) / 3_600_000);
     this.form = {
+      viviendaId: v.viviendaId,
       nombreVisitante: v.nombreVisitante,
       apellidosVisitante: v.apellidosVisitante,
       telefonoVisitante: v.telefonoVisitante ?? '',
@@ -566,10 +621,10 @@ export class VisitasComponent implements OnInit {
   }
 
   private async guardarNueva(): Promise<void> {
-    const viviendaId = this.viviendaId();
+    const f = this.form;
+    const viviendaId = f.viviendaId || this.viviendaId();
     if (!viviendaId) return;
 
-    const f = this.form;
     const dto: CrearVisitaDto = {
       viviendaId,
       nombreVisitante: f.nombreVisitante.trim(),
@@ -590,6 +645,7 @@ export class VisitasComponent implements OnInit {
       icon: 'success',
       title: 'Visita programada',
       html: `Comparte este código con tu visitante:<br><strong style="font-family:monospace;font-size:1.75rem;letter-spacing:0.2em">${creada.codigo ?? ''}</strong>`,
+      ...(creada.codigo ? { imageUrl: generarQrDataUrl(creada.codigo, 200), imageWidth: 200, imageHeight: 200, imageAlt: `Código QR ${creada.codigo}` } : {}),
       confirmButtonColor: '#111C99'
     });
   }
@@ -643,6 +699,7 @@ export class VisitasComponent implements OnInit {
 
   private formularioVacio(): FormularioVisita {
     return {
+      viviendaId: this.viviendaId() ?? 0,
       nombreVisitante: '',
       apellidosVisitante: '',
       telefonoVisitante: '',

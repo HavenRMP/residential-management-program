@@ -14,6 +14,7 @@ import { Aviso, AvisoPrioridad } from '../../../core/models/aviso.model';
 import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.component';
 import { NotificacionesPopoverComponent } from '../../../core/components/notificaciones-popover/notificaciones-popover.component';
 import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
+import { claseBadgePrioridad, etiquetaPrioridad, tiempoRestanteAviso } from '../../../core/utils/aviso-prioridad.util';
 
 @Component({
   selector: 'app-residente-dashboard',
@@ -106,7 +107,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
                 {{ subusuariosService.invitacionesRecibidas().length === 1 ? 'Tienes una invitación de sub-usuario pendiente' : 'Tienes ' + subusuariosService.invitacionesRecibidas().length + ' invitaciones de sub-usuario pendientes' }}
               </p>
               <p class="text-xs text-indigo-800/80 truncate">
-                De {{ subusuariosService.invitacionesRecibidas()[0]?.titularNombre || 'un residente' }}<span *ngIf="subusuariosService.invitacionesRecibidas()[0]?.numeroCasa"> · Unidad {{ subusuariosService.invitacionesRecibidas()[0]?.numeroCasa }}</span>. Acéptala o recházala.
+                De {{ subusuariosService.invitacionesRecibidas()[0].titularNombre || 'un residente' }}<span *ngIf="subusuariosService.invitacionesRecibidas()[0].numeroCasa"> · Unidad {{ subusuariosService.invitacionesRecibidas()[0].numeroCasa }}</span>. Acéptala o recházala.
               </p>
             </div>
           </div>
@@ -396,30 +397,15 @@ export class ResidenteDashboardComponent implements OnInit {
   }
 
   getBadgeClass(prioridad: AvisoPrioridad): string {
-    switch (prioridad) {
-      case 'urgente': return 'bg-rose-50 text-rose-700 border-rose-200';
-      case 'mantenimiento': return 'bg-amber-50 text-amber-700 border-amber-200';
-      case 'evento': return 'bg-indigo-50 text-indigo-700 border-indigo-200';
-      case 'informativo':
-      default: return 'bg-slate-100 text-slate-800 border-slate-200';
-    }
+    return claseBadgePrioridad(prioridad);
   }
 
   getPrioridadLabel(prioridad: AvisoPrioridad): string {
-    switch (prioridad) {
-      case 'urgente': return 'Urgente';
-      case 'mantenimiento': return 'Mantenimiento';
-      case 'evento': return 'Evento';
-      case 'informativo':
-      default: return 'Informativo';
-    }
+    return etiquetaPrioridad(prioridad);
   }
 
   tiempoRestante(aviso: Aviso): string {
-    const diff = new Date(aviso.fechaExpiracion).getTime() - Date.now();
-    if (diff <= 0) return 'Expirado';
-    const dias = Math.ceil(diff / (1000 * 60 * 60 * 24));
-    return dias === 1 ? '1 día restante' : `${dias} días restantes`;
+    return tiempoRestanteAviso(aviso);
   }
 
   verDetalleAviso(aviso: Aviso): void {

@@ -1,35 +1,39 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { signal } from '@angular/core';
+import Swal from 'sweetalert2';
 import { SubusuariosComponent } from './subusuarios.component';
 import { SubusuariosService } from '../../core/services/subusuarios.service';
 import { ViviendasService } from '../../core/services/viviendas.service';
 import { AuthService } from '../../core/services/auth.service';
+import { InvitacionRecibida } from '../../core/models/subusuario.model';
 
-describe('SubusuariosComponent (validación de correo)', () => {
+describe('SubusuariosComponent', () => {
   let component: SubusuariosComponent;
+  let servicio: any;
 
   beforeEach(() => {
+    servicio = {
+      MAX_SUBUSUARIOS: 2,
+      items: signal([]),
+      isLoading: signal(false),
+      errorMessage: signal(null),
+      invitacionesRecibidas: signal([]),
+      isLoadingInvitaciones: signal(false),
+      cuposDisponibles: signal(2),
+      activos: signal([]),
+      pendientes: signal([]),
+      cargar: jasmine.createSpy('cargar').and.returnValue(Promise.resolve()),
+      cargarInvitacionesRecibidas: jasmine.createSpy('cargarInvitacionesRecibidas').and.returnValue(Promise.resolve()),
+      responderInvitacion: jasmine.createSpy('responderInvitacion'),
+      revocar: jasmine.createSpy('revocar')
+    };
+
     TestBed.configureTestingModule({
       imports: [SubusuariosComponent],
       providers: [
         provideRouter([]),
-        {
-          provide: SubusuariosService,
-          useValue: {
-            MAX_SUBUSUARIOS: 2,
-            items: signal([]),
-            isLoading: signal(false),
-            errorMessage: signal(null),
-            invitacionesRecibidas: signal([]),
-            isLoadingInvitaciones: signal(false),
-            cuposDisponibles: signal(2),
-            activos: signal([]),
-            pendientes: signal([]),
-            cargar: () => Promise.resolve(),
-            cargarInvitacionesRecibidas: () => Promise.resolve()
-          }
-        },
+        { provide: SubusuariosService, useValue: servicio },
         { provide: ViviendasService, useValue: { obtenerMisViviendas: () => Promise.resolve([]) } },
         { provide: AuthService, useValue: { currentUser: signal(null), logout: () => undefined } }
       ]
@@ -38,16 +42,64 @@ describe('SubusuariosComponent (validación de correo)', () => {
     component = TestBed.createComponent(SubusuariosComponent).componentInstance;
   });
 
-  it('rechaza correos sin formato válido', () => {
-    for (const malo of ['', 'abc', 'a@b', 'a b@c.com', '@c.com']) {
-      component.nuevoSub = { email: malo, parentesco: 'Familiar' };
-      expect(component.esFormularioValido()).withContext(malo).toBeFalse();
-    }
+  describe('validación de correo', () => {
+    it('rechaza correos sin formato válido', () => {
+      for (const malo of ['', 'abc', 'a@b', 'a b@c.com', '@c.com']) {
+        component.nuevoSub = { email: malo, parentesco: 'Familiar' };
+        expect(component.esFormularioValido()).withContext(malo).toBeFalse();
+      }
+    });
+
+    it('acepta un correo válido con espacios alrededor', () => {
+      component.nuevoSub = { email: '  hijo@example.com ', parentesco: 'Familiar' };
+
+      expect(component.esFormularioValido()).toBeTrue();
+    });
   });
 
-  it('acepta un correo válido con espacios alrededor', () => {
-    component.nuevoSub = { email: '  hijo@example.com ', parentesco: 'Familiar' };
+  describe('errores al responder una invitación', () => {
+    const invitacion = { id: 'inv-1', titularNombre: 'Ana' } as InvitacionRecibida;
+    let fire: jasmine.Spy;
 
-    expect(component.esFormularioValido()).toBeTrue();
+    beforeEach(() => {
+      component.viviendaId.set(7);
+      fire = spyOn(Swal, 'fire').and.callFake(((opciones: any) =>
+        Promise.resolve({ isConfirmed: !opciones.toast && opciones.showCancelButton === true })) as any);
+    });
+
+    const avisos = () => fire.calls.allArgs().map(a => a[0] as any).filter(o => !o.showCancelButton);
+
+    it('si la invitación ya fue respondida, refresca las listas y avisa sin mostrar error', async () => {
+      servicio.responderInvitacion.and.returnValue(Promise.reject({ status: 400, error: { error: 'Error desde Supabase: {"code":"SU004"}' } }));
+
+      await component.confirmarResponderInvitacion(invitacion, 'RECHAZADA');
+
+      expect(servicio.cargarInvitacionesRecibidas).toHaveBeenCalled();
+      expect(servicio.cargar).toHaveBeenCalledWith(7);
+      const aviso = avisos().at(-1);
+      expect(aviso.icon).toBe('info');
+      expect(aviso.title).toContain('Actualizamos tu lista');
+      expect(JSON.stringify(avisos())).not.toContain('Supabase');
+    });
+
+    it('con un fallo del servidor no refresca y oculta el JSON técnico', async () => {
+      servicio.responderInvitacion.and.returnValue(Promise.reject({ status: 500, error: { error: '{"code":"XX000"}' } }));
+
+      await component.confirmarResponderInvitacion(invitacion, 'ACEPTADA');
+
+      expect(servicio.cargar).not.toHaveBeenCalled();
+      const aviso = avisos().at(-1);
+      expect(aviso.icon).toBe('error');
+      expect(aviso.text).toBe('Intenta de nuevo en unos segundos.');
+    });
+
+    it('al revocar un acceso que ya no existe también refresca la lista', async () => {
+      servicio.revocar.and.returnValue(Promise.reject({ status: 404 }));
+
+      await component.confirmarRevocar({ id: 'sub-1', activo: false, nombre: 'Luis' } as any);
+
+      expect(servicio.cargar).toHaveBeenCalledWith(7);
+      expect(avisos().at(-1).icon).toBe('info');
+    });
   });
 });

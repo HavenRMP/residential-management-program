@@ -90,4 +90,79 @@ describe('VisitasComponent (código de acceso)', () => {
 
     expect(clipboard).not.toHaveBeenCalled();
   });
+
+  it('muestra el QR del código con un diálogo que incluye la imagen', () => {
+    component.verQr(visita);
+
+    const opciones = (Swal.fire as unknown as jasmine.Spy).calls.mostRecent().args[0] as { imageUrl: string; text: string };
+    expect(opciones.imageUrl).toMatch(/^data:image\/svg\+xml/);
+    expect(opciones.text).toContain('ABC123');
+  });
+
+  it('no abre el QR si la visita no tiene código', () => {
+    component.verQr({ ...visita, codigo: null });
+
+    expect(Swal.fire).not.toHaveBeenCalled();
+  });
+});
+
+describe('VisitasComponent (fecha y vigencia)', () => {
+  let component: VisitasComponent;
+
+  const enHoras = (h: number) => {
+    const d = new Date(Date.now() + h * 3_600_000);
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [VisitasComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: VisitasService,
+          useValue: {
+            PAGE_SIZE: 10, items: signal([]), totalCount: signal(0), page: signal(1),
+            isLoading: signal(false), errorMessage: signal(null), cargar: jasmine.createSpy('cargar')
+          }
+        },
+        { provide: ViviendasService, useValue: { obtenerMisViviendas: () => Promise.resolve([{ id: 33 }]) } },
+        { provide: AuthService, useValue: { currentUser: signal(null), logout: () => undefined } }
+      ]
+    });
+    component = TestBed.createComponent(VisitasComponent).componentInstance;
+    component.form = {
+      ...component.form, nombreVisitante: 'Juan', apellidosVisitante: 'Pérez', motivo: 'personal',
+      numAcompanantes: 0, horasVigencia: 24
+    };
+  });
+
+  it('bloquea una visita cuya llegada más vigencia ya pasó', () => {
+    component.form.fechaLlegada = enHoras(-48);
+
+    expect(component.visitaYaVencida()).toBeTrue();
+    expect(component.esFormularioValido()).toBeFalse();
+  });
+
+  it('permite una llegada pasada si la vigencia sigue abierta', () => {
+    component.form.fechaLlegada = enHoras(-2);
+
+    expect(component.visitaYaVencida()).toBeFalse();
+    expect(component.esFormularioValido()).toBeTrue();
+  });
+
+  it('permite una llegada futura', () => {
+    component.form.fechaLlegada = enHoras(5);
+
+    expect(component.visitaYaVencida()).toBeFalse();
+    expect(component.esFormularioValido()).toBeTrue();
+  });
+
+  it('sin fecha no marca vencida pero el formulario tampoco es válido', () => {
+    component.form.fechaLlegada = '';
+
+    expect(component.visitaYaVencida()).toBeFalse();
+    expect(component.esFormularioValido()).toBeFalse();
+  });
 });

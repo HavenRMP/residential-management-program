@@ -208,8 +208,8 @@ class PushNotificationsService {
   }
 
   /// Solicita permisos de notificación tanto a nivel del sistema (Android 13+ y iOS)
-  /// como en Firebase Cloud Messaging, y suscribe el dispositivo a los tópicos generales.
-  static Future<bool> requestPermission() async {
+  /// como en Firebase Cloud Messaging, y suscribe el dispositivo a los tópicos generales y del usuario.
+  static Future<bool> requestPermission({String? userId}) async {
     try {
       if (Firebase.apps.isEmpty) {
         try {
@@ -249,6 +249,10 @@ class PushNotificationsService {
         try {
           await _messaging.subscribeToTopic('general');
           await _messaging.subscribeToTopic('avisos');
+          await _messaging.subscribeToTopic('avisos_urgentes');
+          if (userId != null && userId.trim().isNotEmpty) {
+            await subscribeToUserTopic(userId);
+          }
         } catch (e) {
           if (kDebugMode) {
             debugPrint('[PushNotificationsService] Error suscribiendo a tópicos: $e');
