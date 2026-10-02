@@ -100,4 +100,20 @@ class OfflineSyncService {
   }
 
   /// Recupera las visitas próximas en caché para vigilancia.
+  static Future<List<VisitaModel>> getCachedVisitasProximas() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString(_kKeyVisitasProximas);
+      if (str != null && str.isNotEmpty) {
+        final List<dynamic> list = jsonDecode(str) as List<dynamic>;
+        return list
+            .map((item) => VisitaModel.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  /// Encola una acción de entrada o salida con clave de idempotencia única.
+  /// Si la acción ya estaba encolada para la misma visita y tipo, no la duplica.
   }
