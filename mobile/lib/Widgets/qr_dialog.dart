@@ -1,3 +1,4 @@
+import '../Utils/haptic_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -7,8 +8,8 @@ class QrDialog extends StatelessWidget {
   const QrDialog({
     super.key,
     required this.codigo,
-    this.titulo = 'Código de Acceso',
-    this.subtitulo = 'Muestra este código QR en la caseta para validar tu acceso.',
+    this.titulo = 'CÃ³digo de Acceso',
+    this.subtitulo = 'Muestra este cÃ³digo QR en la caseta para validar tu acceso.',
     this.tipoEtiqueta,
     this.textoAdicional,
     this.onCompartir,
@@ -24,8 +25,8 @@ class QrDialog extends StatelessWidget {
   static Future<void> show(
     BuildContext context, {
     required String codigo,
-    String titulo = 'Código de Acceso',
-    String subtitulo = 'Muestra este código QR en la caseta para validar tu acceso.',
+    String titulo = 'CÃ³digo de Acceso',
+    String subtitulo = 'Muestra este cÃ³digo QR en la caseta para validar tu acceso.',
     String? tipoEtiqueta,
     String? textoAdicional,
     VoidCallback? onCompartir,
@@ -73,7 +74,7 @@ class QrDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Header con título y botón de cerrar
+            // Header con tÃ­tulo y botÃ³n de cerrar
             Row(
               children: [
                 Expanded(
@@ -119,7 +120,7 @@ class QrDialog extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Contenedor del código QR
+            // Contenedor del cÃ³digo QR
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -144,7 +145,7 @@ class QrDialog extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Código alfanumérico
+            // CÃ³digo alfanumÃ©rico
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
@@ -171,14 +172,14 @@ class QrDialog extends StatelessWidget {
                       Clipboard.setData(ClipboardData(text: cleanCode));
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Código copiado al portapapeles'),
+                          content: Text('CÃ³digo copiado al portapapeles'),
                           duration: Duration(seconds: 2),
                         ),
                       );
                     },
                     borderRadius: BorderRadius.circular(6),
                     child: const Tooltip(
-                      message: 'Copiar código',
+                      message: 'Copiar cÃ³digo',
                       child: Padding(
                         padding: EdgeInsets.all(4),
                         child: Icon(Icons.copy_rounded, size: 18, color: Color(0xFF64748B)),
@@ -190,7 +191,7 @@ class QrDialog extends StatelessWidget {
                     onTap: () => _compartir(context, cleanCode),
                     borderRadius: BorderRadius.circular(6),
                     child: const Tooltip(
-                      message: 'Compartir código',
+                      message: 'Compartir cÃ³digo',
                       child: Padding(
                         padding: EdgeInsets.all(4),
                         child: Icon(Icons.share_rounded, size: 18, color: Color(0xFF64748B)),
@@ -202,7 +203,7 @@ class QrDialog extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
-            // Subtítulo explicativo
+            // SubtÃ­tulo explicativo
             Text(
               subtitulo,
               style: const TextStyle(
@@ -214,7 +215,7 @@ class QrDialog extends StatelessWidget {
             ),
             const SizedBox(height: 18),
 
-            // Botones de acción: Cerrar y Compartir
+            // Botones de acciÃ³n: Cerrar y Compartir
             Row(
               children: [
                 Expanded(
