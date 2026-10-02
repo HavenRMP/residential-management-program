@@ -53,3 +53,17 @@ class OfflineApprovalAction {
 }
 
 /// Servicio que gestiona la persistencia fuera de línea, caché y cola de sincronización idempotente.
+class OfflineSyncService {
+  static const String _kKeyVisitasResidente = 'haven_offline_visitas_residente';
+  static const String _kKeyVisitasProximas = 'haven_offline_visitas_proximas';
+  static const String _kKeyOfflineApprovals = 'haven_offline_approvals_queue';
+
+  static int _idempCounter = 0;
+
+  /// Genera una clave de idempotencia única para la acción.
+  static String generateIdempotencyKey(String tipo, String visitaId) {
+    _idempCounter++;
+    return 'idemp_${tipo}_${visitaId}_${DateTime.now().microsecondsSinceEpoch}_$_idempCounter';
+  }
+
+  }
