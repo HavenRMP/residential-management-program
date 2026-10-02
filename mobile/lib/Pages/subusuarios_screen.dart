@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../Models/subusuario.dart';
 import '../Services/app_controller.dart';
 import '../Services/subusuarios_service.dart';
+import '../Widgets/qr_dialog.dart';
 import 'invitaciones_recibidas_screen.dart';
 
 class SubusuariosScreen extends StatefulWidget {
@@ -227,6 +228,19 @@ class _SubusuariosScreenState extends State<SubusuariosScreen> {
             success: true,
           );
           _cargarSubusuarios();
+
+          final itemObj = res['item'];
+          final String? itemCodigo = itemObj is SubusuarioItem ? itemObj.codigo : null;
+          final codigo = res['codigo']?.toString() ?? itemCodigo;
+          if (codigo != null && codigo.isNotEmpty && mounted) {
+            QrDialog.show(
+              context,
+              codigo: codigo,
+              titulo: 'Código de Invitación',
+              subtitulo:
+                  'Comparte este código o pide a tu familiar que lo escanee desde su aplicación HAVEN para vincularse de inmediato a la casa #${widget.numeroCasa}.',
+            );
+          }
         } else {
           widget.controller.notifyToast(
             res['error'] ?? 'Error al invitar sub-usuario',
@@ -510,6 +524,20 @@ class _SubusuariosScreenState extends State<SubusuariosScreen> {
                   ],
                 ),
               ),
+              if (esPendiente && item.codigo != null && item.codigo!.isNotEmpty)
+                IconButton(
+                  icon: const Icon(Icons.qr_code_2_rounded, color: Color(0xFF111C99)),
+                  tooltip: 'Ver código QR de invitación',
+                  onPressed: () {
+                    QrDialog.show(
+                      context,
+                      codigo: item.codigo!,
+                      titulo: 'Invitación de Sub-usuario',
+                      subtitulo:
+                          'Muestra este código QR o compártelo para que tu familiar se vincule a la casa #${widget.numeroCasa}.',
+                    );
+                  },
+                ),
               IconButton(
                 icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626)),
                 onPressed: () => _revocarSubusuario(item),
@@ -538,15 +566,54 @@ class _SubusuariosScreenState extends State<SubusuariosScreen> {
             ),
           ],
           if (esPendiente) ...[
-            const SizedBox(height: 8),
-            const Row(
+            const SizedBox(height: 10),
+            Row(
               children: [
-                Icon(Icons.schedule_rounded, size: 13, color: Color(0xFF94A3B8)),
-                SizedBox(width: 5),
-                Text(
-                  'Esperando a que el invitado acepte desde su app Haven',
-                  style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Color(0xFF64748B)),
+                const Icon(Icons.schedule_rounded, size: 14, color: Color(0xFF94A3B8)),
+                const SizedBox(width: 6),
+                const Expanded(
+                  child: Text(
+                    'Esperando a que el invitado acepte desde su app HAVEN',
+                    style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Color(0xFF64748B)),
+                  ),
                 ),
+                if (item.codigo != null && item.codigo!.isNotEmpty)
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () {
+                      QrDialog.show(
+                        context,
+                        codigo: item.codigo!,
+                        titulo: 'Invitación de Sub-usuario',
+                        subtitulo:
+                            'Muestra este código QR o compártelo para que tu familiar se vincule a la casa #${widget.numeroCasa}.',
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEEF2FF),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFC7D2FE)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.qr_code_rounded, size: 15, color: Color(0xFF111C99)),
+                          const SizedBox(width: 4),
+                          Text(
+                            item.codigo!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.1,
+                              color: Color(0xFF111C99),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
               ],
             ),
           ],
