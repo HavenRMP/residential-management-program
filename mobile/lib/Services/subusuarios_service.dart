@@ -36,9 +36,43 @@ class SubusuariosService {
         if (response.body.isEmpty) return [];
         final decoded = jsonDecode(response.body);
         if (decoded is List) {
-          return decoded
+          final items = decoded
               .map((item) => SubusuarioItem.fromJson(item as Map<String, dynamic>))
               .toList();
+
+          // Enriquecer códigos de invitaciones pendientes si vienen nulos
+          final pendientesSinCodigo = items.where((i) => i.isPendiente && (i.codigo == null || i.codigo!.isEmpty)).toList();
+          final supa = controller.supabaseClient;
+          if (pendientesSinCodigo.isNotEmpty && supa != null) {
+            try {
+              final supaInvitaciones = await supa
+                  .from('invitaciones_subusuarios')
+                  .select('id, email_invitado, codigo_invitacion')
+                  .eq('vivienda_id', viviendaId)
+                  .eq('estado', 'pendiente');
+
+              final mapCodes = <String, String>{};
+              for (final row in supaInvitaciones) {
+                final c = row['codigo_invitacion']?.toString();
+                final id = row['id']?.toString();
+                final email = row['email_invitado']?.toString().toLowerCase();
+                if (c != null && c.isNotEmpty) {
+                  if (id != null) mapCodes[id] = c;
+                  if (email != null) mapCodes[email] = c;
+                }
+              }
+                for (int i = 0; i < items.length; i++) {
+                  if (items[i].isPendiente && (items[i].codigo == null || items[i].codigo!.isEmpty)) {
+                    final found = mapCodes[items[i].id] ?? mapCodes[items[i].email.toLowerCase()];
+                    if (found != null) {
+                      items[i] = items[i].copyWith(codigo: found);
+                    }
+                  }
+                }
+            } catch (_) {}
+          }
+
+          return items;
         }
       }
       return [];
@@ -71,9 +105,17 @@ class SubusuariosService {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
         if (decoded is Map<String, dynamic>) {
+          var item = SubusuarioItem.fromJson(decoded);
+          if (item.codigo == null || item.codigo!.isEmpty) {
+            final fetched = await _fetchCodigoInvitacion(item.id, viviendaId, email);
+            if (fetched != null) {
+              item = item.copyWith(codigo: fetched);
+            }
+          }
           return {
             'success': true,
-            'item': SubusuarioItem.fromJson(decoded),
+            'item': item,
+            'codigo': item.codigo,
           };
         }
         return {'success': true};
@@ -96,6 +138,104 @@ class SubusuariosService {
       return {'success': false, 'error': errorMsg};
     } catch (e) {
       return {'success': false, 'error': 'Error de conexión: $e'};
+    }
+  }
+
+  Future<String?> _fetchCodigoInvitacion(String invitacionId, int viviendaId, String email) async {
+    final supa = controller.supabaseClient;
+    if (supa == null) return null;
+    try {
+      final res = await supa
+          .from('invitaciones_subusuarios')
+          .select('codigo_invitacion')
+          .eq('vivienda_id', viviendaId)
+          .eq('email_invitado', email.trim().toLowerCase())
+          .eq('estado', 'pendiente')
+          .order('creado_en', ascending: false)
+          .limit(1)
+          .maybeSingle();
+      if (res != null && res['codigo_invitacion'] != null) {
+        return res['codigo_invitacion'].toString();
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Canjea un código de invitación de sub-usuario para vincularse a una vivienda
+  /// (POST /api/subusuarios/redimir-codigo o fallback RPC redimir_codigo_subusuario)
+  Future<Map<String, dynamic>?> redimirCodigo(String codigo, {String? usuarioId}) async {
+    final cleanCode = codigo.trim().toUpperCase();
+    if (cleanCode.isEmpty) {
+      return {'error': 'El código no puede estar vacío'};
+    }
+
+    final payload = <String, dynamic>{'codigo': cleanCode};
+    if (usuarioId != null && usuarioId.isNotEmpty) {
+      payload['usuarioId'] = usuarioId;
+    }
+
+    // 1. Intentar endpoint REST de la API de Usuarios
+    try {
+      final url = '$baseUrl/api/subusuarios/redimir-codigo';
+      final response = await controller.httpClient.post(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+        body: jsonEncode(payload),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        if (response.body.isEmpty) return {'success': true};
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          if (!decoded.containsKey('success')) decoded['success'] = true;
+          return decoded;
+        }
+        return {'success': true, 'data': decoded};
+      } else if (response.statusCode != 404) {
+        try {
+          final errDecoded = jsonDecode(response.body);
+          if (errDecoded is Map && errDecoded['error'] != null) {
+            return {'error': errDecoded['error']};
+          }
+        } catch (_) {}
+        return {'error': 'Error HTTP ${response.statusCode}'};
+      }
+    } catch (_) {
+      // Continuar a fallback de RPC Supabase
+    }
+
+    // 2. Fallback directo a Supabase RPC redimir_codigo_subusuario
+    final supa = controller.supabaseClient;
+    if (supa == null) {
+      return {'error': 'Cliente de base de datos no disponible'};
+    }
+
+    try {
+      final rpcParams = <String, dynamic>{'p_codigo': cleanCode};
+      if (usuarioId != null && usuarioId.isNotEmpty) {
+        rpcParams['p_usuario_id'] = usuarioId;
+      }
+
+      final rpcRes = await supa.rpc('redimir_codigo_subusuario', params: rpcParams);
+
+      if (rpcRes == true) {
+        return {
+          'success': true,
+          'message': '¡Código canjeado exitosamente! Ahora eres co-residente de la vivienda.',
+        };
+      } else {
+        return {'error': 'No se pudo redimir el código de sub-usuario'};
+      }
+    } catch (e) {
+      final errStr = e.toString();
+      if (errStr.contains('CD001') || errStr.contains('no existe') || errStr.contains('expirado')) {
+        return {'error': 'El código de invitación no existe, ya fue utilizado o ha expirado.'};
+      } else if (errStr.contains('SU001') || errStr.contains('Límite')) {
+        return {'error': 'Límite máximo de 2 sub-usuarios alcanzado en la vivienda.'};
+      } else if (errStr.contains('SU003') || errStr.contains('ya está vinculado') || errStr.contains('ya es')) {
+        return {'error': 'Ya eres co-residente o titular de esta vivienda.'};
+      }
+      return {'error': errStr};
     }
   }
 
