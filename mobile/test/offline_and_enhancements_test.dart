@@ -203,4 +203,32 @@ void main() {
     });
   });
 
-  }
+  group('LoginScreen Remember Email Tests', () {
+    testWidgets('Renders remember email checkbox and toggles', (tester) async {
+      SharedPreferences.setMockInitialValues({'saved_login_email': 'test@haven.com', 'remember_login_email': true});
+      final controller = AppController(null);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: LoginScreen(controller: controller),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Recordar mi correo'), findsOneWidget);
+      expect(find.byType(Checkbox), findsOneWidget);
+
+      final checkbox = tester.widget<Checkbox>(find.byType(Checkbox));
+      expect(checkbox.value, isTrue);
+
+      // Tap on the text label to toggle
+      await tester.tap(find.text('Recordar mi correo'));
+      await tester.pumpAndSettle();
+
+      final updatedCheckbox = tester.widget<Checkbox>(find.byType(Checkbox));
+      expect(updatedCheckbox.value, isFalse);
+    });
+  });
+}
