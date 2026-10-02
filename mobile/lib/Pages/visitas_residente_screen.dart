@@ -985,7 +985,7 @@ class _VisitasResidenteScreenState extends State<VisitasResidenteScreen> {
                                             ),
                                             child: const Tooltip(
                                               message:
-                                                  'Compartir',
+                                                  'Ver / Compartir Pase PNG',
                                               child: Icon(
                                                 Icons.image_rounded,
                                                 size: 13,
