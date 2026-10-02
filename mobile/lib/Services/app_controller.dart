@@ -49,6 +49,7 @@ class AppController extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   AuthUser? get currentUser => _currentUser;
   String? get accessToken => _session?.accessToken;
+  SupabaseClient? get supabaseClient => _supabaseClient;
 
   bool get isProfileIncomplete {
     if (_currentUser == null) return false;
