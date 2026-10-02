@@ -122,4 +122,50 @@ class VisitaModel {
       'creadoEn': creadoEn?.toUtc().toIso8601String(),
     };
   }
+
+  VisitaModel copyWith({
+    String? id,
+    int? viviendaId,
+    String? numeroCasa,
+    String? condominioId,
+    String? nombreVisitante,
+    String? apellidosVisitante,
+    String? telefonoVisitante,
+    String? motivo,
+    int? numAcompanantes,
+    String? vehiculoPlacas,
+    String? notas,
+    DateTime? fechaLlegadaEsperada,
+    DateTime? vigenciaHasta,
+    String? estado,
+    DateTime? horaEntrada,
+    DateTime? horaSalida,
+    String? codigo,
+    String? creadoPor,
+    String? creadoPorNombre,
+    DateTime? creadoEn,
+  }) {
+    return VisitaModel(
+      id: id ?? this.id,
+      viviendaId: viviendaId ?? this.viviendaId,
+      numeroCasa: numeroCasa ?? this.numeroCasa,
+      condominioId: condominioId ?? this.condominioId,
+      nombreVisitante: nombreVisitante ?? this.nombreVisitante,
+      apellidosVisitante: apellidosVisitante ?? this.apellidosVisitante,
+      telefonoVisitante: telefonoVisitante ?? this.telefonoVisitante,
+      motivo: motivo ?? this.motivo,
+      numAcompanantes: numAcompanantes ?? this.numAcompanantes,
+      vehiculoPlacas: vehiculoPlacas ?? this.vehiculoPlacas,
+      notas: notas ?? this.notas,
+      fechaLlegadaEsperada: fechaLlegadaEsperada ?? this.fechaLlegadaEsperada,
+      vigenciaHasta: vigenciaHasta ?? this.vigenciaHasta,
+      estado: estado ?? this.estado,
+      horaEntrada: horaEntrada ?? this.horaEntrada,
+      horaSalida: horaSalida ?? this.horaSalida,
+      codigo: codigo ?? this.codigo,
+      creadoPor: creadoPor ?? this.creadoPor,
+      creadoPorNombre: creadoPorNombre ?? this.creadoPorNombre,
+      creadoEn: creadoEn ?? this.creadoEn,
+    );
+  }
 }
