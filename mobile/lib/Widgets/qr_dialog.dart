@@ -1,15 +1,16 @@
-import '../Utils/haptic_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../Utils/share_helper.dart';
+import '../Utils/haptic_helper.dart';
+import 'digital_pass_card.dart';
 
 class QrDialog extends StatelessWidget {
   const QrDialog({
     super.key,
     required this.codigo,
-    this.titulo = 'CÃ³digo de Acceso',
-    this.subtitulo = 'Muestra este cÃ³digo QR en la caseta para validar tu acceso.',
+    this.titulo = 'Código de Acceso',
+    this.subtitulo = 'Muestra este código QR en la caseta para validar tu acceso.',
     this.tipoEtiqueta,
     this.textoAdicional,
     this.onCompartir,
@@ -25,8 +26,8 @@ class QrDialog extends StatelessWidget {
   static Future<void> show(
     BuildContext context, {
     required String codigo,
-    String titulo = 'CÃ³digo de Acceso',
-    String subtitulo = 'Muestra este cÃ³digo QR en la caseta para validar tu acceso.',
+    String titulo = 'Código de Acceso',
+    String subtitulo = 'Muestra este código QR en la caseta para validar tu acceso.',
     String? tipoEtiqueta,
     String? textoAdicional,
     VoidCallback? onCompartir,
@@ -45,6 +46,7 @@ class QrDialog extends StatelessWidget {
   }
 
   void _compartir(BuildContext context, String cleanCode) {
+    HapticHelper.light();
     if (onCompartir != null) {
       onCompartir!();
     } else {
@@ -57,6 +59,17 @@ class QrDialog extends StatelessWidget {
         textoAdicional: textoAdicional,
       );
     }
+  }
+
+  void _compartirPng(BuildContext context, String cleanCode) {
+    HapticHelper.selection();
+    DigitalPassPreviewDialog.show(
+      context,
+      codigo: cleanCode,
+      titulo: titulo,
+      subtitulo: subtitulo,
+      tipoEtiqueta: tipoEtiqueta,
+    );
   }
 
   @override
@@ -74,7 +87,7 @@ class QrDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Header con tÃ­tulo y botÃ³n de cerrar
+            // Header con título y botón de cerrar
             Row(
               children: [
                 Expanded(
@@ -112,7 +125,10 @@ class QrDialog extends StatelessWidget {
                   ),
                 ),
                 IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () {
+                    HapticHelper.light();
+                    Navigator.of(context).pop();
+                  },
                   icon: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8)),
                   tooltip: 'Cerrar',
                 ),
@@ -120,7 +136,7 @@ class QrDialog extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Contenedor del cÃ³digo QR
+            // Contenedor del código QR
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -145,7 +161,7 @@ class QrDialog extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // CÃ³digo alfanumÃ©rico
+            // Código alfanumérico
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
@@ -169,17 +185,18 @@ class QrDialog extends StatelessWidget {
                   const SizedBox(width: 8),
                   InkWell(
                     onTap: () {
+                      HapticHelper.success();
                       Clipboard.setData(ClipboardData(text: cleanCode));
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('CÃ³digo copiado al portapapeles'),
+                          content: Text('Código copiado al portapapeles'),
                           duration: Duration(seconds: 2),
                         ),
                       );
                     },
                     borderRadius: BorderRadius.circular(6),
                     child: const Tooltip(
-                      message: 'Copiar cÃ³digo',
+                      message: 'Copiar código',
                       child: Padding(
                         padding: EdgeInsets.all(4),
                         child: Icon(Icons.copy_rounded, size: 18, color: Color(0xFF64748B)),
@@ -188,10 +205,22 @@ class QrDialog extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   InkWell(
+                    onTap: () => _compartirPng(context, cleanCode),
+                    borderRadius: BorderRadius.circular(6),
+                    child: const Tooltip(
+                      message: 'Generar tarjeta PNG',
+                      child: Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(Icons.image_outlined, size: 18, color: Color(0xFF64748B)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  InkWell(
                     onTap: () => _compartir(context, cleanCode),
                     borderRadius: BorderRadius.circular(6),
                     child: const Tooltip(
-                      message: 'Compartir cÃ³digo',
+                      message: 'Compartir texto',
                       child: Padding(
                         padding: EdgeInsets.all(4),
                         child: Icon(Icons.share_rounded, size: 18, color: Color(0xFF64748B)),
@@ -203,7 +232,7 @@ class QrDialog extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
-            // SubtÃ­tulo explicativo
+            // Subtítulo explicativo
             Text(
               subtitulo,
               style: const TextStyle(
@@ -215,36 +244,41 @@ class QrDialog extends StatelessWidget {
             ),
             const SizedBox(height: 18),
 
-            // Botones de acciÃ³n: Cerrar y Compartir
-            Row(
+            // Botones de acción: Cerrar, Tarjeta PNG y Compartir
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                Expanded(
-                  child: SizedBox(
-                    height: 44,
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF475569),
-                        side: const BorderSide(color: Color(0xFFCBD5E1)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      child: const Text('Cerrar', style: TextStyle(fontWeight: FontWeight.w600)),
-                    ),
+                OutlinedButton(
+                  onPressed: () {
+                    HapticHelper.light();
+                    Navigator.of(context).pop();
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF475569),
+                    side: const BorderSide(color: Color(0xFFCBD5E1)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text('Cerrar', style: TextStyle(fontWeight: FontWeight.w600)),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _compartirPng(context, cleanCode),
+                  icon: const Icon(Icons.image_outlined, size: 17),
+                  label: const Text('Pase PNG', style: TextStyle(fontWeight: FontWeight.w600)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF111C99),
+                    side: const BorderSide(color: Color(0xFFC7D2FE)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: SizedBox(
-                    height: 44,
-                    child: FilledButton.icon(
-                      onPressed: () => _compartir(context, cleanCode),
-                      icon: const Icon(Icons.share_rounded, size: 18),
-                      label: const Text('Compartir', style: TextStyle(fontWeight: FontWeight.w600)),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF111C99),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
+                FilledButton.icon(
+                  onPressed: () => _compartir(context, cleanCode),
+                  icon: const Icon(Icons.share_rounded, size: 17),
+                  label: const Text('Compartir', style: TextStyle(fontWeight: FontWeight.w600)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF111C99),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
               ],
@@ -255,3 +289,4 @@ class QrDialog extends StatelessWidget {
     );
   }
 }
+
