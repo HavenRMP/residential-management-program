@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../Models/subusuario.dart';
 import '../Services/app_controller.dart';
 import '../Services/subusuarios_service.dart';
+import '../Widgets/qr_scanner_view.dart';
 
 class InvitacionesRecibidasScreen extends StatefulWidget {
   const InvitacionesRecibidasScreen({super.key, required this.controller});
@@ -15,6 +16,7 @@ class InvitacionesRecibidasScreen extends StatefulWidget {
 class _InvitacionesRecibidasScreenState extends State<InvitacionesRecibidasScreen> {
   late final SubusuariosService _service;
   bool _isLoading = true;
+  bool _isCanjeando = false;
   List<InvitacionSubusuario> _invitaciones = [];
   final Set<String> _processingIds = {};
 
@@ -34,6 +36,158 @@ class _InvitacionesRecibidasScreenState extends State<InvitacionesRecibidasScree
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _canjearCodigo(String rawCode) async {
+    final code = rawCode.trim().toUpperCase();
+    if (code.isEmpty) {
+      widget.controller.notifyToast('Ingresa un código válido', success: false);
+      return;
+    }
+
+    setState(() => _isCanjeando = true);
+    widget.controller.notifyToast('Canjeando código...', success: true);
+
+    final userId = widget.controller.currentUser?.id;
+    final res = await _service.redimirCodigo(code, usuarioId: userId);
+
+    if (mounted) {
+      setState(() => _isCanjeando = false);
+
+      if (res != null && (res['success'] == true || res['data'] != null)) {
+        widget.controller.notifyToast(
+          res['message']?.toString() ?? '¡Código canjeado! Ahora eres co-residente de la vivienda.',
+          success: true,
+        );
+        await widget.controller.forceRefreshSession();
+        await _cargarInvitaciones();
+      } else {
+        widget.controller.notifyToast(
+          res?['error']?.toString() ?? 'No se pudo canjear el código',
+          success: false,
+        );
+      }
+    }
+  }
+
+  Future<void> _mostrarModalCanjear() async {
+    final codeController = TextEditingController();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFCBD5E1),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const Row(
+                  children: [
+                    Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF111C99), size: 24),
+                    SizedBox(width: 8),
+                    Text(
+                      'Canjear Código de Sub-usuario',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Ingresa el código alfanumérico que te compartió el titular de la vivienda o escanéalo con tu cámara.',
+                  style: TextStyle(fontSize: 13, color: Color(0xFF64748B), height: 1.4),
+                ),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: codeController,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: InputDecoration(
+                    labelText: 'Código de Invitación (ej. SUB12345)',
+                    hintText: 'Escribe o pega el código',
+                    prefixIcon: const Icon(Icons.key_rounded, color: Color(0xFF111C99)),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.camera_alt_outlined),
+                        label: const Text('Escanear QR'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          foregroundColor: const Color(0xFF111C99),
+                          side: const BorderSide(color: Color(0xFF111C99)),
+                        ),
+                        onPressed: () async {
+                          final scanned = await QrScannerView.openScanner(
+                            context,
+                            titulo: 'Escanear QR de Invitación',
+                            instrucciones: 'Apunta la cámara al código QR de la invitación',
+                          );
+                          if (scanned != null && scanned.trim().isNotEmpty) {
+                            if (ctx.mounted) Navigator.pop(ctx);
+                            _canjearCodigo(scanned);
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF111C99),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () {
+                          final typed = codeController.text.trim();
+                          if (typed.isNotEmpty) {
+                            Navigator.pop(ctx);
+                            _canjearCodigo(typed);
+                          }
+                        },
+                        child: const Text('Canjear', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _responder(InvitacionSubusuario inv, bool aceptar) async {
@@ -112,6 +266,19 @@ class _InvitacionesRecibidasScreenState extends State<InvitacionesRecibidasScree
         foregroundColor: const Color(0xFF0F172A),
         elevation: 0,
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF111C99)),
+            tooltip: 'Canjear código con QR',
+            onPressed: _isCanjeando ? null : _mostrarModalCanjear,
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _isCanjeando ? null : _mostrarModalCanjear,
+        backgroundColor: const Color(0xFF111C99),
+        icon: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white),
+        label: const Text('Canjear Código / QR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF111C99)))
@@ -121,7 +288,7 @@ class _InvitacionesRecibidasScreenState extends State<InvitacionesRecibidasScree
               child: _invitaciones.isEmpty
                   ? _buildEmptyState()
                   : ListView.builder(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
                       itemCount: _invitaciones.length,
                       itemBuilder: (context, index) {
                         final inv = _invitaciones[index];
@@ -168,9 +335,23 @@ class _InvitacionesRecibidasScreenState extends State<InvitacionesRecibidasScree
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Cuando el titular de una vivienda te invite con tu correo electrónico, aparecerá aquí para que puedas aceptarla.',
+                      'Cuando el titular de una vivienda te invite con tu correo electrónico o te comparta un código QR, podrás vincularte aquí.',
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                    ),
+                    const SizedBox(height: 24),
+                    FilledButton.icon(
+                      onPressed: _mostrarModalCanjear,
+                      icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
+                      label: const Text(
+                        'Canjear código o escanear QR',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF111C99),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
                     ),
                   ],
                 ),
