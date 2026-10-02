@@ -7,6 +7,8 @@ import '../Services/visitas_service.dart';
 import '../Services/avisos_service.dart';
 import '../Services/push_notifications_service.dart';
 import 'perfil_screen.dart';
+import '../Widgets/qr_scanner_view.dart';
+import '../Widgets/qr_dialog.dart';
 
 class VigilanteDashboardScreen extends StatefulWidget {
   final AppController controller;
@@ -441,6 +443,34 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
     }
   }
 
+  Future<void> _abrirEscanerQR() async {
+    final codigo = await QrScannerView.openScanner(
+      context,
+      titulo: 'Escanear Pase de Visita',
+      instrucciones: 'Apunta la cámara al código QR del visitante',
+    );
+    if (codigo != null && codigo.trim().isNotEmpty) {
+      await _validarCodigoDirecto(codigo.trim());
+    }
+  }
+
+  Future<void> _validarCodigoDirecto(String cod) async {
+    widget.controller.notifyToast('Validando código: $cod...', success: true);
+    final service = VisitasService(widget.controller);
+    final res = await service.validarCodigo(cod);
+    if (res['success'] == true) {
+      final visita = res['visita'] as VisitaModel;
+      if (mounted) {
+        _mostrarResultadoValidacion(visita);
+      }
+    } else {
+      widget.controller.notifyToast(
+        res['error'] ?? 'Código inválido o expirado',
+        success: false,
+      );
+    }
+  }
+
   Future<void> _abrirValidarCodigoDialog() async {
     _codigoModalController.clear();
     bool isValidating = false;
@@ -457,21 +487,48 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
                 children: [
                   Icon(Icons.qr_code_scanner_rounded, color: Color(0xFFD97706)),
                   SizedBox(width: 8),
-                  Text('Validar Código'),
+                  Text('Validar Acceso'),
                 ],
               ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text(
-                    'Ingresa el código alfanumérico proporcionado por el visitante:',
-                    style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                  // Botón directo para escanear con la cámara
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(dialogCtx);
+                      await _abrirEscanerQR();
+                    },
+                    icon: const Icon(Icons.camera_alt_outlined, color: Color(0xFFD97706)),
+                    label: const Text(
+                      'Escanear con Cámara',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFD97706)),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      side: const BorderSide(color: Color(0xFFD97706), width: 1.5),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Row(
+                    children: [
+                      Expanded(child: Divider(color: Color(0xFFE2E8F0))),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 10),
+                        child: Text(
+                          'o escribe el código manual',
+                          style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                        ),
+                      ),
+                      Expanded(child: Divider(color: Color(0xFFE2E8F0))),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: _codigoModalController,
-                    autofocus: true,
+                    autofocus: false,
                     textCapitalization: TextCapitalization.characters,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
@@ -730,14 +787,30 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _abrirValidarCodigoDialog,
-        backgroundColor: const Color(0xFFD97706),
-        icon: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white),
-        label: const Text(
-          'Validar Código',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'fab_manual_code',
+            onPressed: _abrirValidarCodigoDialog,
+            backgroundColor: Colors.white,
+            foregroundColor: const Color(0xFFD97706),
+            tooltip: 'Ingresar código manual',
+            child: const Icon(Icons.keyboard_outlined),
+          ),
+          const SizedBox(height: 10),
+          FloatingActionButton.extended(
+            heroTag: 'fab_scan_qr',
+            onPressed: _abrirEscanerQR,
+            backgroundColor: const Color(0xFFD97706),
+            icon: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white),
+            label: const Text(
+              'Escanear QR',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
       ),
       body: RefreshIndicator(
         color: const Color(0xFFD97706),
@@ -2097,32 +2170,49 @@ void _mostrarDetalleVisitaSheet(BuildContext context, VisitaModel v) {
               const SizedBox(height: 12),
 
               if (v.codigo != null && v.codigo!.isNotEmpty)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 14),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Código de Acceso:',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
-                      ),
-                      Text(
-                        v.codigo!,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontFamily: 'monospace',
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 2,
-                          color: Color(0xFF0F172A),
+                InkWell(
+                  onTap: () {
+                    QrDialog.show(
+                      context,
+                      codigo: v.codigo!,
+                      titulo: 'Pase de Visita',
+                      subtitulo: 'Código de acceso para ${v.nombreCompletoVisitante}',
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 14),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.qr_code_2_rounded, size: 20, color: Color(0xFFD97706)),
+                            SizedBox(width: 8),
+                            Text(
+                              'Código de Acceso:',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                        Text(
+                          v.codigo!,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontFamily: 'monospace',
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
 

@@ -4,6 +4,8 @@ import '../Models/visita_model.dart';
 import '../Services/app_controller.dart';
 import '../Services/visitas_service.dart';
 import '../Widgets/programar_visita_modal.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import '../Widgets/qr_dialog.dart';
 
 class VisitasResidenteScreen extends StatefulWidget {
   final AppController controller;
@@ -124,7 +126,7 @@ class _VisitasResidenteScreenState extends State<VisitasResidenteScreen> {
       return;
     }
 
-    final creada = await showModalBottomSheet<bool>(
+    final res = await showModalBottomSheet<dynamic>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -134,8 +136,19 @@ class _VisitasResidenteScreenState extends State<VisitasResidenteScreen> {
       ),
     );
 
-    if (creada == true) {
+    if (res != null) {
       _cargarVisitas(refresh: true);
+      if (res is VisitaModel && res.codigo != null && res.codigo!.isNotEmpty) {
+        if (mounted) {
+          QrDialog.show(
+            context,
+            codigo: res.codigo!,
+            titulo: '¡Visita Creada con Éxito!',
+            subtitulo: 'Comparte este código o código QR con ${res.nombreCompletoVisitante} para su ingreso.',
+            tipoEtiqueta: 'Casa ${res.numeroCasa}',
+          );
+        }
+      }
     }
   }
 
@@ -248,7 +261,7 @@ class _VisitasResidenteScreenState extends State<VisitasResidenteScreen> {
             ),
             const SizedBox(height: 20),
 
-            // Tarjeta con Código de Acceso
+            // Tarjeta con Código de Acceso y Código QR
             if (v.codigo != null && v.codigo!.isNotEmpty) ...[
               Container(
                 padding: const EdgeInsets.all(16),
@@ -262,7 +275,7 @@ class _VisitasResidenteScreenState extends State<VisitasResidenteScreen> {
                 child: Column(
                   children: [
                     const Text(
-                      'CÓDIGO DE ACCESO',
+                      'PASE Y CÓDIGO DE ACCESO',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -270,28 +283,84 @@ class _VisitasResidenteScreenState extends State<VisitasResidenteScreen> {
                         color: Color(0xFF4338CA),
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: () {
+                        QrDialog.show(
+                          context,
+                          codigo: v.codigo!,
+                          titulo: 'Pase de Visita',
+                          subtitulo: 'Muestra este código al vigilante para ingresar.',
+                          tipoEtiqueta: 'Casa ${v.numeroCasa}',
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFC7D2FE)),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x0A000000),
+                              blurRadius: 8,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: QrImageView(
+                          data: v.codigo!,
+                          version: QrVersions.auto,
+                          size: 160,
+                          backgroundColor: Colors.white,
+                          padding: const EdgeInsets.all(4),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     SelectableText(
                       v.codigo!,
                       style: const TextStyle(
-                        fontSize: 28,
+                        fontSize: 26,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 4,
                         color: Color(0xFF1E1B4B),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        Clipboard.setData(ClipboardData(text: v.codigo!));
-                        widget.controller.notifyToast('Código copiado al portapapeles', success: true);
-                      },
-                      icon: const Icon(Icons.copy_rounded, size: 16),
-                      label: const Text('Copiar código'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF4338CA),
-                        side: const BorderSide(color: Color(0xFF818CF8)),
-                      ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            Clipboard.setData(ClipboardData(text: v.codigo!));
+                            widget.controller.notifyToast('Código copiado al portapapeles', success: true);
+                          },
+                          icon: const Icon(Icons.copy_rounded, size: 16),
+                          label: const Text('Copiar'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF4338CA),
+                            side: const BorderSide(color: Color(0xFF818CF8)),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton.icon(
+                          onPressed: () {
+                            QrDialog.show(
+                              context,
+                              codigo: v.codigo!,
+                              titulo: 'Pase de Visita',
+                              subtitulo: 'Muestra este código al vigilante para ingresar.',
+                              tipoEtiqueta: 'Casa ${v.numeroCasa}',
+                            );
+                          },
+                          icon: const Icon(Icons.qr_code_2_rounded, size: 16),
+                          label: const Text('Ampliar QR'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF4338CA),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -654,20 +723,39 @@ class _VisitasResidenteScreenState extends State<VisitasResidenteScreen> {
                                       ],
                                     ),
                                     if (v.codigo != null && v.codigo!.isNotEmpty)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFF1F5F9),
-                                          borderRadius: BorderRadius.circular(6),
-                                          border: Border.all(color: const Color(0xFFCBD5E1)),
-                                        ),
-                                        child: Text(
-                                          v.codigo!,
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            fontFamily: 'monospace',
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF0F172A),
+                                      InkWell(
+                                        onTap: () {
+                                          QrDialog.show(
+                                            context,
+                                            codigo: v.codigo!,
+                                            titulo: 'Pase de Visita',
+                                            subtitulo: 'Muestra este código al vigilante para ingresar.',
+                                            tipoEtiqueta: 'Casa ${v.numeroCasa}',
+                                          );
+                                        },
+                                        borderRadius: BorderRadius.circular(6),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFEEF2FF),
+                                            borderRadius: BorderRadius.circular(6),
+                                            border: Border.all(color: const Color(0xFFC7D2FE)),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(Icons.qr_code_2_rounded, size: 13, color: Color(0xFF4338CA)),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                v.codigo!,
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  fontFamily: 'monospace',
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Color(0xFF4338CA),
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ),

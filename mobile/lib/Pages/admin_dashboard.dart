@@ -10,6 +10,7 @@ import 'avisos_admin_screen.dart';
 import 'visitas_admin_screen.dart';
 import 'perfil_screen.dart';
 import '../Services/push_notifications_service.dart';
+import '../Widgets/qr_dialog.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key, required this.controller});
@@ -399,72 +400,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 if (res != null && context.mounted) {
                                   final codigo =
                                       res['codigo'] ?? res['code'] ?? '—';
-                                  showDialog(
-                                    context: context,
-                                    builder: (ctx) => AlertDialog(
-                                      title: Row(
-                                        children: const [
-                                          Icon(
-                                            Icons.qr_code_2_rounded,
-                                            color: Color(0xFF111C99),
-                                          ),
-                                          SizedBox(width: 12),
-                                          Text('Código Generado'),
-                                        ],
-                                      ),
-                                      content: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Container(
-                                            width: double.infinity,
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 24,
-                                              horizontal: 16,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFEEF2FF),
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                              border: Border.all(
-                                                color: const Color(
-                                                  0xFF111C99,
-                                                ).withValues(alpha: 0.3),
-                                              ),
-                                            ),
-                                            child: SelectableText(
-                                              codigo.toString(),
-                                              textAlign: TextAlign.center,
-                                              style: const TextStyle(
-                                                fontSize: 32,
-                                                fontWeight: FontWeight.w900,
-                                                letterSpacing: 6,
-                                                color: Color(0xFF111C99),
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 16),
-                                          const Text(
-                                            'Comparte este código con el residente.\nExpira en 24 horas y es de un solo uso.',
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              color: Color(0xFF64748B),
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      actions: [
-                                        FilledButton(
-                                          onPressed: () => Navigator.pop(ctx),
-                                          style: FilledButton.styleFrom(
-                                            backgroundColor: const Color(
-                                              0xFF111C99,
-                                            ),
-                                          ),
-                                          child: const Text('Entendido'),
-                                        ),
-                                      ],
-                                    ),
+                                  QrDialog.show(
+                                    context,
+                                    codigo: codigo.toString(),
+                                    titulo: 'Código de Condominio',
+                                    subtitulo: 'Comparte este código o código QR con los residentes.\nExpira en 24 horas y es de un solo uso.',
+                                    tipoEtiqueta: 'Condominio',
                                   );
                                 } else {
                                   if (context.mounted) {
