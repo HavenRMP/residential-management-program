@@ -1124,7 +1124,7 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
               const SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: SkeletonVisitasList(itemCount: 4),
+                  child: const Center(child: CircularProgressIndicator()),
                 ),
               )
             else if (_visitas.isEmpty)
@@ -1689,7 +1689,7 @@ class _VisitasProgramadasTabState extends State<_VisitasProgramadasTab> {
               const SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: SkeletonVisitasList(itemCount: 4),
+                  child: const Center(child: CircularProgressIndicator()),
                 ),
               )
             // Estado vacío
@@ -2287,7 +2287,7 @@ class _VisitasHistorialTabState extends State<_VisitasHistorialTab> {
               const SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: SkeletonVisitasList(itemCount: 4),
+                  child: const Center(child: CircularProgressIndicator()),
                 ),
               )
             // Estado vacío
