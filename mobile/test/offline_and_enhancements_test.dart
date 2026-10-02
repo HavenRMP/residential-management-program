@@ -148,4 +148,35 @@ void main() {
     });
   });
 
+  group('OfflineBanner Tests', () {
+    testWidgets('Renders message and triggers onSyncPressed', (tester) async {
+      bool syncTriggered = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: OfflineBanner(
+              mensaje: 'Modo sin internet',
+              pendingSyncCount: 2,
+              onSyncPressed: () {
+                syncTriggered = true;
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Modo sin internet (2 pendientes)'), findsOneWidget);
+      expect(find.byIcon(Icons.wifi_off_rounded), findsOneWidget);
+
+      final retryButton = find.text('Reintentar');
+      expect(retryButton, findsOneWidget);
+
+      await tester.tap(retryButton);
+      await tester.pump();
+
+      expect(syncTriggered, isTrue);
+    });
+  });
+
   }
