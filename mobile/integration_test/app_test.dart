@@ -16,12 +16,8 @@ void main() {
       // Esperar a que la pantalla de carga (SplashScreen) termine (hasta 5 segs)
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
-      // 1. Verificar que estamos en la pantalla de Login
+      // 1. Verificar que estamos en la pantalla de Login unificada
       expect(find.text('Entrar'), findsOneWidget);
-
-      // 2. Cambiar a modo Administrador
-      await tester.tap(find.text('Administrador · Vigilancia'));
-      await tester.pumpAndSettle();
 
       // 3. Obtener credenciales del .env
       final email = dotenv.env['ADMIN_USER_EMAIL'] ?? '';
