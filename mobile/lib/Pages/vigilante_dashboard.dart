@@ -1066,7 +1066,7 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: OfflineBanner(
                           pendingSyncCount: _pendingSyncCount,
-                          /* syncing */ isSyncing: _isSyncing,
+                          isSyncing: _isSyncing,
                           onSyncPressed: _sincronizarPendientes,
                         ),
                       ),
