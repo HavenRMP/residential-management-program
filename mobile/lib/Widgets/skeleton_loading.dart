@@ -114,3 +114,84 @@ class SkeletonBox extends StatelessWidget {
   }
 }
 
+/// Tarjeta esqueleto para listas de visitas, avisos o viviendas.
+class SkeletonCard extends StatelessWidget {
+  final double? height;
+  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry margin;
+
+  const SkeletonCard({
+    super.key,
+    this.height,
+    this.padding = const EdgeInsets.all(16),
+    this.margin = const EdgeInsets.only(bottom: 12),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: height,
+      margin: margin,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x05000000),
+            blurRadius: 10,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const SkeletonBox(width: 40, height: 40, borderRadius: BorderRadius.all(Radius.circular(10))),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    SkeletonBox(width: 140, height: 14),
+                    SizedBox(height: 6),
+                    SkeletonBox(width: 90, height: 10),
+                  ],
+                ),
+              ),
+              const SkeletonBox(width: 60, height: 22, borderRadius: BorderRadius.all(Radius.circular(6))),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const SkeletonBox(width: double.infinity, height: 12),
+          const SizedBox(height: 8),
+          const SkeletonBox(width: 180, height: 12),
+        ],
+      ),
+    );
+  }
+}
+
+/// Lista completa de esqueletos de visitas para estados de carga.
+class SkeletonVisitasList extends StatelessWidget {
+  final int itemCount;
+
+  const SkeletonVisitasList({super.key, this.itemCount = 4});
+
+  @override
+  Widget build(BuildContext context) {
+    return SkeletonShimmer(
+      child: ListView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        shrinkWrap: true,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        itemCount: itemCount,
+        itemBuilder: (context, index) => const SkeletonCard(),
+      ),
+    );
+  }
+}
