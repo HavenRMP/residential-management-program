@@ -331,7 +331,7 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
                                         MaterialPageRoute(
                                           builder: (_) => ViviendaDetalleScreen(
                                             controller: widget.controller,
-                                            vivienda: targetVivienda!,
+                                            vivienda: targetVivienda,
                                             onChanged: _fetchResidentes,
                                           ),
                                         ),
