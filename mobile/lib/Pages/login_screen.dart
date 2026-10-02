@@ -61,9 +61,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _submit() async {
-    
+    HapticHelper.light();
     if (!_formKey.currentState!.validate()) {
-      
+      HapticHelper.error();
       return;
     }
 
@@ -81,22 +81,13 @@ class _LoginScreenState extends State<LoginScreen> {
         await prefs.remove('saved_login_email');
       }
 
-      final email = _emailController.text.trim();
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('remember_login_email', _rememberEmail);
-      if (_rememberEmail) {
-        await prefs.setString('saved_login_email', email);
-      } else {
-        await prefs.remove('saved_login_email');
-      }
-
       await widget.controller.login(
         email,
         _passwordController.text,
       );
-      
+      HapticHelper.success();
     } catch (_) {
-      
+      HapticHelper.error();
       rethrow;
     } finally {
       if (mounted) {
@@ -195,7 +186,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   activeColor: const Color(0xFF111C99),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                   onChanged: (val) {
-                    
+                    HapticHelper.selection();
                     setState(() => _rememberEmail = val ?? false);
                   },
                 ),
@@ -203,7 +194,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(width: 8),
               GestureDetector(
                 onTap: () {
-                  
+                  HapticHelper.selection();
                   setState(() => _rememberEmail = !_rememberEmail);
                 },
                 child: const Text(
