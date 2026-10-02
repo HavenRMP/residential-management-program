@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:haven/Widgets/banner_widget.dart';
 import 'package:haven/Widgets/field_label.dart';
+import 'package:haven/Widgets/qr_dialog.dart';
 
 void main() {
   group('Core UI Components', () {
@@ -104,6 +105,53 @@ void main() {
 
       expect(find.text('Ingrese un correo válido.'), findsNothing);
       expect(find.text('La contraseña debe tener al menos 6 caracteres.'), findsNothing);
+    });
+  });
+
+  group('QrDialog Sharing & Display Tests', () {
+    testWidgets('QrDialog renders title, code, subtitle and share buttons', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: QrDialog(
+              codigo: 'HAVEN-7788',
+              titulo: 'Pase de Visita',
+              subtitulo: 'Muestra este código al vigilante',
+              tipoEtiqueta: 'Casa 101',
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Pase de Visita'), findsOneWidget);
+      expect(find.text('HAVEN-7788'), findsOneWidget);
+      expect(find.text('Casa 101'), findsOneWidget);
+      expect(find.text('Muestra este código al vigilante'), findsOneWidget);
+      expect(find.text('Compartir'), findsOneWidget);
+      expect(find.text('Cerrar'), findsOneWidget);
+      expect(find.byIcon(Icons.share_rounded), findsNWidgets(2)); // Icon in code badge + button
+    });
+
+    testWidgets('QrDialog triggers onCompartir when share button is tapped', (WidgetTester tester) async {
+      bool compartido = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: QrDialog(
+              codigo: 'CODE-999',
+              onCompartir: () {
+                compartido = true;
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Compartir'));
+      await tester.pump();
+
+      expect(compartido, isTrue);
     });
   });
 }
