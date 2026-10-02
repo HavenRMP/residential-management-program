@@ -16,6 +16,7 @@ import 'subusuarios_screen.dart';
 import 'invitaciones_recibidas_screen.dart';
 import 'visitas_residente_screen.dart';
 import 'perfil_screen.dart';
+import '../Widgets/qr_scanner_view.dart';
 
 class ResidenteDashboardScreen extends StatefulWidget {
   const ResidenteDashboardScreen({super.key, required this.controller});
@@ -257,6 +258,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
         controller: widget.controller,
         misViviendas: _misViviendas,
       ),
+      _buildScannerPage(),
       if (hasCondominio) AvisosResidenteScreen(
         controller: widget.controller,
         onAvisoRead: () {
@@ -402,7 +404,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
           onDestinationSelected: (index) {
             setState(() {
               _currentIndex = index;
-              if (hasCondominio && index == 2) {
+              if (hasCondominio && index == 3) {
                  _checkUnreadAvisos();
               }
             });
@@ -422,6 +424,11 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
               selectedIcon: Icon(Icons.badge_rounded, color: Color(0xFF111C99)),
               label: 'Visitas',
             ),
+            const NavigationDestination(
+              icon: Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF64748B)),
+              selectedIcon: Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF111C99)),
+              label: 'Escanear',
+            ),
             if (hasCondominio)
               NavigationDestination(
                 icon: _unreadAvisosCount > 0 
@@ -439,6 +446,22 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildScannerPage() {
+    return Container(
+      color: Colors.black,
+      child: QrScannerView(
+        titulo: 'Escanear Código',
+        instrucciones: 'Apunta la cámara al código QR de acceso o invitación',
+        isEmbedded: true,
+        onScanned: (codigo) async {
+          _codigoController.text = codigo.trim();
+          setState(() => _currentIndex = 0);
+          await _redimirCodigo();
+        },
       ),
     );
   }
@@ -1168,6 +1191,21 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                   textCapitalization: TextCapitalization.characters,
                   decoration: InputDecoration(
                     hintText: 'Ingresa el código (ej. A1B2C3)',
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF111C99)),
+                      tooltip: 'Escanear QR',
+                      onPressed: () async {
+                        final code = await QrScannerView.openScanner(
+                          context,
+                          titulo: 'Escanear Código',
+                          instrucciones: 'Apunta la cámara al código QR de acceso o invitación',
+                        );
+                        if (code != null && code.trim().isNotEmpty) {
+                          _codigoController.text = code.trim();
+                          _redimirCodigo();
+                        }
+                      },
+                    ),
                     filled: true,
                     fillColor: const Color(0xFFF8FAFC),
                     border: OutlineInputBorder(

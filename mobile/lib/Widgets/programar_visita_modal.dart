@@ -185,7 +185,7 @@ class _ProgramarVisitaModalState extends State<ProgramarVisitaModal> {
         if (res['success'] == true) {
           final VisitaModel nueva = res['visita'] as VisitaModel;
           widget.controller.notifyToast('¡Visita programada! Código: ${nueva.codigo ?? ''}', success: true);
-          Navigator.pop(context, true);
+          Navigator.pop(context, nueva);
         } else {
           widget.controller.notifyToast(res['error'] ?? 'Error al programar visita', success: false);
         }
