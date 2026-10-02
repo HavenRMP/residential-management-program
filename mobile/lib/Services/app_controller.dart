@@ -7,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../Models/auth_user.dart';
 import '../Models/api_exceptions.dart';
 import 'push_notifications_service.dart';
@@ -132,9 +134,9 @@ class AppController extends ChangeNotifier {
 
     try {
       await _doBootstrap().timeout(
-        const Duration(seconds: 15),
+        const Duration(seconds: 40),
         onTimeout: () {
-          debugPrint('[AppController] bootstrap() timed out after 15 s');
+          debugPrint('[AppController] bootstrap() timed out after 40 s');
         },
       );
     } catch (e) {
@@ -179,6 +181,13 @@ class AppController extends ChangeNotifier {
     final splashDelay = Future.delayed(const Duration(seconds: 2));
 
     if (existing != null) {
+      // Restore cached user immediately so the UI & router know the role even before network calls finish
+      final cached = await _loadProfileFromCache(existing.user.id);
+      if (cached != null) {
+        _currentUser = cached;
+        notifyListeners();
+      }
+
       try {
         await getValidAccessToken();
         await Future.wait([_refreshProfile(), splashDelay]);
@@ -383,9 +392,10 @@ class AppController extends ChangeNotifier {
 
   Future<void> logout() async {
     // Desuscribir del tópico personal antes de cerrar sesión
-    final userId = _currentUser?.id;
+    final userId = _currentUser?.id ?? _session?.user.id;
     if (userId != null && userId.isNotEmpty) {
       unawaited(PushNotificationsService.unsubscribeFromUserTopic(userId));
+      unawaited(_clearCachedProfile(userId));
     }
 
     final client = _supabaseClient;
@@ -436,6 +446,113 @@ class AppController extends ChangeNotifier {
     return s.isEmpty ? null : s;
   }
 
+  // ---------------------------------------------------------
+  // Persistent profile caching & Background retry helpers
+  // ---------------------------------------------------------
+  Future<void> _saveProfileToCache(AuthUser user) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonStr = jsonEncode(user.toJson());
+      if (user.id.isNotEmpty) {
+        await prefs.setString('cached_auth_user_${user.id}', jsonStr);
+        await prefs.setString('last_known_user_id', user.id);
+      }
+      final role = user.rol ?? user.role;
+      if (role != null && role.isNotEmpty) {
+        await prefs.setString('last_known_user_role', role);
+      }
+      await prefs.setString('cached_auth_user_last', jsonStr);
+      debugPrint('[AppController] Cached user profile for ${user.id} (role: $role)');
+    } catch (e) {
+      debugPrint('[AppController] Error saving profile to cache: $e');
+    }
+  }
+
+  Future<AuthUser?> _loadProfileFromCache(String? userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      String? jsonStr;
+      if (userId != null && userId.isNotEmpty) {
+        jsonStr = prefs.getString('cached_auth_user_$userId');
+      }
+      jsonStr ??= prefs.getString('cached_auth_user_last');
+      if (jsonStr != null && jsonStr.isNotEmpty) {
+        final decoded = jsonDecode(jsonStr);
+        if (decoded is Map<String, dynamic>) {
+          final cached = AuthUser.fromJson(decoded);
+          debugPrint(
+            '[AppController] Loaded cached profile for ${cached.id} (role: ${cached.rol ?? cached.role})',
+          );
+          return cached;
+        }
+      }
+    } catch (e) {
+      debugPrint('[AppController] Error loading profile from cache: $e');
+    }
+    return null;
+  }
+
+  Future<void> _clearCachedProfile(String? userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (userId != null && userId.isNotEmpty) {
+        await prefs.remove('cached_auth_user_$userId');
+      }
+      await prefs.remove('last_known_user_id');
+      await prefs.remove('last_known_user_role');
+      await prefs.remove('cached_auth_user_last');
+      debugPrint('[AppController] Cleared cached profile');
+    } catch (e) {
+      debugPrint('[AppController] Error clearing cached profile: $e');
+    }
+  }
+
+  bool _isBackgroundRefreshing = false;
+
+  void _scheduleBackgroundProfileRefresh(Session session) {
+    if (_isBackgroundRefreshing) return;
+    _isBackgroundRefreshing = true;
+
+    Future(() async {
+      try {
+        final delays = [4, 10, 20];
+        for (final s in delays) {
+          await Future.delayed(Duration(seconds: s));
+          if (_session == null || _session?.user.id != session.user.id) break;
+          try {
+            debugPrint('[AppController] Background retry refresh profile attempt (after ${s}s)...');
+            final profile = await _getJson('/api/Auth/me');
+            final Map<String, dynamic> p = (profile['data'] is Map<String, dynamic>)
+                ? profile['data'] as Map<String, dynamic>
+                : profile;
+            final mapped = AuthUser.fromJson(p);
+            final rawRole = (_nb(mapped.rolNombre) ??
+                _nb(mapped.rolId?.toString()) ??
+                _nb(p['rol']) ??
+                _nb(p['role']) ??
+                _currentUser?.rol ??
+                'residente');
+            final normalized = normalizeRole(rawRole);
+            _currentUser = mapped.copyWith(
+              id: mapped.id.isEmpty ? session.user.id : mapped.id,
+              email: mapped.email.isEmpty ? session.user.email ?? '' : mapped.email,
+              role: normalized,
+              rol: normalized,
+            );
+            await _saveProfileToCache(_currentUser!);
+            notifyListeners();
+            debugPrint('[AppController] Background retry successful, role: $normalized');
+            break;
+          } catch (err) {
+            debugPrint('[AppController] Background retry error: $err');
+          }
+        }
+      } finally {
+        _isBackgroundRefreshing = false;
+      }
+    });
+  }
+
   Future<void> _doRefreshProfile() async {
     final session = _session;
     if (session == null) {
@@ -471,6 +588,7 @@ class AppController extends ChangeNotifier {
           _nb(p['role']) ??
           _nb(session.user.appMetadata['rol']) ??
           _nb(session.user.appMetadata['role']) ??
+          _nb(_currentUser?.rol) ??
           'residente');
       final normalized = normalizeRole(rawRole);
 
@@ -496,6 +614,9 @@ class AppController extends ChangeNotifier {
         apellidos: resolvedApellidos,
       );
       _errorMessage = null;
+      if (_currentUser != null) {
+        unawaited(_saveProfileToCache(_currentUser!));
+      }
       if (_currentUser?.id != null) {
         unawaited(PushNotificationsService.subscribeToUserTopic(_currentUser!.id));
       }
@@ -503,18 +624,47 @@ class AppController extends ChangeNotifier {
       rethrow;
     } catch (e) {
       debugPrint('ERROR in _doRefreshProfile: $e');
-      _hydrateFromSession(session);
+      // If we already have a valid currentUser for this session with a known privileged role, PRESERVE IT!
+      if (_currentUser != null &&
+          _currentUser!.id == session.user.id &&
+          _currentUser!.rol != null &&
+          _currentUser!.rol!.isNotEmpty &&
+          _currentUser!.rol != 'residente') {
+        debugPrint(
+          '[AppController] Preserving existing role "${_currentUser!.rol}" despite refresh error.',
+        );
+      } else {
+        // Try restoring from persistent cache
+        final cached = await _loadProfileFromCache(session.user.id);
+        if (cached != null) {
+          _currentUser = cached;
+        } else {
+          await _hydrateFromSession(session);
+        }
+      }
+      // Schedule background retry when Render wakes up
+      _scheduleBackgroundProfileRefresh(session);
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  void _hydrateFromSession(Session session) {
+  Future<void> _hydrateFromSession(Session session) async {
     final um = session.user.userMetadata ?? {};
+    String? cachedRole;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      cachedRole = prefs.getString('last_known_user_role');
+    } catch (_) {}
+
     final rawRole =
-        (_nb(session.user.appMetadata['rol']) ??
+        (_nb(um['rol']) ??
+        _nb(um['role']) ??
+        _nb(session.user.appMetadata['rol']) ??
         _nb(session.user.appMetadata['role']) ??
+        _nb(cachedRole) ??
+        _nb(_currentUser?.rol) ??
         'residente');
     final normalized = normalizeRole(rawRole);
     _currentUser = AuthUser(
@@ -551,7 +701,7 @@ class AppController extends ChangeNotifier {
 
     var response = await httpClient
         .get(uri, headers: headers)
-        .timeout(const Duration(seconds: 15));
+        .timeout(const Duration(seconds: 35));
     if (response.statusCode == 401) {
       debugPrint(
         '[AppController] 401 recibido en $endpoint. Intentando renovar sesión...',
@@ -567,7 +717,7 @@ class AppController extends ChangeNotifier {
           }
           response = await httpClient
               .get(uri, headers: headers)
-              .timeout(const Duration(seconds: 15));
+              .timeout(const Duration(seconds: 35));
         }
       } catch (e) {
         debugPrint('[AppController] Error al renovar sesión tras 401: $e');
@@ -744,6 +894,9 @@ class AppController extends ChangeNotifier {
               rol: normalized,
             ) ??
             mapped.copyWith(role: normalized, rol: normalized);
+        if (_currentUser != null) {
+          unawaited(_saveProfileToCache(_currentUser!));
+        }
         notifyToast('Perfil guardado correctamente.', success: true);
         return true;
       } else {
