@@ -27,7 +27,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isSubmitting = false;
   bool _isSubmittingGoogle = false;
   bool _obscurePassword = true;
-  bool _isStaffMode = false;
 
   @override
   void dispose() {
@@ -75,84 +74,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Widget _buildToggle() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _isStaffMode = false),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 12,
-                  horizontal: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: !_isStaffMode
-                      ? const Color(0xFF111C99)
-                      : Colors.transparent,
-                  borderRadius: const BorderRadius.horizontal(
-                    left: Radius.circular(7),
-                  ),
-                ),
-                alignment: Alignment.center,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    'Residente',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: !_isStaffMode
-                          ? Colors.white
-                          : const Color(0xFF64748B),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _isStaffMode = true),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 12,
-                  horizontal: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: _isStaffMode
-                      ? const Color(0xFF111C99)
-                      : Colors.transparent,
-                  borderRadius: const BorderRadius.horizontal(
-                    right: Radius.circular(7),
-                  ),
-                ),
-                alignment: Alignment.center,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    'Administrador · Vigilancia',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: _isStaffMode
-                          ? Colors.white
-                          : const Color(0xFF64748B),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildForm() {
     return Form(
       key: _formKey,
@@ -167,9 +88,7 @@ class _LoginScreenState extends State<LoginScreen> {
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.next,
-            decoration: AppTheme.inputDecoration(
-              _isStaffMode ? 'admin@haven.com' : 'residente@haven.com',
-            ),
+            decoration: AppTheme.inputDecoration('correo@haven.com'),
             validator: (value) {
               final text = value?.trim() ?? '';
               if (text.isEmpty) {
@@ -247,139 +166,93 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
             ),
           ),
-          if (!_isStaffMode) ...[
-            const SizedBox(height: 16),
-            const Row(
-              children: [
-                Expanded(child: Divider(color: Color(0xFFE2E8F0))),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 14),
-                  child: Text(
-                    'o',
-                    style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
-                  ),
-                ),
-                Expanded(child: Divider(color: Color(0xFFE2E8F0))),
-              ],
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: _isSubmittingGoogle ? null : _submitGoogle,
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                side: const BorderSide(color: Color(0xFFE2E8F0)),
-                foregroundColor: const Color(0xFF0F172A),
-              ),
-              icon: _isSubmittingGoogle
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : SvgPicture.asset(
-                      'assets/google.svg',
-                      width: 20,
-                      height: 20,
-                    ),
-              label: Text(
-                _isSubmittingGoogle
-                    ? 'Redirigiendo...'
-                    : 'Continuar con Google',
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
+          const SizedBox(height: 16),
+          const Row(
+            children: [
+              Expanded(child: Divider(color: Color(0xFFE2E8F0))),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 14),
+                child: Text(
+                  'o',
+                  style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
                 ),
               ),
+              Expanded(child: Divider(color: Color(0xFFE2E8F0))),
+            ],
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: _isSubmittingGoogle ? null : _submitGoogle,
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              side: const BorderSide(color: Color(0xFFE2E8F0)),
+              foregroundColor: const Color(0xFF0F172A),
             ),
-            const SizedBox(height: 18),
-            Center(
-              child: InkWell(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => RegistroResidenteScreen(
-                        controller: widget.controller,
-                      ),
-                    ),
-                  );
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 4,
-                    horizontal: 8,
+            icon: _isSubmittingGoogle
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : SvgPicture.asset(
+                    'assets/google.svg',
+                    width: 20,
+                    height: 20,
                   ),
-                  child: Text.rich(
-                    TextSpan(
-                      text: '¿No tienes una cuenta? ',
-                      style: const TextStyle(
-                        color: Color(0xFF64748B),
-                        fontSize: 13,
-                      ),
-                      children: const [
-                        TextSpan(
-                          text: 'Regístrate aquí',
-                          style: TextStyle(
-                            color: Color(0xFF111C99),
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                          ),
+            label: Text(
+              _isSubmittingGoogle
+                  ? 'Redirigiendo...'
+                  : 'Continuar con Google',
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Center(
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => RegistroResidenteScreen(
+                      controller: widget.controller,
+                    ),
+                  ),
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 4,
+                  horizontal: 8,
+                ),
+                child: Text.rich(
+                  TextSpan(
+                    text: '¿No tienes una cuenta? ',
+                    style: const TextStyle(
+                      color: Color(0xFF64748B),
+                      fontSize: 13,
+                    ),
+                    children: const [
+                      TextSpan(
+                        text: 'Regístrate aquí',
+                        style: TextStyle(
+                          color: Color(0xFF111C99),
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
                         ),
-                      ],
-                    ),
-                    textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
+                  textAlign: TextAlign.center,
                 ),
               ),
             ),
-          ],
-          if (_isStaffMode) ...[
-            const SizedBox(height: 24),
-            const Row(
-              children: [
-                Expanded(child: Divider(color: Color(0xFFE2E8F0))),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    'SEGURIDAD HAVEN',
-                    style: TextStyle(
-                      color: Color(0xFF94A3B8),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                ),
-                Expanded(child: Divider(color: Color(0xFFE2E8F0))),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Icon(Icons.lock_outline, size: 16, color: Color(0xFF64748B)),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Acceso restringido con credenciales corporativas directas.',
-                      style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ],
       ),
     );
@@ -434,8 +307,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         color: Color(0xFF111C99),
                       ),
                     ),
-                    const SizedBox(height: 18),
-                    _buildToggle(),
                     const SizedBox(height: 20),
                     const Align(
                       alignment: Alignment.centerLeft,
@@ -450,13 +321,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Align(
+                    const Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        _isStaffMode
-                            ? 'Acceso para administración y vigilancia'
-                            : 'Acceso para residentes',
-                        style: const TextStyle(
+                        'Ingresa tus credenciales para acceder a tu cuenta',
+                        style: TextStyle(
                           color: Color(0xFF64748B),
                           fontSize: 13,
                         ),
