@@ -1066,7 +1066,7 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: OfflineBanner(
                           pendingSyncCount: _pendingSyncCount,
-                          isSyncing: _isSyncing,
+                          /* syncing */ isSyncing: _isSyncing,
                           onSyncPressed: _sincronizarPendientes,
                         ),
                       ),
@@ -1124,7 +1124,7 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
               const SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: const Center(child: CircularProgressIndicator()),
+                  child: SkeletonVisitasList(itemCount: 4),
                 ),
               )
             else if (_visitas.isEmpty)
@@ -1689,7 +1689,7 @@ class _VisitasProgramadasTabState extends State<_VisitasProgramadasTab> {
               const SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: const Center(child: CircularProgressIndicator()),
+                  child: SkeletonVisitasList(itemCount: 4),
                 ),
               )
             // Estado vacío
@@ -2287,7 +2287,7 @@ class _VisitasHistorialTabState extends State<_VisitasHistorialTab> {
               const SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: const Center(child: CircularProgressIndicator()),
+                  child: SkeletonVisitasList(itemCount: 4),
                 ),
               )
             // Estado vacío
