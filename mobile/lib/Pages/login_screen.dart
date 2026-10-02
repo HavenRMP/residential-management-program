@@ -1,3 +1,4 @@
+import '../Utils/haptic_helper.dart';
 import '../Themes/app_theme.dart';
 
 import 'dart:async';
@@ -27,6 +28,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isSubmitting = false;
   bool _isSubmittingGoogle = false;
   bool _obscurePassword = true;
+  bool _rememberEmail = false;
 
   @override
   void dispose() {
@@ -95,20 +97,20 @@ class _LoginScreenState extends State<LoginScreen> {
                 return 'El correo es requerido.';
               }
               if (!text.contains('@')) {
-                return 'Ingrese un correo válido.';
+                return 'Ingrese un correo vÃ¡lido.';
               }
               return null;
             },
           ),
           const SizedBox(height: 14),
-          const FieldLabel(text: 'Contraseña'),
+          const FieldLabel(text: 'ContraseÃ±a'),
           const SizedBox(height: 6),
           TextFormField(
             controller: _passwordController,
             obscureText: _obscurePassword,
             textInputAction: TextInputAction.done,
             decoration: AppTheme.inputDecoration(
-              '••••••••',
+              'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢',
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscurePassword
@@ -127,10 +129,10 @@ class _LoginScreenState extends State<LoginScreen> {
             validator: (value) {
               final text = value ?? '';
               if (text.isEmpty) {
-                return 'La contraseña es requerida.';
+                return 'La contraseÃ±a es requerida.';
               }
               if (text.length < 6) {
-                return 'La contraseña debe tener al menos 6 caracteres.';
+                return 'La contraseÃ±a debe tener al menos 6 caracteres.';
               }
               return null;
             },
@@ -232,14 +234,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 child: Text.rich(
                   TextSpan(
-                    text: '¿No tienes una cuenta? ',
+                    text: 'Â¿No tienes una cuenta? ',
                     style: const TextStyle(
                       color: Color(0xFF64748B),
                       fontSize: 13,
                     ),
                     children: const [
                       TextSpan(
-                        text: 'Regístrate aquí',
+                        text: 'RegÃ­strate aquÃ­',
                         style: TextStyle(
                           color: Color(0xFF111C99),
                           fontSize: 13,
@@ -311,7 +313,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     const Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        'Iniciar sesión',
+                        'Iniciar sesiÃ³n',
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w700,
