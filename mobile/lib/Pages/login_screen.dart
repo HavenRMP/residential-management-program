@@ -1,14 +1,15 @@
-import '../Utils/haptic_helper.dart';
 import '../Themes/app_theme.dart';
 
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../Services/app_controller.dart';
 import '../Widgets/field_label.dart';
 import '../Widgets/banner_widget.dart';
+import '../Utils/haptic_helper.dart';
 import 'registro_residente_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -28,7 +29,29 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isSubmitting = false;
   bool _isSubmittingGoogle = false;
   bool _obscurePassword = true;
-  bool _rememberEmail = false;
+  bool _rememberEmail = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedEmail();
+  }
+
+  Future<void> _loadSavedEmail() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final remember = prefs.getBool('remember_login_email') ?? true;
+      final savedEmail = prefs.getString('saved_login_email');
+      if (mounted) {
+        setState(() {
+          _rememberEmail = remember;
+          if (remember && savedEmail != null && savedEmail.isNotEmpty) {
+            _emailController.text = savedEmail;
+          }
+        });
+      }
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
@@ -38,7 +61,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _submit() async {
+    
     if (!_formKey.currentState!.validate()) {
+      
       return;
     }
 
@@ -47,10 +72,23 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
+      final email = _emailController.text.trim();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('remember_login_email', _rememberEmail);
+      if (_rememberEmail) {
+        await prefs.setString('saved_login_email', email);
+      } else {
+        await prefs.remove('saved_login_email');
+      }
+
       await widget.controller.login(
-        _emailController.text.trim(),
+        email,
         _passwordController.text,
       );
+      
+    } catch (_) {
+      
+      rethrow;
     } finally {
       if (mounted) {
         setState(() {
@@ -97,20 +135,20 @@ class _LoginScreenState extends State<LoginScreen> {
                 return 'El correo es requerido.';
               }
               if (!text.contains('@')) {
-                return 'Ingrese un correo vÃ¡lido.';
+                return 'Ingrese un correo válido.';
               }
               return null;
             },
           ),
           const SizedBox(height: 14),
-          const FieldLabel(text: 'ContraseÃ±a'),
+          const FieldLabel(text: 'Contraseña'),
           const SizedBox(height: 6),
           TextFormField(
             controller: _passwordController,
             obscureText: _obscurePassword,
             textInputAction: TextInputAction.done,
             decoration: AppTheme.inputDecoration(
-              'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢',
+              '••••••••',
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscurePassword
@@ -129,15 +167,48 @@ class _LoginScreenState extends State<LoginScreen> {
             validator: (value) {
               final text = value ?? '';
               if (text.isEmpty) {
-                return 'La contraseÃ±a es requerida.';
+                return 'La contraseña es requerida.';
               }
               if (text.length < 6) {
-                return 'La contraseÃ±a debe tener al menos 6 caracteres.';
+                return 'La contraseña debe tener al menos 6 caracteres.';
               }
               return null;
             },
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              SizedBox(
+                height: 22,
+                width: 22,
+                child: Checkbox(
+                  value: _rememberEmail,
+                  activeColor: const Color(0xFF111C99),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                  onChanged: (val) {
+                    
+                    setState(() => _rememberEmail = val ?? false);
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () {
+                  
+                  setState(() => _rememberEmail = !_rememberEmail);
+                },
+                child: const Text(
+                  'Recordar mi correo',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF475569),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             height: 48,
@@ -234,14 +305,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 child: Text.rich(
                   TextSpan(
-                    text: 'Â¿No tienes una cuenta? ',
+                    text: '¿No tienes una cuenta? ',
                     style: const TextStyle(
                       color: Color(0xFF64748B),
                       fontSize: 13,
                     ),
                     children: const [
                       TextSpan(
-                        text: 'RegÃ­strate aquÃ­',
+                        text: 'Regístrate aquí',
                         style: TextStyle(
                           color: Color(0xFF111C99),
                           fontSize: 13,
@@ -313,7 +384,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     const Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        'Iniciar sesiÃ³n',
+                        'Iniciar sesión',
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w700,
