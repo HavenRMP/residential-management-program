@@ -86,3 +86,31 @@ class _SlidingGradientTransform extends GradientTransform {
   }
 }
 
+/// Caja esqueleto con bordes redondeados.
+class SkeletonBox extends StatelessWidget {
+  final double? width;
+  final double? height;
+  final BorderRadius? borderRadius;
+  final Color? color;
+
+  const SkeletonBox({
+    super.key,
+    this.width,
+    this.height = 16,
+    this.borderRadius,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: color ?? const Color(0xFFE2E8F0),
+        borderRadius: borderRadius ?? BorderRadius.circular(8),
+      ),
+    );
+  }
+}
+
