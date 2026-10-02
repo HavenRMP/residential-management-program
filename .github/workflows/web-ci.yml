@@ -24,17 +24,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: web/package-lock.json
           
-      - name: Cache Angular cache
-        uses: actions/cache@v4
-        with:
-          path: web/.angular/cache
-          key: ${{ runner.os }}-angular-${{ hashFiles('web/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-angular-
-            
       - name: Install dependencies
         run: npm ci
         
