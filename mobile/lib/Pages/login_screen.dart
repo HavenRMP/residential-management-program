@@ -81,6 +81,15 @@ class _LoginScreenState extends State<LoginScreen> {
         await prefs.remove('saved_login_email');
       }
 
+      final email = _emailController.text.trim();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('remember_login_email', _rememberEmail);
+      if (_rememberEmail) {
+        await prefs.setString('saved_login_email', email);
+      } else {
+        await prefs.remove('saved_login_email');
+      }
+
       await widget.controller.login(
         email,
         _passwordController.text,
