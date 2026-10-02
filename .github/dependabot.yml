@@ -25,3 +25,8 @@ updates:
     directory: "/mobile"
     schedule:
       interval: "weekly"
+    ignore:
+      - dependency-name: "permission_handler"
+        versions: [">= 12.0.0"]
+      - dependency-name: "google_fonts"
+        versions: [">= 9.0.0"]
