@@ -106,4 +106,46 @@ void main() {
     });
   });
 
+  group('SkeletonLoading Widgets Tests', () {
+    testWidgets('SkeletonBox renders with specified dimensions', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SkeletonBox(width: 120, height: 40, borderRadius: BorderRadius.circular(8)),
+          ),
+        ),
+      );
+
+      final box = find.byType(SkeletonBox);
+      expect(box, findsOneWidget);
+    });
+
+    testWidgets('SkeletonCard renders layout elements', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SkeletonCard(),
+          ),
+        ),
+      );
+
+      expect(find.byType(SkeletonCard), findsOneWidget);
+    });
+
+    testWidgets('SkeletonVisitasList renders requested number of cards', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: SkeletonVisitasList(itemCount: 3),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byType(SkeletonVisitasList), findsOneWidget);
+      expect(find.byType(SkeletonCard), findsNWidgets(3));
+    });
+  });
+
   }
