@@ -116,4 +116,43 @@ class OfflineSyncService {
 
   /// Encola una acción de entrada o salida con clave de idempotencia única.
   /// Si la acción ya estaba encolada para la misma visita y tipo, no la duplica.
+  static Future<OfflineApprovalAction> queueOfflineApproval({
+    required String visitaId,
+    required String tipo,
+    String? codigo,
+    String? nombreVisitante,
+    String? numeroCasa,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final queue = await getPendingApprovals();
+
+    // Verificación de idempotencia local: si ya existe acción pendiente para esta visita y tipo, la reutiliza
+    final existingIndex = queue.indexWhere(
+        (a) => a.visitaId == visitaId && a.tipo.toLowerCase() == tipo.toLowerCase());
+
+    if (existingIndex >= 0) {
+      return queue[existingIndex];
+    }
+
+    final idUnica = generateIdempotencyKey(tipo, visitaId);
+    final action = OfflineApprovalAction(
+      id: idUnica,
+      visitaId: visitaId,
+      tipo: tipo,
+      codigo: codigo,
+      nombreVisitante: nombreVisitante,
+      numeroCasa: numeroCasa,
+    );
+
+    queue.add(action);
+    final encoded = jsonEncode(queue.map((a) => a.toJson()).toList());
+    await prefs.setString(_kKeyOfflineApprovals, encoded);
+
+    // Actualiza localmente el estado de la visita en caché para reflejar el cambio inmediato en la UI
+    await _actualizarEstadoVisitaEnCache(visitaId, tipo);
+
+    return action;
+  }
+
+  /// Obtiene la lista de acciones pendientes de sincronización.
   }
