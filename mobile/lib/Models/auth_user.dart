@@ -89,4 +89,23 @@ class AuthUser {
       condominioId: condominioId ?? this.condominioId,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'email': email,
+      if (role != null) 'role': role,
+      if (rol != null) 'rol': rol,
+      if (rolId != null) 'rolId': rolId,
+      if (rolNombre != null) 'rolNombre': rolNombre,
+      if (nombre != null) 'nombre': nombre,
+      if (apellidos != null) 'apellidos': apellidos,
+      if (telefono != null) 'telefono': telefono,
+      if (activo != null) 'activo': activo,
+      if (debeCambiarPassword != null)
+        'debeCambiarPassword': debeCambiarPassword,
+      if (condominioId != null) 'condominioId': condominioId,
+    };
+  }
 }
+
