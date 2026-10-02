@@ -6,4 +6,10 @@ class HapticHelper {
       await HapticFeedback.lightImpact();
     } catch (_) {}
   }
+
+  static Future<void> selection() async {
+    try {
+      await HapticFeedback.selectionClick();
+    } catch (_) {}
+  }
 }
