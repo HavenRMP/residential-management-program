@@ -466,7 +466,7 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
             ],
           ),
         ),
-        if (trailing != null) trailing,
+        ?trailing,
       ],
     );
 

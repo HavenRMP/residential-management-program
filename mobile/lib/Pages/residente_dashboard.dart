@@ -126,8 +126,23 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
         if (resViv != null && resViv['success'] == true) {
           exitoso = true;
         } else if (resViv != null && resViv['error'] != null) {
-          // Priority to the vivienda error if it failed here too
           errorMsg = resViv['error'];
+        }
+      } catch (_) {}
+    }
+
+    // Si no funcionó como condominio ni vivienda, intentar como código de sub-usuario
+    if (!exitoso) {
+      try {
+        final subService = SubusuariosService(widget.controller);
+        final resSub = await subService.redimirCodigo(codigo, usuarioId: userId);
+        if (resSub != null && (resSub['success'] == true || resSub['data'] != null)) {
+          exitoso = true;
+        } else if (resSub != null && resSub['error'] != null) {
+          final subErr = resSub['error'].toString();
+          if (!subErr.contains('404')) {
+            errorMsg = subErr;
+          }
         }
       } catch (_) {}
     }
