@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import '../Utils/share_helper.dart';
 
 class QrDialog extends StatelessWidget {
   const QrDialog({
@@ -9,12 +10,16 @@ class QrDialog extends StatelessWidget {
     this.titulo = 'Código de Acceso',
     this.subtitulo = 'Muestra este código QR en la caseta para validar tu acceso.',
     this.tipoEtiqueta,
+    this.textoAdicional,
+    this.onCompartir,
   });
 
   final String codigo;
   final String titulo;
   final String subtitulo;
   final String? tipoEtiqueta;
+  final String? textoAdicional;
+  final VoidCallback? onCompartir;
 
   static Future<void> show(
     BuildContext context, {
@@ -22,6 +27,8 @@ class QrDialog extends StatelessWidget {
     String titulo = 'Código de Acceso',
     String subtitulo = 'Muestra este código QR en la caseta para validar tu acceso.',
     String? tipoEtiqueta,
+    String? textoAdicional,
+    VoidCallback? onCompartir,
   }) {
     return showDialog(
       context: context,
@@ -30,8 +37,25 @@ class QrDialog extends StatelessWidget {
         titulo: titulo,
         subtitulo: subtitulo,
         tipoEtiqueta: tipoEtiqueta,
+        textoAdicional: textoAdicional,
+        onCompartir: onCompartir,
       ),
     );
+  }
+
+  void _compartir(BuildContext context, String cleanCode) {
+    if (onCompartir != null) {
+      onCompartir!();
+    } else {
+      ShareHelper.compartirCodigo(
+        context,
+        codigo: cleanCode,
+        titulo: titulo,
+        subtitulo: subtitulo,
+        tipoEtiqueta: tipoEtiqueta,
+        textoAdicional: textoAdicional,
+      );
+    }
   }
 
   @override
@@ -153,9 +177,24 @@ class QrDialog extends StatelessWidget {
                       );
                     },
                     borderRadius: BorderRadius.circular(6),
-                    child: const Padding(
-                      padding: EdgeInsets.all(4),
-                      child: Icon(Icons.copy_rounded, size: 18, color: Color(0xFF64748B)),
+                    child: const Tooltip(
+                      message: 'Copiar código',
+                      child: Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(Icons.copy_rounded, size: 18, color: Color(0xFF64748B)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  InkWell(
+                    onTap: () => _compartir(context, cleanCode),
+                    borderRadius: BorderRadius.circular(6),
+                    child: const Tooltip(
+                      message: 'Compartir código',
+                      child: Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(Icons.share_rounded, size: 18, color: Color(0xFF64748B)),
+                      ),
                     ),
                   ),
                 ],
@@ -175,18 +214,39 @@ class QrDialog extends StatelessWidget {
             ),
             const SizedBox(height: 18),
 
-            // Botón de Listo / Aceptar
-            SizedBox(
-              width: double.infinity,
-              height: 44,
-              child: FilledButton(
-                onPressed: () => Navigator.of(context).pop(),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF111C99),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            // Botones de acción: Cerrar y Compartir
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 44,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF475569),
+                        side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Text('Cerrar', style: TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                  ),
                 ),
-                child: const Text('Entendido', style: TextStyle(fontWeight: FontWeight.w600)),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SizedBox(
+                    height: 44,
+                    child: FilledButton.icon(
+                      onPressed: () => _compartir(context, cleanCode),
+                      icon: const Icon(Icons.share_rounded, size: 18),
+                      label: const Text('Compartir', style: TextStyle(fontWeight: FontWeight.w600)),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF111C99),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
