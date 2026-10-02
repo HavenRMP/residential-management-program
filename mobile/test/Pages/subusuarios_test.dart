@@ -38,7 +38,7 @@ void main() {
       expect(item.creadoEn, isNotNull);
     });
 
-    test('Deserializa correctamente invitación pendiente del titular', () {
+    test('Deserializa correctamente invitación pendiente del titular con código QR', () {
       final json = {
         'id': 'inv-99',
         'nombre': 'Pendiente',
@@ -46,6 +46,7 @@ void main() {
         'telefono': 'Pendiente',
         'parentesco': 'Hijo/a',
         'estado': 'Pendiente',
+        'codigo_invitacion': 'SUB99XYZ',
         'creado_en': '2026-09-27T10:00:00Z',
       };
 
@@ -55,7 +56,11 @@ void main() {
       expect(item.isPendiente, isTrue);
       expect(item.isActivo, isFalse);
       expect(item.email, 'juan@gmail.com');
+      expect(item.codigo, 'SUB99XYZ');
       expect(item.creadoEn, isNotNull);
+
+      final copy = item.copyWith(codigo: 'NEW123');
+      expect(copy.codigo, 'NEW123');
     });
   });
 
@@ -288,6 +293,52 @@ void main() {
       final res = await service.responderInvitacion('inv-456', aceptar: false);
       expect(res['success'], isTrue);
       expect(capturedBody!['respuesta'], 'RECHAZADA');
+    });
+
+    test('redimirCodigo envía código y retorna éxito', () async {
+      Map<String, dynamic>? capturedBody;
+
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/api/subusuarios/redimir-codigo' &&
+            request.method == 'POST') {
+          capturedBody = jsonDecode(request.body);
+          return http.Response(
+            jsonEncode({'success': true, 'message': 'Código canjeado exitosamente.'}),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('Not found', 404);
+      });
+
+      final controller = AppController(null, client: mockClient);
+      final service = SubusuariosService(controller);
+
+      final res = await service.redimirCodigo('SUB12345', usuarioId: 'user-guid-123');
+      expect(res, isNotNull);
+      expect(res!['success'], isTrue);
+      expect(capturedBody!['codigo'], 'SUB12345');
+      expect(capturedBody!['usuarioId'], 'user-guid-123');
+    });
+
+    test('redimirCodigo maneja error del endpoint', () async {
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/api/subusuarios/redimir-codigo') {
+          return http.Response(
+            jsonEncode({'error': 'El código de invitación no existe o ya expiró'}),
+            400,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('Not found', 404);
+      });
+
+      final controller = AppController(null, client: mockClient);
+      final service = SubusuariosService(controller);
+
+      final res = await service.redimirCodigo('EXPIRED1');
+      expect(res, isNotNull);
+      expect(res!['error'], contains('no existe o ya expiró'));
     });
   });
 }
