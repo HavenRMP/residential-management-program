@@ -34,18 +34,48 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '17'
-          cache: 'gradle'
-          cache-dependency-path: |
-            mobile/android/build.gradle.kts
-            mobile/android/app/build.gradle.kts
-            mobile/android/settings.gradle.kts
-            mobile/android/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Cache Gradle Wrapper
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-wrapper-${{ hashFiles('mobile/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-wrapper-
+
+      - name: Cache Gradle dependencies and build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.android/build-cache
+          key: ${{ runner.os }}-gradle-caches-${{ hashFiles('mobile/android/gradle/wrapper/gradle-wrapper.properties', 'mobile/android/**/*.gradle.kts', 'mobile/android/gradle.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-caches-
+
+      - name: Cache Android project .gradle
+        uses: actions/cache@v4
+        with:
+          path: mobile/android/.gradle
+          key: ${{ runner.os }}-android-project-gradle-${{ hashFiles('mobile/android/gradle/wrapper/gradle-wrapper.properties', 'mobile/android/**/*.gradle.kts', 'mobile/android/gradle.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-android-project-gradle-
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'beta'
           cache: true
+          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
+          cache-path: "${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:"
+
+      - name: Cache Flutter Pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('mobile/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-pub-
 
       - name: Create Firebase Configs from secrets
         run: |
