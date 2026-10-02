@@ -36,11 +36,22 @@ class AppRouter extends StatelessWidget {
           return PerfilScreen(controller: controller, isOnboarding: true);
         }
 
-        final role = controller.currentUser?.rol;
-        if (role == 'administrador') {
+        final role = (controller.currentUser?.rol ??
+                controller.currentUser?.role ??
+                controller.currentUser?.rolNombre ??
+                '')
+            .toLowerCase()
+            .trim();
+        if (role == 'administrador' ||
+            role == 'admin' ||
+            role == 'administrator' ||
+            role == '1') {
           return AdminDashboardScreen(controller: controller);
         }
-        if (role == 'vigilante') {
+        if (role == 'vigilante' ||
+            role == 'guardia' ||
+            role == 'guard' ||
+            role == '3') {
           return VigilanteDashboardScreen(controller: controller);
         }
         return ResidenteDashboardScreen(controller: controller);
