@@ -119,8 +119,86 @@ class DigitalPassCard extends StatelessWidget {
             ),
           ),
 
-                  ],
+          // Cuerpo de la tarjeta con Código QR
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x0A000000),
+                        blurRadius: 10,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: QrImageView(
+                    data: cleanCode,
+                    version: QrVersions.auto,
+                    size: 190,
+                    backgroundColor: Colors.white,
+                    padding: const EdgeInsets.all(4),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Código alfanumérico
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Text(
+                    cleanCode,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 4,
+                      fontFamily: 'monospace',
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Instrucciones
+                Text(
+                  subtitulo,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF64748B),
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Divider(color: Color(0xFFE2E8F0)),
+                const SizedBox(height: 4),
+                const Text(
+                  'Control de Acceso Residencial HAVEN',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 }
+
