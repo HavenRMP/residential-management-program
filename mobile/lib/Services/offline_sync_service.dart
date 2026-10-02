@@ -155,4 +155,20 @@ class OfflineSyncService {
   }
 
   /// Obtiene la lista de acciones pendientes de sincronización.
+  static Future<List<OfflineApprovalAction>> getPendingApprovals() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString(_kKeyOfflineApprovals);
+      if (str != null && str.isNotEmpty) {
+        final List<dynamic> list = jsonDecode(str) as List<dynamic>;
+        return list
+            .map((item) => OfflineApprovalAction.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  /// Sincroniza todas las acciones pendientes contra el backend.
+  /// Retorna un mapa con el conteo de sincronizados exitosos y errores.
   }
