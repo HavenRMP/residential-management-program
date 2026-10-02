@@ -179,4 +179,28 @@ void main() {
     });
   });
 
+  group('DigitalPassCard Tests', () {
+    testWidgets('Renders access code, title, and visitor name', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: DigitalPassCard(
+                codigo: 'HAV-ABC123',
+                titulo: 'Pase Exclusivo',
+                nombreVisitante: 'Mariana Robles',
+                tipoEtiqueta: 'Casa 102',
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('HAV-ABC123'), findsOneWidget);
+      expect(find.text('Pase Exclusivo'), findsOneWidget);
+      expect(find.text('Para: Mariana Robles'), findsOneWidget);
+      expect(find.text('Casa 102'), findsOneWidget);
+    });
+  });
+
   }
