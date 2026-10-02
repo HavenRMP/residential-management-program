@@ -533,11 +533,8 @@ class _ViviendasListScreenState extends State<ViviendasListScreen> {
                                     ),
                                     borderRadius: BorderRadius.circular(14),
                                   ),
-                                  child: ListTile(
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 6,
-                                    ),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(14),
                                     onTap: () {
                                       Navigator.push(
                                         context,
@@ -550,148 +547,166 @@ class _ViviendasListScreenState extends State<ViviendasListScreen> {
                                         ),
                                       );
                                     },
-                                    leading: CircleAvatar(
-                                      backgroundColor: isOcupada
-                                          ? const Color(0xFFEFF6FF)
-                                          : const Color(0xFFECFDF5),
-                                      radius: 22,
-                                      child: Icon(
-                                        isOcupada
-                                            ? Icons.home_work_rounded
-                                            : Icons.home_rounded,
-                                        color: isOcupada
-                                            ? const Color(0xFF1D4ED8)
-                                            : const Color(0xFF047857),
-                                        size: 22,
-                                      ),
-                                    ),
-                                    title: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            v['numeroCasa'] ?? 'S/N',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                              color: Color(0xFF0F172A),
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        // Badge de Estado: Disponible u Ocupada
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 3,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: isOcupada
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(14),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.center,
+                                        children: [
+                                          CircleAvatar(
+                                            backgroundColor: isOcupada
                                                 ? const Color(0xFFEFF6FF)
                                                 : const Color(0xFFECFDF5),
-                                            borderRadius: BorderRadius.circular(12),
-                                            border: Border.all(
+                                            radius: 22,
+                                            child: Icon(
+                                              isOcupada
+                                                  ? Icons.home_work_rounded
+                                                  : Icons.home_rounded,
                                               color: isOcupada
-                                                  ? const Color(0xFFBFDBFE)
-                                                  : const Color(0xFFA7F3D0),
+                                                  ? const Color(0xFF1D4ED8)
+                                                  : const Color(0xFF047857),
+                                              size: 22,
                                             ),
                                           ),
-                                          child: Row(
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Wrap(
+                                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                                  spacing: 8,
+                                                  runSpacing: 4,
+                                                  children: [
+                                                    Text(
+                                                      v['numeroCasa'] != null &&
+                                                              v['numeroCasa'].toString().trim().isNotEmpty
+                                                          ? v['numeroCasa'].toString().trim()
+                                                          : 'S/N',
+                                                      style: const TextStyle(
+                                                        fontWeight: FontWeight.bold,
+                                                        fontSize: 16,
+                                                        color: Color(0xFF0F172A),
+                                                      ),
+                                                    ),
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 2.5,
+                                                      ),
+                                                      decoration: BoxDecoration(
+                                                        color: isOcupada
+                                                            ? const Color(0xFFEFF6FF)
+                                                            : const Color(0xFFECFDF5),
+                                                        borderRadius: BorderRadius.circular(12),
+                                                        border: Border.all(
+                                                          color: isOcupada
+                                                              ? const Color(0xFFBFDBFE)
+                                                              : const Color(0xFFA7F3D0),
+                                                        ),
+                                                      ),
+                                                      child: Row(
+                                                        mainAxisSize: MainAxisSize.min,
+                                                        children: [
+                                                          Icon(
+                                                            Icons.circle,
+                                                            size: 6,
+                                                            color: isOcupada
+                                                                ? const Color(0xFF2563EB)
+                                                                : const Color(0xFF10B981),
+                                                          ),
+                                                          const SizedBox(width: 4),
+                                                          Text(
+                                                            isOcupada ? 'Ocupada' : 'Disponible',
+                                                            style: TextStyle(
+                                                              fontSize: 11,
+                                                              fontWeight: FontWeight.bold,
+                                                              color: isOcupada
+                                                                  ? const Color(0xFF1D4ED8)
+                                                                  : const Color(0xFF047857),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  v['tipo'] != null &&
+                                                          (v['tipo'] as String).isNotEmpty
+                                                      ? v['tipo']
+                                                      : 'Vivienda Residencial',
+                                                  style: const TextStyle(
+                                                    color: Color(0xFF64748B),
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                                if (isOcupada && residenteNom != null) ...[
+                                                  const SizedBox(height: 3),
+                                                  Row(
+                                                    children: [
+                                                      const Icon(
+                                                        Icons.person_outline,
+                                                        size: 14,
+                                                        color: Color(0xFF64748B),
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      Expanded(
+                                                        child: Text(
+                                                          residenteNom,
+                                                          style: const TextStyle(
+                                                            fontSize: 12,
+                                                            fontWeight: FontWeight.w600,
+                                                            color: Color(0xFF334155),
+                                                          ),
+                                                          overflow: TextOverflow.ellipsis,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              Icon(
-                                                Icons.circle,
-                                                size: 6,
-                                                color: isOcupada
-                                                    ? const Color(0xFF2563EB)
-                                                    : const Color(0xFF10B981),
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                isOcupada ? 'Ocupada' : 'Disponible',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: isOcupada
-                                                      ? const Color(0xFF1D4ED8)
-                                                      : const Color(0xFF047857),
+                                              IconButton(
+                                                visualDensity: VisualDensity.compact,
+                                                padding: const EdgeInsets.all(5),
+                                                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                                icon: const Icon(
+                                                  Icons.edit_outlined,
+                                                  color: Color(0xFF111C99),
+                                                  size: 19,
                                                 ),
+                                                tooltip: 'Editar',
+                                                onPressed: () =>
+                                                    _showFormDialog(vivienda: v),
+                                              ),
+                                              IconButton(
+                                                visualDensity: VisualDensity.compact,
+                                                padding: const EdgeInsets.all(5),
+                                                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                                icon: const Icon(
+                                                  Icons.delete_outline,
+                                                  color: Color(0xFFDC2626),
+                                                  size: 19,
+                                                ),
+                                                tooltip: 'Eliminar',
+                                                onPressed: () => _deleteVivienda(v['id']),
+                                              ),
+                                              const Icon(
+                                                Icons.chevron_right,
+                                                color: Color(0xFF94A3B8),
+                                                size: 19,
                                               ),
                                             ],
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                    subtitle: Padding(
-                                      padding: const EdgeInsets.only(top: 4),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            v['tipo'] != null &&
-                                                    (v['tipo'] as String).isNotEmpty
-                                                ? v['tipo']
-                                                : 'Vivienda Residencial',
-                                            style: const TextStyle(
-                                              color: Color(0xFF64748B),
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                          if (isOcupada && residenteNom != null) ...[
-                                            const SizedBox(height: 3),
-                                            Row(
-                                              children: [
-                                                const Icon(
-                                                  Icons.person_outline,
-                                                  size: 13,
-                                                  color: Color(0xFF64748B),
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Expanded(
-                                                  child: Text(
-                                                    residenteNom,
-                                                    style: const TextStyle(
-                                                      fontSize: 12,
-                                                      fontWeight: FontWeight.w600,
-                                                      color: Color(0xFF334155),
-                                                    ),
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
                                         ],
                                       ),
-                                    ),
-                                    trailing: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.edit_outlined,
-                                            color: Color(0xFF111C99),
-                                            size: 20,
-                                          ),
-                                          tooltip: 'Editar',
-                                          onPressed: () =>
-                                              _showFormDialog(vivienda: v),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.delete_outline,
-                                            color: Color(0xFFDC2626),
-                                            size: 20,
-                                          ),
-                                          tooltip: 'Eliminar',
-                                          onPressed: () => _deleteVivienda(v['id']),
-                                        ),
-                                        const Icon(
-                                          Icons.chevron_right,
-                                          color: Color(0xFF94A3B8),
-                                          size: 20,
-                                        ),
-                                      ],
                                     ),
                                   ),
                                 );
