@@ -171,4 +171,71 @@ class OfflineSyncService {
 
   /// Sincroniza todas las acciones pendientes contra el backend.
   /// Retorna un mapa con el conteo de sincronizados exitosos y errores.
+  static Future<Map<String, int>> syncPendingApprovals(VisitasService service) async {
+    final queue = await getPendingApprovals();
+    if (queue.isEmpty) {
+      return {'synced': 0, 'failed': 0};
+    }
+
+    int synced = 0;
+    int failed = 0;
+    final List<OfflineApprovalAction> remaining = [];
+
+    for (final action in queue) {
+      try {
+        Map<String, dynamic> res;
+        if (action.tipo.toLowerCase() == 'salida') {
+          res = await service.registrarSalida(action.visitaId);
+        } else {
+          res = await service.registrarEntrada(action.visitaId);
+        }
+
+        // Si tuvo éxito o si el servidor indica que ya fue procesada (idempotencia del backend)
+        final success = res['success'] == true;
+        final errorMsg = (res['error'] ?? '').toString().toLowerCase();
+        final alreadyProcessed = errorMsg.contains('ya ingresó') ||
+            errorMsg.contains('ya registrada') ||
+            errorMsg.contains('already');
+
+        if (success || alreadyProcessed) {
+          synced++;
+        } else {
+          action.retryCount++;
+          remaining.add(action);
+          failed++;
+        }
+      } catch (e) {
+        action.retryCount++;
+        remaining.add(action);
+        failed++;
+      }
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final encoded = jsonEncode(remaining.map((a) => a.toJson()).toList());
+    await prefs.setString(_kKeyOfflineApprovals, encoded);
+
+    return {'synced': synced, 'failed': failed};
   }
+
+  static Future<void> _actualizarEstadoVisitaEnCache(String visitaId, String tipo) async {
+    try {
+      final proximas = await getCachedVisitasProximas();
+      bool modified = false;
+      for (int i = 0; i < proximas.length; i++) {
+        if (proximas[i].id == visitaId) {
+          proximas[i] = proximas[i].copyWith(
+            estado: tipo.toLowerCase() == 'salida' ? 'completada' : 'ingresada',
+            horaEntrada: tipo.toLowerCase() == 'entrada' ? DateTime.now() : proximas[i].horaEntrada,
+            horaSalida: tipo.toLowerCase() == 'salida' ? DateTime.now() : proximas[i].horaSalida,
+          );
+          modified = true;
+          break;
+        }
+      }
+      if (modified) {
+        await cacheVisitasProximas(proximas);
+      }
+    } catch (_) {}
+  }
+}
