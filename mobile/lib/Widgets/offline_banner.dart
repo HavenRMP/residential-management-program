@@ -42,7 +42,44 @@ class OfflineBanner extends StatelessWidget {
               ),
             ),
           ),
+          if (onSyncPressed != null) ...[
+            const SizedBox(width: 6),
+            InkWell(
+              onTap: isSyncing ? null : onSyncPressed,
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.8),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFFFCD34D)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isSyncing)
+                      const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFB45309)),
+                      )
+                    else
+                      const Icon(Icons.sync_rounded, size: 14, color: Color(0xFFB45309)),
+                    const SizedBox(width: 4),
+                    Text(
+                      isSyncing ? 'Sincronizando...' : 'Reintentar',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF92400E),
+                      ),
+                    ),
                   ],
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
