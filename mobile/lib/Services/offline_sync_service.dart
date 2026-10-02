@@ -91,4 +91,13 @@ class OfflineSyncService {
   }
 
   /// Guarda en caché las visitas próximas para vigilancia.
+  static Future<void> cacheVisitasProximas(List<VisitaModel> visitas) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = jsonEncode(visitas.map((v) => v.toJson()).toList());
+      await prefs.setString(_kKeyVisitasProximas, encoded);
+    } catch (_) {}
+  }
+
+  /// Recupera las visitas próximas en caché para vigilancia.
   }
