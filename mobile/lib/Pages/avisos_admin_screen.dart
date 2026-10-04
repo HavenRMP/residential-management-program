@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../Services/app_controller.dart';
 import '../Services/avisos_service.dart';
 import '../Utils/error_handler.dart';
-import 'en_construccion_screen.dart';
 
 class AvisosAdminScreen extends StatefulWidget {
   const AvisosAdminScreen({super.key, required this.controller});
@@ -132,14 +131,6 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
     }
   }
 
-  void _redirigirAConstruccion(String mensaje) {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const EnConstruccionScreen(titulo: 'Gestión de Avisos (No disponible)'),
-      ),
-    );
-  }
 
   Future<void> _crearAviso() async {
     final titleController = TextEditingController();
