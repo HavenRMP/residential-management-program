@@ -295,6 +295,7 @@ void main() {
         motivo: 'Prueba',
         numAcompanantes: 0,
         fechaLlegadaEsperada: DateTime.now(),
+        vigenciaHasta: DateTime.now().add(const Duration(hours: 4)),
         estado: 'programada',
       );
 
