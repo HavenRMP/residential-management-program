@@ -11,6 +11,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'Pages/invitaciones_recibidas_screen.dart';
 import 'Pages/visitas_residente_screen.dart';
 import 'Pages/avisos_residente_screen.dart';
+import 'Widgets/offline_banner.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<ScaffoldMessengerState> messengerKey =
@@ -140,6 +141,41 @@ class _HavenAppState extends State<HavenApp> {
       debugShowCheckedModeBanner: false,
       title: 'haven',
       theme: AppTheme.lightTheme,
+      builder: (context, child) {
+        return ListenableBuilder(
+          listenable: controller,
+          builder: (context, _) {
+            final isOffline = controller.isOffline;
+            return Material(
+              color: Colors.white,
+              child: Column(
+                children: [
+                  if (isOffline)
+                    Container(
+                      color: const Color(0xFFFEF3C7),
+                      child: SafeArea(
+                        bottom: false,
+                        child: OfflineBanner(
+                          mensaje: 'Modo sin conexión. Mostrando datos guardados.',
+                          pendingSyncCount: controller.pendingSyncCount,
+                          onSyncPressed: () => controller.syncOfflineData(),
+                          isSyncing: controller.isSyncing,
+                        ),
+                      ),
+                    ),
+                  Expanded(
+                    child: MediaQuery.removePadding(
+                      context: context,
+                      removeTop: isOffline,
+                      child: child ?? const SizedBox.shrink(),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
       home: AppRouter(controller: controller),
     );
   }
