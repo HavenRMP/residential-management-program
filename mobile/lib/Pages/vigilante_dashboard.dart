@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -5,6 +6,7 @@ import '../Models/visita_model.dart';
 import '../Services/app_controller.dart';
 import '../Services/visitas_service.dart';
 import '../Services/avisos_service.dart';
+import '../Services/viviendas_service.dart';
 import '../Services/push_notifications_service.dart';
 import 'perfil_screen.dart';
 import '../Widgets/qr_scanner_view.dart';
@@ -381,11 +383,9 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
       if (mounted) {
         if (res['success'] == true) {
           final List<VisitaModel> items = res['items'] as List<VisitaModel>;
-          if (refresh && _busquedaActual.isEmpty) {
-            OfflineSyncService.cacheVisitasProximas(items);
-          }
+          final isOffline = res['isOffline'] == true;
           setState(() {
-            _isOffline = false;
+            _isOffline = isOffline;
             if (refresh) {
               _visitas = items;
             } else {
@@ -396,48 +396,24 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
             _isLoading = false;
             _isFetchingMore = false;
           });
-          if (_pendingSyncCount > 0 && !_isSyncing) {
+          if (!isOffline && _pendingSyncCount > 0 && !_isSyncing) {
             _sincronizarPendientes();
           }
         } else {
-          if (refresh) {
-            final cached = await OfflineSyncService.getCachedVisitasProximas();
-            if (cached.isNotEmpty) {
-              final q = _busquedaActual.trim().toLowerCase();
-              setState(() {
-                _isOffline = true;
-                _visitas = q.isEmpty
-                    ? cached
-                    : cached
-                          .where(
-                            (v) =>
-                                v.nombreCompletoVisitante
-                                    .toLowerCase()
-                                    .contains(q) ||
-                                (v.codigo != null &&
-                                    v.codigo!.toLowerCase().contains(q)) ||
-                                v.numeroCasa.toLowerCase().contains(q),
-                          )
-                          .toList();
-                _isLoading = false;
-                _isFetchingMore = false;
-                _hasMore = false;
-              });
-              await _actualizarPendingCount();
-              return;
-            }
-          }
           setState(() {
-            _isOffline = true;
+            _isOffline = false;
             if (refresh) _visitas = [];
             _isLoading = false;
             _isFetchingMore = false;
           });
+          if (res['error'] != null && refresh) {
+            widget.controller.notifyToast(res['error'], success: false);
+          }
         }
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
-        if (refresh) {
+        if (refresh && (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline())) {
           final cached = await OfflineSyncService.getCachedVisitasProximas();
           if (cached.isNotEmpty) {
             final q = _busquedaActual.trim().toLowerCase();
@@ -465,10 +441,14 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
           }
         }
         setState(() {
-          _isOffline = true;
+          _isOffline = false;
           _isLoading = false;
           _isFetchingMore = false;
         });
+        widget.controller.notifyToast(
+          e is TimeoutException ? 'Conexión débil o lenta. Tiempo de espera agotado.' : 'Error al conectar con el servidor',
+          success: false,
+        );
       }
     }
   }
@@ -501,20 +481,119 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
     if (confirm != true) return;
 
     setState(() => _processingVisitaId = visita.id);
-    final service = VisitasService(widget.controller);
-    final res = await service.registrarEntrada(visita.id);
 
-    if (mounted) {
-      setState(() => _processingVisitaId = null);
-      if (res['success'] == true) {
+    final isOffline = _isOffline || widget.controller.isOffline;
+    if (isOffline) {
+      // Regla estricta: SOLAMENTE visitas que ya fueron descargadas y están esperadas
+      final check = await OfflineSyncService.canApproveOffline(visita.id);
+      if (check['allowed'] != true) {
+        if (mounted) {
+          setState(() => _processingVisitaId = null);
+          widget.controller.notifyToast(
+            check['reason'] ??
+                'Sin conexión solo se pueden aprobar visitas descargadas y esperadas.',
+            success: false,
+          );
+        }
+        return;
+      }
+
+      await OfflineSyncService.queueOfflineApproval(
+        visitaId: visita.id,
+        tipo: 'entrada',
+        nombreVisitante: visita.nombreCompletoVisitante,
+        numeroCasa: visita.numeroCasa,
+        codigo: visita.codigo,
+      );
+
+      if (mounted) {
+        setState(() {
+          _processingVisitaId = null;
+          final i = _visitas.indexWhere((v) => v.id == visita.id);
+          if (i >= 0) {
+            _visitas[i] = _visitas[i].copyWith(
+              estado: 'ingresada',
+              horaEntrada: DateTime.now(),
+            );
+          }
+        });
+        await _actualizarPendingCount();
         widget.controller.notifyToast(
-          '¡Entrada registrada! Se notificó al residente.',
+          'Entrada aprobada en modo sin conexión. Se sincronizará automáticamente al restablecer la red.',
           success: true,
         );
-        _cargarVisitas(refresh: true);
-      } else {
+      }
+      return;
+    }
+
+    final service = VisitasService(widget.controller);
+    try {
+      final res = await service.registrarEntrada(visita.id);
+
+      if (mounted) {
+        setState(() => _processingVisitaId = null);
+        if (res['success'] == true) {
+          widget.controller.notifyToast(
+            '¡Entrada registrada! Se notificó al residente.',
+            success: true,
+          );
+          _cargarVisitas(refresh: true);
+        } else {
+          widget.controller.notifyToast(
+            res['error'] ?? 'Error al registrar entrada',
+            success: false,
+          );
+        }
+      }
+    } catch (e) {
+      if (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline()) {
+        final check = await OfflineSyncService.canApproveOffline(visita.id);
+        if (check['allowed'] == true) {
+          await OfflineSyncService.queueOfflineApproval(
+            visitaId: visita.id,
+            tipo: 'entrada',
+            nombreVisitante: visita.nombreCompletoVisitante,
+            numeroCasa: visita.numeroCasa,
+            codigo: visita.codigo,
+          );
+          if (mounted) {
+            setState(() {
+              _isOffline = true;
+              _processingVisitaId = null;
+              final i = _visitas.indexWhere((v) => v.id == visita.id);
+              if (i >= 0) {
+                _visitas[i] = _visitas[i].copyWith(
+                  estado: 'ingresada',
+                  horaEntrada: DateTime.now(),
+                );
+              }
+            });
+            await _actualizarPendingCount();
+            widget.controller.notifyToast(
+              'Entrada aprobada en modo sin conexión. Se sincronizará automáticamente al restablecer la red.',
+              success: true,
+            );
+          }
+          return;
+        } else {
+          if (mounted) {
+            setState(() => _processingVisitaId = null);
+            widget.controller.notifyToast(
+              check['reason'] ??
+                  'Sin conexión solo se pueden aprobar visitas descargadas y esperadas.',
+              success: false,
+            );
+          }
+          return;
+        }
+      }
+
+      if (mounted) {
+        setState(() => _processingVisitaId = null);
         widget.controller.notifyToast(
-          res['error'] ?? 'Error al registrar entrada',
+          e is TimeoutException
+              ? 'Conexión débil o lenta. Tiempo de espera agotado.'
+              : 'Error al registrar entrada',
           success: false,
         );
       }
@@ -522,6 +601,15 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
   }
 
   Future<void> _registrarSalida(VisitaModel visita) async {
+    final isOffline = _isOffline || widget.controller.isOffline;
+    if (isOffline) {
+      widget.controller.notifyToast(
+        'Sin conexión solo se pueden aprobar visitas descargadas y esperadas. No es posible registrar salidas.',
+        success: false,
+      );
+      return;
+    }
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1061,7 +1149,7 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    if (_isOffline || _pendingSyncCount > 0)
+                    if ((_isOffline || _pendingSyncCount > 0) && !widget.controller.isOffline)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: OfflineBanner(
@@ -2776,30 +2864,10 @@ class _DirectorioCasasTabState extends State<_DirectorioCasasTab> {
       _errorMessage = null;
     });
     try {
-      final baseUrl =
-          dotenv.env['API_BASE_URL_VIVIENDAS'] ??
-          'https://viviendas-api.onrender.com';
-      final token = await widget.controller.getValidAccessToken();
-      final res = await widget.controller.httpClient.get(
-        Uri.parse('$baseUrl/api/Viviendas'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
+      final srv = ViviendasService(widget.controller);
+      final list = await srv.listar();
 
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        final decoded = jsonDecode(res.body);
-        List<dynamic> list = [];
-        if (decoded is List) {
-          list = decoded;
-        } else if (decoded is Map) {
-          list =
-              decoded['items'] as List<dynamic>? ??
-              decoded['data'] as List<dynamic>? ??
-              [];
-        }
-        // Ordenar por número de casa
+      if (list.isNotEmpty) {
         list.sort((a, b) {
           final na = int.tryParse(a['numeroCasa']?.toString() ?? '') ?? 0;
           final nb = int.tryParse(b['numeroCasa']?.toString() ?? '') ?? 0;
@@ -2815,7 +2883,7 @@ class _DirectorioCasasTabState extends State<_DirectorioCasasTab> {
       } else {
         if (mounted) {
           setState(() {
-            _errorMessage = 'Error al cargar el directorio (${res.statusCode})';
+            _errorMessage = 'No se encontraron casas registradas';
             _isLoading = false;
           });
         }
