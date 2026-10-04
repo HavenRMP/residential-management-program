@@ -13,6 +13,7 @@ import 'visitas_admin_screen.dart';
 import 'perfil_screen.dart';
 import '../Services/push_notifications_service.dart';
 import '../Widgets/qr_dialog.dart';
+import '../Utils/haptic_helper.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key, required this.controller});
@@ -224,6 +225,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {
+          HapticHelper.selection();
           if (index == 0 && _currentIndex != 0) {
             _fetchStats();
           }

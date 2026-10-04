@@ -17,6 +17,7 @@ import 'invitaciones_recibidas_screen.dart';
 import 'visitas_residente_screen.dart';
 import 'perfil_screen.dart';
 import '../Widgets/qr_scanner_view.dart';
+import '../Utils/haptic_helper.dart';
 
 class ResidenteDashboardScreen extends StatefulWidget {
   const ResidenteDashboardScreen({super.key, required this.controller});
@@ -417,6 +418,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
         child: NavigationBar(
           selectedIndex: _currentIndex,
           onDestinationSelected: (index) {
+            HapticHelper.selection();
             setState(() {
               _currentIndex = index;
               if (hasCondominio && index == 3) {
