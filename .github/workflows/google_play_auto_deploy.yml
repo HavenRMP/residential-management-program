@@ -1,0 +1,197 @@
+name: Google Play Auto Deploy (Internal)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'mobile/pubspec.yaml'
+  workflow_dispatch:
+
+jobs:
+  check-version-change:
+    name: Check Version Change in Pubspec
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+      new_version: ${{ steps.check.outputs.new_version }}
+      old_version: ${{ steps.check.outputs.old_version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check pubspec.yaml version change
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            CURRENT_VERSION=$(grep -E '^[[:space:]]*version:' mobile/pubspec.yaml | head -n1 | sed -E 's/^[[:space:]]*version:[[:space:]]*//' | tr -d '\r\n ')
+            echo "Manual dispatch triggered for version: $CURRENT_VERSION"
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+            echo "new_version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+            echo "old_version=manual" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ -z "${{ github.event.before }}" ] || [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            BASE_COMMIT=$(git rev-parse HEAD~1)
+          else
+            BASE_COMMIT="${{ github.event.before }}"
+          fi
+          HEAD_COMMIT="${{ github.sha }}"
+
+          echo "Comparing base commit: $BASE_COMMIT against head commit: $HEAD_COMMIT"
+
+          OLD_VERSION=$(git show "$BASE_COMMIT:mobile/pubspec.yaml" 2>/dev/null | grep -E '^[[:space:]]*version:' | head -n1 | sed -E 's/^[[:space:]]*version:[[:space:]]*//' | tr -d '\r\n ')
+          NEW_VERSION=$(git show "$HEAD_COMMIT:mobile/pubspec.yaml" 2>/dev/null | grep -E '^[[:space:]]*version:' | head -n1 | sed -E 's/^[[:space:]]*version:[[:space:]]*//' | tr -d '\r\n ')
+
+          echo "Old Version: '$OLD_VERSION'"
+          echo "New Version: '$NEW_VERSION'"
+
+          if [ -z "$NEW_VERSION" ] || [ -z "$OLD_VERSION" ]; then
+            echo "::warning ::Could not read version from pubspec.yaml at base or head. Skipping auto deploy."
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
+            echo "The changes in mobile/pubspec.yaml did not modify the 'version' field (still $NEW_VERSION). Skipping auto deploy."
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Version change detected: $OLD_VERSION -> $NEW_VERSION. Proceeding with Google Play Internal Deploy."
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+            echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+            echo "old_version=$OLD_VERSION" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-and-deploy:
+    name: Build & Deploy to Google Play (Internal)
+    needs: check-version-change
+    if: needs.check-version-change.outputs.should_deploy == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: ./mobile
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Cache Gradle Wrapper
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-wrapper-${{ hashFiles('mobile/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-wrapper-
+
+      - name: Cache Gradle dependencies and build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.android/build-cache
+          key: ${{ runner.os }}-gradle-caches-${{ hashFiles('mobile/android/gradle/wrapper/gradle-wrapper.properties', 'mobile/android/**/*.gradle.kts', 'mobile/android/gradle.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-caches-
+
+      - name: Cache Android project .gradle
+        uses: actions/cache@v4
+        with:
+          path: mobile/android/.gradle
+          key: ${{ runner.os }}-android-project-gradle-${{ hashFiles('mobile/android/gradle/wrapper/gradle-wrapper.properties', 'mobile/android/**/*.gradle.kts', 'mobile/android/gradle.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-android-project-gradle-
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'beta'
+          cache: true
+          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
+          cache-path: "${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:"
+
+      - name: Cache Flutter Pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('mobile/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-pub-
+
+      - name: Create Firebase Configs from secrets
+        run: |
+          echo "${{ secrets.FIREBASE_OPTIONS_BASE64 }}" | base64 --decode > lib/firebase_options.dart
+          echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
+          echo "${{ secrets.FIREBASE_JSON_BASE64 }}" | base64 --decode > firebase.json
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Create .env from secrets
+        run: |
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" > .env
+          echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
+          echo "API_BASE_URL_USUARIOS=${{ secrets.API_BASE_URL_USUARIOS }}" >> .env
+          echo "API_BASE_URL_VIVIENDAS=${{ secrets.API_BASE_URL_VIVIENDAS }}" >> .env
+          echo "API_BASE_URL_AVISOS=${{ secrets.API_BASE_URL_AVISOS }}" >> .env
+          echo "API_BASE_URL_CONDOMINIOS=${{ secrets.API_BASE_URL_CONDOMINIOS }}" >> .env
+          echo "API_BASE_URL_VISITAS=${{ secrets.API_BASE_URL_VISITAS || 'https://visitas-api-r66s.onrender.com' }}" >> .env
+
+      - name: Create keystore from secret
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
+
+      - name: Create key.properties
+        run: |
+          echo "storePassword=${{ secrets.STORE_PASSWORD }}" > android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+          echo "storeFile=upload-keystore.jks" >> android/key.properties
+
+      - name: Build Android AppBundle
+        run: flutter build appbundle --release --android-skip-build-dependency-validation
+
+      - name: Upload to Google Play
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_CONFIG_JSON }}
+          packageName: com.haven.uaq
+          releaseFiles: mobile/build/app/outputs/bundle/release/app-release.aab
+          track: internal
+          status: completed
+
+      - name: Notify Discord on Deploy
+        if: always()
+        run: |
+          STATUS="${{ job.status }}"
+          TRACK="internal"
+          VERSION="${{ needs.check-version-change.outputs.new_version }}"
+          if [ "$STATUS" = "success" ]; then
+            EMOJI="🚀"
+            COLOR="65280"
+            MSG="Deploy automático completado exitosamente en Google Play ($TRACK) para la versión $VERSION y listo para ser probado."
+          else
+            EMOJI="❌"
+            COLOR="16711680"
+            MSG="Falló el deploy automático en Google Play ($TRACK) para la versión $VERSION."
+          fi
+          
+          curl -H "Content-Type: application/json" \
+          -d "{
+            \"embeds\": [{
+              \"title\": \"$EMOJI CI/CD: Google Play Auto Deploy ($TRACK) $STATUS\",
+              \"description\": \"$MSG\n\nAtentamente: Teto Automatomation Bot\",
+              \"color\": $COLOR
+            }]
+          }" \
+          "${{ secrets.DISCORD_WEBHOOK_URL }}"
