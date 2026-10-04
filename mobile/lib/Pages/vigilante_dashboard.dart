@@ -152,6 +152,7 @@ class _VigilanteDashboardScreenState extends State<VigilanteDashboardScreen> {
         child: NavigationBar(
           selectedIndex: _currentIndex,
           onDestinationSelected: (index) {
+            HapticHelper.selection();
             setState(() => _currentIndex = index);
           },
           backgroundColor: Colors.white,
@@ -2546,9 +2547,10 @@ class _VisitasHistorialTabState extends State<_VisitasHistorialTab> {
                                 const SizedBox(height: 8),
 
                                 // Horarios
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
+                                Wrap(
+                                  spacing: 12,
+                                  runSpacing: 2,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
                                     Text(
                                       'Llegada: ${_formatearFechaHora(v.fechaLlegadaEsperada)}',
@@ -2566,18 +2568,16 @@ class _VisitasHistorialTabState extends State<_VisitasHistorialTab> {
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
+                                    if (v.horaSalida != null)
+                                      Text(
+                                        'Salió: ${_formatearFechaHora(v.horaSalida!)}',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: Color(0xFF64748B),
+                                        ),
+                                      ),
                                   ],
                                 ),
-                                if (v.horaSalida != null) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Salió: ${_formatearFechaHora(v.horaSalida!)}',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Color(0xFF64748B),
-                                    ),
-                                  ),
-                                ],
                               ],
                             ),
                           ),
