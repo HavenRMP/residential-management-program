@@ -623,7 +623,7 @@ class _VisitasResidenteScreenState extends State<VisitasResidenteScreen> {
         child: CustomScrollView(
           controller: _scrollController,
           slivers: [
-            if (_isOffline)
+            if (_isOffline && !widget.controller.isOffline)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
