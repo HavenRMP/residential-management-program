@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'app_controller.dart';
 import '../Models/visita_model.dart';
+import '../Utils/error_handler.dart';
 import 'offline_sync_service.dart';
 
 class VisitasService {
@@ -66,7 +67,11 @@ class VisitasService {
           };
         }
       }
-      final error = _extractErrorMessage(response.body);
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudieron obtener las visitas activas.',
+      );
       return {'success': false, 'error': error, 'items': <VisitaModel>[]};
     } catch (e) {
       if (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline()) {
@@ -88,7 +93,10 @@ class VisitasService {
       }
       return {
         'success': false,
-        'error': e is TimeoutException ? 'Conexión débil o lenta. Tiempo de espera agotado.' : e.toString(),
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al consultar visitas activas.',
+        ),
         'items': <VisitaModel>[],
       };
     }
@@ -140,10 +148,20 @@ class VisitasService {
 
       return {
         'success': false,
-        'error': _extractErrorMessage(response.body),
+        'error': ErrorHandler.extractErrorMessage(
+          response.body,
+          statusCode: response.statusCode,
+          defaultMessage: 'No se pudo programar la visita.',
+        ),
       };
     } catch (e) {
-      return {'success': false, 'error': e.toString()};
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al programar la visita.',
+        ),
+      };
     }
   }
 
@@ -191,10 +209,20 @@ class VisitasService {
 
       return {
         'success': false,
-        'error': _extractErrorMessage(response.body),
+        'error': ErrorHandler.extractErrorMessage(
+          response.body,
+          statusCode: response.statusCode,
+          defaultMessage: 'No se pudo editar la visita.',
+        ),
       };
     } catch (e) {
-      return {'success': false, 'error': e.toString()};
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al editar la visita.',
+        ),
+      };
     }
   }
 
@@ -213,10 +241,20 @@ class VisitasService {
 
       return {
         'success': false,
-        'error': _extractErrorMessage(response.body),
+        'error': ErrorHandler.extractErrorMessage(
+          response.body,
+          statusCode: response.statusCode,
+          defaultMessage: 'No se pudo cancelar la visita.',
+        ),
       };
     } catch (e) {
-      return {'success': false, 'error': e.toString()};
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al cancelar la visita.',
+        ),
+      };
     }
   }
 
@@ -261,7 +299,11 @@ class VisitasService {
 
       return {
         'success': false,
-        'error': _extractErrorMessage(response.body),
+        'error': _extractErrorMessage(
+          response.body,
+          statusCode: response.statusCode,
+          defaultMsg: 'No se pudieron consultar las visitas próximas.',
+        ),
         'items': <VisitaModel>[],
       };
     } catch (e) {
@@ -288,7 +330,10 @@ class VisitasService {
       }
       return {
         'success': false,
-        'error': e is TimeoutException ? 'Conexión débil o lenta. Tiempo de espera agotado.' : e.toString(),
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al consultar el historial de visitas.',
+        ),
         'items': <VisitaModel>[],
       };
     }
@@ -315,7 +360,11 @@ class VisitasService {
 
       return {
         'success': false,
-        'error': _extractErrorMessage(response.body, defaultMsg: 'Código inválido o expirado'),
+        'error': ErrorHandler.extractErrorMessage(
+          response.body,
+          statusCode: response.statusCode,
+          defaultMessage: 'Código de visita no válido o no encontrado.',
+        ),
       };
     } catch (e) {
       if (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline()) {
@@ -332,7 +381,10 @@ class VisitasService {
       }
       return {
         'success': false,
-        'error': e is TimeoutException ? 'Conexión débil o lenta. Tiempo de espera agotado.' : e.toString(),
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al verificar el código de acceso.',
+        ),
       };
     }
   }
@@ -356,10 +408,20 @@ class VisitasService {
 
       return {
         'success': false,
-        'error': _extractErrorMessage(response.body, defaultMsg: 'Error al registrar entrada'),
+        'error': ErrorHandler.extractErrorMessage(
+          response.body,
+          statusCode: response.statusCode,
+          defaultMessage: 'No se pudo registrar la entrada de la visita.',
+        ),
       };
     } catch (e) {
-      return {'success': false, 'error': e.toString()};
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al registrar la entrada.',
+        ),
+      };
     }
   }
 
@@ -382,10 +444,20 @@ class VisitasService {
 
       return {
         'success': false,
-        'error': _extractErrorMessage(response.body, defaultMsg: 'Error al registrar salida'),
+        'error': ErrorHandler.extractErrorMessage(
+          response.body,
+          statusCode: response.statusCode,
+          defaultMessage: 'No se pudo registrar la salida de la visita.',
+        ),
       };
     } catch (e) {
-      return {'success': false, 'error': e.toString()};
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al registrar la salida.',
+        ),
+      };
     }
   }
 
@@ -445,7 +517,11 @@ class VisitasService {
 
       return {
         'success': false,
-        'error': _extractErrorMessage(response.body),
+        'error': _extractErrorMessage(
+          response.body,
+          statusCode: response.statusCode,
+          defaultMsg: 'No se pudo obtener el historial de visitas.',
+        ),
         'items': <VisitaModel>[],
       };
     } catch (e) {
@@ -465,7 +541,10 @@ class VisitasService {
       }
       return {
         'success': false,
-        'error': e is TimeoutException ? 'Conexión débil o lenta. Tiempo de espera agotado.' : e.toString(),
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al consultar el historial de accesos.',
+        ),
         'items': <VisitaModel>[],
       };
     }
@@ -504,18 +583,7 @@ class VisitasService {
     );
   }
 
-  String _extractErrorMessage(String responseBody, {String defaultMsg = 'Ocurrió un error inesperado'}) {
-    try {
-      if (responseBody.isEmpty) return defaultMsg;
-      final parsed = jsonDecode(responseBody);
-      if (parsed is Map<String, dynamic>) {
-        if (parsed.containsKey('error')) return parsed['error'].toString();
-        if (parsed.containsKey('message')) return parsed['message'].toString();
-        if (parsed.containsKey('title')) return parsed['title'].toString();
-      }
-      return defaultMsg;
-    } catch (_) {
-      return defaultMsg;
-    }
+  String _extractErrorMessage(String responseBody, {int? statusCode, String defaultMsg = 'Ocurrió un error inesperado'}) {
+    return ErrorHandler.extractErrorMessage(responseBody, statusCode: statusCode, defaultMessage: defaultMsg);
   }
 }

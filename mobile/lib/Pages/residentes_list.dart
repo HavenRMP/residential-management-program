@@ -8,6 +8,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../Services/app_controller.dart';
 import '../Services/viviendas_service.dart';
 import '../Services/offline_sync_service.dart';
+import '../Utils/error_handler.dart';
 import 'vivienda_detalle_screen.dart';
 
 class ResidentesListScreen extends StatefulWidget {
@@ -95,7 +96,11 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
           }
         } catch (_) {}
       } else {
-        _errorMessage = 'Error de conexión';
+        _errorMessage = ErrorHandler.extractErrorMessage(
+          response.body,
+          statusCode: response.statusCode,
+          defaultMessage: 'No se pudieron consultar los residentes.',
+        );
       }
     } catch (e) {
       if (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline()) {
@@ -109,7 +114,10 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
           _errorMessage = 'Modo sin conexión. No hay residentes guardados.';
         }
       } else {
-        _errorMessage = e.toString();
+        _errorMessage = ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al consultar residentes.',
+        );
       }
     } finally {
       if (mounted) {

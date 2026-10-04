@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../Models/auth_user.dart';
 import '../Models/api_exceptions.dart';
+import '../Utils/error_handler.dart';
 import 'push_notifications_service.dart';
 import 'offline_sync_service.dart';
 import 'visitas_service.dart';
@@ -360,11 +361,14 @@ class AppController extends ChangeNotifier {
     } on AuthException catch (error) {
       _session = null;
       _currentUser = null;
-      _errorMessage = _mapAuthError(error);
+      _errorMessage = ErrorHandler.mapAuthException(error);
     } catch (error) {
       _session = null;
       _currentUser = null;
-      _errorMessage = error.toString();
+      _errorMessage = ErrorHandler.parseException(
+        error,
+        defaultMessage: 'No se pudo iniciar sesión. Verifica tus datos de acceso.',
+      );
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -389,9 +393,12 @@ class AppController extends ChangeNotifier {
             : 'io.supabase.haven://login-callback/',
       );
     } on AuthException catch (error) {
-      _errorMessage = error.message;
+      _errorMessage = ErrorHandler.mapAuthException(error);
     } catch (error) {
-      _errorMessage = error.toString();
+      _errorMessage = ErrorHandler.parseException(
+        error,
+        defaultMessage: 'No se pudo completar el inicio de sesión con Google.',
+      );
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -442,11 +449,14 @@ class AppController extends ChangeNotifier {
         return true;
       }
     } on AuthException catch (error) {
-      _errorMessage = _mapAuthError(error);
+      _errorMessage = ErrorHandler.mapAuthException(error);
       notifyToast(_errorMessage!, success: false);
       return false;
     } catch (error) {
-      _errorMessage = error.toString();
+      _errorMessage = ErrorHandler.parseException(
+        error,
+        defaultMessage: 'No se pudo registrar la cuenta. Intenta de nuevo.',
+      );
       notifyToast(_errorMessage!, success: false);
       return false;
     } finally {
@@ -820,29 +830,7 @@ class AppController extends ChangeNotifier {
   }
 
   String _mapAuthError(AuthException error) {
-    final message = error.message.toLowerCase();
-    if (message.contains('invalid login credentials') ||
-        message.contains('invalid_credentials') ||
-        message.contains('correo') ||
-        message.contains('contraseña')) {
-      return 'Correo o contraseña incorrectos.';
-    }
-    if (message.contains('user already registered') ||
-        message.contains('already been registered') ||
-        message.contains('email address is already registered')) {
-      return 'El correo electrónico ya está registrado.';
-    }
-    if (message.contains('password should be at least')) {
-      return 'La contraseña debe tener al menos 6 caracteres.';
-    }
-    if (message.contains('email') || message.contains('password')) {
-      return 'Revisa el correo y la contraseña.';
-    }
-    if (message.contains('not confirmed') ||
-        message.contains('email not confirmed')) {
-      return 'Debes confirmar el correo antes de entrar.';
-    }
-    return error.message;
+    return ErrorHandler.mapAuthException(error);
   }
 
   void notifyToast(String message, {required bool success, String? subtitle}) {
@@ -891,6 +879,28 @@ class AppController extends ChangeNotifier {
             : const Color(0xFFFEE2E2),
       ),
     );
+  }
+
+  void notifyError(
+    dynamic errorOrBody, {
+    int? statusCode,
+    String? defaultMessage,
+    String? subtitle,
+  }) {
+    String msg;
+    if (errorOrBody is String || errorOrBody is Map) {
+      msg = ErrorHandler.extractErrorMessage(
+        errorOrBody,
+        statusCode: statusCode,
+        defaultMessage: defaultMessage,
+      );
+    } else {
+      msg = ErrorHandler.parseException(
+        errorOrBody,
+        defaultMessage: defaultMessage,
+      );
+    }
+    notifyToast(msg, success: false, subtitle: subtitle);
   }
 
   Future<bool> completarPerfil(
@@ -965,20 +975,21 @@ class AppController extends ChangeNotifier {
         notifyToast('Perfil guardado correctamente.', success: true);
         return true;
       } else {
-        String msg = 'No se pudo actualizar el perfil.';
-        try {
-          final errBody = jsonDecode(response.body);
-          if (errBody is Map && errBody['error'] != null) {
-            msg = errBody['error'].toString();
-          }
-        } catch (_) {}
+        final msg = ErrorHandler.extractErrorMessage(
+          response.body,
+          statusCode: response.statusCode,
+          defaultMessage: 'No se pudo actualizar el perfil.',
+        );
         _errorMessage = msg;
         notifyToast(msg, success: false);
         return false;
       }
     } catch (e) {
-      _errorMessage = e.toString();
-      notifyToast('Error al conectar con el servidor.', success: false);
+      _errorMessage = ErrorHandler.parseException(
+        e,
+        defaultMessage: 'Error de comunicación al actualizar el perfil.',
+      );
+      notifyToast(_errorMessage!, success: false);
       return false;
     } finally {
       _isLoading = false;

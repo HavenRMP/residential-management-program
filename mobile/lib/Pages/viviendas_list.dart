@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:convert';
 import '../Services/app_controller.dart';
 import '../Services/viviendas_service.dart';
+import '../Utils/error_handler.dart';
 import 'vivienda_detalle_screen.dart';
 
 class ViviendasListScreen extends StatefulWidget {
@@ -74,7 +75,10 @@ class _ViviendasListScreenState extends State<ViviendasListScreen> {
       final list = await _viviendasService.listarConResidentes();
       _viviendas = list;
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = ErrorHandler.parseException(
+        e,
+        defaultMessage: 'No se pudieron cargar las viviendas.',
+      );
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -100,7 +104,13 @@ class _ViviendasListScreenState extends State<ViviendasListScreen> {
         );
       }
     } catch (e) {
-      widget.controller.notifyToast('Error de red', success: false);
+      widget.controller.notifyToast(
+        ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al eliminar vivienda.',
+        ),
+        success: false,
+      );
     }
   }
 
@@ -193,14 +203,24 @@ class _ViviendasListScreenState extends State<ViviendasListScreen> {
                       }
                       _fetchViviendas();
                     } else {
+                      final errorMsg = ErrorHandler.extractErrorMessage(
+                        res.body,
+                        statusCode: res.statusCode,
+                        defaultMessage: isEdit
+                            ? 'No se pudo actualizar la vivienda'
+                            : 'No se pudo crear la vivienda',
+                      );
                       widget.controller.notifyToast(
-                        'Error al guardar',
+                        errorMsg,
                         success: false,
                       );
                     }
                   } catch (e) {
                     widget.controller.notifyToast(
-                      'Error de red',
+                      ErrorHandler.parseException(
+                        e,
+                        defaultMessage: 'Error de comunicación al guardar vivienda.',
+                      ),
                       success: false,
                     );
                   }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../Models/subusuario.dart';
+import '../Utils/error_handler.dart';
 import 'app_controller.dart';
 import 'offline_sync_service.dart';
 
@@ -134,23 +135,28 @@ class SubusuariosService {
         return {'success': true};
       }
 
-      String errorMsg = 'Error al invitar sub-usuario';
+      String defaultError = 'Error al invitar sub-usuario';
       if (response.statusCode == 404) {
-        errorMsg = 'El correo no está registrado en HAVEN. Tu familiar debe registrarse primero en la app.';
+        defaultError = 'El correo no está registrado en HAVEN. Tu familiar debe registrarse primero en la app.';
       } else if (response.statusCode == 409) {
-        errorMsg = 'Límite máximo de 2 sub-usuarios alcanzado o ya tiene una invitación pendiente.';
+        defaultError = 'Límite máximo de 2 sub-usuarios alcanzado o ya tiene una invitación pendiente.';
       }
 
-      try {
-        final decoded = jsonDecode(response.body);
-        if (decoded is Map<String, dynamic> && decoded['error'] != null) {
-          errorMsg = decoded['error'].toString();
-        }
-      } catch (_) {}
+      final errorMsg = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: defaultError,
+      );
 
       return {'success': false, 'error': errorMsg};
     } catch (e) {
-      return {'success': false, 'error': 'Error de conexión: $e'};
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al invitar sub-usuario.',
+        ),
+      };
     }
   }
 
@@ -205,13 +211,13 @@ class SubusuariosService {
         }
         return {'success': true, 'data': decoded};
       } else if (response.statusCode != 404) {
-        try {
-          final errDecoded = jsonDecode(response.body);
-          if (errDecoded is Map && errDecoded['error'] != null) {
-            return {'error': errDecoded['error']};
-          }
-        } catch (_) {}
-        return {'error': 'Error HTTP ${response.statusCode}'};
+        return {
+          'error': ErrorHandler.extractErrorMessage(
+            response.body,
+            statusCode: response.statusCode,
+            defaultMessage: 'No se pudo canjear el código de invitación.',
+          ),
+        };
       }
     } catch (_) {
       // Continuar a fallback de RPC Supabase
@@ -240,15 +246,12 @@ class SubusuariosService {
         return {'error': 'No se pudo redimir el código de sub-usuario'};
       }
     } catch (e) {
-      final errStr = e.toString();
-      if (errStr.contains('CD001') || errStr.contains('no existe') || errStr.contains('expirado')) {
-        return {'error': 'El código de invitación no existe, ya fue utilizado o ha expirado.'};
-      } else if (errStr.contains('SU001') || errStr.contains('Límite')) {
-        return {'error': 'Límite máximo de 2 sub-usuarios alcanzado en la vivienda.'};
-      } else if (errStr.contains('SU003') || errStr.contains('ya está vinculado') || errStr.contains('ya es')) {
-        return {'error': 'Ya eres co-residente o titular de esta vivienda.'};
-      }
-      return {'error': errStr};
+      return {
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'No se pudo redimir el código de sub-usuario.',
+        ),
+      };
     }
   }
 
@@ -339,17 +342,21 @@ class SubusuariosService {
         return {'success': true, 'message': msg};
       }
 
-      String errorMsg = 'No se pudo responder a la invitación';
-      try {
-        final decoded = jsonDecode(response.body);
-        if (decoded is Map<String, dynamic> && decoded['error'] != null) {
-          errorMsg = decoded['error'].toString();
-        }
-      } catch (_) {}
+      final errorMsg = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudo responder a la invitación.',
+      );
 
       return {'success': false, 'error': errorMsg};
     } catch (e) {
-      return {'success': false, 'error': 'Error de conexión: $e'};
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al responder invitación.',
+        ),
+      };
     }
   }
 }

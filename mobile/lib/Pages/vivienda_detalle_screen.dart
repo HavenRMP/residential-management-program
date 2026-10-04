@@ -6,6 +6,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../Services/app_controller.dart';
 import '../Services/viviendas_service.dart';
+import '../Utils/error_handler.dart';
 import '../Widgets/qr_dialog.dart';
 
 class ViviendaDetalleScreen extends StatefulWidget {
@@ -93,20 +94,22 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
           _vivienda['residente'] = residente;
         });
         widget.onChanged();
-      } else if (res.statusCode == 409) {
-        widget.controller.notifyToast(
-          'El residente ya está asignado a una vivienda',
-          success: false,
-        );
       } else {
-        widget.controller.notifyToast(
-          'Error al vincular residente',
-          success: false,
+        final errorMsg = ErrorHandler.extractErrorMessage(
+          res.body,
+          statusCode: res.statusCode,
+          defaultMessage: res.statusCode == 409
+              ? 'El residente ya está asignado a una vivienda'
+              : 'Error al vincular residente',
         );
+        widget.controller.notifyToast(errorMsg, success: false);
       }
     } catch (e) {
       widget.controller.notifyToast(
-        'Error de conexión al vincular habitante',
+        ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al vincular habitante.',
+        ),
         success: false,
       );
     } finally {
@@ -171,14 +174,19 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
         });
         widget.onChanged();
       } else {
-        widget.controller.notifyToast(
-          'No se pudo desvincular el residente',
-          success: false,
+        final errorMsg = ErrorHandler.extractErrorMessage(
+          res.body,
+          statusCode: res.statusCode,
+          defaultMessage: 'No se pudo desvincular el residente.',
         );
+        widget.controller.notifyToast(errorMsg, success: false);
       }
     } catch (e) {
       widget.controller.notifyToast(
-        'Error de conexión al desvincular',
+        ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al desvincular.',
+        ),
         success: false,
       );
     } finally {
@@ -250,13 +258,20 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
                     });
                   } else {
                     setModalState(() {
-                      fetchError = 'No se pudo cargar la lista de residentes';
+                      fetchError = ErrorHandler.extractErrorMessage(
+                        res.body,
+                        statusCode: res.statusCode,
+                        defaultMessage: 'No se pudo cargar la lista de residentes',
+                      );
                       isLoadingResidents = false;
                     });
                   }
                 } catch (e) {
                   setModalState(() {
-                    fetchError = 'Error de conexión con el directorio';
+                    fetchError = ErrorHandler.parseException(
+                      e,
+                      defaultMessage: 'Error de comunicación con el directorio de residentes.',
+                    );
                     isLoadingResidents = false;
                   });
                 }
@@ -847,13 +862,21 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
           Navigator.pop(context);
         }
       } else {
-        widget.controller.notifyToast(
-          'No se pudo eliminar la vivienda',
-          success: false,
+        final errorMsg = ErrorHandler.extractErrorMessage(
+          response.body,
+          statusCode: response.statusCode,
+          defaultMessage: 'No se pudo eliminar la vivienda.',
         );
+        widget.controller.notifyToast(errorMsg, success: false);
       }
     } catch (e) {
-      widget.controller.notifyToast('Error de red al eliminar', success: false);
+      widget.controller.notifyToast(
+        ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al eliminar vivienda.',
+        ),
+        success: false,
+      );
     } finally {
       if (mounted) {
         setState(() => _isDeleting = false);
@@ -943,14 +966,19 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
                         Navigator.pop(ctx);
                       }
                     } else {
-                      widget.controller.notifyToast(
-                        'Error al actualizar',
-                        success: false,
+                      final errorMsg = ErrorHandler.extractErrorMessage(
+                        res.body,
+                        statusCode: res.statusCode,
+                        defaultMessage: 'No se pudo actualizar la vivienda.',
                       );
+                      widget.controller.notifyToast(errorMsg, success: false);
                     }
                   } catch (e) {
                     widget.controller.notifyToast(
-                      'Error de conexión',
+                      ErrorHandler.parseException(
+                        e,
+                        defaultMessage: 'Error de comunicación al actualizar vivienda.',
+                      ),
                       success: false,
                     );
                   }

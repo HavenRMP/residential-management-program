@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../Utils/error_handler.dart';
 import 'app_controller.dart';
 
 class CondominiosService {
@@ -18,17 +19,32 @@ class CondominiosService {
   }
 
   Future<Map<String, dynamic>?> generarCodigo(String condominioId, {int? minutosVigencia}) async {
-    final url = '$baseUrl/api/condominios/$condominioId/codigo';
-    final payload = minutosVigencia != null ? {'minutosVigencia': minutosVigencia} : {};
-    final response = await controller.httpClient.post(
-      Uri.parse(url),
-      headers: await _getHeaders(),
-      body: jsonEncode(payload),
-    );
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return jsonDecode(response.body);
+    try {
+      final url = '$baseUrl/api/condominios/$condominioId/codigo';
+      final payload = minutosVigencia != null ? {'minutosVigencia': minutosVigencia} : {};
+      final response = await controller.httpClient.post(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+        body: jsonEncode(payload),
+      );
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return jsonDecode(response.body);
+      }
+      return {
+        'error': ErrorHandler.extractErrorMessage(
+          response.body,
+          statusCode: response.statusCode,
+          defaultMessage: 'No se pudo generar el código del condominio.',
+        ),
+      };
+    } catch (e) {
+      return {
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al generar código de condominio.',
+        ),
+      };
     }
-    return null;
   }
 
   Future<Map<String, dynamic>?> redimirCodigo(String codigo, {String? usuarioId}) async {
@@ -51,16 +67,21 @@ class CondominiosService {
         }
         return {'success': true, 'data': decoded};
       } else {
-        try {
-          final errDecoded = jsonDecode(response.body);
-          if (errDecoded is Map && errDecoded['error'] != null) {
-            return {'error': errDecoded['error']};
-          }
-        } catch (_) {}
-        return {'error': 'Error HTTP ${response.statusCode}'};
+        return {
+          'error': ErrorHandler.extractErrorMessage(
+            response.body,
+            statusCode: response.statusCode,
+            defaultMessage: 'No se pudo canjear el código del condominio.',
+          ),
+        };
       }
     } catch (e) {
-      return {'error': e.toString()};
+      return {
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al canjear el código.',
+        ),
+      };
     }
   }
 }

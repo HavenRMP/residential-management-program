@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../Models/visita_model.dart';
 import '../Services/app_controller.dart';
 import '../Services/visitas_service.dart';
+import '../Utils/error_handler.dart';
 
 class VisitasAdminScreen extends StatefulWidget {
   final AppController controller;
@@ -111,12 +112,21 @@ class _VisitasAdminScreenState extends State<VisitasAdminScreen> {
           }
         }
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() {
           _isLoading = false;
           _isFetchingMore = false;
         });
+        if (refresh) {
+          widget.controller.notifyToast(
+            ErrorHandler.parseException(
+              e,
+              defaultMessage: 'Error al consultar el historial de visitas.',
+            ),
+            success: false,
+          );
+        }
       }
     }
   }

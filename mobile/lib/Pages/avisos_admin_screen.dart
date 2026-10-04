@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../Services/app_controller.dart';
 import '../Services/avisos_service.dart';
+import '../Utils/error_handler.dart';
 import 'en_construccion_screen.dart';
 
 class AvisosAdminScreen extends StatefulWidget {
@@ -236,15 +237,18 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
           prioridad: prioridad,
         );
         
-        if (res != null) {
+        if (res != null && (res['success'] == true || res.containsKey('id') || res.containsKey('avisoId'))) {
           widget.controller.notifyToast('Aviso creado exitosamente', success: true);
           await _cargarAmbos();
         } else {
-          widget.controller.notifyToast('Error al crear el aviso', success: false);
+          final errorMsg = res?['error']?.toString() ?? 'Error al crear el aviso';
+          widget.controller.notifyToast(errorMsg, success: false);
           if (mounted) setState(() => _isLoading = false);
         }
       } catch (e) {
-        if (mounted) _redirigirAConstruccion('Error al crear aviso');
+        final msg = ErrorHandler.parseException(e, defaultMessage: 'Error al crear el aviso');
+        widget.controller.notifyToast(msg, success: false);
+        if (mounted) setState(() => _isLoading = false);
       }
     }
   }
@@ -273,17 +277,20 @@ class _AvisosAdminScreenState extends State<AvisosAdminScreen> with SingleTicker
       setState(() => _isLoading = true);
       try {
         final service = AvisosService(widget.controller);
-        final success = await service.deleteAviso(id);
+        final res = await service.deleteAviso(id);
         
-        if (success) {
+        if (res['success'] == true) {
           widget.controller.notifyToast('Aviso eliminado exitosamente', success: true);
           await _cargarAmbos();
         } else {
-          widget.controller.notifyToast('Error al eliminar el aviso', success: false);
+          final errorMsg = res['error']?.toString() ?? 'Error al eliminar el aviso';
+          widget.controller.notifyToast(errorMsg, success: false);
           if (mounted) setState(() => _isLoading = false);
         }
       } catch (e) {
-        if (mounted) _redirigirAConstruccion('Error al eliminar aviso');
+        final msg = ErrorHandler.parseException(e, defaultMessage: 'Error al eliminar el aviso');
+        widget.controller.notifyToast(msg, success: false);
+        if (mounted) setState(() => _isLoading = false);
       }
     }
   }

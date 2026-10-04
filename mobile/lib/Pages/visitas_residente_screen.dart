@@ -8,6 +8,7 @@ import '../Widgets/programar_visita_modal.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../Widgets/qr_dialog.dart';
 import '../Utils/share_helper.dart';
+import '../Utils/error_handler.dart';
 import '../Services/offline_sync_service.dart';
 import '../Widgets/offline_banner.dart';
 import '../Widgets/skeleton_loading.dart';
@@ -143,7 +144,10 @@ class _VisitasResidenteScreenState extends State<VisitasResidenteScreen> {
           _isFetchingMore = false;
         });
         widget.controller.notifyToast(
-          e is TimeoutException ? 'Conexión débil o lenta. Tiempo de espera agotado.' : 'Error al conectar con el servidor',
+          ErrorHandler.parseException(
+            e,
+            defaultMessage: 'Error al conectar con el servidor',
+          ),
           success: false,
         );
       }

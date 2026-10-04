@@ -12,6 +12,7 @@ import 'perfil_screen.dart';
 import '../Widgets/qr_scanner_view.dart';
 import '../Widgets/qr_dialog.dart';
 import '../Utils/share_helper.dart';
+import '../Utils/error_handler.dart';
 import '../Services/offline_sync_service.dart';
 import '../Widgets/offline_banner.dart';
 import '../Widgets/skeleton_loading.dart';
@@ -446,7 +447,10 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
           _isFetchingMore = false;
         });
         widget.controller.notifyToast(
-          e is TimeoutException ? 'Conexión débil o lenta. Tiempo de espera agotado.' : 'Error al conectar con el servidor',
+          ErrorHandler.parseException(
+            e,
+            defaultMessage: 'Error al conectar con el servidor',
+          ),
           success: false,
         );
       }
@@ -591,9 +595,10 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
       if (mounted) {
         setState(() => _processingVisitaId = null);
         widget.controller.notifyToast(
-          e is TimeoutException
-              ? 'Conexión débil o lenta. Tiempo de espera agotado.'
-              : 'Error al registrar entrada',
+          ErrorHandler.parseException(
+            e,
+            defaultMessage: 'Error al registrar entrada',
+          ),
           success: false,
         );
       }
@@ -2891,7 +2896,10 @@ class _DirectorioCasasTabState extends State<_DirectorioCasasTab> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Error de conexión';
+          _errorMessage = ErrorHandler.parseException(
+            e,
+            defaultMessage: 'Error de comunicación al consultar viviendas.',
+          );
           _isLoading = false;
         });
       }
