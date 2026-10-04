@@ -3,6 +3,7 @@ import '../Models/visita_model.dart';
 import '../Services/app_controller.dart';
 import '../Services/visitas_service.dart';
 import '../Utils/error_handler.dart';
+import '../Utils/haptic_helper.dart';
 
 class VisitasAdminScreen extends StatefulWidget {
   final AppController controller;
@@ -357,13 +358,19 @@ class _VisitasAdminScreenState extends State<VisitasAdminScreen> {
           IconButton(
             icon: const Icon(Icons.date_range_rounded, color: Color(0xFF111C99)),
             tooltip: 'Filtrar por fechas',
-            onPressed: _seleccionarRangoFechas,
+            onPressed: () {
+              HapticHelper.light();
+              _seleccionarRangoFechas();
+            },
           ),
           if (hasActiveFilter)
             IconButton(
               icon: const Icon(Icons.filter_alt_off_rounded, color: Color(0xFFDC2626)),
               tooltip: 'Limpiar filtros',
-              onPressed: _limpiarFiltros,
+              onPressed: () {
+                HapticHelper.light();
+                _limpiarFiltros();
+              },
             ),
         ],
       ),
@@ -399,6 +406,7 @@ class _VisitasAdminScreenState extends State<VisitasAdminScreen> {
                               color: isSelected ? const Color(0xFF111C99) : const Color(0xFFCBD5E1),
                             ),
                             onSelected: (val) {
+                              HapticHelper.selection();
                               setState(() => _filtroEstado = f['value']);
                               _cargarHistorico(refresh: true);
                             },
@@ -523,7 +531,10 @@ class _VisitasAdminScreenState extends State<VisitasAdminScreen> {
                           ],
                         ),
                         child: InkWell(
-                          onTap: () => _mostrarDetalle(v),
+                          onTap: () {
+                            HapticHelper.light();
+                            _mostrarDetalle(v);
+                          },
                           borderRadius: BorderRadius.circular(16),
                           child: Padding(
                             padding: const EdgeInsets.all(16),
@@ -570,23 +581,50 @@ class _VisitasAdminScreenState extends State<VisitasAdminScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 6),
-                                Row(
+                                Wrap(
+                                  spacing: 12,
+                                  runSpacing: 4,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
-                                    const Icon(Icons.event_note_rounded, size: 14, color: Color(0xFF64748B)),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'Esperada: ${_formatearFecha(v.fechaLlegadaEsperada)}',
-                                      style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.event_note_rounded, size: 14, color: Color(0xFF64748B)),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'Esperada: ${_formatearFecha(v.fechaLlegadaEsperada)}',
+                                          style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                                        ),
+                                      ],
                                     ),
-                                    if (v.horaEntrada != null) ...[
-                                      const SizedBox(width: 10),
-                                      const Icon(Icons.login_rounded, size: 14, color: Color(0xFF059669)),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'Entrada: ${_formatearFecha(v.horaEntrada!)}',
-                                        style: const TextStyle(fontSize: 12, color: Color(0xFF059669), fontWeight: FontWeight.w600),
+                                    if (v.horaEntrada != null)
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.login_rounded, size: 14, color: Color(0xFF059669)),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Entrada: ${_formatearFecha(v.horaEntrada!)}',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Color(0xFF059669),
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    ],
+                                    if (v.horaSalida != null)
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.logout_rounded, size: 14, color: Color(0xFF64748B)),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Salida: ${_formatearFecha(v.horaSalida!)}',
+                                            style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                                          ),
+                                        ],
+                                      ),
                                   ],
                                 ),
                               ],
