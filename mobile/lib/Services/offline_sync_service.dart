@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show InternetAddress, InternetAddressType, NetworkInterface, SocketException;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../Models/visita_model.dart';
 import 'visitas_service.dart';
@@ -52,19 +55,119 @@ class OfflineApprovalAction {
       );
 }
 
-/// Servicio que gestiona la persistencia fuera de línea, caché y cola de sincronización idempotente.
+/// Servicio central que gestiona la persistencia fuera de línea, caché de todos los endpoints,
+/// cola de sincronización y detección estricta de ausencia de conectividad.
 class OfflineSyncService {
+  // Claves de SharedPreferences para todos los endpoints
   static const String _kKeyVisitasResidente = 'haven_offline_visitas_residente';
   static const String _kKeyVisitasProximas = 'haven_offline_visitas_proximas';
+  static const String _kKeyVisitasAdmin = 'haven_offline_visitas_admin';
+  static const String _kKeyAvisosVigentes = 'haven_offline_avisos_vigentes';
+  static const String _kKeyAvisosHistorico = 'haven_offline_avisos_historico';
+  static const String _kKeyViviendas = 'haven_offline_viviendas';
+  static const String _kKeyViviendasConResidentes = 'haven_offline_viviendas_con_residentes';
+  static const String _kKeyMisViviendas = 'haven_offline_mis_viviendas';
+  static const String _kKeyResidentes = 'haven_offline_residentes';
+  static const String _kKeySubusuariosPrefix = 'haven_offline_subusuarios_';
+  static const String _kKeyMisInvitaciones = 'haven_offline_mis_invitaciones';
+  static const String _kKeyNotificaciones = 'haven_offline_notificaciones';
   static const String _kKeyOfflineApprovals = 'haven_offline_approvals_queue';
 
   static int _idempCounter = 0;
+
+  /// Permite sobrescribir el estado de conectividad en pruebas automáticas.
+  static bool? mockOfflineStatus;
+
+  /// Determina si una excepción representa ESTRICTAMENTE la ausencia total de conexión (offline),
+  /// y NUNCA una conexión débil, latencia o timeout.
+  static bool isStrictlyOfflineError(dynamic error) {
+    if (error == null) return false;
+    if (mockOfflineStatus != null) return mockOfflineStatus!;
+
+    // Si es un TimeoutException, se debe a una conexión débil o lentitud del servidor,
+    // NO es una falta absoluta de conexión a la red.
+    if (error is TimeoutException) {
+      return false;
+    }
+
+    final errStr = error.toString().toLowerCase();
+
+    // Descartar explícitamente timeouts en string
+    if (errStr.contains('timeout') ||
+        errStr.contains('timed out') ||
+        errStr.contains('deadline exceeded') ||
+        errStr.contains('timeoutexception')) {
+      return false;
+    }
+
+    // Excepciones de socket por falta de conectividad / interfaces caídas
+    if (error is SocketException) {
+      final msg = error.message.toLowerCase();
+      final osMsg = error.osError?.message.toLowerCase() ?? '';
+      if (msg.contains('timed out') || osMsg.contains('timed out')) {
+        return false; // Socket timeout != offline
+      }
+      return true;
+    }
+
+    // Errores característicos de ausencia total de red
+    return errStr.contains('failed host lookup') ||
+        errStr.contains('network is unreachable') ||
+        errStr.contains('no address associated with hostname') ||
+        errStr.contains('no internet') ||
+        errStr.contains('network error') ||
+        errStr.contains('connection refused') ||
+        errStr.contains('connection reset') ||
+        errStr.contains('network_error') ||
+        errStr.contains('software caused connection abort') ||
+        errStr.contains('clientexception with socketexception');
+  }
+
+  /// Verifica activamente si el dispositivo no tiene ninguna conexión a internet activa.
+  /// Si hay conexión débil / lenta, retorna false (no activa modo sin conexión).
+  static Future<bool> isDeviceOffline() async {
+    if (mockOfflineStatus != null) return mockOfflineStatus!;
+    if (kIsWeb) return false;
+
+    try {
+      final interfaces = await NetworkInterface.list(
+        includeLoopback: false,
+        type: InternetAddressType.any,
+      ).timeout(const Duration(milliseconds: 1500));
+
+      if (interfaces.isEmpty) {
+        return true;
+      }
+
+      final hasAddress = interfaces.any((i) => i.addresses.any((a) => !a.isLoopback));
+      if (!hasAddress) {
+        return true;
+      }
+
+      try {
+        final lookup = await InternetAddress.lookup('dns.google')
+            .timeout(const Duration(milliseconds: 2000));
+        return lookup.isEmpty || lookup[0].rawAddress.isEmpty;
+      } on SocketException {
+        return true;
+      } on TimeoutException {
+        // Conexión lenta o débil: NO se considera modo sin conexión
+        return false;
+      }
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// Genera una clave de idempotencia única para la acción.
   static String generateIdempotencyKey(String tipo, String visitaId) {
     _idempCounter++;
     return 'idemp_${tipo}_${visitaId}_${DateTime.now().microsecondsSinceEpoch}_$_idempCounter';
   }
+
+  // -------------------------------------------------------------
+  // VISITAS: Caché residente, vigilancia (próximas) y administrador
+  // -------------------------------------------------------------
 
   /// Guarda en caché la lista de visitas del residente.
   static Future<void> cacheVisitasResidente(List<VisitaModel> visitas) async {
@@ -113,6 +216,250 @@ class OfflineSyncService {
     } catch (_) {}
     return [];
   }
+
+  /// Guarda en caché el histórico de visitas para el administrador.
+  static Future<void> cacheVisitasAdmin(List<VisitaModel> visitas) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = jsonEncode(visitas.map((v) => v.toJson()).toList());
+      await prefs.setString(_kKeyVisitasAdmin, encoded);
+    } catch (_) {}
+  }
+
+  /// Recupera el histórico de visitas en caché para el administrador.
+  static Future<List<VisitaModel>> getCachedVisitasAdmin() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString(_kKeyVisitasAdmin);
+      if (str != null && str.isNotEmpty) {
+        final List<dynamic> list = jsonDecode(str) as List<dynamic>;
+        return list
+            .map((item) => VisitaModel.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  // -------------------------------------------------------------
+  // AVISOS: Vigentes e histórico
+  // -------------------------------------------------------------
+
+  static Future<void> cacheAvisosVigentes(List<dynamic> avisos) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kKeyAvisosVigentes, jsonEncode(avisos));
+    } catch (_) {}
+  }
+
+  static Future<List<dynamic>> getCachedAvisosVigentes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString(_kKeyAvisosVigentes);
+      if (str != null && str.isNotEmpty) {
+        return jsonDecode(str) as List<dynamic>;
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<void> cacheAvisosHistorico(List<dynamic> avisos) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kKeyAvisosHistorico, jsonEncode(avisos));
+    } catch (_) {}
+  }
+
+  static Future<List<dynamic>> getCachedAvisosHistorico() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString(_kKeyAvisosHistorico);
+      if (str != null && str.isNotEmpty) {
+        return jsonDecode(str) as List<dynamic>;
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  // -------------------------------------------------------------
+  // VIVIENDAS Y RESIDENTES
+  // -------------------------------------------------------------
+
+  static Future<void> cacheViviendas(List<dynamic> viviendas) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kKeyViviendas, jsonEncode(viviendas));
+    } catch (_) {}
+  }
+
+  static Future<List<dynamic>> getCachedViviendas() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString(_kKeyViviendas);
+      if (str != null && str.isNotEmpty) {
+        return jsonDecode(str) as List<dynamic>;
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<void> cacheViviendasConResidentes(List<dynamic> viviendas) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kKeyViviendasConResidentes, jsonEncode(viviendas));
+    } catch (_) {}
+  }
+
+  static Future<List<dynamic>> getCachedViviendasConResidentes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString(_kKeyViviendasConResidentes);
+      if (str != null && str.isNotEmpty) {
+        return jsonDecode(str) as List<dynamic>;
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<void> cacheMisViviendas(List<Map<String, dynamic>> viviendas) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kKeyMisViviendas, jsonEncode(viviendas));
+    } catch (_) {}
+  }
+
+  static Future<List<Map<String, dynamic>>> getCachedMisViviendas() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString(_kKeyMisViviendas);
+      if (str != null && str.isNotEmpty) {
+        final decoded = jsonDecode(str) as List<dynamic>;
+        return decoded
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<void> cacheResidentes(List<dynamic> residentes) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kKeyResidentes, jsonEncode(residentes));
+    } catch (_) {}
+  }
+
+  static Future<List<dynamic>> getCachedResidentes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString(_kKeyResidentes);
+      if (str != null && str.isNotEmpty) {
+        return jsonDecode(str) as List<dynamic>;
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  // -------------------------------------------------------------
+  // SUBUSUARIOS E INVITACIONES
+  // -------------------------------------------------------------
+
+  static Future<void> cacheSubusuarios(int viviendaId, List<dynamic> items) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('$_kKeySubusuariosPrefix$viviendaId', jsonEncode(items));
+    } catch (_) {}
+  }
+
+  static Future<List<dynamic>> getCachedSubusuarios(int viviendaId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString('$_kKeySubusuariosPrefix$viviendaId');
+      if (str != null && str.isNotEmpty) {
+        return jsonDecode(str) as List<dynamic>;
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<void> cacheMisInvitaciones(List<dynamic> items) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kKeyMisInvitaciones, jsonEncode(items));
+    } catch (_) {}
+  }
+
+  static Future<List<dynamic>> getCachedMisInvitaciones() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString(_kKeyMisInvitaciones);
+      if (str != null && str.isNotEmpty) {
+        return jsonDecode(str) as List<dynamic>;
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  // -------------------------------------------------------------
+  // NOTIFICACIONES
+  // -------------------------------------------------------------
+
+  static Future<void> cacheNotificaciones(List<dynamic> items) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kKeyNotificaciones, jsonEncode(items));
+    } catch (_) {}
+  }
+
+  static Future<List<dynamic>> getCachedNotificaciones() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString(_kKeyNotificaciones);
+      if (str != null && str.isNotEmpty) {
+        return jsonDecode(str) as List<dynamic>;
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  // -------------------------------------------------------------
+  // VALIDACIÓN DE APROBACIÓN POR VIGILANTE SIN CONEXIÓN
+  // -------------------------------------------------------------
+
+  /// Valida si una visita es elegible para ser aprobada fuera de línea por el vigilante.
+  /// REGLA ESTRICTA: SOLAMENTE visitas que ya fueron descargadas en caché y cuyo estado sea 'esperada' o 'programada'.
+  static Future<Map<String, dynamic>> canApproveOffline(String visitaId) async {
+    final cachedList = await getCachedVisitasProximas();
+    final index = cachedList.indexWhere((v) => v.id == visitaId);
+
+    if (index < 0) {
+      return {
+        'allowed': false,
+        'reason': 'Esta visita no fue descargada previamente. En modo sin conexión solo se pueden aprobar visitas descargadas.',
+      };
+    }
+
+    final visita = cachedList[index];
+    final estado = visita.estado.trim().toLowerCase();
+    final esEsperada = visita.isProgramada || estado == 'programada' || estado == 'esperada';
+
+    if (!esEsperada) {
+      return {
+        'allowed': false,
+        'reason': 'La visita no está en estado "esperada" (estado actual: ${visita.estado}). En modo sin conexión solo se pueden aprobar visitas esperadas.',
+        'visita': visita,
+      };
+    }
+
+    return {
+      'allowed': true,
+      'visita': visita,
+    };
+  }
+
+  // -------------------------------------------------------------
+  // ENCOLAMIENTO Y SINCRONIZACIÓN DE ACCIONES
+  // -------------------------------------------------------------
 
   /// Encola una acción de entrada o salida con clave de idempotencia única.
   /// Si la acción ya estaba encolada para la misma visita y tipo, no la duplica.
