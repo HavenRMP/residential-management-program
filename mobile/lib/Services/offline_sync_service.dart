@@ -499,7 +499,7 @@ class OfflineSyncService {
     }
 
     // Validación estricta de vigencia temporal
-    if (visita.vigenciaHasta != null && DateTime.now().isAfter(visita.vigenciaHasta!)) {
+    if (DateTime.now().isAfter(visita.vigenciaHasta)) {
       return {
         'allowed': false,
         'reason': 'La vigencia de esta visita ha expirado (${visita.vigenciaHasta}). En modo sin conexión no se permite aprobar visitas vencidas.',
