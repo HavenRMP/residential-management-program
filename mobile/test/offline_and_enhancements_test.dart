@@ -222,7 +222,7 @@ void main() {
       expect(cached.first['titulo'], equals('Acceso autorizado'));
     });
 
-    test('canApproveOffline permits ONLY downloaded expected visits', () async {
+    test('canApproveOffline permits ONLY downloaded expected non-expired visits', () async {
       final esperada = VisitaModel(
         id: 'vis-esperada-1',
         viviendaId: 10,
@@ -231,8 +231,8 @@ void main() {
         apellidosVisitante: 'Bros',
         motivo: 'Fontanería',
         numAcompanantes: 0,
-        fechaLlegadaEsperada: DateTime(2026, 10, 3, 12, 0),
-        vigenciaHasta: DateTime(2026, 10, 3, 20, 0),
+        fechaLlegadaEsperada: DateTime.now().add(const Duration(hours: 1)),
+        vigenciaHasta: DateTime.now().add(const Duration(hours: 6)),
         estado: 'programada',
       );
 
@@ -244,12 +244,25 @@ void main() {
         apellidosVisitante: 'Bros',
         motivo: 'Visita',
         numAcompanantes: 0,
-        fechaLlegadaEsperada: DateTime(2026, 10, 3, 10, 0),
-        vigenciaHasta: DateTime(2026, 10, 3, 20, 0),
+        fechaLlegadaEsperada: DateTime.now().subtract(const Duration(hours: 2)),
+        vigenciaHasta: DateTime.now().add(const Duration(hours: 4)),
         estado: 'ingresada',
       );
 
-      await OfflineSyncService.cacheVisitasProximas([esperada, yaIngresada]);
+      final expirada = VisitaModel(
+        id: 'vis-expirada-3',
+        viviendaId: 10,
+        numeroCasa: '12A',
+        nombreVisitante: 'Bowser',
+        apellidosVisitante: 'Koopa',
+        motivo: 'Evento',
+        numAcompanantes: 0,
+        fechaLlegadaEsperada: DateTime.now().subtract(const Duration(hours: 5)),
+        vigenciaHasta: DateTime.now().subtract(const Duration(hours: 1)),
+        estado: 'programada',
+      );
+
+      await OfflineSyncService.cacheVisitasProximas([esperada, yaIngresada, expirada]);
 
       // 1. Visita que no fue descargada previamente
       final notDownloaded = await OfflineSyncService.canApproveOffline('vis-no-descargada-999');
@@ -261,10 +274,49 @@ void main() {
       expect(notExpected['allowed'], isFalse);
       expect(notExpected['reason'], contains('no está en estado "esperada"'));
 
-      // 3. Visita descargada y esperada -> ÉXITO
+      // 3. Visita descargada y esperada pero EXPIRADA
+      final expiredResult = await OfflineSyncService.canApproveOffline('vis-expirada-3');
+      expect(expiredResult['allowed'], isFalse);
+      expect(expiredResult['reason'], contains('ha expirado'));
+
+      // 4. Visita descargada, esperada y vigente -> ÉXITO
       final allowed = await OfflineSyncService.canApproveOffline('vis-esperada-1');
       expect(allowed['allowed'], isTrue);
       expect(allowed['visita'], isNotNull);
+    });
+
+    test('clearAllCache removes all cached endpoints and queue from SharedPreferences', () async {
+      final testVisita = VisitaModel(
+        id: 'vis-test-clear',
+        viviendaId: 1,
+        numeroCasa: '1',
+        nombreVisitante: 'Test',
+        apellidosVisitante: 'User',
+        motivo: 'Prueba',
+        numAcompanantes: 0,
+        fechaLlegadaEsperada: DateTime.now(),
+        estado: 'programada',
+      );
+
+      await OfflineSyncService.cacheVisitasResidente([testVisita]);
+      await OfflineSyncService.cacheVisitasProximas([testVisita]);
+      await OfflineSyncService.cacheAvisosVigentes([{'id': 1}]);
+      await OfflineSyncService.cacheViviendas([{'id': 1}]);
+      await OfflineSyncService.cacheNotificaciones([{'id': 'n1'}]);
+      await OfflineSyncService.queueOfflineApproval(visitaId: 'vis-test-clear', tipo: 'entrada');
+
+      expect((await OfflineSyncService.getCachedVisitasResidente()).isNotEmpty, isTrue);
+      expect((await OfflineSyncService.getCachedVisitasProximas()).isNotEmpty, isTrue);
+      expect((await OfflineSyncService.getPendingApprovals()).isNotEmpty, isTrue);
+
+      await OfflineSyncService.clearAllCache();
+
+      expect((await OfflineSyncService.getCachedVisitasResidente()).isEmpty, isTrue);
+      expect((await OfflineSyncService.getCachedVisitasProximas()).isEmpty, isTrue);
+      expect((await OfflineSyncService.getCachedAvisosVigentes()).isEmpty, isTrue);
+      expect((await OfflineSyncService.getCachedViviendas()).isEmpty, isTrue);
+      expect((await OfflineSyncService.getCachedNotificaciones()).isEmpty, isTrue);
+      expect((await OfflineSyncService.getPendingApprovals()).isEmpty, isTrue);
     });
   });
 
