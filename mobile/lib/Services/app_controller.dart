@@ -829,9 +829,6 @@ class AppController extends ChangeNotifier {
     await logout();
   }
 
-  String _mapAuthError(AuthException error) {
-    return ErrorHandler.mapAuthException(error);
-  }
 
   void notifyToast(String message, {required bool success, String? subtitle}) {
     final messenger = messengerKey.currentState;

@@ -30,9 +30,13 @@ class ViviendasService {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
         List<dynamic> items = [];
-        if (decoded is Map && decoded['items'] is List) items = decoded['items'];
-        else if (decoded is List) items = decoded;
-        else if (decoded is Map && decoded['data'] is List) items = decoded['data'];
+        if (decoded is Map && decoded['items'] is List) {
+          items = decoded['items'];
+        } else if (decoded is List) {
+          items = decoded;
+        } else if (decoded is Map && decoded['data'] is List) {
+          items = decoded['data'];
+        }
 
         if (items.isNotEmpty) {
           unawaited(OfflineSyncService.cacheViviendas(items));
