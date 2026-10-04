@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'app_controller.dart';
+import 'offline_sync_service.dart';
 
 class ViviendasService {
   final AppController controller;
@@ -26,12 +28,26 @@ class ViviendasService {
       );
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
-        if (decoded is Map && decoded['items'] is List) return decoded['items'];
-        if (decoded is List) return decoded;
-        if (decoded is Map && decoded['data'] is List) return decoded['data'];
+        List<dynamic> items = [];
+        if (decoded is Map && decoded['items'] is List) items = decoded['items'];
+        else if (decoded is List) items = decoded;
+        else if (decoded is Map && decoded['data'] is List) items = decoded['data'];
+
+        if (items.isNotEmpty) {
+          unawaited(OfflineSyncService.cacheViviendas(items));
+          controller.setOffline(false);
+          return items;
+        }
       }
       return [];
-    } catch (_) {
+    } catch (e) {
+      if (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline()) {
+        final cached = await OfflineSyncService.getCachedViviendas();
+        if (cached.isNotEmpty) {
+          controller.setOffline(true);
+          return cached;
+        }
+      }
       return [];
     }
   }
@@ -54,10 +70,20 @@ class ViviendasService {
           items = decoded['data'];
         }
         if (items.isNotEmpty) {
+          unawaited(OfflineSyncService.cacheViviendasConResidentes(items));
+          controller.setOffline(false);
           return items;
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      if (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline()) {
+        final cached = await OfflineSyncService.getCachedViviendasConResidentes();
+        if (cached.isNotEmpty) {
+          controller.setOffline(true);
+          return cached;
+        }
+      }
+    }
 
     final list = await listar();
     if (list.isNotEmpty) {

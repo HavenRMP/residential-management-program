@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../Services/app_controller.dart';
 import '../Services/condominios_service.dart';
 import '../Services/viviendas_service.dart';
+import '../Services/offline_sync_service.dart';
 import 'residentes_list.dart';
 import 'viviendas_list.dart';
 import 'avisos_admin_screen.dart';
@@ -78,12 +80,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         final decoded = jsonDecode(res.body);
         if (decoded is List) {
           residentesCount = decoded.length;
+          unawaited(OfflineSyncService.cacheResidentes(decoded));
         } else if (decoded is Map) {
           if (decoded['items'] is List) {
             residentesCount = (decoded['items'] as List).length;
+            unawaited(OfflineSyncService.cacheResidentes(decoded['items'] as List));
           } else if (decoded['data'] is List) {
             residentesCount = (decoded['data'] as List).length;
+            unawaited(OfflineSyncService.cacheResidentes(decoded['data'] as List));
           }
+        }
+      } else {
+        if (await OfflineSyncService.isDeviceOffline()) {
+          final cachedRes = await OfflineSyncService.getCachedResidentes();
+          residentesCount = cachedRes.length;
         }
       }
 

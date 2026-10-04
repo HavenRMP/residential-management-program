@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'app_controller.dart';
 import '../Models/visita_model.dart';
+import 'offline_sync_service.dart';
 
 class VisitasService {
   final AppController controller;
@@ -51,6 +53,10 @@ class VisitasService {
         if (decoded is Map<String, dynamic>) {
           final itemsRaw = decoded['items'] as List<dynamic>? ?? [];
           final visitas = itemsRaw.map((j) => VisitaModel.fromJson(j as Map<String, dynamic>)).toList();
+          if (page == 1 && (estado == null || estado.isEmpty)) {
+            unawaited(OfflineSyncService.cacheVisitasResidente(visitas));
+          }
+          controller.setOffline(false);
           return {
             'success': true,
             'items': visitas,
@@ -63,7 +69,28 @@ class VisitasService {
       final error = _extractErrorMessage(response.body);
       return {'success': false, 'error': error, 'items': <VisitaModel>[]};
     } catch (e) {
-      return {'success': false, 'error': e.toString(), 'items': <VisitaModel>[]};
+      if (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline()) {
+        final cached = await OfflineSyncService.getCachedVisitasResidente();
+        if (cached.isNotEmpty) {
+          controller.setOffline(true);
+          final filtered = (estado != null && estado.isNotEmpty)
+              ? cached.where((v) => v.estado.toLowerCase() == estado.toLowerCase()).toList()
+              : cached;
+          return {
+            'success': true,
+            'items': filtered,
+            'page': 1,
+            'pageSize': filtered.length,
+            'totalCount': filtered.length,
+            'isOffline': true,
+          };
+        }
+      }
+      return {
+        'success': false,
+        'error': e is TimeoutException ? 'Conexión débil o lenta. Tiempo de espera agotado.' : e.toString(),
+        'items': <VisitaModel>[],
+      };
     }
   }
 
@@ -218,6 +245,10 @@ class VisitasService {
         if (decoded is Map<String, dynamic>) {
           final itemsRaw = decoded['items'] as List<dynamic>? ?? [];
           final visitas = itemsRaw.map((j) => VisitaModel.fromJson(j as Map<String, dynamic>)).toList();
+          if (page == 1 && (busqueda == null || busqueda.trim().isEmpty)) {
+            unawaited(OfflineSyncService.cacheVisitasProximas(visitas));
+          }
+          controller.setOffline(false);
           return {
             'success': true,
             'items': visitas,
@@ -234,7 +265,32 @@ class VisitasService {
         'items': <VisitaModel>[],
       };
     } catch (e) {
-      return {'success': false, 'error': e.toString(), 'items': <VisitaModel>[]};
+      if (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline()) {
+        final cached = await OfflineSyncService.getCachedVisitasProximas();
+        if (cached.isNotEmpty) {
+          controller.setOffline(true);
+          final q = (busqueda ?? '').trim().toLowerCase();
+          final filtered = q.isEmpty
+              ? cached
+              : cached.where((v) =>
+                  v.nombreCompletoVisitante.toLowerCase().contains(q) ||
+                  (v.codigo != null && v.codigo!.toLowerCase().contains(q)) ||
+                  v.numeroCasa.toLowerCase().contains(q)).toList();
+          return {
+            'success': true,
+            'items': filtered,
+            'page': 1,
+            'pageSize': filtered.length,
+            'totalCount': filtered.length,
+            'isOffline': true,
+          };
+        }
+      }
+      return {
+        'success': false,
+        'error': e is TimeoutException ? 'Conexión débil o lenta. Tiempo de espera agotado.' : e.toString(),
+        'items': <VisitaModel>[],
+      };
     }
   }
 
@@ -250,6 +306,7 @@ class VisitasService {
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
+        controller.setOffline(false);
         return {
           'success': true,
           'visita': VisitaModel.fromJson(decoded as Map<String, dynamic>),
@@ -261,7 +318,22 @@ class VisitasService {
         'error': _extractErrorMessage(response.body, defaultMsg: 'Código inválido o expirado'),
       };
     } catch (e) {
-      return {'success': false, 'error': e.toString()};
+      if (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline()) {
+        final cached = await OfflineSyncService.getCachedVisitasProximas();
+        final match = cached.where((v) => v.codigo?.trim().toUpperCase() == codigo.trim().toUpperCase()).toList();
+        if (match.isNotEmpty) {
+          controller.setOffline(true);
+          return {
+            'success': true,
+            'visita': match.first,
+            'isOffline': true,
+          };
+        }
+      }
+      return {
+        'success': false,
+        'error': e is TimeoutException ? 'Conexión débil o lenta. Tiempo de espera agotado.' : e.toString(),
+      };
     }
   }
 
@@ -357,6 +429,10 @@ class VisitasService {
         if (decoded is Map<String, dynamic>) {
           final itemsRaw = decoded['items'] as List<dynamic>? ?? [];
           final visitas = itemsRaw.map((j) => VisitaModel.fromJson(j as Map<String, dynamic>)).toList();
+          if (page == 1 && desde == null && hasta == null && viviendaId == null && estado == null) {
+            unawaited(OfflineSyncService.cacheVisitasAdmin(visitas));
+          }
+          controller.setOffline(false);
           return {
             'success': true,
             'items': visitas,
@@ -373,7 +449,25 @@ class VisitasService {
         'items': <VisitaModel>[],
       };
     } catch (e) {
-      return {'success': false, 'error': e.toString(), 'items': <VisitaModel>[]};
+      if (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline()) {
+        final cached = await OfflineSyncService.getCachedVisitasAdmin();
+        if (cached.isNotEmpty) {
+          controller.setOffline(true);
+          return {
+            'success': true,
+            'items': cached,
+            'page': 1,
+            'pageSize': cached.length,
+            'totalCount': cached.length,
+            'isOffline': true,
+          };
+        }
+      }
+      return {
+        'success': false,
+        'error': e is TimeoutException ? 'Conexión débil o lenta. Tiempo de espera agotado.' : e.toString(),
+        'items': <VisitaModel>[],
+      };
     }
   }
 

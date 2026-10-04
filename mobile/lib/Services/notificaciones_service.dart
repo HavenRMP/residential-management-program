@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../Models/notificacion.dart';
 import 'app_controller.dart';
+import 'offline_sync_service.dart';
 
 class NotificacionesService {
   final AppController controller;
@@ -33,13 +35,25 @@ class NotificacionesService {
         if (response.body.isEmpty) return [];
         final decoded = jsonDecode(response.body);
         if (decoded is List) {
-          return decoded
+          final items = decoded
               .map((item) => Notificacion.fromJson(item as Map<String, dynamic>))
               .toList();
+          unawaited(OfflineSyncService.cacheNotificaciones(items.map((i) => i.toJson()).toList()));
+          controller.setOffline(false);
+          return items;
         }
       }
       return [];
     } catch (e) {
+      if (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline()) {
+        final cached = await OfflineSyncService.getCachedNotificaciones();
+        if (cached.isNotEmpty) {
+          controller.setOffline(true);
+          return cached
+              .map((c) => Notificacion.fromJson(c as Map<String, dynamic>))
+              .toList();
+        }
+      }
       return [];
     }
   }
@@ -56,12 +70,22 @@ class NotificacionesService {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (response.body.isEmpty) return 0;
         final decoded = jsonDecode(response.body);
+        controller.setOffline(false);
         if (decoded is Map<String, dynamic>) {
           return (decoded['count'] as num?)?.toInt() ?? 0;
         }
       }
       return 0;
     } catch (e) {
+      if (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline()) {
+        final cached = await OfflineSyncService.getCachedNotificaciones();
+        final unread = cached
+            .map((c) => Notificacion.fromJson(c as Map<String, dynamic>))
+            .where((n) => !n.leida)
+            .length;
+        controller.setOffline(true);
+        return unread;
+      }
       return 0;
     }
   }

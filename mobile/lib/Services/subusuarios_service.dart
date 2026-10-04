@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../Models/subusuario.dart';
 import 'app_controller.dart';
+import 'offline_sync_service.dart';
 
 class SubusuariosService {
   final AppController controller;
@@ -72,11 +74,22 @@ class SubusuariosService {
             } catch (_) {}
           }
 
+          unawaited(OfflineSyncService.cacheSubusuarios(viviendaId, items.map((i) => i.toJson()).toList()));
+          controller.setOffline(false);
           return items;
         }
       }
       return [];
     } catch (e) {
+      if (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline()) {
+        final cached = await OfflineSyncService.getCachedSubusuarios(viviendaId);
+        if (cached.isNotEmpty) {
+          controller.setOffline(true);
+          return cached
+              .map((c) => SubusuarioItem.fromJson(c as Map<String, dynamic>))
+              .toList();
+        }
+      }
       return [];
     }
   }
@@ -274,13 +287,25 @@ class SubusuariosService {
         if (response.body.isEmpty) return [];
         final decoded = jsonDecode(response.body);
         if (decoded is List) {
-          return decoded
+          final items = decoded
               .map((item) => InvitacionSubusuario.fromJson(item as Map<String, dynamic>))
               .toList();
+          unawaited(OfflineSyncService.cacheMisInvitaciones(items.map((i) => i.toJson()).toList()));
+          controller.setOffline(false);
+          return items;
         }
       }
       return [];
     } catch (e) {
+      if (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline()) {
+        final cached = await OfflineSyncService.getCachedMisInvitaciones();
+        if (cached.isNotEmpty) {
+          controller.setOffline(true);
+          return cached
+              .map((c) => InvitacionSubusuario.fromJson(c as Map<String, dynamic>))
+              .toList();
+        }
+      }
       return [];
     }
   }

@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'app_controller.dart';
+import 'offline_sync_service.dart';
 
 class AvisosService {
   final AppController controller;
@@ -28,8 +30,15 @@ class AvisosService {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (response.body.isEmpty) return null;
         final decoded = jsonDecode(response.body);
-        if (decoded is Map<String, dynamic>) return decoded;
+        controller.setOffline(false);
+        if (decoded is Map<String, dynamic>) {
+          if (page == 1 && decoded['items'] is List) {
+            unawaited(OfflineSyncService.cacheAvisosVigentes(decoded['items'] as List<dynamic>));
+          }
+          return decoded;
+        }
         if (decoded is List) {
+          unawaited(OfflineSyncService.cacheAvisosVigentes(decoded));
           return {
             'items': decoded,
             'page': 1,
@@ -40,6 +49,19 @@ class AvisosService {
       }
       return null;
     } catch (e) {
+      if (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline()) {
+        final cached = await OfflineSyncService.getCachedAvisosVigentes();
+        if (cached.isNotEmpty) {
+          controller.setOffline(true);
+          return {
+            'items': cached,
+            'page': 1,
+            'pageSize': cached.length,
+            'totalCount': cached.length,
+            'isOffline': true,
+          };
+        }
+      }
       return null;
     }
   }
@@ -55,8 +77,15 @@ class AvisosService {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (response.body.isEmpty) return null;
         final decoded = jsonDecode(response.body);
-        if (decoded is Map<String, dynamic>) return decoded;
+        controller.setOffline(false);
+        if (decoded is Map<String, dynamic>) {
+          if (page == 1 && decoded['items'] is List) {
+            unawaited(OfflineSyncService.cacheAvisosHistorico(decoded['items'] as List<dynamic>));
+          }
+          return decoded;
+        }
         if (decoded is List) {
+          unawaited(OfflineSyncService.cacheAvisosHistorico(decoded));
           return {
             'items': decoded,
             'page': 1,
@@ -67,6 +96,19 @@ class AvisosService {
       }
       return null;
     } catch (e) {
+      if (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline()) {
+        final cached = await OfflineSyncService.getCachedAvisosHistorico();
+        if (cached.isNotEmpty) {
+          controller.setOffline(true);
+          return {
+            'items': cached,
+            'page': 1,
+            'pageSize': cached.length,
+            'totalCount': cached.length,
+            'isOffline': true,
+          };
+        }
+      }
       return null;
     }
   }
