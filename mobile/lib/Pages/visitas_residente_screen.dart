@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../Models/visita_model.dart';
@@ -94,11 +95,9 @@ class _VisitasResidenteScreenState extends State<VisitasResidenteScreen> {
       if (mounted) {
         if (res['success'] == true) {
           final List<VisitaModel> items = res['items'] as List<VisitaModel>;
-          if (refresh && _filtroEstado == null) {
-            OfflineSyncService.cacheVisitasResidente(items);
-          }
+          final isOffline = res['isOffline'] == true;
           setState(() {
-            _isOffline = false;
+            _isOffline = isOffline;
             if (refresh) {
               _visitas = items;
             } else {
@@ -110,22 +109,8 @@ class _VisitasResidenteScreenState extends State<VisitasResidenteScreen> {
             _isFetchingMore = false;
           });
         } else {
-          if (refresh) {
-            final cached = await OfflineSyncService.getCachedVisitasResidente();
-            if (cached.isNotEmpty) {
-              setState(() {
-                _isOffline = true;
-                _visitas = _filtroEstado == null
-                    ? cached
-                    : cached.where((v) => v.estado == _filtroEstado).toList();
-                _isLoading = false;
-                _isFetchingMore = false;
-                _hasMore = false;
-              });
-              return;
-            }
-          }
           setState(() {
+            _isOffline = false;
             if (refresh) _visitas = [];
             _isLoading = false;
             _isFetchingMore = false;
@@ -135,9 +120,9 @@ class _VisitasResidenteScreenState extends State<VisitasResidenteScreen> {
           }
         }
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
-        if (refresh) {
+        if (refresh && (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline())) {
           final cached = await OfflineSyncService.getCachedVisitasResidente();
           if (cached.isNotEmpty) {
             setState(() {
@@ -153,10 +138,14 @@ class _VisitasResidenteScreenState extends State<VisitasResidenteScreen> {
           }
         }
         setState(() {
-          _isOffline = true;
+          _isOffline = false;
           _isLoading = false;
           _isFetchingMore = false;
         });
+        widget.controller.notifyToast(
+          e is TimeoutException ? 'Conexión débil o lenta. Tiempo de espera agotado.' : 'Error al conectar con el servidor',
+          success: false,
+        );
       }
     }
   }

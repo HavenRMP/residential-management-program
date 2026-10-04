@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'dart:convert';
@@ -6,6 +7,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../Services/app_controller.dart';
 import '../Services/viviendas_service.dart';
+import '../Services/offline_sync_service.dart';
 import 'vivienda_detalle_screen.dart';
 
 class ResidentesListScreen extends StatefulWidget {
@@ -54,6 +56,11 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
           }
         }
 
+        if (!_soloSinVivienda && _residentes.isNotEmpty) {
+          unawaited(OfflineSyncService.cacheResidentes(_residentes));
+        }
+        widget.controller.setOffline(false);
+
         try {
           final viviendasSrv = ViviendasService(widget.controller);
           final viviendas = await viviendasSrv.listarConResidentes();
@@ -91,7 +98,19 @@ class _ResidentesListScreenState extends State<ResidentesListScreen> {
         _errorMessage = 'Error de conexión';
       }
     } catch (e) {
-      _errorMessage = e.toString();
+      if (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline()) {
+        final cached = await OfflineSyncService.getCachedResidentes();
+        if (cached.isNotEmpty) {
+          _residentes = cached;
+          _viviendas = await OfflineSyncService.getCachedViviendasConResidentes();
+          widget.controller.setOffline(true);
+          _errorMessage = null;
+        } else {
+          _errorMessage = 'Modo sin conexión. No hay residentes guardados.';
+        }
+      } else {
+        _errorMessage = e.toString();
+      }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);

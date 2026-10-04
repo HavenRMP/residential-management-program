@@ -71,4 +71,17 @@ class Notificacion {
       creadoEn: creadoEn ?? this.creadoEn,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'usuario_id': usuarioId,
+    'usuario_nombre': usuarioNombre,
+    'usuario_email': usuarioEmail,
+    'tipo_evento': tipoEvento,
+    'titulo': titulo,
+    'mensaje': mensaje,
+    'url_redireccion': urlRedireccion,
+    'leida': leida,
+    'creado_en': creadoEn.toIso8601String(),
+  };
 }

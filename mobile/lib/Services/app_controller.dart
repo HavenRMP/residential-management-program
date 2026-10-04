@@ -12,6 +12,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../Models/auth_user.dart';
 import '../Models/api_exceptions.dart';
 import 'push_notifications_service.dart';
+import 'offline_sync_service.dart';
+import 'visitas_service.dart';
 import '../main.dart';
 
 class AppController extends ChangeNotifier {
@@ -42,6 +44,9 @@ class AppController extends ChangeNotifier {
   bool _isInitializing = true;
   String? _errorMessage;
   bool _pingShown = false;
+  bool _isOffline = false;
+  int _pendingSyncCount = 0;
+  bool _isSyncing = false;
 
   bool get isLoading => _isLoading;
   bool get isInitializing => _isInitializing;
@@ -50,6 +55,64 @@ class AppController extends ChangeNotifier {
   AuthUser? get currentUser => _currentUser;
   String? get accessToken => _session?.accessToken;
   SupabaseClient? get supabaseClient => _supabaseClient;
+  bool get isOffline => _isOffline;
+  int get pendingSyncCount => _pendingSyncCount;
+  bool get isSyncing => _isSyncing;
+
+  void setOffline(bool offline) {
+    if (_isOffline != offline) {
+      _isOffline = offline;
+      notifyListeners();
+    }
+  }
+
+  void setPendingSyncCount(int count) {
+    if (_pendingSyncCount != count) {
+      _pendingSyncCount = count;
+      notifyListeners();
+    }
+  }
+
+  Future<void> actualizarPendingCount() async {
+    try {
+      final pending = await OfflineSyncService.getPendingApprovals();
+      if (_pendingSyncCount != pending.length) {
+        _pendingSyncCount = pending.length;
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> syncOfflineData() async {
+    if (_isSyncing) return;
+    _isSyncing = true;
+    notifyListeners();
+    try {
+      final offline = await OfflineSyncService.isDeviceOffline();
+      if (offline) {
+        _isOffline = true;
+        notifyToast(
+          'Aún sin conexión a internet. Mostrando información descargada.',
+          success: false,
+        );
+      } else {
+        final service = VisitasService(this);
+        final res = await OfflineSyncService.syncPendingApprovals(service);
+        final synced = res['synced'] ?? 0;
+        _isOffline = false;
+        await actualizarPendingCount();
+        if (synced > 0) {
+          notifyToast('Se sincronizaron $synced aprobaciones pendientes.', success: true);
+        } else {
+          notifyToast('Conexión restablecida.', success: true);
+        }
+      }
+    } catch (_) {
+    } finally {
+      _isSyncing = false;
+      notifyListeners();
+    }
+  }
 
   bool get isProfileIncomplete {
     if (_currentUser == null) return false;
@@ -134,6 +197,7 @@ class AppController extends ChangeNotifier {
     }
 
     try {
+      unawaited(actualizarPendingCount());
       await _doBootstrap().timeout(
         const Duration(seconds: 40),
         onTimeout: () {
@@ -953,7 +1017,7 @@ class AppController extends ChangeNotifier {
           }
         }
         
-        return List<Map<String, dynamic>>.from(
+        final result = List<Map<String, dynamic>>.from(
           list.map((item) {
             if (item is Map) {
               return {
@@ -967,10 +1031,20 @@ class AppController extends ChangeNotifier {
             return <String, dynamic>{};
           }),
         );
+        unawaited(OfflineSyncService.cacheMisViviendas(result));
+        setOffline(false);
+        return result;
       }
       return [];
     } catch (e) {
       debugPrint('[AppController] Error al obtener mis-viviendas: $e');
+      if (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline()) {
+        final cached = await OfflineSyncService.getCachedMisViviendas();
+        if (cached.isNotEmpty) {
+          setOffline(true);
+          return cached;
+        }
+      }
       return [];
     }
   }
