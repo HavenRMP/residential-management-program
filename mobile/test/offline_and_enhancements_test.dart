@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -103,6 +105,185 @@ void main() {
       expect(cached.first.id, equals('vis-2'));
       expect(cached.first.nombreCompletoVisitante, equals('Pedro Páramo'));
       expect(cached.first.estado, equals('en_curso'));
+    });
+
+    test('isStrictlyOfflineError correctly distinguishes no connection vs weak connection', () {
+      // Conexión débil: timeouts o strings de timeout -> NO es sin conexión
+      expect(OfflineSyncService.isStrictlyOfflineError(TimeoutException('Request timed out')), isFalse);
+      expect(OfflineSyncService.isStrictlyOfflineError(Exception('Connection timed out after 30s')), isFalse);
+      expect(OfflineSyncService.isStrictlyOfflineError(Exception('deadline exceeded')), isFalse);
+
+      // Desconexión absoluta: SocketException o interfaces caídas
+      expect(OfflineSyncService.isStrictlyOfflineError(const SocketException('Failed host lookup')), isTrue);
+      expect(OfflineSyncService.isStrictlyOfflineError(const SocketException('Network is unreachable')), isTrue);
+      expect(OfflineSyncService.isStrictlyOfflineError(Exception('No address associated with hostname')), isTrue);
+      expect(OfflineSyncService.isStrictlyOfflineError(Exception('ClientException with SocketException: OS Error: network error')), isTrue);
+    });
+
+    test('cacheVisitasAdmin and getCachedVisitasAdmin round-trip', () async {
+      final testVisita = VisitaModel(
+        id: 'vis-admin-1',
+        viviendaId: 20,
+        numeroCasa: '50C',
+        nombreVisitante: 'Arturo',
+        apellidosVisitante: 'Mendoza',
+        motivo: 'Mantenimiento',
+        numAcompanantes: 1,
+        fechaLlegadaEsperada: DateTime(2026, 10, 3, 10, 0),
+        vigenciaHasta: DateTime(2026, 10, 3, 18, 0),
+        estado: 'completada',
+      );
+
+      await OfflineSyncService.cacheVisitasAdmin([testVisita]);
+      final cached = await OfflineSyncService.getCachedVisitasAdmin();
+
+      expect(cached.length, equals(1));
+      expect(cached.first.id, equals('vis-admin-1'));
+      expect(cached.first.nombreCompletoVisitante, equals('Arturo Mendoza'));
+    });
+
+    test('Avisos endpoints cache round-trip', () async {
+      final avisos = [
+        {'id': 'av-1', 'titulo': 'Corte de agua', 'contenido': 'Mantenimiento preventivo'},
+      ];
+      final historico = [
+        {'id': 'av-hist-1', 'titulo': 'Aviso pasado', 'contenido': 'Contenido histórico'},
+      ];
+
+      await OfflineSyncService.cacheAvisosVigentes(avisos);
+      await OfflineSyncService.cacheAvisosHistorico(historico);
+
+      final cachedVigentes = await OfflineSyncService.getCachedAvisosVigentes();
+      final cachedHistorico = await OfflineSyncService.getCachedAvisosHistorico();
+
+      expect(cachedVigentes.length, equals(1));
+      expect(cachedVigentes.first['titulo'], equals('Corte de agua'));
+      expect(cachedHistorico.length, equals(1));
+      expect(cachedHistorico.first['titulo'], equals('Aviso pasado'));
+    });
+
+    test('Viviendas endpoints cache round-trip', () async {
+      final viviendas = [
+        {'id': 10, 'numeroCasa': '101', 'tipo': 'casa'},
+      ];
+      final misViviendas = [
+        {'id': 10, 'numeroCasa': '101', 'tipo': 'casa', 'activo': true},
+      ];
+
+      await OfflineSyncService.cacheViviendas(viviendas);
+      await OfflineSyncService.cacheViviendasConResidentes(viviendas);
+      await OfflineSyncService.cacheMisViviendas(misViviendas);
+
+      final cachedV = await OfflineSyncService.getCachedViviendas();
+      final cachedConRes = await OfflineSyncService.getCachedViviendasConResidentes();
+      final cachedMis = await OfflineSyncService.getCachedMisViviendas();
+
+      expect(cachedV.length, equals(1));
+      expect(cachedConRes.length, equals(1));
+      expect(cachedMis.length, equals(1));
+      expect(cachedMis.first['numeroCasa'], equals('101'));
+    });
+
+    test('Subusuarios and MisInvitaciones cache round-trip', () async {
+      final subusuarios = [
+        {'id': 'sub-1', 'email': 'familiar@haven.com', 'parentesco': 'Hermano'},
+      ];
+      final invitaciones = [
+        {'id': 'inv-1', 'codigoInvitacion': 'HAV-INV-99', 'estado': 'pendiente'},
+      ];
+
+      await OfflineSyncService.cacheSubusuarios(10, subusuarios);
+      await OfflineSyncService.cacheMisInvitaciones(invitaciones);
+
+      final cachedSub = await OfflineSyncService.getCachedSubusuarios(10);
+      final cachedInv = await OfflineSyncService.getCachedMisInvitaciones();
+
+      expect(cachedSub.length, equals(1));
+      expect(cachedSub.first['email'], equals('familiar@haven.com'));
+      expect(cachedInv.length, equals(1));
+      expect(cachedInv.first['codigoInvitacion'], equals('HAV-INV-99'));
+    });
+
+    test('Notificaciones cache round-trip', () async {
+      final notifs = [
+        {
+          'id': 'notif-1',
+          'titulo': 'Acceso autorizado',
+          'mensaje': 'Tu visita ha entrado',
+          'leida': false,
+          'creado_en': DateTime(2026, 10, 3).toIso8601String(),
+        }
+      ];
+
+      await OfflineSyncService.cacheNotificaciones(notifs);
+      final cached = await OfflineSyncService.getCachedNotificaciones();
+
+      expect(cached.length, equals(1));
+      expect(cached.first['titulo'], equals('Acceso autorizado'));
+    });
+
+    test('canApproveOffline permits ONLY downloaded expected visits', () async {
+      final esperada = VisitaModel(
+        id: 'vis-esperada-1',
+        viviendaId: 10,
+        numeroCasa: '12A',
+        nombreVisitante: 'Mario',
+        apellidosVisitante: 'Bros',
+        motivo: 'Fontanería',
+        numAcompanantes: 0,
+        fechaLlegadaEsperada: DateTime(2026, 10, 3, 12, 0),
+        vigenciaHasta: DateTime(2026, 10, 3, 20, 0),
+        estado: 'programada',
+      );
+
+      final yaIngresada = VisitaModel(
+        id: 'vis-ingresada-2',
+        viviendaId: 10,
+        numeroCasa: '12A',
+        nombreVisitante: 'Luigi',
+        apellidosVisitante: 'Bros',
+        motivo: 'Visita',
+        numAcompanantes: 0,
+        fechaLlegadaEsperada: DateTime(2026, 10, 3, 10, 0),
+        vigenciaHasta: DateTime(2026, 10, 3, 20, 0),
+        estado: 'ingresada',
+      );
+
+      await OfflineSyncService.cacheVisitasProximas([esperada, yaIngresada]);
+
+      // 1. Visita que no fue descargada previamente
+      final notDownloaded = await OfflineSyncService.canApproveOffline('vis-no-descargada-999');
+      expect(notDownloaded['allowed'], isFalse);
+      expect(notDownloaded['reason'], contains('no fue descargada'));
+
+      // 2. Visita descargada pero que NO está en estado esperada (ej. ya ingresada)
+      final notExpected = await OfflineSyncService.canApproveOffline('vis-ingresada-2');
+      expect(notExpected['allowed'], isFalse);
+      expect(notExpected['reason'], contains('no está en estado "esperada"'));
+
+      // 3. Visita descargada y esperada -> ÉXITO
+      final allowed = await OfflineSyncService.canApproveOffline('vis-esperada-1');
+      expect(allowed['allowed'], isTrue);
+      expect(allowed['visita'], isNotNull);
+    });
+  });
+
+  group('Global Offline Mode Controller Tests', () {
+    test('AppController setOffline toggles state and notifies listeners', () {
+      final controller = AppController(null);
+      expect(controller.isOffline, isFalse);
+
+      bool notified = false;
+      controller.addListener(() {
+        notified = true;
+      });
+
+      controller.setOffline(true);
+      expect(controller.isOffline, isTrue);
+      expect(notified, isTrue);
+
+      controller.setOffline(false);
+      expect(controller.isOffline, isFalse);
     });
   });
 
