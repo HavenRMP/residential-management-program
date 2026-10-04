@@ -47,6 +47,25 @@ void main() {
     });
   });
 
+  group('AppController Disposal and Lifecycle Tests', () {
+    test('AppController can be disposed and subsequent notifyListeners does not throw', () {
+      final controller = AppController.unavailable('test error');
+      expect(controller.isDisposed, isFalse);
+      controller.dispose();
+      expect(controller.isDisposed, isTrue);
+
+      // Calling notifyListeners on a disposed AppController must be a safe no-op
+      expect(() => controller.notifyListeners(), returnsNormally);
+    });
+
+    test('AppController.login after disposal exits early and safely without error', () async {
+      final controller = AppController.unavailable('test error');
+      controller.dispose();
+      await controller.login('admin@test.com', 'secret');
+      expect(controller.isDisposed, isTrue);
+    });
+  });
+
   group('OfflineSyncService Tests', () {
     setUp(() {
       SharedPreferences.setMockInitialValues({});
