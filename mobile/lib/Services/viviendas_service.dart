@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'app_controller.dart';
+import '../Utils/error_handler.dart';
 import 'offline_sync_service.dart';
 
 class ViviendasService {
@@ -110,40 +111,78 @@ class ViviendasService {
 
 
   Future<Map<String, dynamic>?> crear({required String numeroCasa, String? tipo}) async {
-    final url = '$baseUrl/api/Viviendas';
-    final payload = {'numeroCasa': numeroCasa, 'tipo': tipo};
-    final response = await controller.httpClient.post(
-      Uri.parse(url),
-      headers: await _getHeaders(),
-      body: jsonEncode(payload),
-    );
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return jsonDecode(response.body);
+    try {
+      final url = '$baseUrl/api/Viviendas';
+      final payload = {'numeroCasa': numeroCasa, 'tipo': tipo};
+      final response = await controller.httpClient.post(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+        body: jsonEncode(payload),
+      );
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) return decoded;
+        return {'success': true, 'data': decoded};
+      }
+      return {
+        'error': ErrorHandler.extractErrorMessage(
+          response.body,
+          statusCode: response.statusCode,
+          defaultMessage: 'No se pudo crear la vivienda.',
+        ),
+      };
+    } catch (e) {
+      return {
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al crear vivienda.',
+        ),
+      };
     }
-    return null;
   }
 
   Future<Map<String, dynamic>?> actualizar(int id, {required String numeroCasa, String? tipo}) async {
-    final url = '$baseUrl/api/Viviendas/$id';
-    final payload = {'numeroCasa': numeroCasa, 'tipo': tipo};
-    final response = await controller.httpClient.put(
-      Uri.parse(url),
-      headers: await _getHeaders(),
-      body: jsonEncode(payload),
-    );
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return jsonDecode(response.body);
+    try {
+      final url = '$baseUrl/api/Viviendas/$id';
+      final payload = {'numeroCasa': numeroCasa, 'tipo': tipo};
+      final response = await controller.httpClient.put(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+        body: jsonEncode(payload),
+      );
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) return decoded;
+        return {'success': true, 'data': decoded};
+      }
+      return {
+        'error': ErrorHandler.extractErrorMessage(
+          response.body,
+          statusCode: response.statusCode,
+          defaultMessage: 'No se pudo actualizar la vivienda.',
+        ),
+      };
+    } catch (e) {
+      return {
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al actualizar la vivienda.',
+        ),
+      };
     }
-    return null;
   }
 
   Future<bool> eliminar(int id) async {
-    final url = '$baseUrl/api/Viviendas/$id';
-    final response = await controller.httpClient.delete(
-      Uri.parse(url),
-      headers: await _getHeaders(),
-    );
-    return response.statusCode == 200 || response.statusCode == 204;
+    try {
+      final url = '$baseUrl/api/Viviendas/$id';
+      final response = await controller.httpClient.delete(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      );
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<List<dynamic>> obtenerResidentesVivienda(int viviendaId) async {
@@ -180,17 +219,32 @@ class ViviendasService {
   }
 
   Future<Map<String, dynamic>?> generarCodigo(int viviendaId, {int? minutosVigencia}) async {
-    final url = '$baseUrl/api/viviendas/$viviendaId/codigo';
-    final payload = minutosVigencia != null ? {'minutosVigencia': minutosVigencia} : {};
-    final response = await controller.httpClient.post(
-      Uri.parse(url),
-      headers: await _getHeaders(),
-      body: jsonEncode(payload),
-    );
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return jsonDecode(response.body);
+    try {
+      final url = '$baseUrl/api/viviendas/$viviendaId/codigo';
+      final payload = minutosVigencia != null ? {'minutosVigencia': minutosVigencia} : {};
+      final response = await controller.httpClient.post(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+        body: jsonEncode(payload),
+      );
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return jsonDecode(response.body);
+      }
+      return {
+        'error': ErrorHandler.extractErrorMessage(
+          response.body,
+          statusCode: response.statusCode,
+          defaultMessage: 'No se pudo generar el código para la vivienda.',
+        ),
+      };
+    } catch (e) {
+      return {
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al generar el código.',
+        ),
+      };
     }
-    return null;
   }
 
   Future<Map<String, dynamic>?> redimirCodigo(String codigo, {String? usuarioId}) async {
@@ -213,16 +267,21 @@ class ViviendasService {
         }
         return {'success': true, 'data': decoded};
       } else {
-        try {
-          final errDecoded = jsonDecode(response.body);
-          if (errDecoded is Map && errDecoded['error'] != null) {
-            return {'error': errDecoded['error']};
-          }
-        } catch (_) {}
-        return {'error': 'Error HTTP ${response.statusCode}'};
+        return {
+          'error': ErrorHandler.extractErrorMessage(
+            response.body,
+            statusCode: response.statusCode,
+            defaultMessage: 'No se pudo canjear el código de vivienda.',
+          ),
+        };
       }
     } catch (e) {
-      return {'error': e.toString()};
+      return {
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al canjear el código.',
+        ),
+      };
     }
   }
 }

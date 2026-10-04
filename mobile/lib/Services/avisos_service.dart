@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../Utils/error_handler.dart';
 import 'app_controller.dart';
 import 'offline_sync_service.dart';
 
@@ -132,12 +133,28 @@ class AvisosService {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (response.body.isEmpty) return {'success': true};
         final decoded = jsonDecode(response.body);
-        if (decoded is Map<String, dynamic>) return decoded;
+        if (decoded is Map<String, dynamic>) {
+          if (!decoded.containsKey('success')) decoded['success'] = true;
+          return decoded;
+        }
         return {'success': true, 'data': decoded};
       }
-      return null;
+      return {
+        'success': false,
+        'error': ErrorHandler.extractErrorMessage(
+          response.body,
+          statusCode: response.statusCode,
+          defaultMessage: 'No se pudo crear el aviso.',
+        ),
+      };
     } catch (e) {
-      return null;
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al crear el aviso.',
+        ),
+      };
     }
   }
 
@@ -159,16 +176,32 @@ class AvisosService {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (response.body.isEmpty) return {'success': true};
         final decoded = jsonDecode(response.body);
-        if (decoded is Map<String, dynamic>) return decoded;
+        if (decoded is Map<String, dynamic>) {
+          if (!decoded.containsKey('success')) decoded['success'] = true;
+          return decoded;
+        }
         return {'success': true, 'data': decoded};
       }
-      return null;
+      return {
+        'success': false,
+        'error': ErrorHandler.extractErrorMessage(
+          response.body,
+          statusCode: response.statusCode,
+          defaultMessage: 'No se pudo actualizar el aviso.',
+        ),
+      };
     } catch (e) {
-      return null;
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al actualizar el aviso.',
+        ),
+      };
     }
   }
 
-  Future<bool> deleteAviso(String id) async {
+  Future<Map<String, dynamic>> deleteAviso(String id) async {
     try {
       final url = '$baseUrl/api/avisos/$id';
       final response = await controller.httpClient.delete(
@@ -176,9 +209,25 @@ class AvisosService {
         headers: await _getHeaders(),
       );
 
-      return response.statusCode >= 200 && response.statusCode < 300;
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {'success': true};
+      }
+      return {
+        'success': false,
+        'error': ErrorHandler.extractErrorMessage(
+          response.body,
+          statusCode: response.statusCode,
+          defaultMessage: 'No se pudo eliminar el aviso.',
+        ),
+      };
     } catch (e) {
-      return false;
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error de comunicación al eliminar el aviso.',
+        ),
+      };
     }
   }
 }

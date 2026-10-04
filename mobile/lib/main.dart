@@ -12,6 +12,7 @@ import 'Pages/invitaciones_recibidas_screen.dart';
 import 'Pages/visitas_residente_screen.dart';
 import 'Pages/avisos_residente_screen.dart';
 import 'Widgets/offline_banner.dart';
+import 'Utils/error_handler.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<ScaffoldMessengerState> messengerKey =
@@ -64,7 +65,10 @@ void main() async {
       debugPrint('[main] Supabase credentials missing in .env');
     }
   } catch (e) {
-    supabaseInitError = e.toString();
+    supabaseInitError = ErrorHandler.parseException(
+      e,
+      defaultMessage: 'No se pudo conectar con el servicio de autenticación.',
+    );
     debugPrint('[main] Initialization error (app will still launch): $e');
   }
 
