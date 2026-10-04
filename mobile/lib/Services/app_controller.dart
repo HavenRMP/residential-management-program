@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -132,6 +132,8 @@ class AppController extends ChangeNotifier {
     return !nombreValido || !apellidosValidos || !telefonoValido;
   }
 
+  Future<String?>? _refreshSessionPromise;
+
   /// Retorna un token válido, renovándolo automáticamente si ha expirado o está por expirar.
   Future<String?> getValidAccessToken() async {
     final session = _session;
@@ -155,21 +157,34 @@ class AppController extends ChangeNotifier {
     } catch (_) {}
 
     if (needsRefresh && _supabaseClient != null) {
+      if (_refreshSessionPromise != null) {
+        return _refreshSessionPromise!;
+      }
+      _refreshSessionPromise = _doRefreshSession();
       try {
-        debugPrint(
-          '[AppController] Token expirado o próximo a expirar. Renovando...',
-        );
-        final res = await _supabaseClient.auth.refreshSession();
-        if (res.session != null) {
-          _session = res.session;
-        }
-      } catch (e) {
-        debugPrint(
-          '[AppController] Error al renovar sesión en getValidAccessToken: $e',
-        );
+        return await _refreshSessionPromise!;
+      } finally {
+        _refreshSessionPromise = null;
       }
     }
 
+    return _session?.accessToken;
+  }
+
+  Future<String?> _doRefreshSession() async {
+    try {
+      debugPrint(
+        '[AppController] Token expirado o próximo a expirar. Renovando...',
+      );
+      final res = await _supabaseClient!.auth.refreshSession();
+      if (res.session != null) {
+        _session = res.session;
+      }
+    } catch (e) {
+      debugPrint(
+        '[AppController] Error al renovar sesión en getValidAccessToken: $e',
+      );
+    }
     return _session?.accessToken;
   }
 
@@ -270,12 +285,9 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> checkBackendConnection() async {
-    while (_isLoading) {
-      await Future.delayed(const Duration(milliseconds: 100));
+    if (_isInitializing) {
+      return;
     }
-
-    await Future.delayed(const Duration(milliseconds: 300));
-
     await _pingBackend();
   }
 
@@ -295,38 +307,37 @@ class AppController extends ChangeNotifier {
           .timeout(const Duration(seconds: 45));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        String titleMsg = 'Backend conectado correctamente.';
         String dbVersionText = 'No disponible';
 
         try {
           final body = jsonDecode(response.body);
           if (body is Map<String, dynamic>) {
-            titleMsg = body['message'] ?? titleMsg;
             dbVersionText = body['dbVersion'] ?? 'No disponible';
           }
         } catch (_) {}
 
-        notifyToast(
-          titleMsg,
-          success: true,
-          subtitle: 'Versión BD: $dbVersionText',
-        );
+        if (kDebugMode) {
+          debugPrint(
+            '[AppController] Backend conectado correctamente. Versión BD: $dbVersionText',
+          );
+        }
       } else {
+        if (!_isOffline) {
+          notifyToast(
+            'No fue posible establecer conexión con el backend.',
+            success: false,
+          );
+        }
+      }
+    } on TimeoutException {
+      if (!_isOffline) {
         notifyToast(
           'No fue posible establecer conexión con el backend.',
           success: false,
         );
       }
-    } on TimeoutException {
-      notifyToast(
-        'No fue posible establecer conexión con el backend.',
-        success: false,
-      );
     } catch (_) {
-      notifyToast(
-        'No fue posible establecer conexión con el backend.',
-        success: false,
-      );
+      // Conexión fallida manejada silenciosamente
     }
   }
 
@@ -472,6 +483,9 @@ class AppController extends ChangeNotifier {
       unawaited(PushNotificationsService.unsubscribeFromUserTopic(userId));
       unawaited(_clearCachedProfile(userId));
     }
+
+    // Limpieza de toda la caché offline para prevenir fugas de datos en dispositivos compartidos
+    unawaited(OfflineSyncService.clearAllCache());
 
     final client = _supabaseClient;
     if (client != null) {

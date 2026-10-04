@@ -73,6 +73,41 @@ class OfflineSyncService {
   static const String _kKeyNotificaciones = 'haven_offline_notificaciones';
   static const String _kKeyOfflineApprovals = 'haven_offline_approvals_queue';
 
+  /// Número máximo de reintentos para acciones fuera de línea antes de descartarlas
+  static const int kMaxOfflineRetries = 5;
+
+  /// Limpia toda la caché offline de la aplicación.
+  /// Se ejecuta al cerrar sesión para garantizar la privacidad y prevenir fugas de datos
+  /// entre distintos usuarios en dispositivos compartidos.
+  static Future<void> clearAllCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keysToRemove = [
+        _kKeyVisitasResidente,
+        _kKeyVisitasProximas,
+        _kKeyVisitasAdmin,
+        _kKeyAvisosVigentes,
+        _kKeyAvisosHistorico,
+        _kKeyViviendas,
+        _kKeyViviendasConResidentes,
+        _kKeyMisViviendas,
+        _kKeyResidentes,
+        _kKeyMisInvitaciones,
+        _kKeyNotificaciones,
+        _kKeyOfflineApprovals,
+      ];
+      for (final key in keysToRemove) {
+        await prefs.remove(key);
+      }
+      final allKeys = prefs.getKeys();
+      for (final k in allKeys) {
+        if (k.startsWith(_kKeySubusuariosPrefix)) {
+          await prefs.remove(k);
+        }
+      }
+    } catch (_) {}
+  }
+
   static int _idempCounter = 0;
 
   /// Permite sobrescribir el estado de conectividad en pruebas automáticas.
@@ -147,13 +182,25 @@ class OfflineSyncService {
       try {
         final lookup = await InternetAddress.lookup('dns.google')
             .timeout(const Duration(milliseconds: 2000));
-        return lookup.isEmpty || lookup[0].rawAddress.isEmpty;
+        if (lookup.isNotEmpty && lookup[0].rawAddress.isNotEmpty) {
+          return false;
+        }
       } on SocketException {
-        return true;
+        // Fallback secundario a Cloudflare antes de declarar offline
+        try {
+          final fallback = await InternetAddress.lookup('one.one.one.one')
+              .timeout(const Duration(milliseconds: 2000));
+          return fallback.isEmpty || fallback[0].rawAddress.isEmpty;
+        } on SocketException {
+          return true;
+        } on TimeoutException {
+          return false;
+        }
       } on TimeoutException {
         // Conexión lenta o débil: NO se considera modo sin conexión
         return false;
       }
+      return false;
     } catch (_) {
       return false;
     }
@@ -451,6 +498,15 @@ class OfflineSyncService {
       };
     }
 
+    // Validación estricta de vigencia temporal
+    if (visita.vigenciaHasta != null && DateTime.now().isAfter(visita.vigenciaHasta!)) {
+      return {
+        'allowed': false,
+        'reason': 'La vigencia de esta visita ha expirado (${visita.vigenciaHasta}). En modo sin conexión no se permite aprobar visitas vencidas.',
+        'visita': visita,
+      };
+    }
+
     return {
       'allowed': true,
       'visita': visita,
@@ -548,12 +604,16 @@ class OfflineSyncService {
           synced++;
         } else {
           action.retryCount++;
-          remaining.add(action);
+          if (action.retryCount < kMaxOfflineRetries) {
+            remaining.add(action);
+          }
           failed++;
         }
       } catch (e) {
         action.retryCount++;
-        remaining.add(action);
+        if (action.retryCount < kMaxOfflineRetries) {
+          remaining.add(action);
+        }
         failed++;
       }
     }
