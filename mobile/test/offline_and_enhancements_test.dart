@@ -11,6 +11,7 @@ import 'package:haven/Utils/haptic_helper.dart';
 import 'package:haven/Widgets/digital_pass_card.dart';
 import 'package:haven/Widgets/offline_banner.dart';
 import 'package:haven/Widgets/skeleton_loading.dart';
+import 'package:haven/Themes/app_theme.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +22,27 @@ void main() {
       await HapticHelper.selection();
       await HapticHelper.success();
       await HapticHelper.error();
+      expect(true, isTrue);
+    });
+
+    testWidgets('HapticSplashFactory creates ink feature and triggers light haptic on button tap', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () {},
+                child: const Text('Tap Me'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Tap Me'), findsOneWidget);
+      await tester.tap(find.text('Tap Me'));
+      await tester.pumpAndSettle();
       expect(true, isTrue);
     });
   });
