@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -38,6 +39,15 @@ class AppController extends ChangeNotifier {
   final bool _available;
   final http.Client httpClient;
   StreamSubscription<AuthState>? _authSubscription;
+  bool _isDisposed = false;
+
+  bool get isDisposed => _isDisposed;
+
+  @override
+  void notifyListeners() {
+    if (_isDisposed) return;
+    super.notifyListeners();
+  }
 
   Session? _session;
   AuthUser? _currentUser;
@@ -233,6 +243,7 @@ class AppController extends ChangeNotifier {
   Future<void> _doBootstrap() async {
     final client = _supabaseClient!;
     _authSubscription = client.auth.onAuthStateChange.listen((event) async {
+      if (_isDisposed) return;
       _session = event.session;
       if (event.session == null) {
         _currentUser = null;
@@ -246,6 +257,7 @@ class AppController extends ChangeNotifier {
           event.event == AuthChangeEvent.initialSession ||
           event.event == AuthChangeEvent.tokenRefreshed) {
         try {
+          if (_isDisposed) return;
           await _refreshProfile();
         } catch (e) {
           debugPrint(
@@ -342,6 +354,7 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> login(String email, String password) async {
+    if (_isDisposed) return;
     if (_supabaseClient == null) {
       _errorMessage = 'Servicio no disponible. Reinicia la app.';
       notifyListeners();
@@ -607,10 +620,11 @@ class AppController extends ChangeNotifier {
         final delays = [4, 10, 20];
         for (final s in delays) {
           await Future.delayed(Duration(seconds: s));
-          if (_session == null || _session?.user.id != session.user.id) break;
+          if (_isDisposed || _session == null || _session?.user.id != session.user.id) break;
           try {
             debugPrint('[AppController] Background retry refresh profile attempt (after ${s}s)...');
             final profile = await _getJson('/api/Auth/me');
+            if (_isDisposed) break;
             final Map<String, dynamic> p = (profile['data'] is Map<String, dynamic>)
                 ? profile['data'] as Map<String, dynamic>
                 : profile;
@@ -643,6 +657,7 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> _doRefreshProfile() async {
+    if (_isDisposed) return;
     final session = _session;
     if (session == null) {
       _currentUser = null;
@@ -788,9 +803,30 @@ class AppController extends ChangeNotifier {
       headers['Authorization'] = 'Bearer $token';
     }
 
-    var response = await httpClient
-        .get(uri, headers: headers)
-        .timeout(const Duration(seconds: 35));
+    http.Response response;
+    try {
+      response = await httpClient
+          .get(uri, headers: headers)
+          .timeout(const Duration(seconds: 35));
+    } on http.ClientException catch (e) {
+      debugPrint(
+        '[AppController] Error de conexión transitorio en $endpoint ($e). Reintentando en 1s...',
+      );
+      await Future.delayed(const Duration(seconds: 1));
+      if (_isDisposed) rethrow;
+      response = await httpClient
+          .get(uri, headers: headers)
+          .timeout(const Duration(seconds: 35));
+    } on SocketException catch (e) {
+      debugPrint(
+        '[AppController] Error de socket transitorio en $endpoint ($e). Reintentando en 1s...',
+      );
+      await Future.delayed(const Duration(seconds: 1));
+      if (_isDisposed) rethrow;
+      response = await httpClient
+          .get(uri, headers: headers)
+          .timeout(const Duration(seconds: 35));
+    }
     if (response.statusCode == 401) {
       debugPrint(
         '[AppController] 401 recibido en $endpoint. Intentando renovar sesión...',
@@ -1073,6 +1109,7 @@ class AppController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _authSubscription?.cancel();
     httpClient.close();
     super.dispose();
