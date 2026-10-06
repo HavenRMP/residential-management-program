@@ -750,4 +750,21 @@ public class SupabaseService : ISupabaseService
         }
         return (true, null);
     }
+
+    public async Task<bool> RetirarResidenteCondominioAsync(Guid usuarioId, Guid condominioId, Guid actorId)
+    {
+        var payload = new
+        {
+            p_usuario_id = usuarioId,
+            p_condominio_id = condominioId
+        };
+
+        return await SupabaseRpcClient.PostRpcAsync<bool>(
+            _httpClient,
+            _supabaseUrl,
+            _serviceRoleKey,
+            "retirar_residente_condominio",
+            payload,
+            actorId);
+    }
 }

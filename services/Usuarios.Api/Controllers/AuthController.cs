@@ -246,6 +246,58 @@ public class AuthController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Authorize]
+    [HttpDelete("residentes/{id}")]
+    public async Task<IActionResult> RetirarResidente(Guid id)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                          ?? User.FindFirst("sub")?.Value;
+
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            _logger.LogWarning("RetirarResidente: Unauthorized, missing or invalid user ID.");
+            return Unauthorized(new { error = "Token invalido: no contiene ID de usuario" });
+        }
+
+        var accessToken = HttpContext.Request.Headers["Authorization"]
+            .ToString().Replace("Bearer ", "");
+
+        var adminUsuario = await _supabaseService.GetUsuarioByIdAsync(userId, accessToken, userId);
+
+        if (adminUsuario == null)
+        {
+            _logger.LogWarning("RetirarResidente: Requesting user {UserId} not found.", userId);
+            return NotFound(new { error = "Usuario no encontrado en la tabla 'usuarios'" });
+        }
+
+        if (!string.Equals(adminUsuario.EffectiveRol, "Administrador", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("RetirarResidente: Forbidden, user {UserId} is not an Admin.", userId);
+            return StatusCode(403, new { error = "Se requiere rol de administrador" });
+        }
+
+        if (adminUsuario.CondominioId == null)
+        {
+            return BadRequest(new { error = "El administrador no tiene un condominio asignado" });
+        }
+
+        try
+        {
+            var result = await _supabaseService.RetirarResidenteCondominioAsync(id, adminUsuario.CondominioId.Value, userId);
+            return Ok(new { message = "Residente retirado exitosamente." });
+        }
+        catch (HavenApi.Shared.Exceptions.SupabaseRpcException ex)
+        {
+            var (status, mensaje) = HavenApi.Shared.Rpc.RpcErrorMapper.Map(ex);
+            return StatusCode(status, new { error = mensaje });
+        }
+    }
+
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [Authorize]
     [HttpPatch("completar-perfil")]
