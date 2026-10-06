@@ -294,6 +294,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
         elevation: 0,
         title: GestureDetector(
           onTap: () {
+            HapticHelper.selection();
             setState(() => _currentIndex = pages.length - 1);
           },
           child: Row(
