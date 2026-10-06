@@ -491,8 +491,9 @@ class _RegistroResidenteScreenState extends State<RegistroResidenteScreen> {
                       const SizedBox(height: 24),
 
                       // Footer: ¿Ya tienes una cuenta registrada? Inicia sesión aquí
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           const Text(
                             '¿Ya tienes una cuenta registrada? ',
