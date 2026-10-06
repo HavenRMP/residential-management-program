@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../Services/app_controller.dart';
 import '../Widgets/banner_widget.dart';
+import '../Utils/haptic_helper.dart';
 
 class RegistroResidenteScreen extends StatefulWidget {
   const RegistroResidenteScreen({super.key, required this.controller});
@@ -501,7 +502,10 @@ class _RegistroResidenteScreenState extends State<RegistroResidenteScreen> {
                             ),
                           ),
                           GestureDetector(
-                            onTap: () => Navigator.pop(context),
+                            onTap: () {
+                              HapticHelper.light();
+                              Navigator.pop(context);
+                            },
                             child: const Text(
                               'Inicia sesión aquí',
                               style: TextStyle(

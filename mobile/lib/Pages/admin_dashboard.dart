@@ -144,6 +144,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         elevation: 0,
         title: GestureDetector(
           onTap: () {
+            HapticHelper.selection();
             Navigator.push(
               context,
               MaterialPageRoute(

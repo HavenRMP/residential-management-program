@@ -54,6 +54,36 @@ class AppTheme {
       scaffoldBackgroundColor: const Color(0xFFF7F7F7),
       fontFamily: GoogleFonts.openSans().fontFamily,
       splashFactory: const HapticSplashFactory(),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          splashFactory: const HapticSplashFactory(),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          splashFactory: const HapticSplashFactory(),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          splashFactory: const HapticSplashFactory(),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          splashFactory: const HapticSplashFactory(),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          splashFactory: const HapticSplashFactory(),
+        ),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: SegmentedButton.styleFrom(
+          splashFactory: const HapticSplashFactory(),
+        ),
+      ),
     );
   }
 

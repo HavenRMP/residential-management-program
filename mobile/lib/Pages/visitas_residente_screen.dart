@@ -332,6 +332,7 @@ class _VisitasResidenteScreenState extends State<VisitasResidenteScreen> {
                     const SizedBox(height: 12),
                     GestureDetector(
                       onTap: () {
+                        HapticHelper.light();
                         QrDialog.show(
                           context,
                           codigo: v.codigo!,

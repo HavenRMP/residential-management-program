@@ -67,6 +67,7 @@ class _VigilanteDashboardScreenState extends State<VigilanteDashboardScreen> {
         elevation: 0,
         title: GestureDetector(
           onTap: () {
+            HapticHelper.selection();
             Navigator.push(
               context,
               MaterialPageRoute(
