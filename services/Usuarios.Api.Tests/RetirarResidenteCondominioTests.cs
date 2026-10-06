@@ -194,6 +194,6 @@ public class RetirarResidenteCondominioTests : IAsyncLifetime
         mockSupabaseService.Verify(s => s.RetirarResidenteCondominioAsync(residenteId, condominioId, adminId), Times.Once);
         
         var content = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("Usuario no encontrado", content.GetProperty("error").GetString());
+        Assert.Equal("El residente no existe o no pertenece a tu condominio.", content.GetProperty("error").GetString());
     }
 }
