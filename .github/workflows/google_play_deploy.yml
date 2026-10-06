@@ -120,76 +120,25 @@ jobs:
 
       - name: Notify Discord on Deploy
         if: always()
-        env:
-          JOB_STATUS: ${{ job.status }}
-          TRACK: ${{ github.event.inputs.track }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          COMMIT_MSG=$(git log -1 --pretty=%s)
-          python3 -c "
-          import json, os, urllib.request, datetime
-
-          status = os.environ.get('JOB_STATUS', 'unknown').lower()
-          is_success = (status == 'success')
-          emoji = '🚀' if is_success else '❌'
-          color = 65280 if is_success else 16711680
-
-          repo = '${{ github.repository }}'
-          ref = '${{ github.ref_name }}'
-          sha = '${{ github.sha }}'
-          short_sha = sha[:7] if sha else ''
-          actor = '${{ github.actor }}'
-          event = '${{ github.event_name }}'
-          run_id = '${{ github.run_id }}'
-          run_url = f'https://github.com/{repo}/actions/runs/{run_id}'
-          commit_url = f'https://github.com/{repo}/commit/{sha}'
-          commit_msg = '''$COMMIT_MSG'''.strip()
-          track = os.environ.get('TRACK', 'unknown')
-
-          webhook_url = os.environ.get('DISCORD_WEBHOOK_URL', '')
-          if not webhook_url:
-              print('No DISCORD_WEBHOOK_URL provided, skipping.')
-              exit(0)
-
-          desc = (
-              f'Deploy completado exitosamente en Google Play (**{track}**) y listo para ser probado.'
-              if is_success else
-              f'Falló el deploy en Google Play (**{track}**).'
-          )
-
-          fields = [
-              {'name': '🎯 Track', 'value': f'\`{track}\`', 'inline': True},
-              {'name': '🚀 Estado', 'value': f'**{status.upper()}**', 'inline': True},
-              {'name': '🌿 Rama', 'value': f'\`{ref}\`', 'inline': True},
-              {'name': '👤 Autor', 'value': f'\`{actor}\`', 'inline': True},
-              {'name': '📝 Commit', 'value': f'[{short_sha}]({commit_url})', 'inline': True},
-              {'name': '💬 Mensaje', 'value': commit_msg[:250] if commit_msg else 'Sin mensaje', 'inline': False},
-              {'name': '🔗 Logs & Diagnóstico', 'value': f'[Ver ejecución en GitHub Actions]({run_url})', 'inline': False},
-          ]
-
-          payload = {
-              'embeds': [{
-                  'title': f'{emoji} Google Play Manual Deploy: {track.upper()} ({status.upper()})',
-                  'url': run_url,
-                  'description': f'{desc}\n\n*Haven Automation Bot*',
-                  'color': color,
-                  'fields': fields,
-                  'footer': {
-                      'text': 'Haven Google Play CI/CD • GitHub Actions',
-                      'icon_url': 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png'
-                  },
-                  'timestamp': datetime.datetime.now(datetime.timezone.utc).isoformat()
-              }]
-          }
-
-          req = urllib.request.Request(
-              webhook_url,
-              data=json.dumps(payload).encode('utf-8'),
-              headers={'Content-Type': 'application/json', 'User-Agent': 'Haven-CI-Bot'}
-          )
-          try:
-              with urllib.request.urlopen(req) as resp:
-                  print(f'Notificación enviada a Discord exitosamente: {resp.status}')
-          except Exception as e:
-              print(f'Error enviando notificación a Discord: {e}')
-          "
+          STATUS="${{ job.status }}"
+          TRACK="${{ github.event.inputs.track }}"
+          if [ "$STATUS" = "success" ]; then
+            EMOJI="🚀"
+            COLOR="65280"
+            MSG="Deploy completado exitosamente en Google Play ($TRACK) y listo para ser probado."
+          else
+            EMOJI="❌"
+            COLOR="16711680"
+            MSG="Falló el deploy en Google Play ($TRACK)."
+          fi
+          
+          curl -H "Content-Type: application/json" \
+          -d "{
+            \"embeds\": [{
+              \"title\": \"$EMOJI CI/CD: Google Play Deploy $STATUS\",
+              \"description\": \"$MSG\n\nAtentamente: Teto Automatomation Bot\",
+              \"color\": $COLOR
+            }]
+          }" \
+          "${{ secrets.DISCORD_WEBHOOK_URL }}"
