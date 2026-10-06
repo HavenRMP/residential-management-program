@@ -73,7 +73,6 @@ void main() {
     const anonKey = 'sb_publishable_2an39B-QMQpwkuaCYfg1Bw_EgWoC-SF';
 
     test('Auth health endpoint returns 200 with GoTrue metadata', () async {
-      final mockClient = http.Client(); // Mock client setup
       final client = http_testing.MockClient((request) async {
         if (request.url.path == '/auth/v1/health') {
           return http.Response(
