@@ -67,25 +67,72 @@ jobs:
 
       - name: Notify Discord on Success/Failure
         if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          STATUS="${{ job.status }}"
-          if [ "$STATUS" = "success" ]; then
-            EMOJI="✅"
-            COLOR="65280"
-          else
-            EMOJI="❌"
-            COLOR="16711680"
-          fi
-          
-          curl -H "Content-Type: application/json" \
-          -d '{
-            "embeds": [{
-              "title": "'$EMOJI' CI/CD: Unit & Widget Tests '$STATUS'",
-              "description": "Repository: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}",
-              "color": '$COLOR'
-            }]
-          }' \
-          ${{ secrets.DISCORD_WEBHOOK_URL }}
+          COMMIT_MSG=$(git log -1 --pretty=%s)
+          python3 -c "
+          import json, os, urllib.request, datetime
+
+          status = os.environ.get('JOB_STATUS', 'unknown').lower()
+          is_success = (status == 'success')
+          emoji = '✅' if is_success else '❌'
+          color = 65280 if is_success else 16711680
+
+          repo = '${{ github.repository }}'
+          ref = '${{ github.ref_name }}'
+          sha = '${{ github.sha }}'
+          short_sha = sha[:7] if sha else ''
+          actor = '${{ github.actor }}'
+          event = '${{ github.event_name }}'
+          run_id = '${{ github.run_id }}'
+          run_url = f'https://github.com/{repo}/actions/runs/{run_id}'
+          commit_url = f'https://github.com/{repo}/commit/{sha}'
+          commit_msg = '''$COMMIT_MSG'''.strip()
+
+          webhook_url = os.environ.get('DISCORD_WEBHOOK_URL', '')
+          if not webhook_url:
+              print('No DISCORD_WEBHOOK_URL provided, skipping.')
+              exit(0)
+
+          fields = [
+              {'name': '🌿 Rama', 'value': f'\`{ref}\`', 'inline': True},
+              {'name': '👤 Autor', 'value': f'\`{actor}\`', 'inline': True},
+              {'name': '⚡ Evento', 'value': f'\`{event}\`', 'inline': True},
+              {'name': '📝 Commit', 'value': f'[{short_sha}]({commit_url})', 'inline': True},
+              {'name': '🚀 Estado CI', 'value': f'**{status.upper()}**', 'inline': True},
+              {'name': '📱 Módulo', 'value': '\`mobile (Flutter)\`', 'inline': True},
+              {'name': '💬 Mensaje del Commit', 'value': commit_msg[:250] if commit_msg else 'Sin mensaje', 'inline': False},
+              {'name': '🔗 Logs & Diagnóstico', 'value': f'[Ver ejecución completa en GitHub Actions]({run_url})', 'inline': False},
+          ]
+
+          payload = {
+              'embeds': [{
+                  'title': f'{emoji} Flutter CI: Unit & Widget Tests ({status.upper()})',
+                  'url': run_url,
+                  'description': f'Flujo de validación automatizada completado para **{repo}**.',
+                  'color': color,
+                  'fields': fields,
+                  'footer': {
+                      'text': 'Haven CI/CD • GitHub Actions',
+                      'icon_url': 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png'
+                  },
+                  'timestamp': datetime.datetime.now(datetime.timezone.utc).isoformat()
+              }]
+          }
+
+          req = urllib.request.Request(
+              webhook_url,
+              data=json.dumps(payload).encode('utf-8'),
+              headers={'Content-Type': 'application/json', 'User-Agent': 'Haven-CI-Bot'}
+          )
+          try:
+              with urllib.request.urlopen(req) as resp:
+                  print(f'Notificación enviada a Discord exitosamente: {resp.status}')
+          except Exception as e:
+              print(f'Error enviando notificación a Discord: {e}')
+          "
 
   integration_test_linux:
     name: Linux Integration Tests
@@ -143,22 +190,69 @@ jobs:
 
       - name: Notify Discord on Integration Test
         if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          STATUS="${{ job.status }}"
-          if [ "$STATUS" = "success" ]; then
-            EMOJI="✅"
-            COLOR="65280"
-          else
-            EMOJI="❌"
-            COLOR="16711680"
-          fi
-          
-          curl -H "Content-Type: application/json" \
-          -d '{
-            "embeds": [{
-              "title": "'$EMOJI' CI/CD: Linux Integration Tests '$STATUS'",
-              "description": "Repository: ${{ github.repository }}\nBranch: ${{ github.ref_name }}",
-              "color": '$COLOR'
-            }]
-          }' \
-          ${{ secrets.DISCORD_WEBHOOK_URL }}
+          COMMIT_MSG=$(git log -1 --pretty=%s)
+          python3 -c "
+          import json, os, urllib.request, datetime
+
+          status = os.environ.get('JOB_STATUS', 'unknown').lower()
+          is_success = (status == 'success')
+          emoji = '✅' if is_success else '❌'
+          color = 65280 if is_success else 16711680
+
+          repo = '${{ github.repository }}'
+          ref = '${{ github.ref_name }}'
+          sha = '${{ github.sha }}'
+          short_sha = sha[:7] if sha else ''
+          actor = '${{ github.actor }}'
+          event = '${{ github.event_name }}'
+          run_id = '${{ github.run_id }}'
+          run_url = f'https://github.com/{repo}/actions/runs/{run_id}'
+          commit_url = f'https://github.com/{repo}/commit/{sha}'
+          commit_msg = '''$COMMIT_MSG'''.strip()
+
+          webhook_url = os.environ.get('DISCORD_WEBHOOK_URL', '')
+          if not webhook_url:
+              print('No DISCORD_WEBHOOK_URL provided, skipping.')
+              exit(0)
+
+          fields = [
+              {'name': '🌿 Rama', 'value': f'\`{ref}\`', 'inline': True},
+              {'name': '👤 Autor', 'value': f'\`{actor}\`', 'inline': True},
+              {'name': '⚡ Entorno', 'value': '\`Linux Xvfb (E2E)\`', 'inline': True},
+              {'name': '📝 Commit', 'value': f'[{short_sha}]({commit_url})', 'inline': True},
+              {'name': '🚀 Estado E2E', 'value': f'**{status.upper()}**', 'inline': True},
+              {'name': '🧪 Test Suite', 'value': '\`integration_test/app_test.dart\`', 'inline': True},
+              {'name': '💬 Mensaje del Commit', 'value': commit_msg[:250] if commit_msg else 'Sin mensaje', 'inline': False},
+              {'name': '🔗 Logs & Diagnóstico', 'value': f'[Ver ejecución completa en GitHub Actions]({run_url})', 'inline': False},
+          ]
+
+          payload = {
+              'embeds': [{
+                  'title': f'{emoji} Flutter CI: Linux Integration E2E Tests ({status.upper()})',
+                  'url': run_url,
+                  'description': f'Pruebas de integración de extremo a extremo completadas en **{repo}**.',
+                  'color': color,
+                  'fields': fields,
+                  'footer': {
+                      'text': 'Haven CI/CD • GitHub Actions',
+                      'icon_url': 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png'
+                  },
+                  'timestamp': datetime.datetime.now(datetime.timezone.utc).isoformat()
+              }]
+          }
+
+          req = urllib.request.Request(
+              webhook_url,
+              data=json.dumps(payload).encode('utf-8'),
+              headers={'Content-Type': 'application/json', 'User-Agent': 'Haven-CI-Bot'}
+          )
+          try:
+              with urllib.request.urlopen(req) as resp:
+                  print(f'Notificación enviada a Discord exitosamente: {resp.status}')
+          except Exception as e:
+              print(f'Error enviando notificación a Discord: {e}')
+          "
