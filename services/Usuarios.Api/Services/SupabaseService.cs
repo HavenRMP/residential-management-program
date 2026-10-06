@@ -759,12 +759,14 @@ public class SupabaseService : ISupabaseService
             p_condominio_id = condominioId
         };
 
-        return await SupabaseRpcClient.PostRpcAsync<bool>(
+        var result = await SupabaseRpcClient.PostRpcAsync<bool?>(
             _httpClient,
             _supabaseUrl,
             _serviceRoleKey,
             "retirar_residente_condominio",
             payload,
             actorId);
+            
+        return result ?? false;
     }
 }
