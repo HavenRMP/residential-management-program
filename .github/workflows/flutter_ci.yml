@@ -60,10 +60,14 @@ jobs:
           echo "ADMIN_USER_PASSWORD=${{ secrets.ADMIN_USER_PASSWORD }}" >> .env
 
       - name: Analyze code
-        run: flutter analyze --no-fatal-warnings
+        run: |
+          mkdir -p logs
+          flutter analyze --no-fatal-warnings 2>&1 | tee logs/analyze.log
 
       - name: Run unit and widget tests
-        run: flutter test
+        run: |
+          mkdir -p logs reports
+          flutter test --file-reporter json:reports/tests.json 2>&1 | tee logs/tests.log
 
       - name: Notify Discord on Success/Failure
         if: always()
@@ -73,7 +77,7 @@ jobs:
         run: |
           COMMIT_MSG=$(git log -1 --pretty=%s)
           python3 -c "
-          import json, os, urllib.request, datetime
+          import json, os, urllib.request, datetime, re
 
           status = os.environ.get('JOB_STATUS', 'unknown').lower()
           is_success = (status == 'success')
@@ -96,6 +100,57 @@ jobs:
               print('No DISCORD_WEBHOOK_URL provided, skipping.')
               exit(0)
 
+          tests, errors, failed = {}, {}, []
+          passed, skipped = 0, 0
+
+          if os.path.exists('reports/tests.json'):
+              try:
+                  with open('reports/tests.json', 'r', encoding='utf-8') as f:
+                      for line in f:
+                          line = line.strip()
+                          if not line:
+                              continue
+                          try:
+                              ev = json.loads(line)
+                              t_type = ev.get('type')
+                              if t_type == 'testStart':
+                                  t = ev.get('test', {})
+                                  name = t.get('name', '')
+                                  if not name.startswith('loading '):
+                                      tests[t['id']] = t
+                              elif t_type == 'error':
+                                  tid = ev.get('testID')
+                                  err = ev.get('error', '').strip()
+                                  if err:
+                                      errors.setdefault(tid, []).append(err)
+                              elif t_type == 'testDone':
+                                  tid = ev.get('testID')
+                                  if tid in tests:
+                                      if ev.get('skipped'):
+                                          skipped += 1
+                                      elif ev.get('result') == 'success':
+                                          passed += 1
+                                      elif ev.get('result') in ('failure', 'error'):
+                                          t_info = tests[tid]
+                                          err_msg = '\n'.join(errors.get(tid, []))
+                                          failed.append({
+                                              'name': t_info.get('name', 'Unknown'),
+                                              'url': t_info.get('url', ''),
+                                              'line': t_info.get('line'),
+                                              'error': err_msg
+                                          })
+                          except Exception:
+                              pass
+              except Exception as e:
+                  print(f'Error reading tests.json: {e}')
+
+          total = passed + len(failed) + skipped
+
+          if is_success:
+              test_summary = f'✅ **{passed}** pasados de **{total or passed}** tests (100% efectividad)'
+          else:
+              test_summary = f'❌ **{len(failed)}** fallados | ✅ **{passed}** pasados | ⏭️ **{skipped}** omitidos (Total: **{total}**)'
+
           fields = [
               {'name': '🌿 Rama', 'value': f'\`{ref}\`', 'inline': True},
               {'name': '👤 Autor', 'value': f'\`{actor}\`', 'inline': True},
@@ -103,19 +158,75 @@ jobs:
               {'name': '📝 Commit', 'value': f'[{short_sha}]({commit_url})', 'inline': True},
               {'name': '🚀 Estado CI', 'value': f'**{status.upper()}**', 'inline': True},
               {'name': '📱 Módulo', 'value': '\`mobile (Flutter)\`', 'inline': True},
+              {'name': '📊 Resumen de Tests', 'value': test_summary, 'inline': False},
+          ]
+
+          if failed:
+              failed_list_lines = []
+              for item in failed[:5]:
+                  fname = item['url'].split('/')[-1] if item['url'] else ''
+                  loc = f' (\`{fname}:{item[\"line\"]}\`)' if fname and item['line'] else (f' (\`{fname}\`)' if fname else '')
+                  failed_list_lines.append(f'• ❌ **{item[\"name\"]}**{loc}')
+              if len(failed) > 5:
+                  failed_list_lines.append(f'*(y {len(failed) - 5} fallos adicionales...)*')
+              fields.append({
+                  'name': f'🚨 Tests Fallidos ({len(failed)})',
+                  'value': '\n'.join(failed_list_lines)[:1000],
+                  'inline': False
+              })
+
+              first_err = failed[0].get('error', '').strip()
+              if first_err:
+                  clean_err = first_err[:900]
+                  fields.append({
+                      'name': '💥 Diagnóstico del Error / Falla',
+                      'value': f'\`\`\`text\n{clean_err}\n\`\`\`',
+                      'inline': False
+                  })
+          elif not is_success:
+              analysis_errors = []
+              if os.path.exists('logs/analyze.log'):
+                  with open('logs/analyze.log', 'r', encoding='utf-8', errors='ignore') as f:
+                      for l in f:
+                          if 'error •' in l or 'error -' in l:
+                              analysis_errors.append(l.strip())
+              if analysis_errors:
+                  fields.append({
+                      'name': '🚨 Errores de Análisis Estático (flutter analyze)',
+                      'value': f'\`\`\`text\n' + '\n'.join(analysis_errors[:8])[:900] + '\n\`\`\`',
+                      'inline': False
+                  })
+              elif os.path.exists('logs/tests.log'):
+                  with open('logs/tests.log', 'r', encoding='utf-8', errors='ignore') as f:
+                      tail = f.readlines()[-15:]
+                  clean_tail = ''.join(tail).strip()[:900]
+                  if clean_tail:
+                      fields.append({
+                          'name': '🚨 Salida de Fallo en Consola',
+                          'value': f'\`\`\`text\n{clean_tail}\n\`\`\`',
+                          'inline': False
+                      })
+
+          fields.extend([
               {'name': '💬 Mensaje del Commit', 'value': commit_msg[:250] if commit_msg else 'Sin mensaje', 'inline': False},
               {'name': '🔗 Logs & Diagnóstico', 'value': f'[Ver ejecución completa en GitHub Actions]({run_url})', 'inline': False},
-          ]
+          ])
+
+          title = (
+              f'✅ Flutter CI: Todos los Tests Pasaron ({passed}/{total or passed})'
+              if is_success else
+              f'❌ Flutter CI: Fallaron {len(failed) or 1} Prueba(s)'
+          )
 
           payload = {
               'embeds': [{
-                  'title': f'{emoji} Flutter CI: Unit & Widget Tests ({status.upper()})',
+                  'title': title,
                   'url': run_url,
-                  'description': f'Flujo de validación automatizada completado para **{repo}**.',
+                  'description': f'Flujo de validación unitaria y de widgets en **{repo}**.',
                   'color': color,
                   'fields': fields,
                   'footer': {
-                      'text': 'Haven CI/CD • GitHub Actions',
+                      'text': 'Haven CI/CD • Flutter Test Suite',
                       'icon_url': 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png'
                   },
                   'timestamp': datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -186,7 +297,9 @@ jobs:
           flutter config --enable-linux-desktop
 
       - name: Run Linux integration tests
-        run: xvfb-run flutter test integration_test/app_test.dart -d linux
+        run: |
+          mkdir -p logs
+          xvfb-run flutter test integration_test/app_test.dart -d linux 2>&1 | tee logs/e2e.log
 
       - name: Notify Discord on Integration Test
         if: always()
@@ -196,7 +309,7 @@ jobs:
         run: |
           COMMIT_MSG=$(git log -1 --pretty=%s)
           python3 -c "
-          import json, os, urllib.request, datetime
+          import json, os, urllib.request, datetime, re
 
           status = os.environ.get('JOB_STATUS', 'unknown').lower()
           is_success = (status == 'success')
@@ -219,6 +332,28 @@ jobs:
               print('No DISCORD_WEBHOOK_URL provided, skipping.')
               exit(0)
 
+          failure_details = ''
+          if not is_success and os.path.exists('logs/e2e.log'):
+              try:
+                  with open('logs/e2e.log', 'r', encoding='utf-8', errors='ignore') as f:
+                      lines = f.readlines()
+                  
+                  # Buscar fragmentos de error relevantes
+                  relevant = []
+                  capturing = False
+                  for line in lines:
+                      if any(k in line for k in ['EXCEPTION CAUGHT', 'Test failed', 'Expected:', '══╡']):
+                          capturing = True
+                      if capturing:
+                          relevant.append(line)
+                          if len(relevant) >= 20:
+                              break
+                  if not relevant:
+                      relevant = lines[-15:]
+                  failure_details = ''.join(relevant).strip()[:900]
+              except Exception:
+                  pass
+
           fields = [
               {'name': '🌿 Rama', 'value': f'\`{ref}\`', 'inline': True},
               {'name': '👤 Autor', 'value': f'\`{actor}\`', 'inline': True},
@@ -226,19 +361,41 @@ jobs:
               {'name': '📝 Commit', 'value': f'[{short_sha}]({commit_url})', 'inline': True},
               {'name': '🚀 Estado E2E', 'value': f'**{status.upper()}**', 'inline': True},
               {'name': '🧪 Test Suite', 'value': '\`integration_test/app_test.dart\`', 'inline': True},
+          ]
+
+          if is_success:
+              fields.append({
+                  'name': '📊 Resultado E2E',
+                  'value': '✅ Flujo de login y navegación E2E completado sin errores.',
+                  'inline': False
+              })
+          else:
+              fields.append({
+                  'name': '🚨 Falla Detectada en E2E',
+                  'value': f'\`\`\`text\n{failure_details or \"Fallo en la ejecución del test runner.\"}\n\`\`\`',
+                  'inline': False
+              })
+
+          fields.extend([
               {'name': '💬 Mensaje del Commit', 'value': commit_msg[:250] if commit_msg else 'Sin mensaje', 'inline': False},
               {'name': '🔗 Logs & Diagnóstico', 'value': f'[Ver ejecución completa en GitHub Actions]({run_url})', 'inline': False},
-          ]
+          ])
+
+          title = (
+              '✅ Flutter CI: Pruebas de Integración E2E Exitosas'
+              if is_success else
+              '❌ Flutter CI: Falló Prueba de Integración E2E'
+          )
 
           payload = {
               'embeds': [{
-                  'title': f'{emoji} Flutter CI: Linux Integration E2E Tests ({status.upper()})',
+                  'title': title,
                   'url': run_url,
                   'description': f'Pruebas de integración de extremo a extremo completadas en **{repo}**.',
                   'color': color,
                   'fields': fields,
                   'footer': {
-                      'text': 'Haven CI/CD • GitHub Actions',
+                      'text': 'Haven CI/CD • Linux Integration Suite',
                       'icon_url': 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png'
                   },
                   'timestamp': datetime.datetime.now(datetime.timezone.utc).isoformat()
