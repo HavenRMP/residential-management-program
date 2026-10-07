@@ -285,7 +285,7 @@ public class RetirarResidenteCondominioTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task RetirarResidente_ServiceThrowsSupabaseRpcExceptionRC003_ReturnsNotFound()
+    public async Task RetirarResidente_ServiceThrowsSupabaseRpcExceptionRC003_ReturnsConflict()
     {
         var adminId = Guid.NewGuid();
         var condominioId = Guid.NewGuid();
@@ -303,6 +303,6 @@ public class RetirarResidenteCondominioTests : IAsyncLifetime
 
         var response = await client.DeleteAsync($"/api/Residentes/{residenteId}/condominio");
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 }
