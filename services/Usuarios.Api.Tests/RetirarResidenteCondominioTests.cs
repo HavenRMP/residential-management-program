@@ -1,10 +1,7 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
-using System.Security.Claims;
-using System.Text.Json;
 using HavenApi.Shared.Exceptions;
+using HavenApi.Shared.Roles;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -83,59 +80,53 @@ public class RetirarResidenteCondominioTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task RetirarResidente_AdminWithCondominioId_ReturnsOk()
+    public async Task RetirarResidente_WithoutToken_ReturnsUnauthorized()
     {
-        // Arrange
-        var adminId = Guid.NewGuid();
         var residenteId = Guid.NewGuid();
-        var condominioId = Guid.NewGuid();
-        var token = GenerateFakeToken(adminId);
-
         var mockSupabaseService = new Mock<ISupabaseService>();
-        
-        mockSupabaseService.Setup(s => s.GetUsuarioByIdAsync(adminId, It.IsAny<string>(), It.IsAny<Guid>()))
-            .ReturnsAsync(new UsuarioDto { Id = adminId, Rol = "Administrador", CondominioId = condominioId });
-
-        mockSupabaseService.Setup(s => s.RetirarResidenteCondominioAsync(residenteId, condominioId, adminId))
-            .ReturnsAsync(true);
-
         await using var application = BuildApplication(mockSupabaseService);
         var client = application.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        // Act
-        var response = await client.DeleteAsync($"/api/Auth/residentes/{residenteId}");
+        var response = await client.DeleteAsync($"/api/Residentes/{residenteId}/condominio");
 
-        // Assert
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        mockSupabaseService.Verify(s => s.RetirarResidenteCondominioAsync(residenteId, condominioId, adminId), Times.Once);
-        
-        var content = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("Residente retirado exitosamente.", content.GetProperty("message").GetString());
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        mockSupabaseService.Verify(s => s.RetirarResidenteCondominioAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
     }
 
     [Fact]
-    public async Task RetirarResidente_NotAdmin_ReturnsForbidden()
+    public async Task RetirarResidente_UserResidente_ReturnsForbidden()
     {
-        // Arrange
-        var userId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
         var residenteId = Guid.NewGuid();
-        var condominioId = Guid.NewGuid();
-        var token = GenerateFakeToken(userId);
-
         var mockSupabaseService = new Mock<ISupabaseService>();
-        
-        mockSupabaseService.Setup(s => s.GetUsuarioByIdAsync(userId, It.IsAny<string>(), It.IsAny<Guid>()))
-            .ReturnsAsync(new UsuarioDto { Id = userId, Rol = "Residente", CondominioId = condominioId });
+        mockSupabaseService.Setup(s => s.GetUsuarioByIdAsync(adminId, It.IsAny<string>(), adminId))
+            .ReturnsAsync(new UsuarioDto { Id = adminId, Rol = RolesHaven.ResidenteNombre });
 
         await using var application = BuildApplication(mockSupabaseService);
         var client = application.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateFakeToken(adminId));
 
-        // Act
-        var response = await client.DeleteAsync($"/api/Auth/residentes/{residenteId}");
+        var response = await client.DeleteAsync($"/api/Residentes/{residenteId}/condominio");
 
-        // Assert
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        mockSupabaseService.Verify(s => s.RetirarResidenteCondominioAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RetirarResidente_UserVigilancia_ReturnsForbidden()
+    {
+        var adminId = Guid.NewGuid();
+        var residenteId = Guid.NewGuid();
+        var mockSupabaseService = new Mock<ISupabaseService>();
+        mockSupabaseService.Setup(s => s.GetUsuarioByIdAsync(adminId, It.IsAny<string>(), adminId))
+            .ReturnsAsync(new UsuarioDto { Id = adminId, Rol = RolesHaven.VigilanciaNombre });
+
+        await using var application = BuildApplication(mockSupabaseService);
+        var client = application.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateFakeToken(adminId));
+
+        var response = await client.DeleteAsync($"/api/Residentes/{residenteId}/condominio");
+
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         mockSupabaseService.Verify(s => s.RetirarResidenteCondominioAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
     }
@@ -143,57 +134,175 @@ public class RetirarResidenteCondominioTests : IAsyncLifetime
     [Fact]
     public async Task RetirarResidente_AdminWithoutCondominioId_ReturnsBadRequest()
     {
-        // Arrange
         var adminId = Guid.NewGuid();
         var residenteId = Guid.NewGuid();
-        var token = GenerateFakeToken(adminId);
-
         var mockSupabaseService = new Mock<ISupabaseService>();
-        
-        mockSupabaseService.Setup(s => s.GetUsuarioByIdAsync(adminId, It.IsAny<string>(), It.IsAny<Guid>()))
-            .ReturnsAsync(new UsuarioDto { Id = adminId, Rol = "Administrador", CondominioId = null });
+        mockSupabaseService.Setup(s => s.GetUsuarioByIdAsync(adminId, It.IsAny<string>(), adminId))
+            .ReturnsAsync(new UsuarioDto { Id = adminId, Rol = RolesHaven.AdministradorNombre, CondominioId = null });
 
         await using var application = BuildApplication(mockSupabaseService);
         var client = application.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateFakeToken(adminId));
 
-        // Act
-        var response = await client.DeleteAsync($"/api/Auth/residentes/{residenteId}");
+        var response = await client.DeleteAsync($"/api/Residentes/{residenteId}/condominio");
 
-        // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         mockSupabaseService.Verify(s => s.RetirarResidenteCondominioAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
     }
 
     [Fact]
-    public async Task RetirarResidente_RpcException_ReturnsMappedError()
+    public async Task RetirarResidente_UserNotFound_ReturnsNotFound()
     {
-        // Arrange
         var adminId = Guid.NewGuid();
         var residenteId = Guid.NewGuid();
-        var condominioId = Guid.NewGuid();
-        var token = GenerateFakeToken(adminId);
-
         var mockSupabaseService = new Mock<ISupabaseService>();
-        
-        mockSupabaseService.Setup(s => s.GetUsuarioByIdAsync(adminId, It.IsAny<string>(), It.IsAny<Guid>()))
-            .ReturnsAsync(new UsuarioDto { Id = adminId, Rol = "Administrador", CondominioId = condominioId });
-
-        mockSupabaseService.Setup(s => s.RetirarResidenteCondominioAsync(residenteId, condominioId, adminId))
-            .ThrowsAsync(new SupabaseRpcException("RC001", "Usuario no encontrado"));
+        mockSupabaseService.Setup(s => s.GetUsuarioByIdAsync(adminId, It.IsAny<string>(), adminId))
+            .ReturnsAsync((UsuarioDto?)null);
 
         await using var application = BuildApplication(mockSupabaseService);
         var client = application.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateFakeToken(adminId));
 
-        // Act
-        var response = await client.DeleteAsync($"/api/Auth/residentes/{residenteId}");
+        var response = await client.DeleteAsync($"/api/Residentes/{residenteId}/condominio");
 
-        // Assert
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        mockSupabaseService.Verify(s => s.RetirarResidenteCondominioAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RetirarResidente_AdminValidAndServiceReturnsTrue_ReturnsNoContent()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var residenteId = Guid.NewGuid();
+        var mockSupabaseService = new Mock<ISupabaseService>();
+        mockSupabaseService.Setup(s => s.GetUsuarioByIdAsync(adminId, It.IsAny<string>(), adminId))
+            .ReturnsAsync(new UsuarioDto { Id = adminId, Rol = RolesHaven.AdministradorNombre, CondominioId = condominioId });
+
+        mockSupabaseService.Setup(s => s.RetirarResidenteCondominioAsync(residenteId, condominioId, adminId))
+            .ReturnsAsync(true);
+
+        await using var application = BuildApplication(mockSupabaseService);
+        var client = application.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateFakeToken(adminId));
+
+        var response = await client.DeleteAsync($"/api/Residentes/{residenteId}/condominio");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        mockSupabaseService.Verify(s => s.RetirarResidenteCondominioAsync(residenteId, condominioId, adminId), Times.Once);
+    }
+
+    [Fact]
+    public async Task RetirarResidente_AdminValidAndServiceReturnsFalse_ReturnsNotFound()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var residenteId = Guid.NewGuid();
+        var mockSupabaseService = new Mock<ISupabaseService>();
+        mockSupabaseService.Setup(s => s.GetUsuarioByIdAsync(adminId, It.IsAny<string>(), adminId))
+            .ReturnsAsync(new UsuarioDto { Id = adminId, Rol = RolesHaven.AdministradorNombre, CondominioId = condominioId });
+
+        mockSupabaseService.Setup(s => s.RetirarResidenteCondominioAsync(residenteId, condominioId, adminId))
+            .ReturnsAsync(false);
+
+        await using var application = BuildApplication(mockSupabaseService);
+        var client = application.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateFakeToken(adminId));
+
+        var response = await client.DeleteAsync($"/api/Residentes/{residenteId}/condominio");
+
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         mockSupabaseService.Verify(s => s.RetirarResidenteCondominioAsync(residenteId, condominioId, adminId), Times.Once);
+    }
+
+    [Fact]
+    public async Task RetirarResidente_IgnoresCondominioIdInQueryAndUsesAdminCondominioId()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var fakeCondominioIdFromMischief = Guid.NewGuid();
+        var residenteId = Guid.NewGuid();
+        var mockSupabaseService = new Mock<ISupabaseService>();
         
-        var content = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("El residente no existe o no pertenece a tu condominio.", content.GetProperty("error").GetString());
+        mockSupabaseService.Setup(s => s.GetUsuarioByIdAsync(adminId, It.IsAny<string>(), adminId))
+            .ReturnsAsync(new UsuarioDto { Id = adminId, Rol = RolesHaven.AdministradorNombre, CondominioId = condominioId });
+
+        mockSupabaseService.Setup(s => s.RetirarResidenteCondominioAsync(residenteId, condominioId, adminId))
+            .ReturnsAsync(true);
+
+        await using var application = BuildApplication(mockSupabaseService);
+        var client = application.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateFakeToken(adminId));
+
+        var response = await client.DeleteAsync($"/api/Residentes/{residenteId}/condominio?condominioId={fakeCondominioIdFromMischief}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        mockSupabaseService.Verify(s => s.RetirarResidenteCondominioAsync(residenteId, condominioId, adminId), Times.Once);
+    }
+
+    [Fact]
+    public async Task RetirarResidente_ServiceThrowsSupabaseRpcExceptionRC001_ReturnsNotFound()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var residenteId = Guid.NewGuid();
+        var mockSupabaseService = new Mock<ISupabaseService>();
+        mockSupabaseService.Setup(s => s.GetUsuarioByIdAsync(adminId, It.IsAny<string>(), adminId))
+            .ReturnsAsync(new UsuarioDto { Id = adminId, Rol = RolesHaven.AdministradorNombre, CondominioId = condominioId });
+
+        mockSupabaseService.Setup(s => s.RetirarResidenteCondominioAsync(residenteId, condominioId, adminId))
+            .ThrowsAsync(new SupabaseRpcException("RC001", "Usuario no existe"));
+
+        await using var application = BuildApplication(mockSupabaseService);
+        var client = application.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateFakeToken(adminId));
+
+        var response = await client.DeleteAsync($"/api/Residentes/{residenteId}/condominio");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RetirarResidente_ServiceThrowsSupabaseRpcExceptionRC002_ReturnsBadRequest()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var residenteId = Guid.NewGuid();
+        var mockSupabaseService = new Mock<ISupabaseService>();
+        mockSupabaseService.Setup(s => s.GetUsuarioByIdAsync(adminId, It.IsAny<string>(), adminId))
+            .ReturnsAsync(new UsuarioDto { Id = adminId, Rol = RolesHaven.AdministradorNombre, CondominioId = condominioId });
+
+        mockSupabaseService.Setup(s => s.RetirarResidenteCondominioAsync(residenteId, condominioId, adminId))
+            .ThrowsAsync(new SupabaseRpcException("RC002", "El usuario no tiene el rol de Residente"));
+
+        await using var application = BuildApplication(mockSupabaseService);
+        var client = application.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateFakeToken(adminId));
+
+        var response = await client.DeleteAsync($"/api/Residentes/{residenteId}/condominio");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RetirarResidente_ServiceThrowsSupabaseRpcExceptionRC003_ReturnsNotFound()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var residenteId = Guid.NewGuid();
+        var mockSupabaseService = new Mock<ISupabaseService>();
+        mockSupabaseService.Setup(s => s.GetUsuarioByIdAsync(adminId, It.IsAny<string>(), adminId))
+            .ReturnsAsync(new UsuarioDto { Id = adminId, Rol = RolesHaven.AdministradorNombre, CondominioId = condominioId });
+
+        mockSupabaseService.Setup(s => s.RetirarResidenteCondominioAsync(residenteId, condominioId, adminId))
+            .ThrowsAsync(new SupabaseRpcException("RC003", "El usuario no pertenece al condominio"));
+
+        await using var application = BuildApplication(mockSupabaseService);
+        var client = application.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateFakeToken(adminId));
+
+        var response = await client.DeleteAsync($"/api/Residentes/{residenteId}/condominio");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 }
