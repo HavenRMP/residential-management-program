@@ -26,9 +26,9 @@ public static class RpcErrorMapper
             "SU004" => (400, "La invitación ya no está pendiente."),
             "42501" => (403, "No tienes permiso para realizar esta operación."),
             "22023" => (400, "Los datos enviados no son válidos."),
-            "RC001" => (404, "El residente no existe o no pertenece a tu condominio."),
-            "RC002" => (400, "Solo se puede retirar del condominio a usuarios con rol de Residente."),
-            "RC003" => (404, "El residente no existe o no pertenece a tu condominio."),
+            "RC001" => (404, "El residente especificado no existe."),
+            "RC002" => (400, "La cuenta no corresponde a un perfil de residente."),
+            "RC003" => (409, "El residente no pertenece al condominio administrado."),
             _ => (500, $"Ocurrió un error inesperado al procesar el código. (Código: {ex.Code})")
         };
     }
