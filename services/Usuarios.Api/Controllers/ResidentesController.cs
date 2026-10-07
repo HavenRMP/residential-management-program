@@ -28,6 +28,7 @@ public class ResidentesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> RetirarResidenteDelCondominio(Guid id)
     {
         if (!User.TryGetUserId(out var adminId))
