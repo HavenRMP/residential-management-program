@@ -1,6 +1,23 @@
 @Usuarios.Api_HostAddress = http://localhost:5213
+@ResidenteId = 00000000-0000-0000-0000-000000000000
 
 GET {{Usuarios.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+### DELETE /api/residentes/{id}/condominio
+# Requiere rol Administrador.
+# Retira al residente del condominio del admin autenticado (el condominio nunca se envía).
+# En una sola transacción: cancela las invitaciones pendientes que envió y las que recibió,
+# cancela sus visitas programadas, desactiva a los subusuarios de las viviendas donde era
+# titular (y cancela las visitas programadas de ellos en esas viviendas), lo quita de las
+# viviendas y libera su cuenta.
+# Los subusuarios conservan su cuenta; si no les queda otra vivienda en el condominio quedan
+# sin condominio y pueden vincularse de nuevo con un código; si conservan otra vivienda, no
+# pierden condominio ni las visitas de esa otra vivienda.
+# Las visitas en curso y el historial se conservan.
+# Respuestas posibles: 204, 400 (no es Residente o admin sin condominio), 401, 403, 404 (no existe) y 409 (no pertenece al condominio o ya fue desvinculado).
+DELETE {{Usuarios.Api_HostAddress}}/api/residentes/{{ResidenteId}}/condominio
+Authorization: Bearer YOUR_ACCESS_TOKEN
 Accept: application/json
 
 ###
