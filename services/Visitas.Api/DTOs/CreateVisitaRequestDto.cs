@@ -50,10 +50,21 @@ public class CreateVisitaRequestDto : IValidatableObject
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        var motivosValidos = new[] { "personal", "familiar", "proveedor", "servicio", "paqueteria" };
-        if (!string.IsNullOrWhiteSpace(Motivo) && !motivosValidos.Contains(Motivo.ToLowerInvariant()))
+        if (!string.IsNullOrWhiteSpace(Motivo))
         {
-            yield return new ValidationResult("El motivo ingresado no es válido.", new[] { nameof(Motivo) });
+            var motivoLower = Motivo.Trim().ToLowerInvariant();
+            if (motivoLower == "paqueteria")
+            {
+                yield return new ValidationResult("La recepción de paquetería ahora se gestiona desde su propio módulo. Por favor actualiza tu aplicación para registrar paquetes esperados.", new[] { nameof(Motivo) });
+            }
+            else
+            {
+                var motivosValidos = new[] { "personal", "familiar", "proveedor", "servicio" };
+                if (!motivosValidos.Contains(motivoLower))
+                {
+                    yield return new ValidationResult("El motivo ingresado no es válido.", new[] { nameof(Motivo) });
+                }
+            }
         }
 
         if (FechaLlegadaEsperada == default)
