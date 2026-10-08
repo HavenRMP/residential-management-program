@@ -11,6 +11,7 @@ builder.Services.AddHavenExceptionHandler();
 builder.Services.AddAuthorization();
 
 builder.Services.AddHttpClient<ISupabaseService, SupabaseService>();
+builder.Services.AddHttpClient<IPaqueteriaSupabaseService, PaqueteriaSupabaseService>();
 
 builder.Services.AddControllers();
 
