@@ -17,11 +17,13 @@ public class PaqueteriaController : ControllerBase
 {
     private readonly IPaqueteriaSupabaseService _paqueteriaService;
     private readonly ILogger<PaqueteriaController> _logger;
+    private readonly HavenApi.Shared.Services.IFirebaseNotificationService _firebaseNotificationService;
 
-    public PaqueteriaController(IPaqueteriaSupabaseService paqueteriaService, ILogger<PaqueteriaController> logger)
+    public PaqueteriaController(IPaqueteriaSupabaseService paqueteriaService, ILogger<PaqueteriaController> logger, HavenApi.Shared.Services.IFirebaseNotificationService firebaseNotificationService)
     {
         _paqueteriaService = paqueteriaService;
         _logger = logger;
+        _firebaseNotificationService = firebaseNotificationService;
     }
 
     private async Task<(IActionResult? Error, Guid? CondominioId, Guid UserId)> ValidateRoleAsync(Func<string, bool> rolValidator, string errorMessage)
@@ -383,6 +385,53 @@ public class PaqueteriaController : ControllerBase
         try
         {
             var result = await _paqueteriaService.RecibirPaqueteAsync(dto, userId);
+
+            try
+            {
+                var destinatarios = await _paqueteriaService.GetDestinatariosPorViviendaAsync(result.ViviendaId);
+                if (destinatarios != null && destinatarios.Any())
+                {
+                    var titulo = result.EsInesperado ? "¡Paquete inesperado recibido!" : "¡Tu paquete ha llegado!";
+                    var dest = !string.IsNullOrWhiteSpace(result.DestinatarioNombre) ? result.DestinatarioNombre : "tu vivienda";
+                    var serv = !string.IsNullOrWhiteSpace(result.ServicioNombre) ? $" por {result.ServicioNombre}" : "";
+                    var mensaje = result.EsInesperado 
+                        ? $"Se ha recibido un paquete no esperado para {dest}{serv} en caseta."
+                        : $"El paquete esperado para {dest}{serv} ya se encuentra en caseta.";
+
+                    var data = new Dictionary<string, string>
+                    {
+                        { "tipo", "paquete_llegada" },
+                        { "paquete_id", result.Id.ToString() },
+                        { "click_action", "FLUTTER_NOTIFICATION_CLICK" }
+                    };
+
+                    foreach (var destId in destinatarios)
+                    {
+                        try
+                        {
+                            await _paqueteriaService.CrearNotificacionPaqueteLlegadaAsync(
+                                destId, result.Id, result.DestinatarioNombre, result.ServicioNombre, result.EsInesperado);
+
+                            var topic = "user" + destId.ToString().Replace("-", "");
+                            await _firebaseNotificationService.SendToTopicAsync(
+                                topic,
+                                titulo,
+                                mensaje,
+                                data
+                            );
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Error al notificar al destinatario {DestinatarioId} sobre el paquete {PaqueteId}", destId, result.Id);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error general al procesar notificaciones para la recepción del paquete {PaqueteId}", result.Id);
+            }
+
             return StatusCode(201, ProyectarPaqueteCaseta(result));
         }
         catch (SupabaseRpcException ex)
