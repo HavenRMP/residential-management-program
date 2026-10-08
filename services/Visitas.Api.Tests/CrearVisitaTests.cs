@@ -62,8 +62,12 @@ public class CrearVisitaTests
         return $"{header}.{payload}.";
     }
 
-    [Fact]
-    public async Task CrearVisita_ValidRequest_UsesUserIdFromTokenAndReturnsCreated()
+    [Theory]
+    [InlineData("personal")]
+    [InlineData("familiar")]
+    [InlineData("proveedor")]
+    [InlineData("servicio")]
+    public async Task CrearVisita_MotivosValidos_UsesUserIdFromTokenAndReturnsCreated(string motivo)
     {
         var userId = Guid.NewGuid();
         var token = GenerateFakeToken(userId);
@@ -74,7 +78,7 @@ public class CrearVisitaTests
             ViviendaId = 1,
             NombreVisitante = "Juan",
             ApellidosVisitante = "Perez",
-            Motivo = "personal",
+            Motivo = motivo,
             Estado = "programada",
             Codigo = "XYZ123",
             FechaLlegadaEsperada = DateTimeOffset.UtcNow.AddDays(1)
@@ -93,7 +97,7 @@ public class CrearVisitaTests
             ViviendaId = 1,
             NombreVisitante = "Juan",
             ApellidosVisitante = "Perez",
-            Motivo = "personal",
+            Motivo = motivo,
             FechaLlegadaEsperada = DateTimeOffset.UtcNow.AddDays(1)
         };
         
@@ -106,6 +110,36 @@ public class CrearVisitaTests
         // Ensure body property name in output
         var content = await response.Content.ReadAsStringAsync();
         Assert.Contains(expectedDto.Codigo, content);
+    }
+
+    [Fact]
+    public async Task CrearVisita_MotivoPaqueteria_ReturnsBadRequestAndSpecificMessage()
+    {
+        var userId = Guid.NewGuid();
+        var token = GenerateFakeToken(userId);
+        
+        var mockSupabaseService = new Mock<ISupabaseService>();
+        await using var application = BuildApplication(mockSupabaseService);
+        var client = application.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var requestBody = new CreateVisitaRequestDto 
+        { 
+            ViviendaId = 1,
+            NombreVisitante = "Amazon",
+            ApellidosVisitante = "Logistics",
+            Motivo = "paqueteria",
+            FechaLlegadaEsperada = DateTimeOffset.UtcNow.AddDays(1)
+        };
+        
+        var response = await client.PostAsJsonAsync("/api/visitas", requestBody);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        
+        var content = await response.Content.ReadAsStringAsync();
+        Assert.Contains("La recepción de paquetería ahora se gestiona desde su propio módulo.", content);
+        
+        mockSupabaseService.Verify(s => s.CreateVisitaAsync(It.IsAny<CreateVisitaRequestDto>(), It.IsAny<Guid>()), Times.Never);
     }
 
     [Fact]

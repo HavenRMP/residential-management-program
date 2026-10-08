@@ -205,4 +205,42 @@ public class GetMisVisitasTests
         
         Assert.Equal(1, totalCountElement.GetInt32());
     }
+
+    [Fact]
+    public async Task GetMisVisitas_MotivoPaqueteria_ReturnsOkYMotivoAparece()
+    {
+        var userId = Guid.NewGuid();
+        var token = GenerateFakeToken(userId);
+        
+        var mockSupabaseService = new Mock<ISupabaseService>();
+        var expectedVisitas = new List<VisitaDto>
+        {
+            new VisitaDto 
+            { 
+                Id = Guid.NewGuid(), 
+                Codigo = "PAQ123",
+                Estado = "programada",
+                ViviendaId = 1,
+                NombreVisitante = "Amazon",
+                ApellidosVisitante = "Logistics",
+                Motivo = "paqueteria"
+            }
+        };
+
+        mockSupabaseService.Setup(s => s.GetMisVisitasAsync(token, null, It.IsAny<PaginationParams>()))
+            .ReturnsAsync((expectedVisitas, 1));
+
+        await using var application = BuildApplication(mockSupabaseService);
+        var client = application.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync("/api/visitas/mis-visitas");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        
+        var content = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var itemsElement = content.GetProperty("items");
+        var firstItem = itemsElement[0];
+        Assert.Equal("paqueteria", firstItem.GetProperty("motivo").GetString());
+    }
 }

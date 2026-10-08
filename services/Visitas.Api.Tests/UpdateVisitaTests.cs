@@ -97,8 +97,12 @@ public class UpdateVisitaTests
         mockSupabaseService.Verify(s => s.UpdateVisitaAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<UpdateVisitaRequestDto>()), Times.Never);
     }
 
-    [Fact]
-    public async Task UpdateVisita_Valida_ReturnsOkYServicioRecibeUserIdDelToken()
+    [Theory]
+    [InlineData("personal")]
+    [InlineData("familiar")]
+    [InlineData("proveedor")]
+    [InlineData("servicio")]
+    public async Task UpdateVisita_MotivosValidos_ReturnsOkYServicioRecibeUserIdDelToken(string motivo)
     {
         var userId = Guid.NewGuid();
         var token = GenerateFakeToken(userId);
@@ -110,7 +114,7 @@ public class UpdateVisitaTests
             ViviendaId = 1,
             NombreVisitante = "Juan",
             ApellidosVisitante = "Perez",
-            Motivo = "familiar",
+            Motivo = motivo,
             Estado = "programada",
             Codigo = "ABCDEF"
         };
@@ -123,7 +127,7 @@ public class UpdateVisitaTests
         var client = application.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var requestBody = new UpdateVisitaRequestDto { Motivo = "familiar" };
+        var requestBody = new UpdateVisitaRequestDto { Motivo = motivo };
 
         var response = await client.PutAsJsonAsync($"/api/visitas/{visitaId}", requestBody);
 
@@ -133,6 +137,63 @@ public class UpdateVisitaTests
         
         var content = await response.Content.ReadAsStringAsync();
         Assert.Contains("ABCDEF", content);
+    }
+
+    [Fact]
+    public async Task UpdateVisita_SinMotivo_ReturnsOk()
+    {
+        var userId = Guid.NewGuid();
+        var token = GenerateFakeToken(userId);
+        var visitaId = Guid.NewGuid();
+        
+        var expectedDto = new VisitaDto
+        {
+            Id = visitaId,
+            ViviendaId = 1,
+            NombreVisitante = "Juan Modificado",
+            ApellidosVisitante = "Perez",
+            Motivo = "paqueteria", // Histórico
+            Estado = "programada",
+            Codigo = "ABCDEF"
+        };
+
+        var mockSupabaseService = new Mock<ISupabaseService>();
+        mockSupabaseService.Setup(s => s.UpdateVisitaAsync(visitaId, userId, It.IsAny<UpdateVisitaRequestDto>()))
+            .ReturnsAsync(expectedDto);
+
+        await using var application = BuildApplication(mockSupabaseService);
+        var client = application.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var requestBody = new UpdateVisitaRequestDto { NombreVisitante = "Juan Modificado" };
+
+        var response = await client.PutAsJsonAsync($"/api/visitas/{visitaId}", requestBody);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        mockSupabaseService.Verify(s => s.UpdateVisitaAsync(visitaId, userId, It.IsAny<UpdateVisitaRequestDto>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateVisita_MotivoPaqueteria_ReturnsBadRequestAndSpecificMessage()
+    {
+        var userId = Guid.NewGuid();
+        var token = GenerateFakeToken(userId);
+        var visitaId = Guid.NewGuid();
+        
+        var mockSupabaseService = new Mock<ISupabaseService>();
+        await using var application = BuildApplication(mockSupabaseService);
+        var client = application.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var requestBody = new UpdateVisitaRequestDto { Motivo = "paqueteria" };
+
+        var response = await client.PutAsJsonAsync($"/api/visitas/{visitaId}", requestBody);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var content = await response.Content.ReadAsStringAsync();
+        Assert.Contains("La recepción de paquetería ahora se gestiona desde su propio módulo.", content);
+
+        mockSupabaseService.Verify(s => s.UpdateVisitaAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<UpdateVisitaRequestDto>()), Times.Never);
     }
 
     [Fact]
