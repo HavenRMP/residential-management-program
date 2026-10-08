@@ -154,4 +154,141 @@ public class PaqueteriaSupabaseService : IPaqueteriaSupabaseService
 
         return (result.Items ?? new List<PaqueteDto>(), result.TotalCount);
     }
+
+    public async Task<(IEnumerable<PaqueteCasetaDto> Items, int TotalCount)> GetPaquetesCasetaAsync(Guid condominioId, string estado, int? viviendaId, PaginationParams paginacion)
+    {
+        var resourcePath = $"vw_paquetes_caseta?select=*&condominio_id=eq.{condominioId}&estado=eq.{estado}";
+        
+        if (viviendaId.HasValue)
+        {
+            resourcePath += $"&vivienda_id=eq.{viviendaId.Value}";
+        }
+
+        if (estado == PaqueteEstados.Esperado)
+        {
+            resourcePath += "&order=fecha_esperada_desde.asc.nullslast";
+        }
+        else if (estado == PaqueteEstados.Recibido)
+        {
+            resourcePath += "&order=recibido_en.desc.nullslast";
+        }
+        else
+        {
+            resourcePath += "&order=creado_en.desc.nullslast";
+        }
+
+        var result = await SupabaseQueryClient.GetPagedAsync<PaqueteCasetaDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, _serviceRoleKey, resourcePath, paginacion
+        );
+
+        return (result.Items ?? new List<PaqueteCasetaDto>(), result.TotalCount ?? 0);
+    }
+
+    public async Task<PaqueteCasetaDto> RecibirPaqueteAsync(RecibirPaqueteRequestDto dto, Guid actorId)
+    {
+        var payload = new Dictionary<string, object?>
+        {
+            { "p_paquete_id", dto.PaqueteId },
+            { "p_vivienda_id", dto.ViviendaId },
+            { "p_destinatario_nombre", dto.DestinatarioNombre?.Trim() },
+            { "p_servicio_id", dto.ServicioId },
+            { "p_servicio_nombre", dto.ServicioNombre?.Trim() },
+            { "p_numero_guia", dto.NumeroGuia?.Trim() },
+            { "p_descripcion", dto.Descripcion?.Trim() },
+            { "p_ubicacion_almacen", dto.UbicacionAlmacen?.Trim() },
+            { "p_actor_id", actorId }
+        };
+
+        var result = await SupabaseRpcClient.PostRpcAsync<PaqueteCasetaDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, "recibir_paquete_caseta", payload, actorId);
+
+        if (result == null)
+            throw new SupabaseResponseException("Error inesperado al recibir paquete.");
+
+        return result;
+    }
+
+    public async Task<PaqueteCasetaDto> EntregarPaqueteAsync(Guid paqueteId, EntregarPaqueteRequestDto dto, Guid actorId)
+    {
+        var payload = new Dictionary<string, object?>
+        {
+            { "p_paquete_id", paqueteId },
+            { "p_entregado_a_nombre", dto.EntregadoANombre.Trim() },
+            { "p_foto_url", null },
+            { "p_actor_id", actorId }
+        };
+
+        var result = await SupabaseRpcClient.PostRpcAsync<PaqueteCasetaDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, "entregar_paquete_residente", payload, actorId);
+
+        if (result == null)
+            throw new SupabaseResponseException("Error inesperado al entregar paquete.");
+
+        return result;
+    }
+
+    public async Task<(IEnumerable<PaqueteHistoricoDto> Items, int TotalCount)> GetPaquetesHistoricoAsync(
+        Guid condominioId, DateTimeOffset? desde, DateTimeOffset? hasta, int? viviendaId, string? estado, PaginationParams paginacion)
+    {
+        var resourcePath = $"vw_paquetes_historico?select=*&condominio_id=eq.{condominioId}&order=creado_en.desc.nullslast";
+
+        if (desde.HasValue)
+        {
+            // Postgres PostgREST URL encoding para + -> %2B si es necesario, pero ToString("O") debería jalar o HttpUtility
+            var d = Uri.EscapeDataString(desde.Value.ToString("O"));
+            resourcePath += $"&creado_en=gte.{d}";
+        }
+        if (hasta.HasValue)
+        {
+            var h = Uri.EscapeDataString(hasta.Value.ToString("O"));
+            resourcePath += $"&creado_en=lte.{h}";
+        }
+        if (viviendaId.HasValue)
+        {
+            resourcePath += $"&vivienda_id=eq.{viviendaId.Value}";
+        }
+        if (!string.IsNullOrEmpty(estado))
+        {
+            resourcePath += $"&estado=eq.{estado.ToLowerInvariant()}";
+        }
+
+        var result = await SupabaseQueryClient.GetPagedAsync<PaqueteHistoricoDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, _serviceRoleKey, resourcePath, paginacion
+        );
+
+        return (result.Items ?? new List<PaqueteHistoricoDto>(), result.TotalCount ?? 0);
+    }
+
+    public async Task<ServicioPaqueteriaDto> CreateServicioPaqueteriaAsync(Guid condominioId, CreateServicioPaqueteriaRequestDto dto, Guid actorId)
+    {
+        var payload = new Dictionary<string, object?>
+        {
+            { "p_condominio_id", condominioId },
+            { "p_nombre", dto.Nombre.Trim() },
+            { "p_icono_url", dto.IconoUrl?.Trim() },
+            { "p_actor_id", actorId }
+        };
+
+        var result = await SupabaseRpcClient.PostRpcAsync<ServicioPaqueteriaDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, "alta_servicio_paqueteria", payload, actorId);
+
+        if (result == null)
+            throw new SupabaseResponseException("Error inesperado al crear servicio.");
+
+        return result;
+    }
+
+    public async Task<bool> DeleteServicioPaqueteriaAsync(int servicioId, Guid actorId)
+    {
+        var payload = new Dictionary<string, object?>
+        {
+            { "p_id", servicioId },
+            { "p_actor_id", actorId }
+        };
+
+        var result = await SupabaseRpcClient.PostRpcAsync<bool?>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, "baja_servicio_paqueteria", payload, actorId);
+
+        return result ?? false;
+    }
 }
