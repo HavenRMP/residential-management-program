@@ -26,6 +26,17 @@ public static class RpcErrorMapper
             "SU004" => (400, "La invitación ya no está pendiente."),
             "42501" => (403, "No tienes permiso para realizar esta operación."),
             "22023" => (400, "Los datos enviados no son válidos."),
+            "PQ001" => (404, "El paquete no existe."),
+            "PQ002" => (403, "No tienes permiso sobre el paquete o la vivienda."),
+            "PQ003" => (400, "La vivienda no existe o está inactiva."),
+            "PQ004" => (409, "El estado del paquete no permite la operación."),
+            "PQ005" => (400, "Las fechas ingresadas son incoherentes."),
+            "PQ006" => (400, "El servicio de paquetería no es válido."),
+            "PQ007" => (403, "El paquete o vivienda pertenece a otro condominio."),
+            "PQ008" => (400, "Validación de retiro fallida."),
+            "PQ009" => (400, "Faltan campos obligatorios."),
+            "PQ010" => (403, "Se requiere rol de vigilancia o administrador."),
+            "PQ011" => (403, "Se requiere rol de administrador."),
             _ => (500, $"Ocurrió un error inesperado al procesar el código. (Código: {ex.Code})")
         };
     }
