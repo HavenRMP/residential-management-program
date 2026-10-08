@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Visitas.Api.DTOs;
 using Visitas.Api.Services;
+using HavenApi.Shared.Roles;
 
 namespace Visitas.Api.Controllers;
 
@@ -21,6 +22,95 @@ public class PaqueteriaController : ControllerBase
     {
         _paqueteriaService = paqueteriaService;
         _logger = logger;
+    }
+
+    private async Task<(IActionResult? Error, Guid? CondominioId, Guid UserId)> ValidateRoleAsync(Func<string, bool> rolValidator, string errorMessage)
+    {
+        if (!User.TryGetUserId(out var userId))
+        {
+            _logger.LogWarning("ValidateRole: Unauthorized, missing or invalid user ID.");
+            return (Unauthorized(new { error = "Token invalido: no contiene ID de usuario" }), null, Guid.Empty);
+        }
+
+        var accessToken = HttpContext.Request.GetBearerToken();
+
+        var (rolNombre, condominioId) = await _paqueteriaService.GetContextoUsuarioAsync(userId, accessToken);
+
+        if (rolNombre == null)
+        {
+            _logger.LogWarning("ValidateRole: User {UserId} not found.", userId);
+            return (NotFound(new { error = "Usuario no encontrado en la tabla 'usuarios'" }), null, userId);
+        }
+
+        if (!rolValidator(rolNombre))
+        {
+            _logger.LogWarning("ValidateRole: Forbidden, user {UserId} with role {RoleName} failed validation.", userId, rolNombre);
+            return (StatusCode(403, new { error = errorMessage }), null, userId);
+        }
+
+        return (null, condominioId, userId);
+    }
+
+    private static object ProyectarPaqueteCaseta(PaqueteCasetaDto p)
+    {
+        return new
+        {
+            id = p.Id,
+            condominioId = p.CondominioId,
+            viviendaId = p.ViviendaId,
+            numeroCasa = p.NumeroCasa,
+            servicioId = p.ServicioId,
+            servicioNombre = p.ServicioNombre,
+            destinatarioNombre = p.DestinatarioNombre,
+            numeroGuia = p.NumeroGuia,
+            descripcion = p.Descripcion,
+            notas = p.Notas,
+            fechaEsperadaDesde = p.FechaEsperadaDesde,
+            fechaEsperadaHasta = p.FechaEsperadaHasta,
+            estado = p.Estado,
+            esInesperado = p.EsInesperado,
+            ubicacionAlmacen = p.UbicacionAlmacen,
+            recibidoEn = p.RecibidoEn,
+            recibidoPorNombre = p.RecibidoPorNombre,
+            entregadoEn = p.EntregadoEn,
+            entregadoANombre = p.EntregadoANombre,
+            creadoPorNombre = p.CreadoPorNombre,
+            creadoEn = p.CreadoEn
+        };
+    }
+
+    private static object ProyectarPaqueteHistorico(PaqueteHistoricoDto p)
+    {
+        return new
+        {
+            id = p.Id,
+            condominioId = p.CondominioId,
+            condominioNombre = p.CondominioNombre,
+            viviendaId = p.ViviendaId,
+            numeroCasa = p.NumeroCasa,
+            servicioId = p.ServicioId,
+            servicioNombre = p.ServicioNombre,
+            destinatarioNombre = p.DestinatarioNombre,
+            numeroGuia = p.NumeroGuia,
+            descripcion = p.Descripcion,
+            notas = p.Notas,
+            fechaEsperadaDesde = p.FechaEsperadaDesde,
+            fechaEsperadaHasta = p.FechaEsperadaHasta,
+            estado = p.Estado,
+            esInesperado = p.EsInesperado,
+            ubicacionAlmacen = p.UbicacionAlmacen,
+            recibidoEn = p.RecibidoEn,
+            recibidoPor = p.RecibidoPor,
+            recibidoPorNombre = p.RecibidoPorNombre,
+            entregadoEn = p.EntregadoEn,
+            entregadoANombre = p.EntregadoANombre,
+            entregadoPor = p.EntregadoPor,
+            entregadoPorNombre = p.EntregadoPorNombre,
+            creadoPor = p.CreadoPor,
+            creadoPorNombre = p.CreadoPorNombre,
+            creadoEn = p.CreadoEn,
+            actualizadoEn = p.ActualizadoEn
+        };
     }
 
     private static object ProyectarPaquete(PaqueteDto p)
@@ -212,6 +302,233 @@ public class PaqueteriaController : ControllerBase
             if (!success)
             {
                 return NotFound(new { error = "Paquete no encontrado o no se pudo cancelar." });
+            }
+
+            return NoContent();
+        }
+        catch (SupabaseRpcException ex)
+        {
+            var (status, mensaje) = RpcErrorMapper.Map(ex);
+            return StatusCode(status, new { error = mensaje });
+        }
+    }
+
+    [HttpGet("esperados")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetEsperados([FromQuery] PaginationParams paginacion, [FromQuery] int? viviendaId = null)
+    {
+        var (roleError, condominioId, _) = await ValidateRoleAsync(
+            r => r.PuedeConsultarDatosResidenciales(),
+            "Se requiere rol de administrador o vigilancia"
+        );
+
+        if (roleError != null) return roleError;
+
+        if (condominioId == null)
+        {
+            return Ok(PagedResult<object>.Create(new List<object>(), paginacion, 0));
+        }
+
+        var (items, totalCount) = await _paqueteriaService.GetPaquetesCasetaAsync(condominioId.Value, PaqueteEstados.Esperado, viviendaId, paginacion);
+        var resultList = items.Select(ProyectarPaqueteCaseta).ToList();
+        
+        return Ok(PagedResult<object>.Create(resultList, paginacion, totalCount));
+    }
+
+    [HttpGet("inventario")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetInventario([FromQuery] PaginationParams paginacion, [FromQuery] int? viviendaId = null)
+    {
+        var (roleError, condominioId, _) = await ValidateRoleAsync(
+            r => r.PuedeConsultarDatosResidenciales(),
+            "Se requiere rol de administrador o vigilancia"
+        );
+
+        if (roleError != null) return roleError;
+
+        if (condominioId == null)
+        {
+            return Ok(PagedResult<object>.Create(new List<object>(), paginacion, 0));
+        }
+
+        var (items, totalCount) = await _paqueteriaService.GetPaquetesCasetaAsync(condominioId.Value, PaqueteEstados.Recibido, viviendaId, paginacion);
+        var resultList = items.Select(ProyectarPaqueteCaseta).ToList();
+        
+        return Ok(PagedResult<object>.Create(resultList, paginacion, totalCount));
+    }
+
+    [HttpPost("recepcion")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Recepcion([FromBody] RecibirPaqueteRequestDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var (roleError, _, userId) = await ValidateRoleAsync(
+            r => r.PuedeConsultarDatosResidenciales(),
+            "Se requiere rol de administrador o vigilancia"
+        );
+
+        if (roleError != null) return roleError;
+
+        try
+        {
+            var result = await _paqueteriaService.RecibirPaqueteAsync(dto, userId);
+            return StatusCode(201, ProyectarPaqueteCaseta(result));
+        }
+        catch (SupabaseRpcException ex)
+        {
+            var (status, mensaje) = RpcErrorMapper.Map(ex);
+            return StatusCode(status, new { error = mensaje });
+        }
+    }
+
+    [HttpPost("{id:guid}/entrega")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Entrega(Guid id, [FromBody] EntregarPaqueteRequestDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var (roleError, _, userId) = await ValidateRoleAsync(
+            r => r.PuedeConsultarDatosResidenciales(),
+            "Se requiere rol de administrador o vigilancia"
+        );
+
+        if (roleError != null) return roleError;
+
+        try
+        {
+            var result = await _paqueteriaService.EntregarPaqueteAsync(id, dto, userId);
+            return Ok(ProyectarPaqueteCaseta(result));
+        }
+        catch (SupabaseRpcException ex)
+        {
+            var (status, mensaje) = RpcErrorMapper.Map(ex);
+            return StatusCode(status, new { error = mensaje });
+        }
+    }
+
+    [HttpGet("historico")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetHistorico(
+        [FromQuery] PaginationParams paginacion,
+        [FromQuery] DateTimeOffset? desde = null,
+        [FromQuery] DateTimeOffset? hasta = null,
+        [FromQuery] int? viviendaId = null,
+        [FromQuery] string? estado = null)
+    {
+        var (roleError, condominioId, _) = await ValidateRoleAsync(
+            r => r.EsAdministrador(),
+            "Se requiere rol de administrador"
+        );
+
+        if (roleError != null) return roleError;
+
+        if (desde.HasValue && hasta.HasValue && desde.Value > hasta.Value)
+        {
+            return BadRequest(new { error = "La fecha 'desde' no puede ser posterior a la fecha 'hasta'." });
+        }
+
+        if (!string.IsNullOrEmpty(estado))
+        {
+            var validStates = new[] { 
+                PaqueteEstados.Esperado, 
+                PaqueteEstados.Recibido, 
+                PaqueteEstados.Entregado, 
+                PaqueteEstados.Cancelado, 
+                PaqueteEstados.Vencido, 
+                PaqueteEstados.Devuelto 
+            };
+            if (!validStates.Contains(estado.ToLowerInvariant()))
+            {
+                return BadRequest(new { error = "El estado proporcionado no es válido." });
+            }
+        }
+
+        if (condominioId == null)
+        {
+            return Ok(PagedResult<object>.Create(new List<object>(), paginacion, 0));
+        }
+
+        var (items, totalCount) = await _paqueteriaService.GetPaquetesHistoricoAsync(
+            condominioId.Value, desde, hasta, viviendaId, estado, paginacion);
+
+        var resultList = items.Select(ProyectarPaqueteHistorico).ToList();
+
+        return Ok(PagedResult<object>.Create(resultList, paginacion, totalCount));
+    }
+
+    [HttpPost("servicios")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CreateServicio([FromBody] CreateServicioPaqueteriaRequestDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var (roleError, condominioId, userId) = await ValidateRoleAsync(
+            r => r.EsAdministrador(),
+            "Se requiere rol de administrador"
+        );
+
+        if (roleError != null) return roleError;
+
+        if (condominioId == null)
+        {
+            return BadRequest(new { error = "El usuario no pertenece a un condominio para crear un servicio." });
+        }
+
+        try
+        {
+            var result = await _paqueteriaService.CreateServicioPaqueteriaAsync(condominioId.Value, dto, userId);
+            return StatusCode(201, ProyectarServicio(result));
+        }
+        catch (SupabaseRpcException ex)
+        {
+            var (status, mensaje) = RpcErrorMapper.Map(ex);
+            return StatusCode(status, new { error = mensaje });
+        }
+    }
+
+    [HttpDelete("servicios/{id:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteServicio(int id)
+    {
+        var (roleError, _, userId) = await ValidateRoleAsync(
+            r => r.EsAdministrador(),
+            "Se requiere rol de administrador"
+        );
+
+        if (roleError != null) return roleError;
+
+        try
+        {
+            var success = await _paqueteriaService.DeleteServicioPaqueteriaAsync(id, userId);
+            if (!success)
+            {
+                return NotFound(new { error = "Servicio no encontrado o no se pudo desactivar." });
             }
 
             return NoContent();
