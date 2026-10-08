@@ -1,4 +1,6 @@
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
 using HavenApi.Shared.Exceptions;
 using HavenApi.Shared.Pagination;
 using HavenApi.Shared.Rpc;
@@ -290,5 +292,89 @@ public class PaqueteriaSupabaseService : IPaqueteriaSupabaseService
             _httpClient, _supabaseUrl, _serviceRoleKey, "baja_servicio_paqueteria", payload, actorId);
 
         return result ?? false;
+    }
+
+    public async Task<IEnumerable<Guid>> GetDestinatariosPorViviendaAsync(int viviendaId)
+    {
+        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_vivienda_usuarios?vivienda_id=eq.{viviendaId}&select=usuario_id";
+        var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+        request.Headers.Add("apikey", _serviceRoleKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
+
+        try
+        {
+            var response = await _httpClient.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                _logger.LogWarning("GetDestinatariosPorViviendaAsync failed for vivienda {ViviendaId}. Status: {StatusCode}, Body: {Body}", viviendaId, response.StatusCode, errorBody);
+                return Enumerable.Empty<Guid>();
+            }
+
+            var elements = await response.Content.ReadFromJsonAsync<List<Dictionary<string, JsonElement>>>();
+            if (elements == null) return Enumerable.Empty<Guid>();
+
+            var list = new List<Guid>();
+            foreach (var dict in elements)
+            {
+                if (dict.TryGetValue("usuario_id", out var idElement) && idElement.ValueKind == JsonValueKind.String)
+                {
+                    if (Guid.TryParse(idElement.GetString(), out var id))
+                    {
+                        list.Add(id);
+                    }
+                }
+            }
+            return list;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error no controlado al obtener destinatarios de la vivienda {ViviendaId}", viviendaId);
+            return Enumerable.Empty<Guid>();
+        }
+    }
+
+    public async Task<bool> CrearNotificacionPaqueteLlegadaAsync(Guid usuarioId, Guid paqueteId, string? destinatarioNombre, string? servicioNombre, bool esInesperado)
+    {
+        var requestUrl = $"{_supabaseUrl}/rest/v1/rpc/alta_notificacion";
+        
+        var titulo = esInesperado ? "¡Paquete inesperado recibido!" : "¡Tu paquete ha llegado!";
+        
+        var dest = !string.IsNullOrWhiteSpace(destinatarioNombre) ? destinatarioNombre : "tu vivienda";
+        var serv = !string.IsNullOrWhiteSpace(servicioNombre) ? $" por {servicioNombre}" : "";
+        var mensaje = esInesperado 
+            ? $"Se ha recibido un paquete no esperado para {dest}{serv} en caseta."
+            : $"El paquete esperado para {dest}{serv} ya se encuentra en caseta.";
+            
+        var payload = new
+        {
+            p_usuario_id = usuarioId,
+            p_tipo_evento = "paquete_llegada",
+            p_titulo = titulo,
+            p_mensaje = mensaje,
+            p_url_redireccion = $"/paquetes/{paqueteId}"
+        };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, requestUrl);
+        request.Headers.Add("apikey", _serviceRoleKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
+        request.Content = JsonContent.Create(payload);
+
+        try
+        {
+            var response = await _httpClient.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                _logger.LogWarning("CrearNotificacionPaqueteLlegadaAsync failed for paquete {PaqueteId}. Status: {StatusCode}, Body: {Body}", paqueteId, response.StatusCode, errorBody);
+                return false;
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error no controlado al notificar llegada del paquete {PaqueteId}", paqueteId);
+            return false;
+        }
     }
 }

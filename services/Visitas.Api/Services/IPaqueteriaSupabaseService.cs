@@ -21,4 +21,7 @@ public interface IPaqueteriaSupabaseService
         
     Task<ServicioPaqueteriaDto> CreateServicioPaqueteriaAsync(Guid condominioId, CreateServicioPaqueteriaRequestDto dto, Guid actorId);
     Task<bool> DeleteServicioPaqueteriaAsync(int servicioId, Guid actorId);
+
+    Task<IEnumerable<Guid>> GetDestinatariosPorViviendaAsync(int viviendaId);
+    Task<bool> CrearNotificacionPaqueteLlegadaAsync(Guid usuarioId, Guid paqueteId, string? destinatarioNombre, string? servicioNombre, bool esInesperado);
 }
