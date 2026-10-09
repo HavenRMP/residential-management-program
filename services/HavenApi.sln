@@ -27,6 +27,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Visitas.Api", "Visitas.Api\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Visitas.Api.Tests", "Visitas.Api.Tests\Visitas.Api.Tests.csproj", "{BEB762FE-861F-406F-B100-B7F98AD38330}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Reservas.Api", "Reservas.Api\Reservas.Api.csproj", "{65EDBF7B-65F4-4FB8-953E-E7FD41C88C3B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -169,6 +171,18 @@ Global
 		{BEB762FE-861F-406F-B100-B7F98AD38330}.Release|x64.Build.0 = Release|Any CPU
 		{BEB762FE-861F-406F-B100-B7F98AD38330}.Release|x86.ActiveCfg = Release|Any CPU
 		{BEB762FE-861F-406F-B100-B7F98AD38330}.Release|x86.Build.0 = Release|Any CPU
+		{65EDBF7B-65F4-4FB8-953E-E7FD41C88C3B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{65EDBF7B-65F4-4FB8-953E-E7FD41C88C3B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{65EDBF7B-65F4-4FB8-953E-E7FD41C88C3B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{65EDBF7B-65F4-4FB8-953E-E7FD41C88C3B}.Debug|x64.Build.0 = Debug|Any CPU
+		{65EDBF7B-65F4-4FB8-953E-E7FD41C88C3B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{65EDBF7B-65F4-4FB8-953E-E7FD41C88C3B}.Debug|x86.Build.0 = Debug|Any CPU
+		{65EDBF7B-65F4-4FB8-953E-E7FD41C88C3B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{65EDBF7B-65F4-4FB8-953E-E7FD41C88C3B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{65EDBF7B-65F4-4FB8-953E-E7FD41C88C3B}.Release|x64.ActiveCfg = Release|Any CPU
+		{65EDBF7B-65F4-4FB8-953E-E7FD41C88C3B}.Release|x64.Build.0 = Release|Any CPU
+		{65EDBF7B-65F4-4FB8-953E-E7FD41C88C3B}.Release|x86.ActiveCfg = Release|Any CPU
+		{65EDBF7B-65F4-4FB8-953E-E7FD41C88C3B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
