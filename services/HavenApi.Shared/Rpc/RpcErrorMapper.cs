@@ -37,6 +37,21 @@ public static class RpcErrorMapper
             "PQ009" => (400, "Faltan campos obligatorios."),
             "PQ010" => (403, "Se requiere rol de vigilancia o administrador."),
             "PQ011" => (403, "Se requiere rol de administrador."),
+            "RE001" => (404, "El área común no existe o está inactiva."),
+            "RE002" => (404, "La reserva no existe."),
+            "RE003" => (403, "No tienes permiso sobre esta reserva."),
+            "RE004" => (409, "El estado de la reserva no permite esta operación."),
+            "RE005" => (400, "El horario solicitado está fuera del horario de operación del área."),
+            "RE006" => (400, "La duración de la reserva debe ser de entre 30 minutos y 12 horas."),
+            "RE007" => (400, "La reserva debe hacerse con entre 7 y 30 días de anticipación."),
+            "RE008" => (409, "Ya tienes una reserva para ese día."),
+            "RE009" => (409, "El horario choca con otra reserva aprobada o con un bloqueo del área."),
+            "RE010" => (400, "El motivo es obligatorio."),
+            "RE011" => (409, "La reserva solo puede confirmarse entre 7 días y 72 horas antes del evento."),
+            "RE012" => (409, "La reserva ya inició o terminó."),
+            "RE013" => (409, "La reserva aún no termina, no puede marcarse como no utilizada."),
+            "RE014" => (403, "El área o la reserva pertenece a otro condominio."),
+            "RE015" => (404, "No se encontró un titular para el usuario."),
             _ => (500, $"Ocurrió un error inesperado al procesar el código. (Código: {ex.Code})")
         };
     }
