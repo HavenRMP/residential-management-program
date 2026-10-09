@@ -373,13 +373,15 @@ public class PaqueteriaCasetaTests
     }
 
     // 8. Histórico
-    [Fact]
-    public async Task GetHistorico_Administrador_Returns200_PropagaFiltros()
+    [Theory]
+    [InlineData("administrador")]
+    [InlineData("vigilancia")]
+    public async Task GetHistorico_RolesPermitidos_Returns200_PropagaFiltros(string rol)
     {
         var userId = Guid.NewGuid();
         var condominioId = Guid.NewGuid();
         var mockService = new Mock<IPaqueteriaSupabaseService>();
-        SetupUserRole(mockService, userId, "administrador", condominioId);
+        SetupUserRole(mockService, userId, rol, condominioId);
         mockService.Setup(s => s.GetPaquetesHistoricoAsync(condominioId, It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), 5, "entregado", It.IsAny<PaginationParams>()))
             .ReturnsAsync((new List<PaqueteHistoricoDto>(), 0)).Verifiable();
 
@@ -396,7 +398,6 @@ public class PaqueteriaCasetaTests
     }
 
     [Theory]
-    [InlineData("vigilancia")]
     [InlineData("residente")]
     public async Task GetHistorico_RolesDenegados_Returns403(string rol)
     {
