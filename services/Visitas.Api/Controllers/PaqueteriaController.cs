@@ -484,8 +484,8 @@ public class PaqueteriaController : ControllerBase
         [FromQuery] string? estado = null)
     {
         var (roleError, condominioId, _) = await ValidateRoleAsync(
-            r => r.EsAdministrador(),
-            "Se requiere rol de administrador"
+            r => r.PuedeConsultarDatosResidenciales(),
+            "Se requiere rol de administrador o vigilancia"
         );
 
         if (roleError != null) return roleError;
