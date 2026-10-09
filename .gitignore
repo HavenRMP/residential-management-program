@@ -13,3 +13,4 @@ firebase-admin.json
 !appsettings*.json
 !firebase-admin.json
 /*.js
+repomix-output.xml
