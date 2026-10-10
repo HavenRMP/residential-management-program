@@ -7,6 +7,7 @@ import '../Services/avisos_service.dart';
 import '../Services/viviendas_service.dart';
 import '../Services/push_notifications_service.dart';
 import 'perfil_screen.dart';
+import 'paqueteria_caseta_screen.dart';
 import '../Widgets/qr_scanner_view.dart';
 import '../Widgets/qr_dialog.dart';
 import '../Utils/share_helper.dart';
@@ -114,6 +115,18 @@ class _VigilanteDashboardScreenState extends State<VigilanteDashboardScreen> {
           ),
         ),
         actions: [
+          IconButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PaqueteriaCasetaScreen(controller: widget.controller),
+                ),
+              );
+            },
+            icon: const Icon(Icons.inventory_2_outlined, color: Color(0xFF059669)),
+            tooltip: 'Paquetería en caseta',
+          ),
           IconButton(
             onPressed: () async {
               final confirm = await showDialog<bool>(
@@ -1069,6 +1082,22 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          FloatingActionButton.small(
+            heroTag: 'fab_paqueteria',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PaqueteriaCasetaScreen(controller: widget.controller),
+                ),
+              );
+            },
+            backgroundColor: const Color(0xFFECFDF5),
+            foregroundColor: const Color(0xFF059669),
+            tooltip: 'Paquetería en Caseta',
+            child: const Icon(Icons.inventory_2_outlined),
+          ),
+          const SizedBox(height: 10),
           FloatingActionButton.small(
             heroTag: 'fab_manual_code',
             onPressed: _abrirValidarCodigoDialog,
