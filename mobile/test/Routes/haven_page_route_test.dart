@@ -121,5 +121,53 @@ void main() {
       expect(find.text('Pantalla Reemplazada'), findsOneWidget);
       expect(find.text('Reemplazar'), findsNothing);
     });
+
+    testWidgets('context.pushHaven navega a la página solicitada', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: ElevatedButton(
+                onPressed: () {
+                  context.pushHaven(
+                    const Scaffold(body: Text('Pantalla Extension')),
+                  );
+                },
+                child: const Text('Boton Extension'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Boton Extension'));
+      await tester.pumpAndSettle();
+      expect(find.text('Pantalla Extension'), findsOneWidget);
+    });
+
+    testWidgets('context.pushReplacementHaven reemplaza la página vía extensión', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: ElevatedButton(
+                onPressed: () {
+                  context.pushReplacementHaven(
+                    const Scaffold(body: Text('Pantalla Reemplazo Extension')),
+                  );
+                },
+                child: const Text('Boton Reemplazo Extension'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Boton Reemplazo Extension'));
+      await tester.pumpAndSettle();
+      expect(find.text('Pantalla Reemplazo Extension'), findsOneWidget);
+      expect(find.text('Boton Reemplazo Extension'), findsNothing);
+    });
   });
 }
+
