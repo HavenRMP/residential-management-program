@@ -16,6 +16,8 @@ import 'subusuarios_screen.dart';
 import 'invitaciones_recibidas_screen.dart';
 import 'visitas_residente_screen.dart';
 import 'perfil_screen.dart';
+import 'paqueteria_residente_screen.dart';
+import '../Services/paqueteria_service.dart';
 import '../Widgets/qr_scanner_view.dart';
 import '../Utils/haptic_helper.dart';
 
@@ -35,6 +37,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
   bool _isLoadingViviendas = true;
   int _unreadAvisosCount = 0;
   int _unreadNotificacionesCount = 0;
+  int _paquetesPendientesCount = 0;
 
   late final SubusuariosService _subusuariosService;
   List<InvitacionSubusuario> _invitacionesPendientes = [];
@@ -49,6 +52,20 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
     _solicitarPermisos();
     _checkUnreadAvisos();
     _checkUnreadNotificaciones();
+    _checkPaquetesPendientes();
+  }
+
+  Future<void> _checkPaquetesPendientes() async {
+    try {
+      final srv = PaqueteriaService(widget.controller);
+      final res = await srv.getMisPaquetes(page: 1, pageSize: 50, estado: 'recibido');
+      if (res['success'] == true) {
+        final items = res['items'] as List<dynamic>? ?? [];
+        if (mounted) {
+          setState(() => _paquetesPendientesCount = items.length);
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _checkUnreadNotificaciones() async {
@@ -572,6 +589,12 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                   const SizedBox(height: 20),
                 ],
 
+                // Banner de Paquetes en Caseta listos para recoger
+                if (_paquetesPendientesCount > 0) ...[
+                  _buildPaquetesPendientesBanner(),
+                  const SizedBox(height: 20),
+                ],
+
                 // Módulo "Mi Vivienda"
                 if (_isLoadingViviendas)
                   _buildLoadingVivienda()
@@ -753,6 +776,87 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
           ),
         );
       }).toList(),
+    );
+  }
+
+  Widget _buildPaquetesPendientesBanner() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFECFDF5), Color(0xFFD1FAE5)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFA7F3D0), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF059669).withValues(alpha: 0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF059669),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.inventory_2_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '¡Tienes $_paquetesPendientesCount paquete(s) en caseta!',
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF065F46),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Acude a vigilancia para recoger tus entregas.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF047857),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PaqueteriaResidenteScreen(
+                    controller: widget.controller,
+                    misViviendas: _misViviendas,
+                  ),
+                ),
+              ).then((_) => _checkPaquetesPendientes());
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Ver', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -979,6 +1083,83 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                               ),
                               SizedBox(width: 4),
                               Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF111C99)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  const Divider(color: Color(0xFFE2E8F0), height: 1),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.inventory_2_outlined, size: 16, color: Color(0xFF64748B)),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'Paquetería',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF334155),
+                            ),
+                          ),
+                          if (_paquetesPendientesCount > 0) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF059669),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '$_paquetesPendientesCount',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      InkWell(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PaqueteriaResidenteScreen(
+                                controller: widget.controller,
+                                misViviendas: _misViviendas,
+                              ),
+                            ),
+                          ).then((_) => _checkPaquetesPendientes());
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFECFDF5),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFFA7F3D0)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Ver Paquetes',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF047857),
+                                ),
+                              ),
+                              SizedBox(width: 4),
+                              Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF047857)),
                             ],
                           ),
                         ),
