@@ -61,19 +61,19 @@ public class ReservasController : ControllerBase
             {
                 var result = await _supabaseService.GetCalendarioAdminAsync(condominioId.Value, from, to, areaId, paginationParams);
                 var items = result.Items?.Select(MapToCamelCase).ToList() ?? new System.Collections.Generic.List<object>();
-                return Ok(PagedResult<object>.Create(items, result.TotalCount ?? 0, paginationParams.Page, paginationParams.PageSize));
+                return Ok(PagedResult<object>.Create(items, paginationParams, result.TotalCount ?? 0));
             }
             else if (rolNombre.EsResidente())
             {
                 var result = await _supabaseService.GetCalendarioAsync(condominioId.Value, from, to, areaId, false, paginationParams);
                 var items = result.Items?.Select(MapToCamelCase).ToList() ?? new System.Collections.Generic.List<object>();
-                return Ok(PagedResult<object>.Create(items, result.TotalCount ?? 0, paginationParams.Page, paginationParams.PageSize));
+                return Ok(PagedResult<object>.Create(items, paginationParams, result.TotalCount ?? 0));
             }
             else if (rolNombre.EsRolDeSoloLectura())
             {
                 var result = await _supabaseService.GetCalendarioAsync(condominioId.Value, from, to, areaId, true, paginationParams);
                 var items = result.Items?.Select(MapToCamelCase).ToList() ?? new System.Collections.Generic.List<object>();
-                return Ok(PagedResult<object>.Create(items, result.TotalCount ?? 0, paginationParams.Page, paginationParams.PageSize));
+                return Ok(PagedResult<object>.Create(items, paginationParams, result.TotalCount ?? 0));
             }
             else
             {
@@ -82,7 +82,8 @@ public class ReservasController : ControllerBase
         }
         catch (SupabaseRpcException ex)
         {
-            return HavenApi.Shared.Rpc.RpcErrorMapper.MapToActionResult(ex);
+            var (status, mensaje) = HavenApi.Shared.Rpc.RpcErrorMapper.Map(ex);
+            return StatusCode(status, new { error = mensaje });
         }
     }
 
@@ -114,11 +115,12 @@ public class ReservasController : ControllerBase
         {
             var result = await _supabaseService.GetMisReservasAsync(userId, estado, paginationParams);
             var items = result.Items?.Select(MapToCamelCase).ToList() ?? new System.Collections.Generic.List<object>();
-            return Ok(PagedResult<object>.Create(items, result.TotalCount ?? 0, paginationParams.Page, paginationParams.PageSize));
+            return Ok(PagedResult<object>.Create(items, paginationParams, result.TotalCount ?? 0));
         }
         catch (SupabaseRpcException ex)
         {
-            return HavenApi.Shared.Rpc.RpcErrorMapper.MapToActionResult(ex);
+            var (status, mensaje) = HavenApi.Shared.Rpc.RpcErrorMapper.Map(ex);
+            return StatusCode(status, new { error = mensaje });
         }
     }
 
@@ -148,11 +150,12 @@ public class ReservasController : ControllerBase
         {
             var result = await _supabaseService.GetPendientesTitularAsync(userId, paginationParams);
             var items = result.Items?.Select(MapToCamelCase).ToList() ?? new System.Collections.Generic.List<object>();
-            return Ok(PagedResult<object>.Create(items, result.TotalCount ?? 0, paginationParams.Page, paginationParams.PageSize));
+            return Ok(PagedResult<object>.Create(items, paginationParams, result.TotalCount ?? 0));
         }
         catch (SupabaseRpcException ex)
         {
-            return HavenApi.Shared.Rpc.RpcErrorMapper.MapToActionResult(ex);
+            var (status, mensaje) = HavenApi.Shared.Rpc.RpcErrorMapper.Map(ex);
+            return StatusCode(status, new { error = mensaje });
         }
     }
 
