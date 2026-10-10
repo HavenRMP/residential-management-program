@@ -232,7 +232,11 @@ class ViviendasService {
         body: jsonEncode(payload),
       );
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        return jsonDecode(response.body);
+        final dynamic decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) return decoded;
+        if (decoded is Map) return Map<String, dynamic>.from(decoded);
+        if (decoded is String) return {'codigo': decoded};
+        return {'codigo': decoded.toString()};
       }
       return {
         'error': ErrorHandler.extractErrorMessage(
