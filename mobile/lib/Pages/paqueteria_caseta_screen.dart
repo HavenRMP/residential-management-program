@@ -10,9 +10,12 @@ import '../Widgets/entregar_paquete_modal.dart';
 class PaqueteriaCasetaScreen extends StatefulWidget {
   final AppController controller;
 
+  final bool isEmbedded;
+
   const PaqueteriaCasetaScreen({
     super.key,
     required this.controller,
+    this.isEmbedded = false,
   });
 
   @override
@@ -145,51 +148,60 @@ class _PaqueteriaCasetaScreenState extends State<PaqueteriaCasetaScreen>
     }
   }
 
+  Widget _buildTabBar() {
+    return Container(
+      color: Colors.white,
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+      ),
+      child: TabBar(
+        controller: _tabController,
+        indicatorColor: const Color(0xFF059669),
+        labelColor: const Color(0xFF059669),
+        unselectedLabelColor: const Color(0xFF64748B),
+        labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+        tabs: [
+          Tab(
+            text: _esperados.isNotEmpty ? 'Esperados (${_esperados.length})' : 'Esperados',
+          ),
+          Tab(
+            text: _inventario.isNotEmpty ? 'Inventario (${_inventario.length})' : 'Inventario',
+          ),
+          const Tab(text: 'Histórico'),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        surfaceTintColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF0F172A), size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Caseta · Paquetería',
-          style: TextStyle(
-            color: Color(0xFF0F172A),
-            fontWeight: FontWeight.w800,
-            fontSize: 18,
-          ),
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
-          child: Container(
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
-            ),
-            child: TabBar(
-              controller: _tabController,
-              indicatorColor: const Color(0xFF059669),
-              labelColor: const Color(0xFF059669),
-              unselectedLabelColor: const Color(0xFF64748B),
-              labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-              tabs: [
-                Tab(
-                  text: _esperados.isNotEmpty ? 'Esperados (${_esperados.length})' : 'Esperados',
+      appBar: widget.isEmbedded
+          ? null
+          : AppBar(
+              backgroundColor: Colors.white,
+              elevation: 0,
+              surfaceTintColor: Colors.white,
+              leading: Navigator.canPop(context)
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF0F172A), size: 20),
+                      onPressed: () => Navigator.pop(context),
+                    )
+                  : null,
+              title: const Text(
+                'Caseta · Paquetería',
+                style: TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
                 ),
-                Tab(
-                  text: _inventario.isNotEmpty ? 'Inventario (${_inventario.length})' : 'Inventario',
-                ),
-                const Tab(text: 'Histórico'),
-              ],
+              ),
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(48),
+                child: _buildTabBar(),
+              ),
             ),
-          ),
-        ),
-      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _abrirModalRecepcion(),
         backgroundColor: const Color(0xFF059669),
@@ -204,6 +216,7 @@ class _PaqueteriaCasetaScreenState extends State<PaqueteriaCasetaScreen>
         color: const Color(0xFF059669),
         child: Column(
           children: [
+            if (widget.isEmbedded) _buildTabBar(),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: TextField(
