@@ -4,6 +4,7 @@ import '../Services/app_controller.dart';
 import '../Services/notificaciones_service.dart';
 import 'invitaciones_recibidas_screen.dart';
 import 'visitas_residente_screen.dart';
+import 'paqueteria_residente_screen.dart';
 
 class NotificacionesScreen extends StatefulWidget {
   const NotificacionesScreen({super.key, required this.controller});
@@ -59,6 +60,9 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
     final esVisita = notif.tipoEvento.toLowerCase().contains('visita') ||
         notif.titulo.toLowerCase().contains('visita') ||
         notif.mensaje.toLowerCase().contains('visita');
+    final esPaquete = notif.tipoEvento.toLowerCase().contains('paquete') ||
+        notif.titulo.toLowerCase().contains('paquete') ||
+        notif.mensaje.toLowerCase().contains('paquete');
 
     if (esInvitacion && mounted) {
       Navigator.push(
@@ -74,6 +78,19 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
           context,
           MaterialPageRoute(
             builder: (_) => VisitasResidenteScreen(
+              controller: widget.controller,
+              misViviendas: misViviendas,
+            ),
+          ),
+        );
+      }
+    } else if (esPaquete && mounted) {
+      final misViviendas = await widget.controller.obtenerMisViviendas();
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PaqueteriaResidenteScreen(
               controller: widget.controller,
               misViviendas: misViviendas,
             ),
@@ -145,6 +162,14 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
       case 'visita':
       case 'acceso':
         icon = Icons.meeting_room_rounded;
+        bg = const Color(0xFFECFDF5);
+        color = const Color(0xFF059669);
+        break;
+      case 'paquete_llegada':
+      case 'paquete_entregado':
+      case 'paquete':
+      case 'paqueteria':
+        icon = Icons.inventory_2_rounded;
         bg = const Color(0xFFECFDF5);
         color = const Color(0xFF059669);
         break;
