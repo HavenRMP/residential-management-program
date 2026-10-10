@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../Utils/haptic_helper.dart';
+import '../Routes/haven_page_transitions_builder.dart';
 
 /// Fábrica interactiva de tinta que añade retroalimentación háptica automática
 /// a todos los botones (Elevated, Text, Outlined, Icon, Chips, NavigationBar, InkWell)
@@ -54,6 +55,16 @@ class AppTheme {
       scaffoldBackgroundColor: const Color(0xFFF7F7F7),
       fontFamily: GoogleFonts.openSans().fontFamily,
       splashFactory: const HapticSplashFactory(),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: HavenPageTransitionsBuilder(),
+          TargetPlatform.iOS: HavenPageTransitionsBuilder(),
+          TargetPlatform.fuchsia: HavenPageTransitionsBuilder(),
+          TargetPlatform.linux: HavenPageTransitionsBuilder(),
+          TargetPlatform.macOS: HavenPageTransitionsBuilder(),
+          TargetPlatform.windows: HavenPageTransitionsBuilder(),
+        },
+      ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           splashFactory: const HapticSplashFactory(),
