@@ -261,3 +261,33 @@ class HavenPageRoute<T> extends PageRouteBuilder<T> {
     );
   }
 }
+
+/// Extensión sobre [BuildContext] para navegación rápida con estilo Haven.
+extension HavenNavigationExtension on BuildContext {
+  /// Empuja una nueva ruta con animación fluida personalizada.
+  Future<T?> pushHaven<T>(
+    Widget page, {
+    HavenTransitionType type = HavenTransitionType.slideHorizontal,
+    bool fullscreenDialog = false,
+  }) {
+    return HavenPageRoute.push<T>(
+      this,
+      page,
+      type: type,
+      fullscreenDialog: fullscreenDialog,
+    );
+  }
+
+  /// Reemplaza la pantalla actual con animación fluida personalizada.
+  Future<T?> pushReplacementHaven<T, TO>(
+    Widget page, {
+    HavenTransitionType type = HavenTransitionType.slideHorizontal,
+  }) {
+    return HavenPageRoute.pushReplacement<T, TO>(
+      this,
+      page,
+      type: type,
+    );
+  }
+}
+
