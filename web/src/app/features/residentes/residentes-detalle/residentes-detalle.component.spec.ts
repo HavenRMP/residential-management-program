@@ -120,7 +120,8 @@ describe('ResidentesDetalleComponent', () => {
       component.residente = mockResidente;
       component.viviendas = viviendas;
       component.ngOnChanges({ viviendas: new SimpleChange(null, viviendas, true) });
-      await component.cargarSubusuarios();
+      // ngOnChanges ya dispara la consulta; se espera a que termine antes de pintar
+      await new Promise(resolve => setTimeout(resolve, 0));
       fixture.detectChanges();
     }
 
@@ -168,6 +169,26 @@ describe('ResidentesDetalleComponent', () => {
       expect(texto()).toContain('Luis Prueba');
       expect(texto()).toContain('No se pudieron cargar los sub-usuarios de esta vivienda.');
       expect(component.gruposSubusuarios().length).toBe(2);
+    });
+
+    it('no vuelve a consultar cuando el padre manda una lista nueva con las mismas viviendas', async () => {
+      await abrir([mockVivienda]);
+      mockSubusuariosService.listarPorVivienda.calls.reset();
+
+      component.viviendas = [{ ...mockVivienda }];
+      component.ngOnChanges({ viviendas: new SimpleChange([mockVivienda], component.viviendas, false) });
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(mockSubusuariosService.listarPorVivienda).not.toHaveBeenCalled();
+    });
+
+    it('consulta de nuevo cuando cambian las viviendas', async () => {
+      await abrir([mockVivienda]);
+      mockSubusuariosService.listarPorVivienda.calls.reset();
+
+      await abrir([{ ...mockVivienda, id: 202, numeroCasa: 'Casa 202' }]);
+
+      expect(mockSubusuariosService.listarPorVivienda).toHaveBeenCalledOnceWith(202);
     });
 
     it('sin vivienda asignada no muestra la sección ni consulta nada', async () => {
