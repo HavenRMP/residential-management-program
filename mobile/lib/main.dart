@@ -11,6 +11,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'Pages/invitaciones_recibidas_screen.dart';
 import 'Pages/visitas_residente_screen.dart';
 import 'Pages/avisos_residente_screen.dart';
+import 'Pages/paqueteria_residente_screen.dart';
 import 'Widgets/offline_banner.dart';
 import 'Utils/error_handler.dart';
 
@@ -124,6 +125,20 @@ class _HavenAppState extends State<HavenApp> {
         navigatorKey.currentState?.push(
           MaterialPageRoute(
             builder: (_) => AvisosResidenteScreen(controller: controller),
+          ),
+        );
+      } else if (tipo == 'paquete_llegada' ||
+          tipo == 'paquete_entregado' ||
+          tipo == 'paquete' ||
+          tipo == 'paqueteria') {
+        final misViviendas = await controller.obtenerMisViviendas();
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (_) => PaqueteriaResidenteScreen(
+              controller: controller,
+              misViviendas: misViviendas,
+              focusPaqueteId: data['paquete_id']?.toString() ?? data['paqueteId']?.toString(),
+            ),
           ),
         );
       }
