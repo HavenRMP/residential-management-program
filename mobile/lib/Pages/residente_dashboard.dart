@@ -291,6 +291,11 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
         controller: widget.controller,
         misViviendas: _misViviendas,
       ),
+      PaqueteriaResidenteScreen(
+        controller: widget.controller,
+        misViviendas: _misViviendas,
+        isEmbedded: true,
+      ),
       _buildScannerPage(),
       if (hasCondominio) AvisosResidenteScreen(
         controller: widget.controller,
@@ -439,7 +444,10 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
             HapticHelper.selection();
             setState(() {
               _currentIndex = index;
-              if (hasCondominio && index == 3) {
+              if (index == 2) {
+                _checkPaquetesPendientes();
+              }
+              if (hasCondominio && index == 4) {
                  _checkUnreadAvisos();
               }
             });
@@ -458,6 +466,23 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
               icon: Icon(Icons.badge_outlined, color: Color(0xFF64748B)),
               selectedIcon: Icon(Icons.badge_rounded, color: Color(0xFF111C99)),
               label: 'Visitas',
+            ),
+            NavigationDestination(
+              icon: _paquetesPendientesCount > 0
+                  ? Badge(
+                      label: Text('$_paquetesPendientesCount'),
+                      backgroundColor: const Color(0xFF059669),
+                      child: const Icon(Icons.inventory_2_outlined, color: Color(0xFF64748B)),
+                    )
+                  : const Icon(Icons.inventory_2_outlined, color: Color(0xFF64748B)),
+              selectedIcon: _paquetesPendientesCount > 0
+                  ? Badge(
+                      label: Text('$_paquetesPendientesCount'),
+                      backgroundColor: const Color(0xFF059669),
+                      child: const Icon(Icons.inventory_2_rounded, color: Color(0xFF111C99)),
+                    )
+                  : const Icon(Icons.inventory_2_rounded, color: Color(0xFF111C99)),
+              label: 'Paquetes',
             ),
             const NavigationDestination(
               icon: Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF64748B)),
