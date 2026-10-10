@@ -330,7 +330,7 @@ class _PaqueteriaResidenteScreenState extends State<PaqueteriaResidenteScreen>
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text('Por Recoger / Esperados'),
+                      const Text('Pendientes'),
                       if (_enCasetaCount > 0) ...[
                         const SizedBox(width: 6),
                         Container(
