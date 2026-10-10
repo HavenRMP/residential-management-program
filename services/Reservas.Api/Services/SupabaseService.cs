@@ -389,4 +389,19 @@ public class SupabaseService : ISupabaseService
         return await SupabaseRpcClient.PostRpcAsync<bool>(
             _httpClient, _supabaseUrl, _serviceRoleKey, "marcar_reserva_no_utilizada", payload, actorId);
     }
+
+    public async Task<BloqueoResultadoDto?> CrearBloqueoAsync(Guid actorId, Guid areaId, DateTimeOffset inicio, DateTimeOffset fin, string motivo)
+    {
+        var payload = new Dictionary<string, object>
+        {
+            { "p_actor_id", actorId },
+            { "p_area_id", areaId },
+            { "p_inicio", inicio.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ") },
+            { "p_fin", fin.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ") },
+            { "p_motivo", motivo }
+        };
+
+        return await SupabaseRpcClient.PostRpcAsync<BloqueoResultadoDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, "crear_bloqueo_area", payload, actorId);
+    }
 }

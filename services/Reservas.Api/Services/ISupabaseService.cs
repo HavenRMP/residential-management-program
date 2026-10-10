@@ -33,4 +33,6 @@ public interface ISupabaseService
     Task<bool> RechazarReservaAdminAsync(Guid actorId, Guid reservaId, string motivo);
     Task<bool> CancelarReservaAdminAsync(Guid actorId, Guid reservaId, string motivo);
     Task<bool> MarcarNoUtilizadaAsync(Guid actorId, Guid reservaId);
+
+    Task<BloqueoResultadoDto?> CrearBloqueoAsync(Guid actorId, Guid areaId, DateTimeOffset inicio, DateTimeOffset fin, string motivo);
 }
