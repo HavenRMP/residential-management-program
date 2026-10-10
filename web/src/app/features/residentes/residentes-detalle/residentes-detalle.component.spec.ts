@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ResidentesDetalleComponent } from './residentes-detalle.component';
 import { ViviendasService } from '../../../core/services/viviendas.service';
+import { SubusuariosService } from '../../../core/services/subusuarios.service';
 import { Residente } from '../../../core/models/residente.model';
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { SimpleChange } from '@angular/core';
@@ -9,6 +10,7 @@ describe('ResidentesDetalleComponent', () => {
   let component: ResidentesDetalleComponent;
   let fixture: ComponentFixture<ResidentesDetalleComponent>;
   let mockViviendasService: jasmine.SpyObj<ViviendasService>;
+  let mockSubusuariosService: jasmine.SpyObj<SubusuariosService>;
 
   const mockResidente: Residente = {
     id: 'res-123',
@@ -32,11 +34,14 @@ describe('ResidentesDetalleComponent', () => {
       'obtenerViviendasDeResidente'
     ]);
     mockViviendasService.obtenerViviendasDeResidente.and.resolveTo([mockVivienda]);
+    mockSubusuariosService = jasmine.createSpyObj('SubusuariosService', ['listarPorVivienda']);
+    mockSubusuariosService.listarPorVivienda.and.resolveTo([]);
 
     await TestBed.configureTestingModule({
       imports: [ResidentesDetalleComponent],
       providers: [
-        { provide: ViviendasService, useValue: mockViviendasService }
+        { provide: ViviendasService, useValue: mockViviendasService },
+        { provide: SubusuariosService, useValue: mockSubusuariosService }
       ]
     }).compileComponents();
 
@@ -104,6 +109,73 @@ describe('ResidentesDetalleComponent', () => {
     });
 
     expect(mockViviendasService.obtenerViviendasDeResidente).toHaveBeenCalledWith('res-123');
+  });
+
+  describe('sub-usuarios de la vivienda', () => {
+    const acceso = { id: 'sub-1', nombre: 'Luis Prueba', email: 'luis@example.com', telefono: '', parentesco: 'Familiar', activo: true, creadoEn: null };
+    const pendiente = { id: 'inv-1', nombre: 'Pendiente', email: 'ana@example.com', telefono: 'Pendiente', parentesco: 'Hijo/a', activo: false, creadoEn: null };
+    const texto = () => (fixture.nativeElement as HTMLElement).textContent!.replace(/\s+/g, ' ');
+
+    async function abrir(viviendas: Vivienda[]): Promise<void> {
+      component.residente = mockResidente;
+      component.viviendas = viviendas;
+      component.ngOnChanges({ viviendas: new SimpleChange(null, viviendas, true) });
+      await component.cargarSubusuarios();
+      fixture.detectChanges();
+    }
+
+    it('lista los sub-usuarios activos y las invitaciones pendientes de la vivienda', async () => {
+      mockSubusuariosService.listarPorVivienda.and.resolveTo([acceso, pendiente]);
+
+      await abrir([mockVivienda]);
+
+      expect(mockSubusuariosService.listarPorVivienda).toHaveBeenCalledWith(101);
+      expect(texto()).toContain('Sub-usuarios de la vivienda');
+      expect(texto()).toContain('Luis Prueba');
+      expect(texto()).toContain('luis@example.com');
+      expect(texto()).toContain('Activo');
+      expect(texto()).toContain('Invitación pendiente');
+      expect(texto()).toContain('Invitación enviada');
+      expect(texto()).not.toContain('Pendiente ');
+    });
+
+    it('avisa cuando la vivienda no tiene sub-usuarios', async () => {
+      await abrir([mockVivienda]);
+
+      expect(texto()).toContain('Esta vivienda no tiene sub-usuarios.');
+    });
+
+    it('si la consulta falla lo dice sin romper el detalle', async () => {
+      spyOn(console, 'error');
+      mockSubusuariosService.listarPorVivienda.and.rejectWith({ status: 500 });
+
+      await abrir([mockVivienda]);
+
+      expect(texto()).toContain('No se pudieron cargar los sub-usuarios de esta vivienda.');
+      expect(texto()).toContain('Angel Raimond Mendoza');
+    });
+
+    it('con varias viviendas muestra cada grupo con su casa y una falla no afecta a las demás', async () => {
+      spyOn(console, 'error');
+      const otra: Vivienda = { id: 202, numeroCasa: 'Casa 202', tipo: 'Casa', condominioId: 'cond-1' };
+      mockSubusuariosService.listarPorVivienda.and.callFake(async (id: number) => {
+        if (id === 202) throw { status: 500 };
+        return [acceso];
+      });
+
+      await abrir([mockVivienda, otra]);
+
+      expect(texto()).toContain('Luis Prueba');
+      expect(texto()).toContain('No se pudieron cargar los sub-usuarios de esta vivienda.');
+      expect(component.gruposSubusuarios().length).toBe(2);
+    });
+
+    it('sin vivienda asignada no muestra la sección ni consulta nada', async () => {
+      await abrir([]);
+
+      expect(texto()).not.toContain('Sub-usuarios de la vivienda');
+      expect(mockSubusuariosService.listarPorVivienda).not.toHaveBeenCalled();
+    });
   });
 
   it('debe emitir el evento cerrado al hacer click en el botón cerrar o presionar Escape', () => {
