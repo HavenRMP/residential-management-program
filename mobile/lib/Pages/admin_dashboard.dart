@@ -33,12 +33,37 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _viviendasOcupadas = 0;
   bool _isLoadingStats = true;
   bool _isSystemOnline = false;
+  late final PageController _pageController;
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: _currentIndex);
     _fetchStats();
     _solicitarPermisos();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onDestinationSelected(int index) {
+    HapticHelper.selection();
+    if (index == 0 && _currentIndex != 0) {
+      _fetchStats();
+    }
+    if (_currentIndex != index) {
+      setState(() => _currentIndex = index);
+      if (_pageController.hasClients) {
+        _pageController.animateToPage(
+          index,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOutCubic,
+        );
+      }
+    }
   }
 
   Future<void> _solicitarPermisos() async {
@@ -223,16 +248,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
         ],
       ),
-      body: IndexedStack(index: _currentIndex, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
+      body: PageView(
+        key: const Key('admin_dashboard_page_view'),
+        controller: _pageController,
+        physics: const ClampingScrollPhysics(),
+        onPageChanged: (index) {
           HapticHelper.selection();
           if (index == 0 && _currentIndex != 0) {
             _fetchStats();
           }
           setState(() => _currentIndex = index);
         },
+        children: pages,
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: _onDestinationSelected,
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
         indicatorColor: const Color(0xFFEEF2FF),
