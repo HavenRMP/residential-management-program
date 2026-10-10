@@ -18,6 +18,20 @@ void main() {
       expect(havenNotificationLegacyChannel.importance, Importance.max);
       expect(havenNotificationLegacyChannel.playSound, isTrue);
       expect(havenNotificationLegacyChannel.enableVibration, isTrue);
+
+      expect(havenPaqueteriaChannel.id, 'haven_paqueteria_channel');
+      expect(havenPaqueteriaChannel.name, 'Entregas y Paquetería Haven');
+      expect(havenPaqueteriaChannel.importance, Importance.max);
+      expect(havenPaqueteriaChannel.playSound, isTrue);
+      expect(havenPaqueteriaChannel.enableVibration, isTrue);
+    });
+
+    test('isPaqueteEvent reconoce eventos de paquetería', () {
+      expect(PushNotificationsService.isPaqueteEvent('paquete_llegada'), isTrue);
+      expect(PushNotificationsService.isPaqueteEvent('paquete_entregado'), isTrue);
+      expect(PushNotificationsService.isPaqueteEvent('paquete'), isTrue);
+      expect(PushNotificationsService.isPaqueteEvent('visita_llegada'), isFalse);
+      expect(PushNotificationsService.isPaqueteEvent(null), isFalse);
     });
 
     test('initializeApp no arroja excepciones en entorno sin Firebase nativo', () async {

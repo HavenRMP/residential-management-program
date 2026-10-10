@@ -31,6 +31,16 @@ const AndroidNotificationChannel havenNotificationLegacyChannel = AndroidNotific
 
 const AndroidNotificationChannel havenNotificationChannelBackend = havenNotificationLegacyChannel;
 
+/// Canal de máxima prioridad para notificaciones de entregas y paquetería en Android.
+const AndroidNotificationChannel havenPaqueteriaChannel = AndroidNotificationChannel(
+  'haven_paqueteria_channel',
+  'Entregas y Paquetería Haven',
+  description: 'Notificaciones sobre recepción y entrega de paquetes en caseta',
+  importance: Importance.max,
+  playSound: true,
+  enableVibration: true,
+);
+
 /// Handler de mensajes en background requerido por Firebase Cloud Messaging.
 /// Debe ser una función de nivel superior con la anotación @pragma('vm:entry-point').
 @pragma('vm:entry-point')
@@ -125,12 +135,13 @@ class PushNotificationsService {
         },
       );
 
-      // 4. Crear ambos canales para compatibilidad con el backend
+      // 4. Crear canales para compatibilidad con el backend
       final androidPlugin = _localNotifications
           .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       if (androidPlugin != null) {
         await androidPlugin.createNotificationChannel(havenNotificationChannel);
         await androidPlugin.createNotificationChannel(havenNotificationChannelBackend);
+        await androidPlugin.createNotificationChannel(havenPaqueteriaChannel);
       }
 
       // 5. Configurar listener para cuando la app está abierta en primer plano (foreground)
@@ -168,6 +179,17 @@ class PushNotificationsService {
     }
   }
 
+  /// Tipos de eventos para paquetería
+  static const String eventPaqueteLlegada = 'paquete_llegada';
+  static const String eventPaqueteEntregado = 'paquete_entregado';
+
+  /// Valida si el tipo de evento pertenece al módulo de paquetería
+  static bool isPaqueteEvent(String? tipo) {
+    if (tipo == null) return false;
+    final t = tipo.trim().toLowerCase();
+    return t == eventPaqueteLlegada || t == eventPaqueteEntregado || t == 'paquete';
+  }
+
   /// Muestra una notificación local en el sistema cuando un mensaje FCM llega en primer plano.
   static Future<void> _showForegroundNotification(RemoteMessage message) async {
     final notification = message.notification;
@@ -177,10 +199,14 @@ class PushNotificationsService {
     if (title == null && body == null) return;
 
     try {
+      final tipo = (message.data['tipo'] ?? message.data['tipo_evento'] ?? '').toString();
+      final isPaquete = isPaqueteEvent(tipo);
+      final channel = isPaquete ? havenPaqueteriaChannel : havenNotificationChannel;
+
       final androidDetails = AndroidNotificationDetails(
-        havenNotificationChannel.id,
-        havenNotificationChannel.name,
-        channelDescription: havenNotificationChannel.description,
+        channel.id,
+        channel.name,
+        channelDescription: channel.description,
         importance: Importance.max,
         priority: Priority.high,
         playSound: true,
