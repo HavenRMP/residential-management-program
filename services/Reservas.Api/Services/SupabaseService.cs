@@ -12,6 +12,7 @@ using HavenApi.Shared.Pagination;
 using Reservas.Api.DTOs;
 using System.Collections.Generic;
 using System.Linq;
+using System;
 
 namespace Reservas.Api.Services;
 
@@ -167,5 +168,103 @@ public class SupabaseService : ISupabaseService
 
         return await SupabaseRpcClient.PostRpcAsync<bool>(
             _httpClient, _supabaseUrl, _serviceRoleKey, "reactivar_area_comun", payload, actorId);
+    }
+
+    private string FormatDateForSupabase(DateTimeOffset date)
+    {
+        var formatted = date.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
+        return Uri.EscapeDataString(formatted);
+    }
+
+    public async Task<(List<CalendarioReservaDto>? Items, int? TotalCount)> GetCalendarioAsync(Guid condominioId, DateTimeOffset desde, DateTimeOffset hasta, Guid? areaId, bool limitado, PaginationParams paginacion)
+    {
+        var view = limitado ? "vw_calendario_reservas_limitado" : "vw_calendario_reservas";
+        var desdeStr = FormatDateForSupabase(desde);
+        var hastaStr = FormatDateForSupabase(hasta);
+        
+        var resourcePath = $"{view}?condominio_id=eq.{condominioId}&inicio=lt.{hastaStr}&fin=gt.{desdeStr}";
+        if (areaId.HasValue)
+        {
+            resourcePath += $"&area_id=eq.{areaId.Value}";
+        }
+        resourcePath += "&order=inicio.asc";
+
+        return await SupabaseQueryClient.GetPagedAsync<CalendarioReservaDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, _serviceRoleKey, resourcePath, paginacion);
+    }
+
+    public async Task<(List<ReservaAdminDto>? Items, int? TotalCount)> GetCalendarioAdminAsync(Guid condominioId, DateTimeOffset desde, DateTimeOffset hasta, Guid? areaId, PaginationParams paginacion)
+    {
+        var desdeStr = FormatDateForSupabase(desde);
+        var hastaStr = FormatDateForSupabase(hasta);
+        
+        var resourcePath = $"vw_reservas_admin?condominio_id=eq.{condominioId}&inicio=lt.{hastaStr}&fin=gt.{desdeStr}";
+        if (areaId.HasValue)
+        {
+            resourcePath += $"&area_id=eq.{areaId.Value}";
+        }
+        resourcePath += "&order=inicio.asc";
+
+        return await SupabaseQueryClient.GetPagedAsync<ReservaAdminDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, _serviceRoleKey, resourcePath, paginacion);
+    }
+
+    public async Task<(List<ReservaUsuarioDto>? Items, int? TotalCount)> GetMisReservasAsync(Guid usuarioId, string? estado, PaginationParams paginacion)
+    {
+        var resourcePath = $"vw_reservas_usuario?or=(titular_id.eq.{usuarioId},solicitante_id.eq.{usuarioId})";
+        if (!string.IsNullOrEmpty(estado))
+        {
+            resourcePath += $"&estado=eq.{estado}";
+        }
+        resourcePath += "&order=inicio.desc";
+
+        return await SupabaseQueryClient.GetPagedAsync<ReservaUsuarioDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, _serviceRoleKey, resourcePath, paginacion);
+    }
+
+    public async Task<(List<PendienteTitularDto>? Items, int? TotalCount)> GetPendientesTitularAsync(Guid titularId, PaginationParams paginacion)
+    {
+        var resourcePath = $"vw_reservas_pendientes_titular?titular_id=eq.{titularId}&order=inicio.asc";
+
+        return await SupabaseQueryClient.GetPagedAsync<PendienteTitularDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, _serviceRoleKey, resourcePath, paginacion);
+    }
+
+    public async Task<(List<ReservaAdminDto>? Items, int? TotalCount)> GetReservasAdminAsync(Guid condominioId, string? estado, Guid? areaId, DateTimeOffset? desde, DateTimeOffset? hasta, PaginationParams paginacion)
+    {
+        var resourcePath = $"vw_reservas_admin?condominio_id=eq.{condominioId}";
+        if (!string.IsNullOrEmpty(estado))
+        {
+            resourcePath += $"&estado=eq.{estado}";
+        }
+        if (areaId.HasValue)
+        {
+            resourcePath += $"&area_id=eq.{areaId.Value}";
+        }
+        if (desde.HasValue)
+        {
+            resourcePath += $"&inicio=gte.{FormatDateForSupabase(desde.Value)}";
+        }
+        if (hasta.HasValue)
+        {
+            resourcePath += $"&inicio=lte.{FormatDateForSupabase(hasta.Value)}";
+        }
+        resourcePath += "&order=inicio.asc";
+
+        return await SupabaseQueryClient.GetPagedAsync<ReservaAdminDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, _serviceRoleKey, resourcePath, paginacion);
+    }
+
+    public async Task<(List<NoShowDto>? Items, int? TotalCount)> GetNoShowsAsync(Guid condominioId, Guid? titularId, PaginationParams paginacion)
+    {
+        var resourcePath = $"vw_no_shows?condominio_id=eq.{condominioId}";
+        if (titularId.HasValue)
+        {
+            resourcePath += $"&titular_id=eq.{titularId.Value}";
+        }
+        resourcePath += "&order=inicio.desc";
+
+        return await SupabaseQueryClient.GetPagedAsync<NoShowDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, _serviceRoleKey, resourcePath, paginacion);
     }
 }
