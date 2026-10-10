@@ -11,6 +11,12 @@ namespace Reservas.Api.Tests;
 
 public class ReservasApiFactory : WebApplicationFactory<Program>
 {
+    public ReservasApiFactory()
+    {
+        System.Environment.SetEnvironmentVariable("Supabase__Url", "http://localhost:54321");
+        System.Environment.SetEnvironmentVariable("Supabase__AnonKey", "test-anon-key");
+    }
+
     public Mock<ISupabaseService> MockSupabaseService { get; } = new Mock<ISupabaseService>();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
