@@ -29,6 +29,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Visitas.Api.Tests", "Visita
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Reservas.Api", "Reservas.Api\Reservas.Api.csproj", "{65EDBF7B-65F4-4FB8-953E-E7FD41C88C3B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Reservas.Api.Tests", "Reservas.Api.Tests\Reservas.Api.Tests.csproj", "{AAC31FAE-514E-4175-B3D1-ED3B6CEC94E6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -183,6 +185,18 @@ Global
 		{65EDBF7B-65F4-4FB8-953E-E7FD41C88C3B}.Release|x64.Build.0 = Release|Any CPU
 		{65EDBF7B-65F4-4FB8-953E-E7FD41C88C3B}.Release|x86.ActiveCfg = Release|Any CPU
 		{65EDBF7B-65F4-4FB8-953E-E7FD41C88C3B}.Release|x86.Build.0 = Release|Any CPU
+		{AAC31FAE-514E-4175-B3D1-ED3B6CEC94E6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AAC31FAE-514E-4175-B3D1-ED3B6CEC94E6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AAC31FAE-514E-4175-B3D1-ED3B6CEC94E6}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{AAC31FAE-514E-4175-B3D1-ED3B6CEC94E6}.Debug|x64.Build.0 = Debug|Any CPU
+		{AAC31FAE-514E-4175-B3D1-ED3B6CEC94E6}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{AAC31FAE-514E-4175-B3D1-ED3B6CEC94E6}.Debug|x86.Build.0 = Debug|Any CPU
+		{AAC31FAE-514E-4175-B3D1-ED3B6CEC94E6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AAC31FAE-514E-4175-B3D1-ED3B6CEC94E6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AAC31FAE-514E-4175-B3D1-ED3B6CEC94E6}.Release|x64.ActiveCfg = Release|Any CPU
+		{AAC31FAE-514E-4175-B3D1-ED3B6CEC94E6}.Release|x64.Build.0 = Release|Any CPU
+		{AAC31FAE-514E-4175-B3D1-ED3B6CEC94E6}.Release|x86.ActiveCfg = Release|Any CPU
+		{AAC31FAE-514E-4175-B3D1-ED3B6CEC94E6}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
