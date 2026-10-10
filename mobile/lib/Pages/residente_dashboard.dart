@@ -43,9 +43,12 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
   List<InvitacionSubusuario> _invitacionesPendientes = [];
   final Set<String> _processingInvitacionIds = {};
 
+  late final PageController _pageController;
+
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: _currentIndex);
     _subusuariosService = SubusuariosService(widget.controller);
     _cargarMisViviendas();
     _cargarInvitacionesPendientes();
@@ -53,6 +56,35 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
     _checkUnreadAvisos();
     _checkUnreadNotificaciones();
     _checkPaquetesPendientes();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _codigoController.dispose();
+    super.dispose();
+  }
+
+  void _onDestinationSelected(int index) {
+    HapticHelper.selection();
+    if (_currentIndex != index) {
+      setState(() {
+        _currentIndex = index;
+        if (index == 2) {
+          _checkPaquetesPendientes();
+        }
+        if (widget.controller.currentUser?.condominioId != null && index == 4) {
+          _checkUnreadAvisos();
+        }
+      });
+      if (_pageController.hasClients) {
+        _pageController.animateToPage(
+          index,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOutCubic,
+        );
+      }
+    }
   }
 
   Future<void> _checkPaquetesPendientes() async {
@@ -296,7 +328,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
         misViviendas: _misViviendas,
         isEmbedded: true,
       ),
-      _buildScannerPage(),
+      _buildScannerTab(),
       if (hasCondominio) AvisosResidenteScreen(
         controller: widget.controller,
         onAvisoRead: () {
@@ -316,8 +348,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
         elevation: 0,
         title: GestureDetector(
           onTap: () {
-            HapticHelper.selection();
-            setState(() => _currentIndex = pages.length - 1);
+            _onDestinationSelected(pages.length - 1);
           },
           child: Row(
             children: [
@@ -425,8 +456,24 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
           ),
         ],
       ),
-      body: IndexedStack(
-        index: _currentIndex,
+      body: PageView(
+        key: const Key('residente_dashboard_page_view'),
+        controller: _pageController,
+        physics: _currentIndex == 3
+            ? const NeverScrollableScrollPhysics()
+            : const ClampingScrollPhysics(),
+        onPageChanged: (index) {
+          HapticHelper.selection();
+          setState(() {
+            _currentIndex = index;
+            if (index == 2) {
+              _checkPaquetesPendientes();
+            }
+            if (hasCondominio && index == 4) {
+              _checkUnreadAvisos();
+            }
+          });
+        },
         children: pages,
       ),
       bottomNavigationBar: Container(
@@ -440,18 +487,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
         ),
         child: NavigationBar(
           selectedIndex: _currentIndex,
-          onDestinationSelected: (index) {
-            HapticHelper.selection();
-            setState(() {
-              _currentIndex = index;
-              if (index == 2) {
-                _checkPaquetesPendientes();
-              }
-              if (hasCondominio && index == 4) {
-                 _checkUnreadAvisos();
-              }
-            });
-          },
+          onDestinationSelected: _onDestinationSelected,
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.white,
           indicatorColor: const Color(0xFFEEF2FF),
@@ -510,6 +546,18 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
     );
   }
 
+  Widget _buildScannerTab() {
+    if (_currentIndex != 3) {
+      // El sensor de la cámara permanece totalmente apagado y desconectado
+      // mientras el usuario se desliza por las demás pestañas.
+      return const ColoredBox(
+        color: Colors.black,
+        child: SizedBox.expand(),
+      );
+    }
+    return _buildScannerPage();
+  }
+
   Widget _buildScannerPage() {
     return Container(
       color: Colors.black,
@@ -519,7 +567,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
         isEmbedded: true,
         onScanned: (codigo) async {
           _codigoController.text = codigo.trim();
-          setState(() => _currentIndex = 0);
+          _onDestinationSelected(0);
           await _redimirCodigo();
         },
       ),
@@ -862,17 +910,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
             ),
           ),
           FilledButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PaqueteriaResidenteScreen(
-                    controller: widget.controller,
-                    misViviendas: _misViviendas,
-                  ),
-                ),
-              ).then((_) => _checkPaquetesPendientes());
-            },
+            onPressed: () => _onDestinationSelected(2),
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFF059669),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -1153,17 +1191,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                         ],
                       ),
                       InkWell(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => PaqueteriaResidenteScreen(
-                                controller: widget.controller,
-                                misViviendas: _misViviendas,
-                              ),
-                            ),
-                          ).then((_) => _checkPaquetesPendientes());
-                        },
+                        onTap: () => _onDestinationSelected(2),
                         borderRadius: BorderRadius.circular(8),
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1349,16 +1377,18 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
-                  children: [
+                Row(
+                  children: const [
                     Icon(Icons.mark_email_read_rounded, color: Color(0xFF111C99), size: 20),
                     SizedBox(width: 8),
-                    Text(
-                      '¿Te invitaron como sub-usuario?',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1E3A8A),
+                    Expanded(
+                      child: Text(
+                        '¿Te invitaron como sub-usuario?',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E3A8A),
+                        ),
                       ),
                     ),
                   ],

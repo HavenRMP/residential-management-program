@@ -29,11 +29,33 @@ class VigilanteDashboardScreen extends StatefulWidget {
 
 class _VigilanteDashboardScreenState extends State<VigilanteDashboardScreen> {
   int _currentIndex = 0;
+  late final PageController _pageController;
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: _currentIndex);
     _solicitarPermisos();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onDestinationSelected(int index) {
+    HapticHelper.selection();
+    if (_currentIndex != index) {
+      setState(() => _currentIndex = index);
+      if (_pageController.hasClients) {
+        _pageController.animateToPage(
+          index,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOutCubic,
+        );
+      }
+    }
   }
 
   Future<void> _solicitarPermisos() async {
@@ -117,10 +139,7 @@ class _VigilanteDashboardScreenState extends State<VigilanteDashboardScreen> {
         ),
         actions: [
           IconButton(
-            onPressed: () {
-              HapticHelper.selection();
-              setState(() => _currentIndex = 1);
-            },
+            onPressed: () => _onDestinationSelected(1),
             icon: const Icon(Icons.inventory_2_outlined, color: Color(0xFF059669)),
             tooltip: 'Paquetería en caseta',
           ),
@@ -155,17 +174,23 @@ class _VigilanteDashboardScreenState extends State<VigilanteDashboardScreen> {
           ),
         ],
       ),
-      body: IndexedStack(index: _currentIndex, children: pages),
+      body: PageView(
+        key: const Key('vigilante_dashboard_page_view'),
+        controller: _pageController,
+        physics: const ClampingScrollPhysics(),
+        onPageChanged: (index) {
+          HapticHelper.selection();
+          setState(() => _currentIndex = index);
+        },
+        children: pages,
+      ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           border: Border(top: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
         ),
         child: NavigationBar(
           selectedIndex: _currentIndex,
-          onDestinationSelected: (index) {
-            HapticHelper.selection();
-            setState(() => _currentIndex = index);
-          },
+          onDestinationSelected: _onDestinationSelected,
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.white,
           indicatorColor: const Color(0xFFFEF3C7),
