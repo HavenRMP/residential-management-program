@@ -267,4 +267,76 @@ public class SupabaseService : ISupabaseService
         return await SupabaseQueryClient.GetPagedAsync<NoShowDto>(
             _httpClient, _supabaseUrl, _serviceRoleKey, _serviceRoleKey, resourcePath, paginacion);
     }
+
+    public async Task<ReservaUsuarioDto?> SolicitarReservaAsync(Guid actorId, Guid areaId, DateTimeOffset inicio, DateTimeOffset fin)
+    {
+        var payload = new Dictionary<string, object>
+        {
+            { "p_actor_id", actorId },
+            { "p_area_id", areaId },
+            { "p_inicio", inicio.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ") },
+            { "p_fin", fin.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ") }
+        };
+
+        return await SupabaseRpcClient.PostRpcAsync<ReservaUsuarioDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, "solicitar_reserva", payload, actorId);
+    }
+
+    public async Task<bool> AprobarReservaTitularAsync(Guid actorId, Guid reservaId)
+    {
+        var payload = new Dictionary<string, object>
+        {
+            { "p_actor_id", actorId },
+            { "p_reserva_id", reservaId }
+        };
+
+        return await SupabaseRpcClient.PostRpcAsync<bool>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, "aprobar_reserva_titular", payload, actorId);
+    }
+
+    public async Task<bool> RechazarReservaTitularAsync(Guid actorId, Guid reservaId, string? motivo)
+    {
+        var payload = new Dictionary<string, object>
+        {
+            { "p_actor_id", actorId },
+            { "p_reserva_id", reservaId }
+        };
+
+        if (!string.IsNullOrWhiteSpace(motivo))
+        {
+            payload["p_motivo"] = motivo;
+        }
+
+        return await SupabaseRpcClient.PostRpcAsync<bool>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, "rechazar_reserva_titular", payload, actorId);
+    }
+
+    public async Task<bool> ConfirmarReservaAsync(Guid actorId, Guid reservaId)
+    {
+        var payload = new Dictionary<string, object>
+        {
+            { "p_actor_id", actorId },
+            { "p_reserva_id", reservaId }
+        };
+
+        return await SupabaseRpcClient.PostRpcAsync<bool>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, "confirmar_reserva", payload, actorId);
+    }
+
+    public async Task<bool> CancelarReservaAsync(Guid actorId, Guid reservaId, string? motivo)
+    {
+        var payload = new Dictionary<string, object>
+        {
+            { "p_actor_id", actorId },
+            { "p_reserva_id", reservaId }
+        };
+
+        if (!string.IsNullOrWhiteSpace(motivo))
+        {
+            payload["p_motivo"] = motivo;
+        }
+
+        return await SupabaseRpcClient.PostRpcAsync<bool>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, "cancelar_reserva", payload, actorId);
+    }
 }

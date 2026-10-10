@@ -22,4 +22,10 @@ public interface ISupabaseService
     Task<(List<PendienteTitularDto>? Items, int? TotalCount)> GetPendientesTitularAsync(Guid titularId, PaginationParams paginacion);
     Task<(List<ReservaAdminDto>? Items, int? TotalCount)> GetReservasAdminAsync(Guid condominioId, string? estado, Guid? areaId, DateTimeOffset? desde, DateTimeOffset? hasta, PaginationParams paginacion);
     Task<(List<NoShowDto>? Items, int? TotalCount)> GetNoShowsAsync(Guid condominioId, Guid? titularId, PaginationParams paginacion);
+
+    Task<ReservaUsuarioDto?> SolicitarReservaAsync(Guid actorId, Guid areaId, DateTimeOffset inicio, DateTimeOffset fin);
+    Task<bool> AprobarReservaTitularAsync(Guid actorId, Guid reservaId);
+    Task<bool> RechazarReservaTitularAsync(Guid actorId, Guid reservaId, string? motivo);
+    Task<bool> ConfirmarReservaAsync(Guid actorId, Guid reservaId);
+    Task<bool> CancelarReservaAsync(Guid actorId, Guid reservaId, string? motivo);
 }
