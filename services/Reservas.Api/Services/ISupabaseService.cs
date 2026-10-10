@@ -28,4 +28,9 @@ public interface ISupabaseService
     Task<bool> RechazarReservaTitularAsync(Guid actorId, Guid reservaId, string? motivo);
     Task<bool> ConfirmarReservaAsync(Guid actorId, Guid reservaId);
     Task<bool> CancelarReservaAsync(Guid actorId, Guid reservaId, string? motivo);
+
+    Task<bool> AprobarReservaAdminAsync(Guid actorId, Guid reservaId);
+    Task<bool> RechazarReservaAdminAsync(Guid actorId, Guid reservaId, string motivo);
+    Task<bool> CancelarReservaAdminAsync(Guid actorId, Guid reservaId, string motivo);
+    Task<bool> MarcarNoUtilizadaAsync(Guid actorId, Guid reservaId);
 }

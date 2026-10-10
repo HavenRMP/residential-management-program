@@ -339,4 +339,54 @@ public class SupabaseService : ISupabaseService
         return await SupabaseRpcClient.PostRpcAsync<bool>(
             _httpClient, _supabaseUrl, _serviceRoleKey, "cancelar_reserva", payload, actorId);
     }
+
+    public async Task<bool> AprobarReservaAdminAsync(Guid actorId, Guid reservaId)
+    {
+        var payload = new Dictionary<string, object>
+        {
+            { "p_actor_id", actorId },
+            { "p_reserva_id", reservaId }
+        };
+
+        return await SupabaseRpcClient.PostRpcAsync<bool>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, "aprobar_reserva_admin", payload, actorId);
+    }
+
+    public async Task<bool> RechazarReservaAdminAsync(Guid actorId, Guid reservaId, string motivo)
+    {
+        var payload = new Dictionary<string, object>
+        {
+            { "p_actor_id", actorId },
+            { "p_reserva_id", reservaId },
+            { "p_motivo", motivo }
+        };
+
+        return await SupabaseRpcClient.PostRpcAsync<bool>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, "rechazar_reserva_admin", payload, actorId);
+    }
+
+    public async Task<bool> CancelarReservaAdminAsync(Guid actorId, Guid reservaId, string motivo)
+    {
+        var payload = new Dictionary<string, object>
+        {
+            { "p_actor_id", actorId },
+            { "p_reserva_id", reservaId },
+            { "p_motivo", motivo }
+        };
+
+        return await SupabaseRpcClient.PostRpcAsync<bool>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, "cancelar_reserva_admin", payload, actorId);
+    }
+
+    public async Task<bool> MarcarNoUtilizadaAsync(Guid actorId, Guid reservaId)
+    {
+        var payload = new Dictionary<string, object>
+        {
+            { "p_actor_id", actorId },
+            { "p_reserva_id", reservaId }
+        };
+
+        return await SupabaseRpcClient.PostRpcAsync<bool>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, "marcar_reserva_no_utilizada", payload, actorId);
+    }
 }
