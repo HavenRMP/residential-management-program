@@ -237,6 +237,8 @@ export class ResidentesDetalleComponent implements OnChanges {
   readonly gruposSubusuarios = signal<GrupoSubusuarios[]>([]);
   /** Evita que la respuesta lenta de un residente anterior pise la del que se abrió después */
   private consultaSubusuarios = 0;
+  /** Viviendas (por id) de las que ya se pidieron sub-usuarios: el padre puede mandar una lista nueva con lo mismo en cada ciclo */
+  private viviendasConsultadas = '';
   readonly getInitials = getInitials;
   readonly formatearNumeroCasa = formatearNumeroCasa;
 
@@ -283,8 +285,12 @@ export class ResidentesDetalleComponent implements OnChanges {
 
   /** Pide los sub-usuarios de cada vivienda asignada; el fallo de una no afecta a las demás */
   async cargarSubusuarios(): Promise<void> {
-    const consulta = ++this.consultaSubusuarios;
     const viviendas = this.viviendasAsignadas();
+    const clave = viviendas.map(v => v.id).join(',');
+    if (clave === this.viviendasConsultadas) return;
+    this.viviendasConsultadas = clave;
+
+    const consulta = ++this.consultaSubusuarios;
     this.gruposSubusuarios.set(viviendas.map(v => ({ viviendaId: v.id, numeroCasa: v.numeroCasa, items: [], cargando: true, error: false })));
 
     const grupos = await Promise.all(viviendas.map(async (v): Promise<GrupoSubusuarios> => {
