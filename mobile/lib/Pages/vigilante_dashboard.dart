@@ -56,6 +56,7 @@ class _VigilanteDashboardScreenState extends State<VigilanteDashboardScreen> {
 
     final List<Widget> pages = [
       _VisitasCasetaSection(controller: widget.controller),
+      PaqueteriaCasetaScreen(controller: widget.controller, isEmbedded: true),
       _DirectorioCasasTab(controller: widget.controller),
       _AvisosCasetaTab(controller: widget.controller),
     ];
@@ -117,12 +118,8 @@ class _VigilanteDashboardScreenState extends State<VigilanteDashboardScreen> {
         actions: [
           IconButton(
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PaqueteriaCasetaScreen(controller: widget.controller),
-                ),
-              );
+              HapticHelper.selection();
+              setState(() => _currentIndex = 1);
             },
             icon: const Icon(Icons.inventory_2_outlined, color: Color(0xFF059669)),
             tooltip: 'Paquetería en caseta',
@@ -178,6 +175,11 @@ class _VigilanteDashboardScreenState extends State<VigilanteDashboardScreen> {
               icon: Icon(Icons.badge_outlined, color: Color(0xFF64748B)),
               selectedIcon: Icon(Icons.badge_rounded, color: Color(0xFFD97706)),
               label: 'Visitas',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.inventory_2_outlined, color: Color(0xFF64748B)),
+              selectedIcon: Icon(Icons.inventory_2_rounded, color: Color(0xFFD97706)),
+              label: 'Paquetería',
             ),
             NavigationDestination(
               icon: Icon(Icons.home_work_outlined, color: Color(0xFF64748B)),
