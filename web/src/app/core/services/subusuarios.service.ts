@@ -60,6 +60,19 @@ export class SubusuariosService {
   }
 
   /**
+   * Sub-usuarios (activos e invitaciones pendientes) de cualquier vivienda, sin tocar el estado compartido de
+   * la pantalla del residente. Lo usa el detalle del residente en el panel del administrador.
+   * (GET /api/subusuarios/mis-subusuarios)
+   */
+  async listarPorVivienda(viviendaId: number): Promise<SubUsuarioItem[]> {
+    const params = new HttpParams().set('viviendaId', viviendaId.toString());
+    const response = await firstValueFrom(
+      this.apiService.get<SubusuarioItemApi[]>('/api/subusuarios/mis-subusuarios', params, undefined, 'usuarios')
+    );
+    return (response || []).map(mapSubusuarioApiToItem);
+  }
+
+  /**
    * Genera una invitación de sub-usuario identificando al invitado por su correo
    * (POST /api/subusuarios/invitar)
    */
