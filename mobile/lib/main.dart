@@ -1,6 +1,7 @@
 import 'Themes/app_theme.dart';
 import 'Services/app_controller.dart';
 import 'Routes/app_router.dart';
+import 'Routes/haven_page_route.dart';
 import 'Services/push_notifications_service.dart';
 
 import 'dart:async';
@@ -107,14 +108,14 @@ class _HavenAppState extends State<HavenApp> {
 
       if (tipo == 'invitacion') {
         navigatorKey.currentState?.push(
-          MaterialPageRoute(
+          HavenPageRoute.slideHorizontal(
             builder: (_) => InvitacionesRecibidasScreen(controller: controller),
           ),
         );
       } else if (tipo == 'visita_llegada' || tipo == 'visita' || tipo == 'visita_entrada') {
         final misViviendas = await controller.obtenerMisViviendas();
         navigatorKey.currentState?.push(
-          MaterialPageRoute(
+          HavenPageRoute.slideHorizontal(
             builder: (_) => VisitasResidenteScreen(
               controller: controller,
               misViviendas: misViviendas,
@@ -123,7 +124,7 @@ class _HavenAppState extends State<HavenApp> {
         );
       } else if (tipo == 'aviso' || tipo == 'aviso_urgente') {
         navigatorKey.currentState?.push(
-          MaterialPageRoute(
+          HavenPageRoute.slideHorizontal(
             builder: (_) => AvisosResidenteScreen(controller: controller),
           ),
         );
