@@ -80,9 +80,9 @@ interface GrupoSubusuarios {
             @if (!cargandoViviendas()) {
               <span
                 class="text-[11px] font-semibold px-2.5 py-0.5 rounded-full"
-                [ngClass]="viviendasAsignadas().length > 0 ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-amber-50 text-amber-800 border border-amber-200'"
+                [ngClass]="claseEtiquetaViviendas()"
                 >
-                {{ viviendasAsignadas().length > 0 ? (viviendasAsignadas().length === 1 ? '1 vivienda' : viviendasAsignadas().length + ' viviendas') : 'Sin vivienda' }}
+                {{ etiquetaViviendas() }}
               </span>
             }
           </div>
@@ -123,7 +123,7 @@ interface GrupoSubusuarios {
           }
     
           <!-- Estado vacío: Sin vivienda -->
-          @if (!cargandoViviendas() && viviendasAsignadas().length === 0) {
+          @if (!cargandoViviendas() && viviendasAsignadas().length === 0 && subusuarioDe.length === 0) {
             <div class="p-3 rounded-lg bg-amber-50/70 border border-amber-200 text-xs text-amber-900 space-y-1">
               <div class="flex items-center gap-1.5 font-semibold text-amber-900">
                 <span class="w-2 h-2 rounded-full bg-amber-500"></span>
@@ -136,6 +136,32 @@ interface GrupoSubusuarios {
           }
         </div>
     
+        <!-- Casas a las que entra como sub-usuario (no es titular) -->
+        @if (!cargandoViviendas() && subusuarioDe.length > 0) {
+          <div class="bg-white border border-slate-200/80 rounded-xl p-4 sm:p-5 shadow-xs space-y-3" aria-labelledby="detalle-acceso-subusuario">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-lg bg-sky-50 text-sky-700 flex items-center justify-center border border-sky-100">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a3 3 0 11-6 0 3 3 0 016 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <h3 id="detalle-acceso-subusuario" class="text-xs font-bold text-slate-900 uppercase tracking-wider">Acceso como sub-usuario</h3>
+            </div>
+            <p class="text-[11px] text-slate-600 leading-relaxed">Entra a la vivienda de otro residente. No es el titular de la casa.</p>
+            <ul class="space-y-2">
+              @for (v of subusuarioDe; track v.id) {
+                <li class="flex items-center justify-between p-3 rounded-lg bg-slate-50/80 border border-slate-200">
+                  <div>
+                    <p class="text-sm font-bold text-slate-900">{{ formatearNumeroCasa(v.numeroCasa) }}</p>
+                    <p class="text-[11px] text-slate-600 font-medium">Tipo: {{ v.tipo || 'Residencial' }}</p>
+                  </div>
+                  <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-200">Sub-usuario</span>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+
         <!-- Sub-usuarios de cada vivienda asignada -->
         @if (!cargandoViviendas() && viviendasAsignadas().length > 0) {
           <div class="bg-white border border-slate-200/80 rounded-xl p-4 sm:p-5 shadow-xs space-y-3" aria-labelledby="detalle-subusuarios-titulo">
@@ -246,6 +272,8 @@ interface GrupoSubusuarios {
 export class ResidentesDetalleComponent implements OnChanges {
   @Input() residente: Residente | null = null;
   @Input() viviendas: Vivienda[] = [];
+  /** Viviendas a las que esta persona entra como sub-usuario activo (no las tiene a su nombre) */
+  @Input() subusuarioDe: Vivienda[] = [];
   @Output() cerrado = new EventEmitter<void>();
 
   private readonly viviendasService = inject(ViviendasService);
@@ -321,6 +349,19 @@ export class ResidentesDetalleComponent implements OnChanges {
       }
     }));
     if (consulta === this.consultaSubusuarios) this.gruposSubusuarios.set(grupos);
+  }
+
+  etiquetaViviendas(): string {
+    const propias = this.viviendasAsignadas().length;
+    if (propias > 0) return propias === 1 ? '1 vivienda' : `${propias} viviendas`;
+    return this.subusuarioDe.length > 0 ? 'Sub-usuario' : 'Sin vivienda';
+  }
+
+  claseEtiquetaViviendas(): string {
+    if (this.viviendasAsignadas().length > 0) return 'bg-indigo-50 text-indigo-700 border border-indigo-200';
+    return this.subusuarioDe.length > 0
+      ? 'bg-sky-50 text-sky-700 border border-sky-200'
+      : 'bg-amber-50 text-amber-800 border border-amber-200';
   }
 
   cerrar(): void {

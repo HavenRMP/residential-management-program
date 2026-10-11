@@ -111,6 +111,44 @@ describe('ResidentesDetalleComponent', () => {
     expect(mockViviendasService.obtenerViviendasDeResidente).toHaveBeenCalledWith('res-123');
   });
 
+  describe('residente que es sub-usuario de otra casa', () => {
+    const texto = () => (fixture.nativeElement as HTMLElement).textContent!.replace(/\s+/g, ' ');
+    const casaDelTitular: Vivienda = { id: 33, numeroCasa: 'PRUEBA-01', tipo: 'Casa', condominioId: 'cond-1' };
+
+    function abrir(propias: Vivienda[], subusuarioDe: Vivienda[]): void {
+      component.residente = mockResidente;
+      component.viviendas = propias;
+      component.subusuarioDe = subusuarioDe;
+      component.ngOnChanges({ viviendas: new SimpleChange(null, propias, true) });
+      fixture.detectChanges();
+    }
+
+    it('muestra su acceso como sub-usuario en lugar del aviso de "sin vivienda"', () => {
+      abrir([], [casaDelTitular]);
+
+      expect(texto()).toContain('Acceso como sub-usuario');
+      expect(texto()).toContain('PRUEBA-01');
+      expect(texto()).toContain('Sub-usuario');
+      expect(texto()).not.toContain('Sin vivienda vinculada');
+      expect(component.etiquetaViviendas()).toBe('Sub-usuario');
+    });
+
+    it('sin vivienda propia ni acceso como sub-usuario conserva el aviso de siempre', () => {
+      abrir([], []);
+
+      expect(texto()).toContain('Sin vivienda vinculada');
+      expect(texto()).not.toContain('Acceso como sub-usuario');
+      expect(component.etiquetaViviendas()).toBe('Sin vivienda');
+    });
+
+    it('con vivienda propia la etiqueta cuenta las viviendas y no menciona sub-usuario', () => {
+      abrir([mockVivienda], []);
+
+      expect(component.etiquetaViviendas()).toBe('1 vivienda');
+      expect(texto()).not.toContain('Acceso como sub-usuario');
+    });
+  });
+
   describe('sub-usuarios de la vivienda', () => {
     const acceso = { id: 'sub-1', nombre: 'Luis Prueba', email: 'luis@example.com', telefono: '', parentesco: 'Familiar', activo: true, creadoEn: null };
     const pendiente = { id: 'inv-1', nombre: 'Pendiente', email: 'ana@example.com', telefono: 'Pendiente', parentesco: 'Hijo/a', activo: false, creadoEn: null };
