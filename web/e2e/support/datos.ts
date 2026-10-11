@@ -17,13 +17,16 @@ export function diaEnMexico(diasDespues = 0): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: ZONA, year: 'numeric', month: '2-digit', day: '2-digit' }).format(fecha);
 }
 
-/** Visita de prueba que llega en unos minutos, para que caseta la atienda dentro de la ventana de 24 horas */
-export async function crearVisitaDeResidente(nombre: string, minutosParaLlegar = 10): Promise<{ id: string; codigo: string }> {
+/**
+ * Visita de prueba que llega en unos minutos, para que caseta la atienda dentro de la ventana de 24 horas.
+ * La etiqueta distingue entre sí las visitas de una misma ejecución al buscarlas en pantalla.
+ */
+export async function crearVisitaDeResidente(nombre: string, minutosParaLlegar = 10, etiqueta = ''): Promise<{ id: string; codigo: string }> {
   const viviendaId = await viviendaDe('residente');
   const { status, datos } = await llamar('visitas', 'POST', '/api/visitas', 'residente', {
     viviendaId,
     nombreVisitante: nombre,
-    apellidosVisitante: MARCADOR,
+    apellidosVisitante: etiqueta ? `${MARCADOR}-${etiqueta}` : MARCADOR,
     motivo: 'personal',
     numAcompanantes: 0,
     fechaLlegadaEsperada: new Date(Date.now() + minutosParaLlegar * 60_000).toISOString(),
