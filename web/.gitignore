@@ -40,6 +40,12 @@ testem.log
 # Local environments
 .env
 .env*.local
+.env.e2e
+
+# Pruebas de punta a punta (Playwright): sesiones guardadas, resultados y reportes
+/e2e/.auth
+/test-results
+/playwright-report
 
 # Sprint 1 Scope Filter - Ignore non-Sprint 1 modules
 src/app/features/residents/
