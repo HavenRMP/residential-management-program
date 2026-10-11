@@ -100,6 +100,13 @@ export const routes: Routes = [
         .then(m => m.VisitasComponent)
   },
   {
+    path: 'dashboard/residente/paquetes',
+    canActivate: [authGuard, roleGuard(['residente'])],
+    loadComponent: () =>
+      import('./features/paqueteria/paqueteria.component')
+        .then(m => m.PaqueteriaComponent)
+  },
+  {
     path: 'avisos/:id',
     canActivate: [authGuard],
     loadComponent: () =>
