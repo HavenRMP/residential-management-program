@@ -139,3 +139,22 @@ export function paqueteCoincideConBusqueda(p: Paquete, texto: string): boolean {
     campo => !!campo && normalizar(campo).includes(buscado)
   );
 }
+
+function fechaCorta(iso: string): string {
+  return new Date(iso).toLocaleDateString('es-MX', { dateStyle: 'medium' });
+}
+
+/**
+ * Texto de la ventana en la que el residente espera el paquete, solo con días (la hora no importa para un envío).
+ * Devuelve '' si no se indicó ninguna fecha.
+ */
+export function textoVentanaPaquete(p: Pick<Paquete, 'fechaEsperadaDesde' | 'fechaEsperadaHasta'>): string {
+  const desdeMs = aMilisegundos(p.fechaEsperadaDesde);
+  const hastaMs = aMilisegundos(p.fechaEsperadaHasta);
+  const desde = desdeMs !== null ? fechaCorta(p.fechaEsperadaDesde!) : '';
+  const hasta = hastaMs !== null ? fechaCorta(p.fechaEsperadaHasta!) : '';
+  if (desde && hasta) return desde === hasta ? `El ${desde}` : `Del ${desde} al ${hasta}`;
+  if (hasta) return `Hasta el ${hasta}`;
+  if (desde) return `A partir del ${desde}`;
+  return '';
+}
