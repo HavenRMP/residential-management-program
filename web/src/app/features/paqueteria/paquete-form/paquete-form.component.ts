@@ -1,9 +1,9 @@
-import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, EventEmitter, HostListener, Input, Output, inject, signal } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, EventEmitter, HostListener, Input, OnChanges, OnInit, Output, SimpleChanges, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { PaqueteriaService } from '../../../core/services/paqueteria.service';
-import { CrearPaqueteDto, LIMITES_PAQUETE, Paquete, SERVICIO_OTRO, ServicioPaqueteria } from '../../../core/models/paquete.model';
+import { ActualizarPaqueteDto, CrearPaqueteDto, LIMITES_PAQUETE, Paquete, SERVICIO_OTRO, ServicioPaqueteria } from '../../../core/models/paquete.model';
 import { rangoFechasInvalido, rangoFechasIso } from '../../../core/models/visita.model';
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { mensajeAmigable } from '../../../core/utils/api-errors.util';
@@ -22,11 +22,16 @@ interface FormularioPaquete {
   hasta: string;
 }
 
-/** Hoy en formato yyyy-MM-dd de la hora local, para el mínimo de los inputs de fecha */
-function hoyLocal(): string {
-  const d = new Date();
+/** Fecha en formato yyyy-MM-dd de la hora local, el que usan los inputs de fecha */
+function aFechaInput(d: Date): string {
   const pad = (n: number) => n.toString().padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function isoAFechaInput(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) || d.getFullYear() < 2000 ? '' : aFechaInput(d);
 }
 
 @Component({
@@ -43,7 +48,7 @@ function hoyLocal(): string {
         aria-labelledby="paquete-form-titulo"
         >
         <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-          <h3 id="paquete-form-titulo" class="text-sm font-semibold text-slate-900">Avisar un paquete</h3>
+          <h3 id="paquete-form-titulo" class="text-sm font-semibold text-slate-900">{{ paquete ? 'Editar paquete' : 'Avisar un paquete' }}</h3>
           <button type="button" (click)="cerrar()" aria-label="Cerrar" class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -52,7 +57,7 @@ function hoyLocal(): string {
         </div>
 
         <div class="mt-3.5 space-y-3">
-          @if (viviendas.length > 1) {
+          @if (viviendas.length > 1 && !paquete) {
             <div>
               <label for="paq-vivienda" class="block text-xs font-semibold text-slate-800 mb-1">Vivienda *</label>
               <select id="paq-vivienda" [(ngModel)]="form.viviendaId"
@@ -135,9 +140,9 @@ function hoyLocal(): string {
               class="h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer">
               Cancelar
             </button>
-            <button type="button" (click)="guardar()" [disabled]="isSaving() || !esFormularioValido()"
+            <button type="button" (click)="guardar()" [disabled]="isSaving() || !esFormularioValido() || (paquete && !hayCambios())"
               class="h-8 px-3.5 bg-[#111C99] hover:bg-[#0d1577] text-white rounded-md text-xs font-medium shadow-2xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-              {{ isSaving() ? 'Guardando...' : 'Avisar a caseta' }}
+              {{ isSaving() ? 'Guardando...' : (paquete ? 'Guardar cambios' : 'Avisar a caseta') }}
             </button>
           </div>
         </div>
@@ -145,7 +150,7 @@ function hoyLocal(): string {
     </div>
   `
 })
-export class PaqueteFormComponent implements AfterViewInit {
+export class PaqueteFormComponent implements OnInit, OnChanges, AfterViewInit {
   private readonly paqueteriaService = inject(PaqueteriaService);
   private readonly elemento = inject(ElementRef<HTMLElement>);
 
@@ -158,13 +163,17 @@ export class PaqueteFormComponent implements AfterViewInit {
   @Input() set viviendaInicial(id: number | null) {
     if (id) this.form.viviendaId = id;
   }
+  /** Paquete esperado que se corrige; sin él el formulario da de alta un aviso nuevo */
+  @Input() paquete: Paquete | null = null;
 
   @Output() cerrado = new EventEmitter<void>();
   @Output() guardado = new EventEmitter<Paquete>();
+  /** El paquete ya cambió en caseta (o no existe): quien abrió el formulario debe refrescar su lista */
+  @Output() obsoleto = new EventEmitter<void>();
 
   readonly limites = LIMITES_PAQUETE;
   readonly otro = SERVICIO_OTRO;
-  readonly hoy = hoyLocal();
+  readonly hoy = aFechaInput(new Date());
   readonly isSaving = signal<boolean>(false);
 
   form: FormularioPaquete = {
@@ -178,6 +187,38 @@ export class PaqueteFormComponent implements AfterViewInit {
     desde: '',
     hasta: ''
   };
+
+  /** Selección de empresa que se puso sola al abrir; si la persona la cambia ya no se vuelve a tocar */
+  private servicioAutomatico: FormularioPaquete['servicio'] = '';
+
+  ngOnInit(): void {
+    const p = this.paquete;
+    if (!p) return;
+    this.form.destinatarioNombre = p.destinatarioNombre;
+    this.form.servicioOtro = p.servicioNombre ?? '';
+    this.form.numeroGuia = p.numeroGuia ?? '';
+    this.form.descripcion = p.descripcion ?? '';
+    this.form.notas = p.notas ?? '';
+    this.form.desde = isoAFechaInput(p.fechaEsperadaDesde);
+    this.form.hasta = isoAFechaInput(p.fechaEsperadaHasta);
+    this.resolverServicio();
+  }
+
+  ngOnChanges(cambios: SimpleChanges): void {
+    // El catálogo puede llegar después de abrir el formulario
+    if (cambios['servicios'] && this.paquete) this.resolverServicio();
+  }
+
+  /** Marca en el selector la empresa del paquete: la del catálogo si coincide, o "otra" con su nombre */
+  private resolverServicio(): void {
+    const p = this.paquete;
+    if (!p || this.form.servicio !== this.servicioAutomatico) return;
+    const nombre = (p.servicioNombre ?? '').trim().toLowerCase();
+    const delCatalogo = this.servicios.find(s => s.id === p.servicioId) ?? this.servicios.find(s => !!nombre && s.nombre.toLowerCase() === nombre);
+    const seleccion: FormularioPaquete['servicio'] = delCatalogo ? delCatalogo.id : p.servicioNombre ? SERVICIO_OTRO : '';
+    this.form.servicio = seleccion;
+    this.servicioAutomatico = seleccion;
+  }
 
   ngAfterViewInit(): void {
     (this.elemento.nativeElement as HTMLElement).querySelector<HTMLInputElement>('#paq-destinatario')?.focus();
@@ -207,7 +248,7 @@ export class PaqueteFormComponent implements AfterViewInit {
     const destinatario = f.destinatarioNombre.trim();
     const empresaValida = this.usaOtraEmpresa() ? !!f.servicioOtro.trim() : f.servicio !== '';
     return (
-      (this.viviendas.length <= 1 || f.viviendaId > 0) &&
+      (!!this.paquete || this.viviendas.length <= 1 || f.viviendaId > 0) &&
       destinatario.length > 0 &&
       destinatario.length <= LIMITES_PAQUETE.destinatario &&
       empresaValida &&
@@ -238,21 +279,57 @@ export class PaqueteFormComponent implements AfterViewInit {
     return dto;
   }
 
+  /** Solo los campos que la persona cambió respecto al paquete que abrió */
+  armarCambios(): ActualizarPaqueteDto {
+    const o = this.paquete;
+    if (!o) return {};
+    const f = this.form;
+    const cambios: ActualizarPaqueteDto = {};
+    if (f.destinatarioNombre.trim() !== o.destinatarioNombre) cambios.destinatarioNombre = f.destinatarioNombre.trim();
+    if (this.usaOtraEmpresa()) {
+      if (f.servicioOtro.trim() !== (o.servicioNombre ?? '')) cambios.servicioNombre = f.servicioOtro.trim();
+    } else if (f.servicio !== '' && Number(f.servicio) !== o.servicioId) {
+      cambios.servicioId = Number(f.servicio);
+    }
+    if (f.numeroGuia.trim() !== (o.numeroGuia ?? '')) cambios.numeroGuia = f.numeroGuia.trim();
+    if (f.descripcion.trim() !== (o.descripcion ?? '')) cambios.descripcion = f.descripcion.trim();
+    if (f.notas.trim() !== (o.notas ?? '')) cambios.notas = f.notas.trim();
+    // Una fecha vacía no se envía: el backend entiende "sin dato" como "no cambiar"
+    const rango = rangoFechasIso(f.desde, f.hasta);
+    if (f.desde && f.desde !== isoAFechaInput(o.fechaEsperadaDesde)) cambios.fechaEsperadaDesde = rango.desde;
+    if (f.hasta && f.hasta !== isoAFechaInput(o.fechaEsperadaHasta)) cambios.fechaEsperadaHasta = rango.hasta;
+    return cambios;
+  }
+
+  hayCambios(): boolean {
+    return Object.keys(this.armarCambios()).length > 0;
+  }
+
   async guardar(): Promise<void> {
     if (!this.esFormularioValido() || this.isSaving()) return;
     this.isSaving.set(true);
     try {
-      const creado = await this.paqueteriaService.crear(this.armarDto());
-      this.guardado.emit(creado);
-      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Aviso enviado a caseta', showConfirmButton: false, timer: 2500 });
+      if (this.paquete) {
+        const actualizado = await this.paqueteriaService.actualizar(this.paquete.id, this.armarCambios());
+        this.guardado.emit(actualizado);
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Paquete actualizado', showConfirmButton: false, timer: 2500 });
+      } else {
+        const creado = await this.paqueteriaService.crear(this.armarDto());
+        this.guardado.emit(creado);
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Aviso enviado a caseta', showConfirmButton: false, timer: 2500 });
+      }
     } catch (err: any) {
-      console.error('[PaqueteFormComponent] Error al avisar el paquete:', err);
+      console.error('[PaqueteFormComponent] Error al guardar el paquete:', err);
+      const yaNoSePuede = !!this.paquete && (err?.status === 404 || err?.status === 409);
       Swal.fire({
-        icon: 'error',
-        title: 'No se pudo avisar el paquete',
-        text: this.mensajeError(err),
+        icon: yaNoSePuede ? 'info' : 'error',
+        title: yaNoSePuede ? 'Este paquete ya cambió' : this.paquete ? 'No se pudo guardar el paquete' : 'No se pudo avisar el paquete',
+        text: yaNoSePuede
+          ? 'Ya no se puede modificar, por ejemplo porque llegó a caseta. Actualizamos tu lista.'
+          : this.mensajeError(err),
         confirmButtonColor: '#111C99'
       });
+      if (yaNoSePuede) this.obsoleto.emit();
     } finally {
       this.isSaving.set(false);
     }
