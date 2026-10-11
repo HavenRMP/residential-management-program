@@ -22,7 +22,8 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env['CI'],
-  retries: process.env['CI'] ? 1 : 0,
+  // Se prueba contra servicios reales que a veces responden tarde: un reintento evita falsos rojos
+  retries: 1,
   reporter: process.env['CI'] ? [['github'], ['html', { open: 'never' }]] : [['list'], ['html', { open: 'never' }]],
   outputDir: 'test-results',
   use: {
