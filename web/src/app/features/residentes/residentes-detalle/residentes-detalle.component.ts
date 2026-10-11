@@ -3,20 +3,30 @@ import { CommonModule, DatePipe } from '@angular/common';
 import { Residente } from '../../../core/models/residente.model';
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { ViviendasService } from '../../../core/services/viviendas.service';
+import { SubusuariosService } from '../../../core/services/subusuarios.service';
+import { SubUsuarioItem } from '../../../core/models/subusuario.model';
 import { getInitials } from '../../../core/utils/iniciales.util';
 import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
+
+interface GrupoSubusuarios {
+  viviendaId: number;
+  numeroCasa: string;
+  items: SubUsuarioItem[];
+  cargando: boolean;
+  error: boolean;
+}
 
 @Component({
   selector: 'app-residentes-detalle',
   standalone: true,
-  imports: [CommonModule, DatePipe],
   changeDetection: ChangeDetectionStrategy.Eager,
+  imports: [CommonModule, DatePipe],
   template: `
     <!-- Sticky Drawer Top Bar -->
     <div class="sticky top-0 z-10 bg-white/95 backdrop-blur-md px-6 py-4 border-b border-slate-100 flex items-center justify-between">
       <div class="flex items-center gap-2.5">
         <div class="w-8 h-8 rounded-lg bg-[#111C99] text-white flex items-center justify-center font-bold text-xs shadow-2xs">
-          {{ getInitials($safeNavigationMigration(residente?.nombre), $safeNavigationMigration(residente?.apellidos)) }}
+          {{ getInitials(residente?.nombre, residente?.apellidos) }}
         </div>
         <span id="detalle-residente-title" class="text-sm font-bold text-slate-900 tracking-tight">Detalle del Residente</span>
       </div>
@@ -40,7 +50,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
         <!-- Hero Profile -->
         <div class="flex flex-col items-center text-center">
           <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-[#111C99] text-white font-bold text-2xl sm:text-3xl flex items-center justify-center shadow-md ring-4 ring-slate-100">
-            {{ getInitials($safeNavigationMigration(residente?.nombre), $safeNavigationMigration(residente?.apellidos)) }}
+            {{ getInitials(residente?.nombre, residente?.apellidos) }}
           </div>
           <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900 mt-4 tracking-tight">
             {{ residente?.nombre }} {{ residente?.apellidos }}
@@ -126,6 +136,62 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
           }
         </div>
     
+        <!-- Sub-usuarios de cada vivienda asignada -->
+        @if (!cargandoViviendas() && viviendasAsignadas().length > 0) {
+          <div class="bg-white border border-slate-200/80 rounded-xl p-4 sm:p-5 shadow-xs space-y-3" aria-labelledby="detalle-subusuarios-titulo">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center border border-indigo-100">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <h3 id="detalle-subusuarios-titulo" class="text-xs font-bold text-slate-900 uppercase tracking-wider">Sub-usuarios de la vivienda</h3>
+            </div>
+            @for (g of gruposSubusuarios(); track g.viviendaId) {
+              <div class="space-y-2">
+                @if (gruposSubusuarios().length > 1) {
+                  <p class="text-[11px] font-semibold text-slate-500">{{ formatearNumeroCasa(g.numeroCasa) }}</p>
+                }
+                @if (g.cargando) {
+                  <div class="flex items-center gap-2 py-2 justify-center text-xs text-slate-500 font-medium" aria-busy="true">
+                    <div class="w-4 h-4 border-2 border-slate-200 border-t-indigo-700 rounded-full animate-spin"></div>
+                    <span>Consultando sub-usuarios...</span>
+                  </div>
+                }
+                @if (!g.cargando && g.error) {
+                  <p class="p-3 rounded-lg bg-amber-50/70 border border-amber-200 text-[11px] text-amber-900">
+                    No se pudieron cargar los sub-usuarios de esta vivienda.
+                  </p>
+                }
+                @if (!g.cargando && !g.error && g.items.length === 0) {
+                  <p class="p-3 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-600">
+                    Esta vivienda no tiene sub-usuarios.
+                  </p>
+                }
+                @if (!g.cargando && !g.error && g.items.length > 0) {
+                  <ul class="space-y-2">
+                    @for (u of g.items; track u.id) {
+                      <li class="flex items-center justify-between gap-3 p-3 rounded-lg bg-slate-50/80 border border-slate-200">
+                        <div class="min-w-0">
+                          <p class="text-sm font-bold text-slate-900 truncate">{{ u.activo ? u.nombre : 'Invitación pendiente' }}</p>
+                          <p class="text-[11px] text-slate-600 font-medium truncate">{{ u.email || u.telefono || 'Sin contacto' }}</p>
+                        </div>
+                        <div class="shrink-0 flex flex-col items-end gap-1">
+                          <span class="px-2 py-0.5 rounded text-[10px] font-medium border bg-slate-100 text-slate-600 border-slate-200">{{ u.parentesco }}</span>
+                          <span
+                            class="px-2 py-0.5 rounded text-[10px] font-medium border"
+                            [ngClass]="u.activo ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'"
+                          >{{ u.activo ? 'Activo' : 'Invitación enviada' }}</span>
+                        </div>
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+            }
+          </div>
+        }
+    
         <!-- Información de Contacto -->
         <div class="bg-white border border-slate-200/80 rounded-xl p-4 sm:p-5 shadow-xs divide-y divide-slate-100">
           <!-- Correo Electrónico -->
@@ -163,7 +229,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
               <svg class="w-4 h-4 text-[#111C99] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              <span>{{ residente?.creadoEn ? ($safeNavigationMigration(residente?.creadoEn) | date:'dd/MM/yyyy') : '—' }}</span>
+              <span>{{ residente?.creadoEn ? (residente?.creadoEn | date:'dd/MM/yyyy') : '—' }}</span>
             </div>
           </div>
         </div>
@@ -183,9 +249,15 @@ export class ResidentesDetalleComponent implements OnChanges {
   @Output() cerrado = new EventEmitter<void>();
 
   private readonly viviendasService = inject(ViviendasService);
+  private readonly subusuariosService = inject(SubusuariosService);
 
   readonly cargandoViviendas = signal<boolean>(false);
   readonly viviendasAsignadas = signal<Vivienda[]>([]);
+  readonly gruposSubusuarios = signal<GrupoSubusuarios[]>([]);
+  /** Evita que la respuesta lenta de un residente anterior pise la del que se abrió después */
+  private consultaSubusuarios = 0;
+  /** Viviendas (por id) de las que ya se pidieron sub-usuarios: el padre puede mandar una lista nueva con lo mismo en cada ciclo */
+  private viviendasConsultadas = '';
   readonly getInitials = getInitials;
   readonly formatearNumeroCasa = formatearNumeroCasa;
 
@@ -197,6 +269,7 @@ export class ResidentesDetalleComponent implements OnChanges {
   async ngOnChanges(changes: SimpleChanges): Promise<void> {
     if (changes['viviendas']) {
       this.viviendasAsignadas.set(this.viviendas || []);
+      void this.cargarSubusuarios();
     }
 
     if (changes['residente'] && this.residente) {
@@ -204,6 +277,7 @@ export class ResidentesDetalleComponent implements OnChanges {
       // confiamos en ella y evitamos disparar una petición de red redundante.
       if (this.viviendas !== undefined && this.viviendas !== null) {
         this.viviendasAsignadas.set(this.viviendas);
+        void this.cargarSubusuarios();
       } else {
         await this.cargarViviendasResidente();
       }
@@ -220,11 +294,33 @@ export class ResidentesDetalleComponent implements OnChanges {
     try {
       const list = await this.viviendasService.obtenerViviendasDeResidente(this.residente.id);
       this.viviendasAsignadas.set(list);
+      void this.cargarSubusuarios();
     } catch {
       this.viviendasAsignadas.set([]);
     } finally {
       this.cargandoViviendas.set(false);
     }
+  }
+
+  /** Pide los sub-usuarios de cada vivienda asignada; el fallo de una no afecta a las demás */
+  async cargarSubusuarios(): Promise<void> {
+    const viviendas = this.viviendasAsignadas();
+    const clave = viviendas.map(v => v.id).join(',');
+    if (clave === this.viviendasConsultadas) return;
+    this.viviendasConsultadas = clave;
+
+    const consulta = ++this.consultaSubusuarios;
+    this.gruposSubusuarios.set(viviendas.map(v => ({ viviendaId: v.id, numeroCasa: v.numeroCasa, items: [], cargando: true, error: false })));
+
+    const grupos = await Promise.all(viviendas.map(async (v): Promise<GrupoSubusuarios> => {
+      try {
+        return { viviendaId: v.id, numeroCasa: v.numeroCasa, items: await this.subusuariosService.listarPorVivienda(v.id), cargando: false, error: false };
+      } catch (err) {
+        console.error('[ResidentesDetalleComponent] Error al cargar sub-usuarios:', err);
+        return { viviendaId: v.id, numeroCasa: v.numeroCasa, items: [], cargando: false, error: true };
+      }
+    }));
+    if (consulta === this.consultaSubusuarios) this.gruposSubusuarios.set(grupos);
   }
 
   cerrar(): void {
