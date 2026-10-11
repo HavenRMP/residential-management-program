@@ -6,7 +6,7 @@ import { CondominiosService } from '../../../core/services/condominios.service';
 import { AvisosService } from '../../../core/services/avisos.service';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { Aviso } from '../../../core/models/aviso.model';
 
@@ -65,7 +65,7 @@ describe('ResidenteDashboardComponent', () => {
         { provide: CondominiosService, useValue: mockCondominiosService },
         { provide: AvisosService, useValue: mockAvisosService },
         provideRouter([]),
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting()
       ]
     }).compileComponents();
