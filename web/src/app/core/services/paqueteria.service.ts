@@ -4,6 +4,8 @@ import { HttpParams } from '@angular/common/http';
 import { ApiService } from './api.service';
 import { extractPagedItems } from '../models/pagination.model';
 import {
+  ActualizarPaqueteDto,
+  CrearPaqueteDto,
   Paquete,
   ServicioPaqueteria,
   estadoEfectivoPaquete,
@@ -95,5 +97,37 @@ export class PaqueteriaService {
     } catch {
       return 0;
     }
+  }
+
+  /**
+   * Avisa a caseta de un paquete que el residente espera y lo suma a la lista
+   * (POST /api/paqueteria)
+   */
+  async crear(dto: CrearPaqueteDto): Promise<Paquete> {
+    const creado = await firstValueFrom(this.apiService.post<Paquete>('/api/paqueteria', dto, undefined, 'visitas'));
+    this.items.update(lista => [creado, ...lista.filter(p => p.id !== creado.id)]);
+    return creado;
+  }
+
+  /**
+   * Corrige solo los campos enviados de un paquete esperado; el backend responde 409 si ya lo recibieron en caseta
+   * (PUT /api/paqueteria/{id})
+   */
+  async actualizar(id: string, dto: ActualizarPaqueteDto): Promise<Paquete> {
+    const actualizado = await firstValueFrom(
+      this.apiService.put<Paquete>(`/api/paqueteria/${id}`, dto, undefined, 'visitas')
+    );
+    this.items.update(lista => lista.map(p => (p.id === id ? { ...p, ...actualizado } : p)));
+    return actualizado;
+  }
+
+  /**
+   * Cancela un paquete esperado antes de que llegue a caseta; el motivo es opcional
+   * (POST /api/paqueteria/{id}/cancelar)
+   */
+  async cancelar(id: string, motivo?: string): Promise<void> {
+    const cuerpo = motivo?.trim() ? { motivo: motivo.trim() } : {};
+    await firstValueFrom(this.apiService.post<void>(`/api/paqueteria/${id}/cancelar`, cuerpo, undefined, 'visitas'));
+    this.items.update(lista => lista.map(p => (p.id === id ? { ...p, estado: 'cancelado' as const } : p)));
   }
 }
