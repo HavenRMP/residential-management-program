@@ -2,7 +2,10 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
+import { By } from '@angular/platform-browser';
+import Swal from 'sweetalert2';
 import { PaqueteriaComponent } from './paqueteria.component';
+import { PaqueteFormComponent } from './paquete-form/paquete-form.component';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { ViviendasService } from '../../core/services/viviendas.service';
@@ -164,6 +167,69 @@ describe('PaqueteriaComponent', () => {
 
     expect(texto()).toContain('Necesitas una vivienda asignada');
     expect(api.get).not.toHaveBeenCalled();
+  });
+
+  describe('avisar un paquete', () => {
+    const formulario = () => fixture.debugElement.query(By.directive(PaqueteFormComponent));
+
+    beforeEach(() => {
+      spyOn(Swal, 'fire').and.resolveTo({ isConfirmed: true } as any);
+    });
+
+    it('el botón abre el formulario y pide el catálogo de empresas', async () => {
+      await abrir([]);
+      api.get.calls.reset();
+      api.get.and.returnValue(of([{ id: 1, nombre: 'Amazon', activo: true, esSistema: true }]));
+
+      boton('Avisar un paquete')!.click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(formulario()).not.toBeNull();
+      expect(api.get.calls.mostRecent().args[0]).toBe('/api/paqueteria/servicios');
+      expect(texto()).toContain('Amazon');
+    });
+
+    it('el estado vacío ofrece avisar un paquete', async () => {
+      await abrir([]);
+
+      const botones = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+        .filter(b => b.textContent!.includes('Avisar un paquete'));
+
+      expect(botones.length).toBe(2);
+    });
+
+    it('al guardar cierra el formulario y el paquete aparece en Pendientes', async () => {
+      await abrir([]);
+      api.get.and.returnValue(of([{ id: 1, nombre: 'Amazon', activo: true, esSistema: true }]));
+      api.post.and.returnValue(of(paquete('nuevo', { servicioNombre: 'Amazon' })));
+      boton('Avisar un paquete')!.click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const form = formulario().componentInstance as PaqueteFormComponent;
+      form.form.servicio = 1;
+
+      await form.guardar();
+      fixture.detectChanges();
+
+      expect(formulario()).toBeNull();
+      expect(tarjetas().length).toBe(1);
+      expect(texto()).toContain('Pendientes (1)');
+    });
+
+    it('cancelar cierra el formulario sin enviar nada', async () => {
+      await abrir([]);
+      boton('Avisar un paquete')!.click();
+      fixture.detectChanges();
+
+      (formulario().componentInstance as PaqueteFormComponent).cerrar();
+      fixture.detectChanges();
+
+      expect(formulario()).toBeNull();
+      expect(api.post).not.toHaveBeenCalled();
+    });
   });
 
   it('con varias viviendas indica a qué casa pertenece cada paquete', async () => {
