@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { signal } from '@angular/core';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { By } from '@angular/platform-browser';
 import Swal from 'sweetalert2';
 import { PaqueteriaComponent } from './paqueteria.component';
@@ -82,6 +82,25 @@ describe('PaqueteriaComponent', () => {
     await abrir([paquete('r1', { estado: 'recibido' }), paquete('r2', { estado: 'recibido' })]);
 
     expect(texto()).toContain('Tienes 2 paquetes en caseta');
+    expect(texto()).toContain('Pasa a recogerlos con vigilancia.');
+  });
+
+  it('usa el singular cuando es uno', async () => {
+    await abrir([paquete('r1', { estado: 'recibido' })]);
+
+    expect(texto()).toContain('Pasa a recogerlo con vigilancia.');
+  });
+
+  it('mientras llegan los primeros datos no muestra contadores que dirían cero', async () => {
+    api.get.and.returnValue(new Subject<any>());
+    fixture = TestBed.createComponent(PaqueteriaComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(texto()).toContain('Pendientes');
+    expect(texto()).not.toContain('Pendientes (0)');
+    expect(texto()).not.toContain('Historial (0)');
   });
 
   it('marca los paquetes que llegaron sin avisar', async () => {
