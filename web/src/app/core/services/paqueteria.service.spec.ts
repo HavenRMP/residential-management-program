@@ -126,6 +126,76 @@ describe('PaqueteriaService', () => {
     });
   });
 
+  describe('crear', () => {
+    it('envía el aviso y suma el paquete arriba de la lista', async () => {
+      service.items.set([paquete('viejo')]);
+      api.post.and.returnValue(of(paquete('nuevo')));
+      const dto = { viviendaId: 33, destinatarioNombre: 'Angel Gómez', servicioId: 1 };
+
+      const creado = await service.crear(dto);
+
+      expect(api.post).toHaveBeenCalledWith('/api/paqueteria', dto, undefined, 'visitas');
+      expect(creado.id).toBe('nuevo');
+      expect(service.items().map(p => p.id)).toEqual(['nuevo', 'viejo']);
+    });
+
+    it('si el backend rechaza el aviso propaga el error y deja la lista igual', async () => {
+      service.items.set([paquete('viejo')]);
+      api.post.and.returnValue(throwError(() => ({ status: 400, error: { error: 'La fecha límite esperada ya ha pasado' } })));
+
+      await expectAsync(service.crear({ viviendaId: 33, destinatarioNombre: 'A', servicioNombre: 'X' }))
+        .toBeRejectedWith(jasmine.objectContaining({ status: 400 }));
+      expect(service.items().map(p => p.id)).toEqual(['viejo']);
+    });
+  });
+
+  describe('actualizar', () => {
+    it('envía solo los campos cambiados y actualiza el paquete en la lista', async () => {
+      service.items.set([paquete('p1', { numeroGuia: 'viejo' }), paquete('p2')]);
+      api.put.and.returnValue(of(paquete('p1', { numeroGuia: 'ML-1' })));
+
+      await service.actualizar('p1', { numeroGuia: 'ML-1' });
+
+      expect(api.put).toHaveBeenCalledWith('/api/paqueteria/p1', { numeroGuia: 'ML-1' }, undefined, 'visitas');
+      expect(service.items().find(p => p.id === 'p1')?.numeroGuia).toBe('ML-1');
+      expect(service.items().length).toBe(2);
+    });
+
+    it('si ya lo recibieron en caseta (409) propaga el error', async () => {
+      api.put.and.returnValue(throwError(() => ({ status: 409 })));
+
+      await expectAsync(service.actualizar('p1', { notas: 'x' })).toBeRejectedWith(jasmine.objectContaining({ status: 409 }));
+    });
+  });
+
+  describe('cancelar', () => {
+    it('manda el motivo sin espacios sobrantes y marca el paquete como cancelado', async () => {
+      service.items.set([paquete('p1')]);
+      api.post.and.returnValue(of(undefined));
+
+      await service.cancelar('p1', '  Cancelé la compra  ');
+
+      expect(api.post).toHaveBeenCalledWith('/api/paqueteria/p1/cancelar', { motivo: 'Cancelé la compra' }, undefined, 'visitas');
+      expect(service.items()[0].estado).toBe('cancelado');
+    });
+
+    it('sin motivo manda un cuerpo vacío', async () => {
+      api.post.and.returnValue(of(undefined));
+
+      await service.cancelar('p1', '   ');
+
+      expect(api.post.calls.mostRecent().args[1]).toEqual({});
+    });
+
+    it('si falla propaga el error y no cambia el estado', async () => {
+      service.items.set([paquete('p1')]);
+      api.post.and.returnValue(throwError(() => ({ status: 409 })));
+
+      await expectAsync(service.cancelar('p1')).toBeRejectedWith(jasmine.objectContaining({ status: 409 }));
+      expect(service.items()[0].estado).toBe('esperado');
+    });
+  });
+
   describe('contarEnCaseta', () => {
     it('consulta un solo elemento del estado recibido y devuelve el total', async () => {
       api.get.and.returnValue(of({ items: [paquete('r1', { estado: 'recibido' })], totalCount: 3 }));
