@@ -44,7 +44,7 @@ export class ApiService {
     if (lower.startsWith('/api/avisos')) {
       return `${(services as any).avisos}${endpoint}`;
     }
-    if (lower.startsWith('/api/visitas')) {
+    if (lower.startsWith('/api/visitas') || lower.startsWith('/api/paqueteria')) {
       return `${(services as any).visitas}${endpoint}`;
     }
 
