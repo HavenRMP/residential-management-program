@@ -29,14 +29,14 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
   imports: [CommonModule, FormsModule],
   template: `
     <div class="space-y-6">
-
+    
       <!-- Validar código de acceso -->
       <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-3">
         <div>
           <h2 class="text-sm font-semibold text-slate-900">Validar código de acceso</h2>
           <p class="text-xs text-slate-500 mt-0.5">Digita el código que presenta el visitante para confirmar sus datos.</p>
         </div>
-
+    
         <div class="flex flex-col sm:flex-row gap-2">
           <input
             type="text"
@@ -46,491 +46,552 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
             placeholder="Código de la visita"
             autocomplete="off"
             class="h-10 sm:flex-1 text-sm font-mono uppercase tracking-widest rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 placeholder:normal-case placeholder:tracking-normal focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
-          />
-          <button
-            type="button"
-            (click)="validarCodigo()"
-            [disabled]="isValidando() || !codigo.trim()"
-            class="h-10 px-4 rounded-lg bg-[#111C99] hover:bg-[#0d1577] text-white text-sm font-medium transition-colors cursor-pointer disabled:opacity-50"
-          >
-            {{ isValidando() ? 'Validando...' : 'Validar' }}
-          </button>
-        </div>
-
-        <div *ngIf="errorCodigo()" class="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 font-medium">
-          {{ errorCodigo() }}
-        </div>
-
-        <div *ngIf="visitaValidada() as v" class="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-          <div class="space-y-1 min-w-0">
-            <p class="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Código válido</p>
-            <p class="text-base font-semibold text-slate-900">{{ v.nombreVisitante }} {{ v.apellidosVisitante }}</p>
-            <p class="text-xs text-slate-600">
-              Casa {{ v.numeroCasa }} · {{ etiquetaMotivo(v.motivo) }} · Registrada por {{ v.creadoPorNombre || 'el residente' }}
-            </p>
-            <p class="text-xs text-slate-500">
-              <span *ngIf="v.numAcompanantes > 0">{{ v.numAcompanantes }} acompañante(s) · </span>
-              <span *ngIf="v.vehiculoPlacas">Placas {{ v.vehiculoPlacas }}</span>
-            </p>
-          </div>
-          <div class="shrink-0 flex items-center gap-2">
-            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border" [ngClass]="claseEstado(v.estado)">
-              {{ etiquetaEstado(v.estado) }}
-            </span>
-            <ng-container *ngTemplateOutlet="acciones; context: { $implicit: v }"></ng-container>
-          </div>
-        </div>
-      </section>
-
-      <!-- Visitas por atender (próximas 24 horas y en curso) -->
-      <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-          <div>
-            <h2 class="text-sm font-semibold text-slate-900">Visitas</h2>
-            <p class="text-xs text-slate-500 mt-0.5">
-              {{ descripcionPestana() }}
-            </p>
-          </div>
-
-          <div class="flex items-center p-1 bg-slate-200/80 rounded-lg text-xs font-semibold text-slate-700 w-fit" role="tablist" aria-label="Lista de visitas">
-            <button
-              type="button"
-              role="tab"
-              [attr.aria-selected]="pestana() === 'proximas'"
-              (click)="cambiarPestana('proximas')"
-              class="px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
-              [ngClass]="pestana() === 'proximas' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-700'"
-            >
-              <span>Próximas 24 h</span>
-              <span class="text-[10px] px-1.5 rounded-full font-mono bg-slate-100 text-slate-800 border border-slate-200">{{ visitasService.totalCount() }}</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              [attr.aria-selected]="pestana() === 'programadas'"
-              (click)="cambiarPestana('programadas')"
-              class="px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
-              [ngClass]="pestana() === 'programadas' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-700'"
-            >
-              Programadas
-            </button>
-            <button
-              type="button"
-              role="tab"
-              [attr.aria-selected]="pestana() === 'historial'"
-              (click)="cambiarPestana('historial')"
-              class="px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
-              [ngClass]="pestana() === 'historial' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-700'"
-            >
-              Historial
-            </button>
-          </div>
-        </div>
-
-        <!-- Herramientas de "Próximas": búsqueda y actualizar -->
-        <div *ngIf="pestana() === 'proximas'" class="flex items-center justify-end gap-2">
-            <input
-              type="text"
-              [(ngModel)]="busqueda"
-              (ngModelChange)="onBusquedaCambio()"
-              placeholder="Nombre, casa, placas o código..."
-              class="h-8 w-56 text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
             />
             <button
               type="button"
-              (click)="recargar()"
-              title="Actualizar"
-              class="h-8 w-8 inline-flex items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
-            >
-              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
+              (click)="validarCodigo()"
+              [disabled]="isValidando() || !codigo.trim()"
+              class="h-10 px-4 rounded-lg bg-[#111C99] hover:bg-[#0d1577] text-white text-sm font-medium transition-colors cursor-pointer disabled:opacity-50"
+              >
+              {{ isValidando() ? 'Validando...' : 'Validar' }}
             </button>
-        </div>
-
-        <ng-container *ngIf="pestana() === 'proximas'">
-        <div *ngIf="visitasService.isLoading()" class="space-y-2">
-          <div *ngFor="let s of [1, 2, 3]" class="p-4 rounded-md bg-white border border-slate-200 animate-pulse h-16"></div>
-        </div>
-
-        <div *ngIf="visitasService.errorMessage() as msg" class="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 font-medium">
-          {{ msg }}
-        </div>
-
-        <div
-          *ngIf="!visitasService.isLoading() && !visitasService.errorMessage() && visitasService.items().length === 0"
-          class="py-10 text-center text-xs text-slate-500 font-medium"
-        >
-          No hay visitas por atender en las próximas 24 horas.
-        </div>
-
-        <ul *ngIf="!visitasService.isLoading()" class="space-y-2">
-          <li
-            *ngFor="let v of visitasService.items()"
-            class="p-4 rounded-md border border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-          >
-            <div class="min-w-0 space-y-1">
-              <div class="flex flex-wrap items-center gap-2">
-                <p class="text-sm font-semibold text-slate-900">{{ v.nombreVisitante }} {{ v.apellidosVisitante }}</p>
+          </div>
+    
+          @if (errorCodigo()) {
+            <div class="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 font-medium">
+              {{ errorCodigo() }}
+            </div>
+          }
+    
+          @if (visitaValidada(); as v) {
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+              <div class="space-y-1 min-w-0">
+                <p class="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Código válido</p>
+                <p class="text-base font-semibold text-slate-900">{{ v.nombreVisitante }} {{ v.apellidosVisitante }}</p>
+                <p class="text-xs text-slate-600">
+                  Casa {{ v.numeroCasa }} · {{ etiquetaMotivo(v.motivo) }} · Registrada por {{ v.creadoPorNombre || 'el residente' }}
+                </p>
+                <p class="text-xs text-slate-500">
+                  @if (v.numAcompanantes > 0) {
+                    <span>{{ v.numAcompanantes }} acompañante(s) · </span>
+                  }
+                  @if (v.vehiculoPlacas) {
+                    <span>Placas {{ v.vehiculoPlacas }}</span>
+                  }
+                </p>
+              </div>
+              <div class="shrink-0 flex items-center gap-2">
                 <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border" [ngClass]="claseEstado(v.estado)">
                   {{ etiquetaEstado(v.estado) }}
                 </span>
-                <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border bg-slate-50 text-slate-600 border-slate-200">
-                  Casa {{ v.numeroCasa }}
-                </span>
+                <ng-container *ngTemplateOutlet="acciones; context: { $implicit: v }"></ng-container>
               </div>
-              <p class="text-xs text-slate-600">
-                {{ etiquetaMotivo(v.motivo) }} · Llegada {{ formatearFecha(v.fechaLlegadaEsperada) }}
-                <span *ngIf="v.horaEntrada"> · Entró {{ formatearFecha(v.horaEntrada) }}</span>
+            </div>
+          }
+        </section>
+    
+        <!-- Visitas por atender (próximas 24 horas y en curso) -->
+        <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div>
+              <h2 class="text-sm font-semibold text-slate-900">Visitas</h2>
+              <p class="text-xs text-slate-500 mt-0.5">
+                {{ descripcionPestana() }}
               </p>
-              <p class="text-xs text-slate-500">
-                <span *ngIf="v.numAcompanantes > 0">{{ v.numAcompanantes }} acompañante(s) · </span>
-                <span *ngIf="v.vehiculoPlacas">Placas {{ v.vehiculoPlacas }} · </span>
-                <span>Registrada por {{ v.creadoPorNombre || 'el residente' }}</span>
-              </p>
             </div>
-
-            <div class="shrink-0 flex items-center gap-2">
+    
+            <div class="flex items-center p-1 bg-slate-200/80 rounded-lg text-xs font-semibold text-slate-700 w-fit" role="tablist" aria-label="Lista de visitas">
               <button
                 type="button"
-                (click)="abrirDetalle(v)"
-                class="h-8 px-3 rounded-md border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-              >
-                Detalle
+                role="tab"
+                [attr.aria-selected]="pestana() === 'proximas'"
+                (click)="cambiarPestana('proximas')"
+                class="px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
+                [ngClass]="pestana() === 'proximas' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-700'"
+                >
+                <span>Próximas 24 h</span>
+                <span class="text-[10px] px-1.5 rounded-full font-mono bg-slate-100 text-slate-800 border border-slate-200">{{ visitasService.totalCount() }}</span>
               </button>
-              <ng-container *ngTemplateOutlet="acciones; context: { $implicit: v }"></ng-container>
-            </div>
-          </li>
-        </ul>
-
-        <div *ngIf="totalPaginas() > 1" class="flex items-center justify-between pt-2 border-t border-slate-100">
-          <button
-            type="button"
-            (click)="irAPagina(visitasService.page() - 1)"
-            [disabled]="visitasService.page() <= 1"
-            class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
-          >
-            Anterior
-          </button>
-          <span class="text-xs text-slate-500 font-medium">Página {{ visitasService.page() }} de {{ totalPaginas() }}</span>
-          <button
-            type="button"
-            (click)="irAPagina(visitasService.page() + 1)"
-            [disabled]="visitasService.page() >= totalPaginas()"
-            class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
-          >
-            Siguiente
-          </button>
-        </div>
-        </ng-container>
-
-        <!-- Programadas: visitas que todavía no llegan, la más próxima primero. Solo de consulta -->
-        <ng-container *ngIf="pestana() === 'programadas'">
-          <div class="flex justify-end">
-            <button
-              type="button"
-              (click)="programadas.cargar()"
-              title="Actualizar"
-              class="h-8 w-8 inline-flex items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
-            >
-              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </button>
-          </div>
-
-          <div *ngIf="programadas.isLoading()" class="space-y-2" aria-busy="true">
-            <div *ngFor="let s of [1, 2, 3]" class="p-4 rounded-md bg-white border border-slate-200 animate-pulse h-16"></div>
-          </div>
-
-          <div *ngIf="!programadas.isLoading() && programadas.errorMessage() as msg" class="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 font-medium">
-            {{ msg }}
-          </div>
-
-          <div
-            *ngIf="!programadas.isLoading() && !programadas.errorMessage() && programadas.items().length === 0"
-            class="py-10 text-center text-xs text-slate-500 font-medium"
-          >
-            No hay visitas programadas para los próximos días.
-          </div>
-
-          <ul *ngIf="!programadas.isLoading() && !programadas.errorMessage()" class="space-y-2">
-            <li
-              *ngFor="let v of programadas.items()"
-              class="p-4 rounded-md border border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-            >
-              <div class="min-w-0 space-y-1">
-                <div class="flex flex-wrap items-center gap-2">
-                  <p class="text-sm font-semibold text-slate-900">{{ v.nombreVisitante }} {{ v.apellidosVisitante }}</p>
-                  <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border" [ngClass]="claseEstado(v.estado)">
-                    {{ etiquetaEstado(v.estado) }}
-                  </span>
-                  <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border bg-slate-50 text-slate-600 border-slate-200">
-                    Casa {{ v.numeroCasa }}
-                  </span>
-                </div>
-                <p class="text-xs text-slate-600">
-                  {{ etiquetaMotivo(v.motivo) }} · Llega {{ formatearFecha(v.fechaLlegadaEsperada) }} · Vigente hasta {{ formatearFecha(v.vigenciaHasta) }}
-                </p>
-                <p class="text-xs text-slate-500">
-                  <span *ngIf="v.numAcompanantes > 0">{{ v.numAcompanantes }} acompañante(s) · </span>
-                  <span *ngIf="v.vehiculoPlacas">Placas {{ v.vehiculoPlacas }} · </span>
-                  <span>Registrada por {{ v.creadoPorNombre || 'el residente' }}</span>
-                </p>
-              </div>
               <button
                 type="button"
-                (click)="abrirDetalle(v)"
-                class="shrink-0 h-8 px-3 rounded-md border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-              >
-                Detalle
+                role="tab"
+                [attr.aria-selected]="pestana() === 'programadas'"
+                (click)="cambiarPestana('programadas')"
+                class="px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
+                [ngClass]="pestana() === 'programadas' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-700'"
+                >
+                Programadas
               </button>
-            </li>
-          </ul>
-        </ng-container>
-
-        <!-- Historial: visitas que ya pasaron (finalizadas, canceladas o expiradas), la más reciente primero -->
-        <ng-container *ngIf="pestana() === 'historial'">
-          <!-- Filtros del historial: se aplican solos al cambiar -->
-          <div class="flex flex-wrap items-end gap-3">
-            <div>
-              <label class="block text-[11px] font-semibold text-slate-700 mb-1" for="desde-historial">Desde</label>
+              <button
+                type="button"
+                role="tab"
+                [attr.aria-selected]="pestana() === 'historial'"
+                (click)="cambiarPestana('historial')"
+                class="px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
+                [ngClass]="pestana() === 'historial' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-700'"
+                >
+                Historial
+              </button>
+            </div>
+          </div>
+    
+          <!-- Herramientas de "Próximas": búsqueda y actualizar -->
+          @if (pestana() === 'proximas') {
+            <div class="flex items-center justify-end gap-2">
               <input
-                id="desde-historial"
-                type="date"
-                [ngModel]="desdeHistorial()"
-                (ngModelChange)="cambiarDesdeHistorial($event)"
-                class="h-8 text-xs rounded-lg border border-slate-300 bg-white px-2 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
-              />
-            </div>
-            <div>
-              <label class="block text-[11px] font-semibold text-slate-700 mb-1" for="hasta-historial">Hasta</label>
-              <input
-                id="hasta-historial"
-                type="date"
-                [ngModel]="hastaHistorial()"
-                (ngModelChange)="cambiarHastaHistorial($event)"
-                class="h-8 text-xs rounded-lg border border-slate-300 bg-white px-2 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
-              />
-            </div>
-            <div>
-              <label class="block text-[11px] font-semibold text-slate-700 mb-1" for="casa-historial">Casa</label>
-              <select
-                id="casa-historial"
-                [ngModel]="viviendaHistorial()"
-                (ngModelChange)="cambiarViviendaHistorial($event)"
-                class="h-8 max-w-[11rem] text-xs rounded-lg border border-slate-300 bg-white px-2 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
-              >
-                <option [ngValue]="null">Todas</option>
-                <option *ngFor="let c of directorio.casas()" [ngValue]="c.id">{{ c.numeroCasa }}</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-[11px] font-semibold text-slate-700 mb-1" for="estado-historial">Estado</label>
-              <select
-                id="estado-historial"
-                [ngModel]="estadoHistorial()"
-                (ngModelChange)="cambiarEstadoHistorial($event)"
-                class="h-8 text-xs rounded-lg border border-slate-300 bg-white px-2 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
-              >
-                <option *ngFor="let e of estados" [ngValue]="e">{{ etiquetaEstado(e) }}</option>
-              </select>
-            </div>
-            <button
-              *ngIf="hayFiltrosHistorial()"
-              type="button"
-              (click)="limpiarFiltrosHistorial()"
-              class="h-8 px-3 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-            >
-              Limpiar filtros
-            </button>
-            <button
-              type="button"
-              (click)="cargarHistorial(historico.page())"
-              title="Actualizar"
-              class="h-8 w-8 inline-flex items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer sm:ml-auto"
-            >
-              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </button>
-          </div>
-          <p *ngIf="rangoHistorialInvalido()" class="text-[11px] text-red-600 font-medium">La fecha "desde" no puede ser posterior a "hasta".</p>
-
-          <div *ngIf="historico.isLoading()" class="space-y-2" aria-busy="true">
-            <div *ngFor="let s of [1, 2, 3]" class="p-4 rounded-md bg-white border border-slate-200 animate-pulse h-16"></div>
-          </div>
-
-          <div *ngIf="!historico.isLoading() && historico.errorMessage() as msg" class="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 font-medium">
-            {{ msg }}
-          </div>
-
-          <div
-            *ngIf="!historico.isLoading() && !historico.errorMessage() && historico.items().length === 0"
-            class="py-10 text-center text-xs text-slate-500 font-medium"
-          >
-            {{ hayFiltrosHistorial() ? 'No hay visitas con estos filtros.' : 'No hay visitas con este estado.' }}
-          </div>
-
-          <ul *ngIf="!historico.isLoading() && !historico.errorMessage()" class="space-y-2">
-            <li
-              *ngFor="let v of historico.items()"
-              class="p-4 rounded-md border border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-            >
-              <div class="min-w-0 space-y-1">
-                <div class="flex flex-wrap items-center gap-2">
-                  <p class="text-sm font-semibold text-slate-900">{{ v.nombreVisitante }} {{ v.apellidosVisitante }}</p>
-                  <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border" [ngClass]="claseEstado(v.estado)">
-                    {{ etiquetaEstado(v.estado) }}
-                  </span>
-                  <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border bg-slate-50 text-slate-600 border-slate-200">
-                    Casa {{ v.numeroCasa }}
-                  </span>
-                </div>
-                <p class="text-xs text-slate-600">
-                  {{ etiquetaMotivo(v.motivo) }} · Llegada {{ formatearFecha(v.fechaLlegadaEsperada) }}
-                  <span *ngIf="v.horaEntrada"> · Entró {{ formatearFecha(v.horaEntrada) }}</span>
-                  <span *ngIf="v.horaSalida"> · Salió {{ formatearFecha(v.horaSalida) }}</span>
-                </p>
+                type="text"
+                [(ngModel)]="busqueda"
+                (ngModelChange)="onBusquedaCambio()"
+                placeholder="Nombre, casa, placas o código..."
+                class="h-8 w-56 text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+                />
+                <button
+                  type="button"
+                  (click)="recargar()"
+                  title="Actualizar"
+                  class="h-8 w-8 inline-flex items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
               </div>
-              <button
-                type="button"
-                (click)="abrirDetalle(v)"
-                class="shrink-0 h-8 px-3 rounded-md border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-              >
-                Detalle
-              </button>
-            </li>
-          </ul>
-
-          <div *ngIf="totalPaginasHistorial() > 1" class="flex items-center justify-between pt-2 border-t border-slate-100">
-            <button
-              type="button"
-              (click)="irAPaginaHistorial(historico.page() - 1)"
-              [disabled]="historico.page() <= 1"
-              class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
-            >
-              Anterior
-            </button>
-            <span class="text-xs text-slate-500 font-medium">Página {{ historico.page() }} de {{ totalPaginasHistorial() }}</span>
-            <button
-              type="button"
-              (click)="irAPaginaHistorial(historico.page() + 1)"
-              [disabled]="historico.page() >= totalPaginasHistorial()"
-              class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
-            >
-              Siguiente
-            </button>
-          </div>
-        </ng-container>
-      </section>
-    </div>
-
-    <!-- Modal de detalle de visita -->
-    <div
-      *ngIf="visitaDetalle() as d"
-      class="fixed inset-0 z-50 overflow-y-auto bg-black/40 backdrop-blur-xs flex items-center justify-center p-4"
-      (click)="cerrarDetalle()"
-    >
-      <div class="bg-white rounded-lg max-w-md w-full p-5 shadow-lg border border-slate-200" (click)="$event.stopPropagation()">
-        <div class="flex items-start justify-between pb-3 border-b border-slate-100">
-          <div>
-            <h3 class="text-sm font-semibold text-slate-900">{{ d.nombreVisitante }} {{ d.apellidosVisitante }}</h3>
-            <span class="mt-1 inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border" [ngClass]="claseEstado(d.estado)">
-              {{ etiquetaEstado(d.estado) }}
-            </span>
-          </div>
-          <button type="button" (click)="cerrarDetalle()" class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer" title="Cerrar">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <dl class="mt-3 grid grid-cols-3 gap-x-3 gap-y-2 text-xs">
-          <dt class="text-slate-500">Casa</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.numeroCasa }}</dd>
-          <dt class="text-slate-500">Motivo</dt><dd class="col-span-2 font-medium text-slate-900">{{ etiquetaMotivo(d.motivo) }}</dd>
-          <dt class="text-slate-500">Teléfono</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.telefonoVisitante || '—' }}</dd>
-          <dt class="text-slate-500">Acompañantes</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.numAcompanantes }}</dd>
-          <dt class="text-slate-500">Placas</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.vehiculoPlacas || '—' }}</dd>
-          <dt class="text-slate-500">Notas</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.notas || '—' }}</dd>
-          <dt class="text-slate-500">Llegada esperada</dt><dd class="col-span-2 font-medium text-slate-900">{{ formatearFecha(d.fechaLlegadaEsperada) }}</dd>
-          <dt class="text-slate-500">Vigente hasta</dt><dd class="col-span-2 font-medium text-slate-900">{{ formatearFecha(d.vigenciaHasta) || '—' }}</dd>
-          <dt class="text-slate-500">Entrada</dt><dd class="col-span-2 font-medium text-slate-900">{{ formatearFecha(d.horaEntrada) || '—' }}</dd>
-          <dt class="text-slate-500">Salida</dt><dd class="col-span-2 font-medium text-slate-900">{{ formatearFecha(d.horaSalida) || '—' }}</dd>
-          <dt class="text-slate-500">Registrada por</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.creadoPorNombre || 'el residente' }}</dd>
-        </dl>
-
-        <!-- A quién avisar en la casa (del directorio de casas) -->
-        <div class="mt-4 pt-3 border-t border-slate-100">
-          <p class="text-xs font-semibold text-slate-800 mb-2">A quién avisar en la casa {{ d.numeroCasa }}</p>
-          <ng-container *ngIf="residentesDeCasa(d.numeroCasa) as residentes">
-            <p *ngIf="residentes.length === 0" class="text-xs text-slate-500">
-              {{ directorio.isLoading() ? 'Cargando residentes…' : 'No hay residentes registrados en esta casa.' }}
-            </p>
-            <ul *ngIf="residentes.length > 0" class="space-y-1.5">
-              <li *ngFor="let r of residentes" class="flex items-center justify-between gap-3 text-xs">
-                <span class="font-medium text-slate-900 truncate">{{ r.nombre }} {{ r.apellidos }}</span>
-                <a
-                  *ngIf="r.telefono"
-                  [href]="enlaceTelefono(r.telefono)"
-                  class="shrink-0 font-mono text-slate-700 hover:text-[#111C99] underline-offset-2 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99] rounded"
-                >{{ r.telefono }}</a>
-                <span *ngIf="!r.telefono" class="shrink-0 text-slate-400">Sin teléfono</span>
-              </li>
-            </ul>
-          </ng-container>
-        </div>
-
-        <!-- Captura de placas al dar ingreso -->
-        <div *ngIf="d.estado === 'programada' && detalleEsProxima()" class="mt-3">
-          <label class="block text-xs font-semibold text-slate-800 mb-1" for="placas-entrada">Placas del vehículo (opcional)</label>
-          <input
-            id="placas-entrada"
-            type="text"
-            [(ngModel)]="placasEntrada"
-            maxlength="15"
-            autocomplete="off"
-            placeholder="Ej. ABC-123"
-            class="h-9 w-full text-xs uppercase rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 placeholder:normal-case focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
-          />
-        </div>
-
-        <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-          <button type="button" (click)="cerrarDetalle()"
-            class="h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer">
-            Cerrar
-          </button>
-          <!-- Entrada y salida solo para las visitas de la ventana de 24 horas; las programadas a futuro y las del historial son de consulta -->
-          <ng-container *ngIf="detalleEsProxima()">
-            <ng-container *ngTemplateOutlet="acciones; context: { $implicit: d, conPlacas: true }"></ng-container>
-          </ng-container>
-        </div>
-      </div>
-    </div>
-
-    <!-- Botón de acción según el estado de la visita -->
-    <ng-template #acciones let-v let-conPlacas="conPlacas">
-      <button
-        *ngIf="v.estado === 'programada'"
-        type="button"
-        (click)="registrarEntrada(v, conPlacas ? placasEntrada : undefined)"
-        [disabled]="visitaEnProceso() === v.id"
-        class="h-8 px-3 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
-      >
-        {{ visitaEnProceso() === v.id ? 'Registrando...' : 'Registrar entrada' }}
-      </button>
-      <button
-        *ngIf="v.estado === 'en_curso'"
-        type="button"
-        (click)="registrarSalida(v)"
-        [disabled]="visitaEnProceso() === v.id"
-        class="h-8 px-3 rounded-md bg-slate-800 hover:bg-slate-900 text-white text-xs font-medium transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
-      >
-        {{ visitaEnProceso() === v.id ? 'Registrando...' : 'Registrar salida' }}
-      </button>
-    </ng-template>
-  `
+            }
+    
+            @if (pestana() === 'proximas') {
+              @if (visitasService.isLoading()) {
+                <div class="space-y-2">
+                  @for (s of [1, 2, 3]; track s) {
+                    <div class="p-4 rounded-md bg-white border border-slate-200 animate-pulse h-16"></div>
+                  }
+                </div>
+              }
+              @if (visitasService.errorMessage(); as msg) {
+                <div class="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 font-medium">
+                  {{ msg }}
+                </div>
+              }
+              @if (!visitasService.isLoading() && !visitasService.errorMessage() && visitasService.items().length === 0) {
+                <div
+                  class="py-10 text-center text-xs text-slate-500 font-medium"
+                  >
+                  No hay visitas por atender en las próximas 24 horas.
+                </div>
+              }
+              @if (!visitasService.isLoading()) {
+                <ul class="space-y-2">
+                  @for (v of visitasService.items(); track v.id) {
+                    <li
+                      class="p-4 rounded-md border border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      >
+                      <div class="min-w-0 space-y-1">
+                        <div class="flex flex-wrap items-center gap-2">
+                          <p class="text-sm font-semibold text-slate-900">{{ v.nombreVisitante }} {{ v.apellidosVisitante }}</p>
+                          <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border" [ngClass]="claseEstado(v.estado)">
+                            {{ etiquetaEstado(v.estado) }}
+                          </span>
+                          <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border bg-slate-50 text-slate-600 border-slate-200">
+                            Casa {{ v.numeroCasa }}
+                          </span>
+                        </div>
+                        <p class="text-xs text-slate-600">
+                          {{ etiquetaMotivo(v.motivo) }} · Llegada {{ formatearFecha(v.fechaLlegadaEsperada) }}
+                          @if (v.horaEntrada) {
+                            <span> · Entró {{ formatearFecha(v.horaEntrada) }}</span>
+                          }
+                        </p>
+                        <p class="text-xs text-slate-500">
+                          @if (v.numAcompanantes > 0) {
+                            <span>{{ v.numAcompanantes }} acompañante(s) · </span>
+                          }
+                          @if (v.vehiculoPlacas) {
+                            <span>Placas {{ v.vehiculoPlacas }} · </span>
+                          }
+                          <span>Registrada por {{ v.creadoPorNombre || 'el residente' }}</span>
+                        </p>
+                      </div>
+                      <div class="shrink-0 flex items-center gap-2">
+                        <button
+                          type="button"
+                          (click)="abrirDetalle(v)"
+                          class="h-8 px-3 rounded-md border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                          >
+                          Detalle
+                        </button>
+                        <ng-container *ngTemplateOutlet="acciones; context: { $implicit: v }"></ng-container>
+                      </div>
+                    </li>
+                  }
+                </ul>
+              }
+              @if (totalPaginas() > 1) {
+                <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    (click)="irAPagina(visitasService.page() - 1)"
+                    [disabled]="visitasService.page() <= 1"
+                    class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                    >
+                    Anterior
+                  </button>
+                  <span class="text-xs text-slate-500 font-medium">Página {{ visitasService.page() }} de {{ totalPaginas() }}</span>
+                  <button
+                    type="button"
+                    (click)="irAPagina(visitasService.page() + 1)"
+                    [disabled]="visitasService.page() >= totalPaginas()"
+                    class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                    >
+                    Siguiente
+                  </button>
+                </div>
+              }
+            }
+    
+            <!-- Programadas: visitas que todavía no llegan, la más próxima primero. Solo de consulta -->
+            @if (pestana() === 'programadas') {
+              <div class="flex justify-end">
+                <button
+                  type="button"
+                  (click)="programadas.cargar()"
+                  title="Actualizar"
+                  class="h-8 w-8 inline-flex items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              </div>
+              @if (programadas.isLoading()) {
+                <div class="space-y-2" aria-busy="true">
+                  @for (s of [1, 2, 3]; track s) {
+                    <div class="p-4 rounded-md bg-white border border-slate-200 animate-pulse h-16"></div>
+                  }
+                </div>
+              }
+              @if (!programadas.isLoading() && programadas.errorMessage(); as msg) {
+                <div class="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 font-medium">
+                  {{ msg }}
+                </div>
+              }
+              @if (!programadas.isLoading() && !programadas.errorMessage() && programadas.items().length === 0) {
+                <div
+                  class="py-10 text-center text-xs text-slate-500 font-medium"
+                  >
+                  No hay visitas programadas para los próximos días.
+                </div>
+              }
+              @if (!programadas.isLoading() && !programadas.errorMessage()) {
+                <ul class="space-y-2">
+                  @for (v of programadas.items(); track v.id) {
+                    <li
+                      class="p-4 rounded-md border border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      >
+                      <div class="min-w-0 space-y-1">
+                        <div class="flex flex-wrap items-center gap-2">
+                          <p class="text-sm font-semibold text-slate-900">{{ v.nombreVisitante }} {{ v.apellidosVisitante }}</p>
+                          <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border" [ngClass]="claseEstado(v.estado)">
+                            {{ etiquetaEstado(v.estado) }}
+                          </span>
+                          <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border bg-slate-50 text-slate-600 border-slate-200">
+                            Casa {{ v.numeroCasa }}
+                          </span>
+                        </div>
+                        <p class="text-xs text-slate-600">
+                          {{ etiquetaMotivo(v.motivo) }} · Llega {{ formatearFecha(v.fechaLlegadaEsperada) }} · Vigente hasta {{ formatearFecha(v.vigenciaHasta) }}
+                        </p>
+                        <p class="text-xs text-slate-500">
+                          @if (v.numAcompanantes > 0) {
+                            <span>{{ v.numAcompanantes }} acompañante(s) · </span>
+                          }
+                          @if (v.vehiculoPlacas) {
+                            <span>Placas {{ v.vehiculoPlacas }} · </span>
+                          }
+                          <span>Registrada por {{ v.creadoPorNombre || 'el residente' }}</span>
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        (click)="abrirDetalle(v)"
+                        class="shrink-0 h-8 px-3 rounded-md border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                        >
+                        Detalle
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+            }
+    
+            <!-- Historial: visitas que ya pasaron (finalizadas, canceladas o expiradas), la más reciente primero -->
+            @if (pestana() === 'historial') {
+              <!-- Filtros del historial: se aplican solos al cambiar -->
+              <div class="flex flex-wrap items-end gap-3">
+                <div>
+                  <label class="block text-[11px] font-semibold text-slate-700 mb-1" for="desde-historial">Desde</label>
+                  <input
+                    id="desde-historial"
+                    type="date"
+                    [ngModel]="desdeHistorial()"
+                    (ngModelChange)="cambiarDesdeHistorial($event)"
+                    class="h-8 text-xs rounded-lg border border-slate-300 bg-white px-2 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-[11px] font-semibold text-slate-700 mb-1" for="hasta-historial">Hasta</label>
+                    <input
+                      id="hasta-historial"
+                      type="date"
+                      [ngModel]="hastaHistorial()"
+                      (ngModelChange)="cambiarHastaHistorial($event)"
+                      class="h-8 text-xs rounded-lg border border-slate-300 bg-white px-2 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+                      />
+                    </div>
+                    <div>
+                      <label class="block text-[11px] font-semibold text-slate-700 mb-1" for="casa-historial">Casa</label>
+                      <select
+                        id="casa-historial"
+                        [ngModel]="viviendaHistorial()"
+                        (ngModelChange)="cambiarViviendaHistorial($event)"
+                        class="h-8 max-w-[11rem] text-xs rounded-lg border border-slate-300 bg-white px-2 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+                        >
+                        <option [ngValue]="null">Todas</option>
+                        @for (c of directorio.casas(); track c.id) {
+                          <option [ngValue]="c.id">{{ c.numeroCasa }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-[11px] font-semibold text-slate-700 mb-1" for="estado-historial">Estado</label>
+                      <select
+                        id="estado-historial"
+                        [ngModel]="estadoHistorial()"
+                        (ngModelChange)="cambiarEstadoHistorial($event)"
+                        class="h-8 text-xs rounded-lg border border-slate-300 bg-white px-2 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+                        >
+                        @for (e of estados; track e) {
+                          <option [ngValue]="e">{{ etiquetaEstado(e) }}</option>
+                        }
+                      </select>
+                    </div>
+                    @if (hayFiltrosHistorial()) {
+                      <button
+                        type="button"
+                        (click)="limpiarFiltrosHistorial()"
+                        class="h-8 px-3 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                        >
+                        Limpiar filtros
+                      </button>
+                    }
+                    <button
+                      type="button"
+                      (click)="cargarHistorial(historico.page())"
+                      title="Actualizar"
+                      class="h-8 w-8 inline-flex items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer sm:ml-auto"
+                      >
+                      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </button>
+                  </div>
+                  @if (rangoHistorialInvalido()) {
+                    <p class="text-[11px] text-red-600 font-medium">La fecha "desde" no puede ser posterior a "hasta".</p>
+                  }
+                  @if (historico.isLoading()) {
+                    <div class="space-y-2" aria-busy="true">
+                      @for (s of [1, 2, 3]; track s) {
+                        <div class="p-4 rounded-md bg-white border border-slate-200 animate-pulse h-16"></div>
+                      }
+                    </div>
+                  }
+                  @if (!historico.isLoading() && historico.errorMessage(); as msg) {
+                    <div class="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 font-medium">
+                      {{ msg }}
+                    </div>
+                  }
+                  @if (!historico.isLoading() && !historico.errorMessage() && historico.items().length === 0) {
+                    <div
+                      class="py-10 text-center text-xs text-slate-500 font-medium"
+                      >
+                      {{ hayFiltrosHistorial() ? 'No hay visitas con estos filtros.' : 'No hay visitas con este estado.' }}
+                    </div>
+                  }
+                  @if (!historico.isLoading() && !historico.errorMessage()) {
+                    <ul class="space-y-2">
+                      @for (v of historico.items(); track v.id) {
+                        <li
+                          class="p-4 rounded-md border border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                          >
+                          <div class="min-w-0 space-y-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                              <p class="text-sm font-semibold text-slate-900">{{ v.nombreVisitante }} {{ v.apellidosVisitante }}</p>
+                              <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border" [ngClass]="claseEstado(v.estado)">
+                                {{ etiquetaEstado(v.estado) }}
+                              </span>
+                              <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border bg-slate-50 text-slate-600 border-slate-200">
+                                Casa {{ v.numeroCasa }}
+                              </span>
+                            </div>
+                            <p class="text-xs text-slate-600">
+                              {{ etiquetaMotivo(v.motivo) }} · Llegada {{ formatearFecha(v.fechaLlegadaEsperada) }}
+                              @if (v.horaEntrada) {
+                                <span> · Entró {{ formatearFecha(v.horaEntrada) }}</span>
+                              }
+                              @if (v.horaSalida) {
+                                <span> · Salió {{ formatearFecha(v.horaSalida) }}</span>
+                              }
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            (click)="abrirDetalle(v)"
+                            class="shrink-0 h-8 px-3 rounded-md border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                            >
+                            Detalle
+                          </button>
+                        </li>
+                      }
+                    </ul>
+                  }
+                  @if (totalPaginasHistorial() > 1) {
+                    <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+                      <button
+                        type="button"
+                        (click)="irAPaginaHistorial(historico.page() - 1)"
+                        [disabled]="historico.page() <= 1"
+                        class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                        >
+                        Anterior
+                      </button>
+                      <span class="text-xs text-slate-500 font-medium">Página {{ historico.page() }} de {{ totalPaginasHistorial() }}</span>
+                      <button
+                        type="button"
+                        (click)="irAPaginaHistorial(historico.page() + 1)"
+                        [disabled]="historico.page() >= totalPaginasHistorial()"
+                        class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                        >
+                        Siguiente
+                      </button>
+                    </div>
+                  }
+                }
+              </section>
+            </div>
+    
+            <!-- Modal de detalle de visita -->
+            @if (visitaDetalle(); as d) {
+              <div
+                class="fixed inset-0 z-50 overflow-y-auto bg-black/40 backdrop-blur-xs flex items-center justify-center p-4"
+                (click)="cerrarDetalle()"
+                >
+                <div class="bg-white rounded-lg max-w-md w-full p-5 shadow-lg border border-slate-200" (click)="$event.stopPropagation()">
+                  <div class="flex items-start justify-between pb-3 border-b border-slate-100">
+                    <div>
+                      <h3 class="text-sm font-semibold text-slate-900">{{ d.nombreVisitante }} {{ d.apellidosVisitante }}</h3>
+                      <span class="mt-1 inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border" [ngClass]="claseEstado(d.estado)">
+                        {{ etiquetaEstado(d.estado) }}
+                      </span>
+                    </div>
+                    <button type="button" (click)="cerrarDetalle()" class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer" title="Cerrar">
+                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <dl class="mt-3 grid grid-cols-3 gap-x-3 gap-y-2 text-xs">
+                    <dt class="text-slate-500">Casa</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.numeroCasa }}</dd>
+                    <dt class="text-slate-500">Motivo</dt><dd class="col-span-2 font-medium text-slate-900">{{ etiquetaMotivo(d.motivo) }}</dd>
+                    <dt class="text-slate-500">Teléfono</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.telefonoVisitante || '—' }}</dd>
+                    <dt class="text-slate-500">Acompañantes</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.numAcompanantes }}</dd>
+                    <dt class="text-slate-500">Placas</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.vehiculoPlacas || '—' }}</dd>
+                    <dt class="text-slate-500">Notas</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.notas || '—' }}</dd>
+                    <dt class="text-slate-500">Llegada esperada</dt><dd class="col-span-2 font-medium text-slate-900">{{ formatearFecha(d.fechaLlegadaEsperada) }}</dd>
+                    <dt class="text-slate-500">Vigente hasta</dt><dd class="col-span-2 font-medium text-slate-900">{{ formatearFecha(d.vigenciaHasta) || '—' }}</dd>
+                    <dt class="text-slate-500">Entrada</dt><dd class="col-span-2 font-medium text-slate-900">{{ formatearFecha(d.horaEntrada) || '—' }}</dd>
+                    <dt class="text-slate-500">Salida</dt><dd class="col-span-2 font-medium text-slate-900">{{ formatearFecha(d.horaSalida) || '—' }}</dd>
+                    <dt class="text-slate-500">Registrada por</dt><dd class="col-span-2 font-medium text-slate-900">{{ d.creadoPorNombre || 'el residente' }}</dd>
+                  </dl>
+                  <!-- A quién avisar en la casa (del directorio de casas) -->
+                  <div class="mt-4 pt-3 border-t border-slate-100">
+                    <p class="text-xs font-semibold text-slate-800 mb-2">A quién avisar en la casa {{ d.numeroCasa }}</p>
+                    @if (residentesDeCasa(d.numeroCasa); as residentes) {
+                      @if (residentes.length === 0) {
+                        <p class="text-xs text-slate-500">
+                          {{ directorio.isLoading() ? 'Cargando residentes…' : 'No hay residentes registrados en esta casa.' }}
+                        </p>
+                      }
+                      @if (residentes.length > 0) {
+                        <ul class="space-y-1.5">
+                          @for (r of residentes; track r.id) {
+                            <li class="flex items-center justify-between gap-3 text-xs">
+                              <span class="font-medium text-slate-900 truncate">{{ r.nombre }} {{ r.apellidos }}</span>
+                              @if (r.telefono) {
+                                <a
+                                  [href]="enlaceTelefono(r.telefono)"
+                                  class="shrink-0 font-mono text-slate-700 hover:text-[#111C99] underline-offset-2 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99] rounded"
+                                >{{ r.telefono }}</a>
+                              }
+                              @if (!r.telefono) {
+                                <span class="shrink-0 text-slate-400">Sin teléfono</span>
+                              }
+                            </li>
+                          }
+                        </ul>
+                      }
+                    }
+                  </div>
+                  <!-- Captura de placas al dar ingreso -->
+                  @if (d.estado === 'programada' && detalleEsProxima()) {
+                    <div class="mt-3">
+                      <label class="block text-xs font-semibold text-slate-800 mb-1" for="placas-entrada">Placas del vehículo (opcional)</label>
+                      <input
+                        id="placas-entrada"
+                        type="text"
+                        [(ngModel)]="placasEntrada"
+                        maxlength="15"
+                        autocomplete="off"
+                        placeholder="Ej. ABC-123"
+                        class="h-9 w-full text-xs uppercase rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 placeholder:normal-case focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+                        />
+                      </div>
+                    }
+                    <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                      <button type="button" (click)="cerrarDetalle()"
+                        class="h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer">
+                        Cerrar
+                      </button>
+                      <!-- Entrada y salida solo para las visitas de la ventana de 24 horas; las programadas a futuro y las del historial son de consulta -->
+                      @if (detalleEsProxima()) {
+                        <ng-container *ngTemplateOutlet="acciones; context: { $implicit: d, conPlacas: true }"></ng-container>
+                      }
+                    </div>
+                  </div>
+                </div>
+              }
+    
+              <!-- Botón de acción según el estado de la visita -->
+              <ng-template #acciones let-v let-conPlacas="conPlacas">
+                @if (v.estado === 'programada') {
+                  <button
+                    type="button"
+                    (click)="registrarEntrada(v, conPlacas ? placasEntrada : undefined)"
+                    [disabled]="visitaEnProceso() === v.id"
+                    class="h-8 px-3 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+                    >
+                    {{ visitaEnProceso() === v.id ? 'Registrando...' : 'Registrar entrada' }}
+                  </button>
+                }
+                @if (v.estado === 'en_curso') {
+                  <button
+                    type="button"
+                    (click)="registrarSalida(v)"
+                    [disabled]="visitaEnProceso() === v.id"
+                    class="h-8 px-3 rounded-md bg-slate-800 hover:bg-slate-900 text-white text-xs font-medium transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+                    >
+                    {{ visitaEnProceso() === v.id ? 'Registrando...' : 'Registrar salida' }}
+                  </button>
+                }
+              </ng-template>
+    `
 })
 export class CasetaVisitasComponent implements OnInit, OnDestroy {
   readonly visitasService = inject(VisitasVigilanciaService);
