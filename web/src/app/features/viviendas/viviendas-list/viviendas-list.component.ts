@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit, HostListener } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, HostListener, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -14,6 +14,7 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
   selector: 'app-viviendas-list',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, DatePipe, ViviendasDetalleComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="p-4 sm:p-5 lg:p-6 w-full space-y-4 selection:bg-[#111C99] selection:text-white">
     

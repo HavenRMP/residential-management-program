@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, DestroyRef } from '@angular/core';
+import { Component, inject, signal, OnInit, DestroyRef, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -10,6 +10,7 @@ import Swal from 'sweetalert2';
   selector: 'app-perfil',
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="min-h-screen bg-[#F7F7F7] text-[#0f172a] font-sans antialiased p-4 sm:p-6 lg:p-10">
       <div class="max-w-2xl mx-auto">
@@ -100,7 +101,7 @@ import Swal from 'sweetalert2';
                 </div>
                 <div>
                   <dt class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Miembro desde</dt>
-                  <dd class="text-sm text-slate-800">{{ (user()?.creadoEn | date:'longDate') || 'No disponible' }}</dd>
+                  <dd class="text-sm text-slate-800">{{ ($safeNavigationMigration(user()?.creadoEn) | date:'longDate') || 'No disponible' }}</dd>
                 </div>
               </dl>
               <button

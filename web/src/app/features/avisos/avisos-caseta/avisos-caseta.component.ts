@@ -1,4 +1,4 @@
-import { Component, ElementRef, HostListener, ViewChild, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, ViewChild, computed, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AuthService } from '../../../core/services/auth.service';
 import { AvisosService } from '../../../core/services/avisos.service';
@@ -39,6 +39,7 @@ const ICONO: Record<AvisoPrioridad, string> = {
     .avisos-panel { animation: avisos-panel-entrada 160ms ease-out; }
     @media (prefers-reduced-motion: reduce) { .avisos-panel { animation: none; } }
   `],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <section class="rounded-xl border border-slate-200 bg-white shadow-xs" aria-labelledby="avisos-titulo">
       <div class="p-4 border-b border-slate-200 flex items-start justify-between gap-3">

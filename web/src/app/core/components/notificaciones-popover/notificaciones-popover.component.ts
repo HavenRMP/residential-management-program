@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 
 import { Router } from '@angular/router';
 import { NotificacionesService } from '../../services/notificaciones.service';
@@ -9,6 +9,7 @@ import { tiempoRelativo } from '../../utils/tiempo-relativo.util';
   selector: 'app-notificaciones-popover',
   standalone: true,
   imports: [],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="relative">
       <button

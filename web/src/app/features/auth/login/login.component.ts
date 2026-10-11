@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit, effect } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, effect, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -11,6 +11,7 @@ import Swal from 'sweetalert2';
   selector: 'app-login',
   standalone: true,
   imports: [ReactiveFormsModule, RouterLink],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="min-h-screen bg-[#F7F7F7] flex items-center justify-center p-6 font-sans antialiased text-[#0f172a] selection:bg-[#111C99] selection:text-white">
       <div class="w-full max-w-[480px] bg-white border border-[#e2e8f0] rounded-lg p-8 shadow-sm">

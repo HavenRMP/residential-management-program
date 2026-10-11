@@ -1,4 +1,4 @@
-import { Component, effect, inject, signal } from '@angular/core';
+import { Component, effect, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 
 import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
@@ -355,6 +355,7 @@ import { NotificacionesPopoverComponent } from '../../../core/components/notific
     
     </div>
     `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     @keyframes fadeInDirect {
       from {

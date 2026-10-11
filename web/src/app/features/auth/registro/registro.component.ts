@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, effect } from '@angular/core';
+import { Component, inject, signal, OnInit, effect, ChangeDetectionStrategy } from '@angular/core';
 
 import { AbstractControl, FormBuilder, FormGroup, ReactiveFormsModule, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -16,6 +16,7 @@ export const passwordMatchValidator: ValidatorFn = (control: AbstractControl): V
   selector: 'app-registro',
   standalone: true,
   imports: [ReactiveFormsModule, RouterLink],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="min-h-screen bg-[#F7F7F7] flex items-center justify-center p-4 sm:p-6 font-sans antialiased text-[#0f172a] selection:bg-[#111C99] selection:text-white py-12">
       <div class="w-full max-w-[540px] bg-white border border-[#e2e8f0] rounded-lg p-6 sm:p-8 shadow-sm">

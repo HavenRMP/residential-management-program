@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, HostListener, inject, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, Output, EventEmitter, HostListener, inject, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Vivienda } from '../../../core/models/vivienda.model';
@@ -12,6 +12,7 @@ import Swal from 'sweetalert2';
   selector: 'app-viviendas-detalle',
   standalone: true,
   imports: [CommonModule, DatePipe, FormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <!-- Backdrop Blur Overlay -->
     @if (isOpen) {
@@ -80,7 +81,7 @@ import Swal from 'sweetalert2';
               </span>
             </div>
             <p class="text-xs text-slate-400 mt-3 font-medium">
-              Registrada en sistema el {{ vivienda?.creadoEn | date:'dd/MM/yyyy' }}
+              Registrada en sistema el {{ $safeNavigationMigration(vivienda?.creadoEn) | date:'dd/MM/yyyy' }}
             </p>
           </div>
           <!-- Seccion: Residente Asignado (Issue #50) -->

@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink, ActivatedRoute, Router } from '@angular/router';
@@ -20,6 +20,7 @@ import { claseBadgePrioridad, etiquetaPrioridad, tiempoRestanteAviso } from '../
   selector: 'app-residente-dashboard',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, UserMenuComponent, NotificacionesPopoverComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="min-h-screen bg-slate-100 text-slate-900 font-sans antialiased">
     

@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, HostListener, inject, OnChanges, SimpleChanges, signal } from '@angular/core';
+import { Component, Input, Output, EventEmitter, HostListener, inject, OnChanges, SimpleChanges, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { Residente } from '../../../core/models/residente.model';
 import { Vivienda } from '../../../core/models/vivienda.model';
@@ -10,12 +10,13 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
   selector: 'app-residentes-detalle',
   standalone: true,
   imports: [CommonModule, DatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <!-- Sticky Drawer Top Bar -->
     <div class="sticky top-0 z-10 bg-white/95 backdrop-blur-md px-6 py-4 border-b border-slate-100 flex items-center justify-between">
       <div class="flex items-center gap-2.5">
         <div class="w-8 h-8 rounded-lg bg-[#111C99] text-white flex items-center justify-center font-bold text-xs shadow-2xs">
-          {{ getInitials(residente?.nombre, residente?.apellidos) }}
+          {{ getInitials($safeNavigationMigration(residente?.nombre), $safeNavigationMigration(residente?.apellidos)) }}
         </div>
         <span id="detalle-residente-title" class="text-sm font-bold text-slate-900 tracking-tight">Detalle del Residente</span>
       </div>
@@ -39,7 +40,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
         <!-- Hero Profile -->
         <div class="flex flex-col items-center text-center">
           <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-[#111C99] text-white font-bold text-2xl sm:text-3xl flex items-center justify-center shadow-md ring-4 ring-slate-100">
-            {{ getInitials(residente?.nombre, residente?.apellidos) }}
+            {{ getInitials($safeNavigationMigration(residente?.nombre), $safeNavigationMigration(residente?.apellidos)) }}
           </div>
           <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900 mt-4 tracking-tight">
             {{ residente?.nombre }} {{ residente?.apellidos }}
@@ -162,7 +163,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
               <svg class="w-4 h-4 text-[#111C99] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              <span>{{ residente?.creadoEn ? (residente?.creadoEn | date:'dd/MM/yyyy') : '—' }}</span>
+              <span>{{ residente?.creadoEn ? ($safeNavigationMigration(residente?.creadoEn) | date:'dd/MM/yyyy') : '—' }}</span>
             </div>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DirectorioCasasService } from '../../../core/services/directorio-casas.service';
 import { FilaDirectorio, filasDelDirectorio, telefonoParaLlamar } from '../../../core/utils/directorio-casas.util';
@@ -13,6 +13,7 @@ const POR_PAGINA = 30;
   selector: 'app-directorio-casas',
   standalone: true,
   imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <section class="rounded-xl border border-slate-200 bg-white shadow-xs" aria-labelledby="directorio-titulo">
       <div class="p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
