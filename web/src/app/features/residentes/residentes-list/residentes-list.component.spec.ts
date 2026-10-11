@@ -1,6 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
+import { By } from '@angular/platform-browser';
 import { ResidentesListComponent } from './residentes-list.component';
+import { ResidentesDetalleComponent } from '../residentes-detalle/residentes-detalle.component';
 import { ResidentesService } from '../../../core/services/residentes.service';
 import { ViviendasService } from '../../../core/services/viviendas.service';
 import { SubusuariosService } from '../../../core/services/subusuarios.service';
@@ -98,5 +100,28 @@ describe('ResidentesListComponent (sub-usuarios)', () => {
     expect(textoFila('Residente Prueba')).toContain('PRUEBA-01');
     expect(textoFila('Subusuario')).toContain('Sin vivienda');
     expect(fixture.nativeElement.textContent).not.toContain('No fue posible cargar');
+  });
+
+  it('al desvincular desde el detalle vuelve a consultar con datos frescos', async () => {
+    await crear();
+    residentes.listar.calls.reset();
+    viviendas.obtenerMapaViviendasPorResidente.calls.reset();
+
+    await component.alDesvincular();
+
+    expect(residentes.listar).toHaveBeenCalledWith(false, true);
+    expect(viviendas.obtenerMapaViviendasPorResidente).toHaveBeenCalledWith(true);
+  });
+
+  it('el detalle abierto avisa y la lista se refresca', async () => {
+    await crear();
+    component.verDetalle(titular);
+    fixture.detectChanges();
+    spyOn(component, 'alDesvincular').and.resolveTo();
+
+    const detalle = fixture.debugElement.query(By.directive(ResidentesDetalleComponent)).componentInstance as ResidentesDetalleComponent;
+    detalle.desvinculado.emit();
+
+    expect(component.alDesvincular).toHaveBeenCalled();
   });
 });
