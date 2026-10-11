@@ -58,21 +58,24 @@ public class ReservasController : ControllerBase
 
         try
         {
+            var fromUtc = from.ToUniversalTime();
+            var toUtc = to.ToUniversalTime();
+
             if (rolNombre.EsAdministrador())
             {
-                var result = await _supabaseService.GetCalendarioAdminAsync(condominioId.Value, from, to, areaId, paginationParams);
+                var result = await _supabaseService.GetCalendarioAdminAsync(condominioId.Value, fromUtc, toUtc, areaId, paginationParams);
                 var items = result.Items?.Select(MapToCamelCase).ToList() ?? new System.Collections.Generic.List<object>();
                 return Ok(PagedResult<object>.Create(items, paginationParams, result.TotalCount ?? 0));
             }
             else if (rolNombre.EsResidente())
             {
-                var result = await _supabaseService.GetCalendarioAsync(condominioId.Value, from, to, areaId, false, paginationParams);
+                var result = await _supabaseService.GetCalendarioAsync(condominioId.Value, fromUtc, toUtc, areaId, false, paginationParams);
                 var items = result.Items?.Select(MapToCamelCase).ToList() ?? new System.Collections.Generic.List<object>();
                 return Ok(PagedResult<object>.Create(items, paginationParams, result.TotalCount ?? 0));
             }
             else if (rolNombre.EsRolDeSoloLectura())
             {
-                var result = await _supabaseService.GetCalendarioAsync(condominioId.Value, from, to, areaId, true, paginationParams);
+                var result = await _supabaseService.GetCalendarioAsync(condominioId.Value, fromUtc, toUtc, areaId, true, paginationParams);
                 var items = result.Items?.Select(MapToCamelCase).ToList() ?? new System.Collections.Generic.List<object>();
                 return Ok(PagedResult<object>.Create(items, paginationParams, result.TotalCount ?? 0));
             }
