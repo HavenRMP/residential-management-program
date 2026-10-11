@@ -1,5 +1,5 @@
 import { ViviendaConResidentes } from '../models/vivienda.model';
-import { filasDelDirectorio, filtrarDirectorio, normalizarBusqueda, telefonoParaLlamar, todasLasPersonas } from './directorio-casas.util';
+import { filasDelDirectorio, filtrarDirectorio, normalizarBusqueda, ocupacionPorVivienda, telefonoParaLlamar, todasLasPersonas } from './directorio-casas.util';
 
 const casas: ViviendaConResidentes[] = [
   {
@@ -66,6 +66,33 @@ describe('directorio-casas.util', () => {
       'A-12|Ana López|null',
       'PRUEBA-01|Residente Prueba|5512345678'
     ]);
+  });
+
+  describe('ocupacionPorVivienda', () => {
+    it('indexa por id y marca ocupadas las casas con residentes', () => {
+      const mapa = ocupacionPorVivienda(casas);
+
+      expect(mapa.get(1)).toEqual({ ocupada: true, total: 2 });
+      expect(mapa.get(2)).toEqual({ ocupada: false, total: 0 });
+      expect(mapa.get(3)).toEqual({ ocupada: true, total: 1 });
+      expect(mapa.size).toBe(3);
+    });
+
+    it('una casa con residentes cuenta como ocupada aunque el backend no la marque', () => {
+      const mapa = ocupacionPorVivienda([{ ...casas[0], estaOcupada: false }]);
+
+      expect(mapa.get(1)?.ocupada).toBeTrue();
+    });
+
+    it('una casa marcada ocupada por el backend lo es aunque no traiga residentes', () => {
+      const mapa = ocupacionPorVivienda([{ ...casas[1], estaOcupada: true }]);
+
+      expect(mapa.get(2)?.ocupada).toBeTrue();
+    });
+
+    it('sin casas devuelve un mapa vacío', () => {
+      expect(ocupacionPorVivienda([]).size).toBe(0);
+    });
   });
 
   it('sin consulta lista todo y con consulta filtra', () => {
