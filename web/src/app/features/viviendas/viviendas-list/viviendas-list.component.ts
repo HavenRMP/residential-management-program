@@ -6,6 +6,7 @@ import Swal from 'sweetalert2';
 import { ViviendasService } from '../../../core/services/viviendas.service';
 import { DirectorioCasasService } from '../../../core/services/directorio-casas.service';
 import { Vivienda } from '../../../core/models/vivienda.model';
+import { OcupacionCasa, ocupacionPorVivienda } from '../../../core/utils/directorio-casas.util';
 import { CondominiosService } from '../../../core/services/condominios.service';
 import { Condominio } from '../../../core/models/condominio.model';
 import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detalle.component';
@@ -603,15 +604,9 @@ export class ViviendasListComponent implements OnInit {
   });
 
   /** Ocupación por id de vivienda, tomada del directorio con residentes */
-  private readonly ocupacionPorId = computed(() => {
-    const mapa = new Map<number, { ocupada: boolean; total: number }>();
-    for (const c of this.directorio.casas()) {
-      mapa.set(c.id, { ocupada: c.estaOcupada || c.totalResidentes > 0, total: c.totalResidentes });
-    }
-    return mapa;
-  });
+  private readonly ocupacionPorId = computed(() => ocupacionPorVivienda(this.directorio.casas()));
 
-  ocupacionDe(id: number): { ocupada: boolean; total: number } | null {
+  ocupacionDe(id: number): OcupacionCasa | null {
     return this.ocupacionPorId().get(id) ?? null;
   }
 
