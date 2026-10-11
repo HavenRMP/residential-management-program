@@ -5,6 +5,7 @@ import { SubusuariosService } from '../../../core/services/subusuarios.service';
 import { Residente } from '../../../core/models/residente.model';
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { SimpleChange } from '@angular/core';
+import Swal from 'sweetalert2';
 
 describe('ResidentesDetalleComponent', () => {
   let component: ResidentesDetalleComponent;
@@ -31,8 +32,10 @@ describe('ResidentesDetalleComponent', () => {
 
   beforeEach(async () => {
     mockViviendasService = jasmine.createSpyObj('ViviendasService', [
-      'obtenerViviendasDeResidente'
+      'obtenerViviendasDeResidente',
+      'desvincularResidente'
     ]);
+    mockViviendasService.desvincularResidente.and.resolveTo();
     mockViviendasService.obtenerViviendasDeResidente.and.resolveTo([mockVivienda]);
     mockSubusuariosService = jasmine.createSpyObj('SubusuariosService', ['listarPorVivienda']);
     mockSubusuariosService.listarPorVivienda.and.resolveTo([]);
@@ -109,6 +112,82 @@ describe('ResidentesDetalleComponent', () => {
     });
 
     expect(mockViviendasService.obtenerViviendasDeResidente).toHaveBeenCalledWith('res-123');
+  });
+
+  describe('desvincular de una vivienda', () => {
+    const texto = () => (fixture.nativeElement as HTMLElement).textContent!.replace(/\s+/g, ' ');
+    const boton = () => fixture.nativeElement.querySelector('button[aria-label^="Desvincular"]') as HTMLButtonElement | null;
+    let swal: jasmine.Spy;
+
+    function abrir(): void {
+      component.residente = mockResidente;
+      component.viviendas = [mockVivienda];
+      component.ngOnChanges({ viviendas: new SimpleChange(null, [mockVivienda], true) });
+      fixture.detectChanges();
+    }
+
+    beforeEach(() => {
+      swal = spyOn(Swal, 'fire').and.callFake(((o: any) => Promise.resolve({ isConfirmed: !o.toast && o.showCancelButton === true })) as any);
+    });
+
+    it('cada vivienda asignada trae su botón Desvincular', () => {
+      abrir();
+
+      expect(boton()).not.toBeNull();
+      expect(boton()!.getAttribute('aria-label')).toBe('Desvincular a Angel de Casa 105');
+    });
+
+    it('al confirmar la quita del residente, la quita de la lista y avisa al padre', async () => {
+      const avisos: string[] = [];
+      component.desvinculado.subscribe(() => avisos.push('refrescar'));
+      abrir();
+
+      await component.confirmarDesvinculacion(mockVivienda);
+      fixture.detectChanges();
+
+      expect(mockViviendasService.desvincularResidente).toHaveBeenCalledOnceWith(101, 'res-123');
+      expect(component.viviendasAsignadas()).toEqual([]);
+      expect(avisos).toEqual(['refrescar']);
+      expect(texto()).toContain('Sin vivienda vinculada');
+      expect((swal.calls.argsFor(0)[0] as any).text).toContain('Su cuenta no se borra');
+    });
+
+    it('si cancela la confirmación no llama al servicio ni cambia nada', async () => {
+      swal.and.returnValue(Promise.resolve({ isConfirmed: false } as any));
+      abrir();
+
+      await component.confirmarDesvinculacion(mockVivienda);
+
+      expect(mockViviendasService.desvincularResidente).not.toHaveBeenCalled();
+      expect(component.viviendasAsignadas().length).toBe(1);
+    });
+
+    it('si el backend falla muestra el motivo claro, conserva la vivienda y no avisa al padre', async () => {
+      spyOn(console, 'error');
+      mockViviendasService.desvincularResidente.and.rejectWith({ status: 400, error: { error: 'La asignación ya no existe.' } });
+      const avisos: string[] = [];
+      component.desvinculado.subscribe(() => avisos.push('refrescar'));
+      abrir();
+
+      await component.confirmarDesvinculacion(mockVivienda);
+
+      expect(component.viviendasAsignadas().length).toBe(1);
+      expect(avisos).toEqual([]);
+      expect(component.desvinculando()).toBeNull();
+      const error = swal.calls.mostRecent().args[0] as any;
+      expect(error.icon).toBe('error');
+      expect(error.text).toBe('La asignación ya no existe.');
+    });
+
+    it('oculta el JSON técnico del backend con un mensaje genérico', async () => {
+      spyOn(console, 'error');
+      mockViviendasService.desvincularResidente.and.rejectWith({ status: 500, error: { error: 'Error desde Supabase: {"code":"XX000"}' } });
+      abrir();
+
+      await component.confirmarDesvinculacion(mockVivienda);
+
+      expect((swal.calls.mostRecent().args[0] as any).text).toBe('No fue posible quitar la vivienda. Intenta de nuevo en unos segundos.');
+    });
   });
 
   describe('residente que es sub-usuario de otra casa', () => {
