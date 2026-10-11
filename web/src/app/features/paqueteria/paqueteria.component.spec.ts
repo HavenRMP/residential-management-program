@@ -232,6 +232,119 @@ describe('PaqueteriaComponent', () => {
     });
   });
 
+  describe('corregir y cancelar un aviso', () => {
+    let swal: jasmine.Spy;
+    const botonDe = (nombre: string, tarjeta = 0) =>
+      Array.from(tarjetas()[tarjeta].querySelectorAll('button')).find(b => b.textContent!.trim() === nombre);
+
+    beforeEach(() => {
+      swal = spyOn(Swal, 'fire').and.resolveTo({ isConfirmed: true, value: '' } as any);
+    });
+
+    it('solo un esperado vigente trae Editar y Cancelar', async () => {
+      await abrir([
+        paquete('e1'),
+        paquete('r1', { estado: 'recibido', recibidoEn: '2026-10-11T08:00:00Z' }),
+        paquete('v1', { fechaEsperadaHasta: '2020-01-01T00:00:00Z' })
+      ]);
+
+      // Pendientes: primero el recibido (sin acciones) y luego el esperado
+      expect(botonDe('Editar', 0)).toBeUndefined();
+      expect(botonDe('Cancelar', 0)).toBeUndefined();
+      expect(botonDe('Editar', 1)).toBeDefined();
+      expect(botonDe('Cancelar', 1)).toBeDefined();
+
+      boton('Historial')!.click();
+      fixture.detectChanges();
+      expect(botonDe('Editar', 0)).toBeUndefined();
+      expect(botonDe('Cancelar', 0)).toBeUndefined();
+    });
+
+    it('Editar abre el formulario con los datos del paquete', async () => {
+      await abrir([paquete('e1', { numeroGuia: 'ML-9845' })]);
+
+      botonDe('Editar')!.click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const form = fixture.debugElement.query(By.directive(PaqueteFormComponent));
+      expect(form).not.toBeNull();
+      expect(texto()).toContain('Editar paquete');
+      expect((fixture.nativeElement.querySelector('#paq-guia') as HTMLInputElement).value).toBe('ML-9845');
+    });
+
+    it('cancelar con motivo lo envía y pasa el aviso al historial', async () => {
+      await abrir([paquete('e1')]);
+      swal.and.resolveTo({ isConfirmed: true, value: 'Cancelé la compra' } as any);
+      api.post.and.returnValue(of(undefined));
+
+      await fixture.componentInstance.confirmarCancelar(paquete('e1'));
+      fixture.detectChanges();
+
+      expect(api.post).toHaveBeenCalledWith('/api/paqueteria/e1/cancelar', { motivo: 'Cancelé la compra' }, undefined, 'visitas');
+      expect(texto()).toContain('Pendientes (0)');
+      expect(texto()).toContain('Historial (1)');
+      expect((swal.calls.mostRecent().args[0] as any).title).toBe('Aviso cancelado');
+    });
+
+    it('si se arrepiente no cancela nada', async () => {
+      await abrir([paquete('e1')]);
+      swal.and.resolveTo({ isConfirmed: false } as any);
+
+      await fixture.componentInstance.confirmarCancelar(paquete('e1'));
+
+      expect(api.post).not.toHaveBeenCalled();
+    });
+
+    it('si ya llegó a caseta (409) lo explica y actualiza la lista', async () => {
+      spyOn(console, 'error');
+      await abrir([paquete('e1')]);
+      api.post.and.returnValue(throwError(() => ({ status: 409 })));
+      api.get.calls.reset();
+      api.get.and.returnValue(of({ items: [paquete('e1', { estado: 'recibido' })], totalCount: 1 }));
+
+      await fixture.componentInstance.confirmarCancelar(paquete('e1'));
+      fixture.detectChanges();
+
+      const aviso = swal.calls.mostRecent().args[0] as any;
+      expect(aviso.icon).toBe('info');
+      expect(aviso.text).toContain('Ya no se puede cancelar');
+      expect(api.get).toHaveBeenCalled();
+      expect(texto()).toContain('Tienes 1 paquete en caseta');
+    });
+
+    it('un fallo del servidor oculta el JSON técnico y no cambia la lista', async () => {
+      spyOn(console, 'error');
+      await abrir([paquete('e1')]);
+      api.post.and.returnValue(throwError(() => ({ status: 500, error: { error: 'Error desde Supabase: {"code":"XX000"}' } })));
+
+      await fixture.componentInstance.confirmarCancelar(paquete('e1'));
+      fixture.detectChanges();
+
+      const aviso = swal.calls.mostRecent().args[0] as any;
+      expect(aviso.icon).toBe('error');
+      expect(aviso.text).toBe('No fue posible cancelar el aviso. Intenta de nuevo en unos segundos.');
+      expect(texto()).toContain('Pendientes (1)');
+    });
+
+    it('si el formulario avisa que el paquete cambió, se cierra y se refresca la lista', async () => {
+      await abrir([paquete('e1')]);
+      botonDe('Editar')!.click();
+      fixture.detectChanges();
+      api.get.calls.reset();
+      api.get.and.returnValue(of({ items: [paquete('e1', { estado: 'recibido' })], totalCount: 1 }));
+
+      (fixture.debugElement.query(By.directive(PaqueteFormComponent)).componentInstance as PaqueteFormComponent).obsoleto.emit();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(fixture.debugElement.query(By.directive(PaqueteFormComponent))).toBeNull();
+      expect(api.get).toHaveBeenCalled();
+      expect(texto()).toContain('Tienes 1 paquete en caseta');
+    });
+  });
+
   it('con varias viviendas indica a qué casa pertenece cada paquete', async () => {
     viviendas.obtenerMisViviendas.and.resolveTo([{ id: 33, numeroCasa: 'PRUEBA-01' }, { id: 34, numeroCasa: 'PRUEBA-02' }]);
     await abrir([paquete('p1', { numeroCasa: 'PRUEBA-02' })]);
