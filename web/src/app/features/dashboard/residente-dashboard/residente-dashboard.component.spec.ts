@@ -4,6 +4,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { ViviendasService } from '../../../core/services/viviendas.service';
 import { CondominiosService } from '../../../core/services/condominios.service';
 import { AvisosService } from '../../../core/services/avisos.service';
+import { PaqueteriaService } from '../../../core/services/paqueteria.service';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient, withXhr } from '@angular/common/http';
@@ -17,6 +18,7 @@ describe('ResidenteDashboardComponent', () => {
   let mockViviendasService: any;
   let mockCondominiosService: any;
   let mockAvisosService: any;
+  let mockPaqueteriaService: any;
 
   const avisoMock: Aviso = {
     id: 'aviso-1',
@@ -57,6 +59,10 @@ describe('ResidenteDashboardComponent', () => {
       cargarAvisos: jasmine.createSpy('cargarAvisos').and.returnValue(Promise.resolve([avisoMock]))
     };
 
+    mockPaqueteriaService = {
+      contarEnCaseta: jasmine.createSpy('contarEnCaseta').and.resolveTo(0)
+    };
+
     await TestBed.configureTestingModule({
       imports: [ResidenteDashboardComponent],
       providers: [
@@ -64,6 +70,7 @@ describe('ResidenteDashboardComponent', () => {
         { provide: ViviendasService, useValue: mockViviendasService },
         { provide: CondominiosService, useValue: mockCondominiosService },
         { provide: AvisosService, useValue: mockAvisosService },
+        { provide: PaqueteriaService, useValue: mockPaqueteriaService },
         provideRouter([]),
         provideHttpClient(withXhr()),
         provideHttpClientTesting()
@@ -102,6 +109,34 @@ describe('ResidenteDashboardComponent', () => {
       const lista = component.avisosService.vigentes();
       expect(lista.length).toBeGreaterThan(0);
       expect(new Date(lista[0].creadoEn).getTime()).toBeLessThanOrEqual(Date.now());
+    });
+  });
+
+  describe('Acceso a paquetería', () => {
+    const botonPaqueteria = (f: ComponentFixture<ResidenteDashboardComponent>) =>
+      f.nativeElement.querySelector('a[href="/dashboard/residente/paquetes"]') as HTMLElement | null;
+
+    async function abrirPortal(): Promise<ComponentFixture<ResidenteDashboardComponent>> {
+      const f = TestBed.createComponent(ResidenteDashboardComponent);
+      f.detectChanges();
+      await f.whenStable();
+      f.detectChanges();
+      return f;
+    }
+
+    it('muestra el botón sin insignia cuando no hay paquetes en caseta', async () => {
+      const f = await abrirPortal();
+
+      expect(botonPaqueteria(f)?.textContent).toContain('Paquetería');
+      expect(botonPaqueteria(f)?.textContent).not.toContain('en caseta');
+    });
+
+    it('muestra cuántos paquetes esperan en caseta', async () => {
+      mockPaqueteriaService.contarEnCaseta.and.resolveTo(2);
+
+      const f = await abrirPortal();
+
+      expect(botonPaqueteria(f)?.textContent?.replace(/\s+/g, ' ')).toContain('2 en caseta');
     });
   });
 
