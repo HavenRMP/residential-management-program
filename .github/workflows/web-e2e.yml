@@ -1,0 +1,59 @@
+name: Web E2E
+
+# Solo se lanza a mano: usa cuentas de prueba y datos reales del condominio Maderas.
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'URL de la web a probar (vacío: levanta la app del código de esta rama)'
+        required: false
+        default: ''
+      datos_permanentes:
+        description: 'Incluir recorridos que dejan datos que no se pueden borrar (paquetes entregados)'
+        type: boolean
+        default: false
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: web
+    env:
+      E2E_BASE_URL: ${{ inputs.base_url }}
+      E2E_DATOS_PERMANENTES: ${{ inputs.datos_permanentes && '1' || '' }}
+      E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+      E2E_RESIDENTE_EMAIL: ${{ secrets.E2E_RESIDENTE_EMAIL }}
+      E2E_RESIDENTE_PASSWORD: ${{ secrets.E2E_RESIDENTE_PASSWORD }}
+      E2E_VIGILANTE_EMAIL: ${{ secrets.E2E_VIGILANTE_EMAIL }}
+      E2E_VIGILANTE_PASSWORD: ${{ secrets.E2E_VIGILANTE_PASSWORD }}
+      E2E_SUBUSUARIO_EMAIL: ${{ secrets.E2E_SUBUSUARIO_EMAIL }}
+      E2E_SUBUSUARIO_PASSWORD: ${{ secrets.E2E_SUBUSUARIO_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run e2e tests
+        run: npm run e2e
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            web/playwright-report
+            web/test-results
+          retention-days: 14
