@@ -28,7 +28,8 @@ public class ReservasApiFactory : WebApplicationFactory<Program>
                 { "Supabase:Url", "http://localhost:54321" },
                 { "Supabase:AnonKey", "test-anon-key" },
                 { "Supabase:ServiceRoleKey", "test-service-key" },
-                { "DevTools:ApiKey", "test-dev-key" }
+                { "DevTools:ApiKey", "test-dev-key" },
+                { "PushWorker:Enabled", "false" }
             });
         });
 
