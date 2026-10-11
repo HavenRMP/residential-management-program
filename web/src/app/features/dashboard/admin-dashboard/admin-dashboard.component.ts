@@ -6,6 +6,8 @@ import { AuthService } from '../../../core/services/auth.service';
 import { ViviendasService } from '../../../core/services/viviendas.service';
 import { ResidentesService } from '../../../core/services/residentes.service';
 import { CondominiosService } from '../../../core/services/condominios.service';
+import { DirectorioCasasService } from '../../../core/services/directorio-casas.service';
+import { ocupacionPorVivienda } from '../../../core/utils/directorio-casas.util';
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { Residente } from '../../../core/models/residente.model';
 import { extractPagedItems } from '../../../core/models/pagination.model';
@@ -320,6 +322,7 @@ export class AdminDashboardComponent implements OnInit {
   private readonly condominiosService = inject(CondominiosService);
   private readonly viviendasService = inject(ViviendasService);
   private readonly residentesService = inject(ResidentesService);
+  private readonly directorioService = inject(DirectorioCasasService);
 
   readonly currentUser = this.authService.currentUser;
   readonly condominioActual = this.condominiosService.condominioActual;
@@ -342,10 +345,14 @@ export class AdminDashboardComponent implements OnInit {
     this.loading.set(true);
     this.errorMessage.set(null);
     try {
+      // La ocupación sale de una sola consulta (con las casas y sus residentes) en vez de una petición por vivienda
       const [viviendasRaw, residentesRaw] = await Promise.all([
         this.viviendasService.listar(undefined, undefined, forceRefresh),
-        this.residentesService.listar(false, forceRefresh)
+        this.residentesService.listar(false, forceRefresh),
+        this.directorioService.cargar(forceRefresh)
       ]);
+      // El directorio guarda su error en vez de lanzarlo: sin él no se puede calcular la ocupación y no hay que mostrar 0%
+      if (this.directorioService.errorMessage()) throw new Error(this.directorioService.errorMessage()!);
 
       const viviendas = extractPagedItems<Vivienda>(viviendasRaw);
       const residentes = extractPagedItems<Residente>(residentesRaw);
@@ -354,29 +361,10 @@ export class AdminDashboardComponent implements OnInit {
       this.totalResidentes.set(residentes.length);
 
       if (viviendas.length > 0) {
-        // Consultar el estado de asignación en lotes concurrentes (chunks de 6) para no saturar el pool de red
-        const chunkSize = 6;
-        const asignaciones: Residente[][] = [];
-        for (let i = 0; i < viviendas.length; i += chunkSize) {
-          const chunk = viviendas.slice(i, i + chunkSize);
-          const chunkResults = await Promise.all(
-            chunk.map(v => this.viviendasService.obtenerResidentesVivienda(v.id, forceRefresh).catch(() => []))
-          );
-          asignaciones.push(...chunkResults);
-        }
+        const ocupacion = ocupacionPorVivienda(this.directorioService.casas());
+        const viviendasConEstado = viviendas.map(v => ({ ...v, asignada: ocupacion.get(v.id)?.ocupada === true }));
 
-        let totalOcupadas = 0;
-        const viviendasConEstado = viviendas.map((v, i) => {
-          const res = asignaciones[i] || [];
-          const itemsRes = extractPagedItems<Residente>(res);
-          const tieneResidentes = itemsRes.length > 0;
-          if (tieneResidentes) {
-            totalOcupadas++;
-          }
-          return { ...v, asignada: tieneResidentes };
-        });
-
-        this.viviendasAsignadas.set(totalOcupadas);
+        this.viviendasAsignadas.set(viviendasConEstado.filter(v => v.asignada).length);
         this.viviendasResumen.set(viviendasConEstado.slice(0, 5));
       } else {
         this.viviendasAsignadas.set(0);
