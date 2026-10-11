@@ -119,6 +119,11 @@ export const routes: Routes = [
     redirectTo: 'dashboard/residente/visitas'
   },
   {
+    // url_redireccion de la notificación "¡Tu paquete ha llegado!" (Visitas.Api): /paquetes/{id}
+    path: 'paquetes/:id',
+    redirectTo: 'dashboard/residente/paquetes'
+  },
+  {
     path: 'dashboard/vigilante',
     canActivate: [authGuard, roleGuard(['vigilante'])],
     loadComponent: () =>
