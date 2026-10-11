@@ -1,0 +1,182 @@
+# Los tokens de acceso JWT (access_token) se obtienen de la sesión de autenticación de Supabase.
+# Reemplazar YOUR_ACCESS_TOKEN con el Bearer token correspondiente al usuario y rol según cada operación.
+
+@Reservas.Api_HostAddress = http://localhost:5218
+@AreaId = e0000000-0000-0000-0000-000000000001
+@ReservaId = 3fa85f64-5717-4562-b3fc-2c963f66afa6
+@UsuarioId = 7c9e6679-7425-40de-944b-e07fc1f90ae7
+
+# ==============================================================================
+# ÁREAS COMUNES (AreasController)
+# ==============================================================================
+
+### GET /api/areas (Listar áreas comunes)
+GET {{Reservas.Api_HostAddress}}/api/areas?soloActivas=true&page=1&pageSize=10
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+### GET /api/areas/{id} (Obtener área común por ID)
+GET {{Reservas.Api_HostAddress}}/api/areas/{{AreaId}}
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+### POST /api/areas (Crear área común, rol: Administrador)
+POST {{Reservas.Api_HostAddress}}/api/areas
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Content-Type: application/json
+Accept: application/json
+
+{
+  "nombre": "Alberca Principal",
+  "descripcion": "Área de alberca, camastros y asadores para eventos",
+  "horaApertura": "08:00:00",
+  "horaCierre": "20:00:00"
+}
+
+### PUT /api/areas/{id} (Actualizar área común, rol: Administrador)
+PUT {{Reservas.Api_HostAddress}}/api/areas/{{AreaId}}
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Content-Type: application/json
+Accept: application/json
+
+{
+  "nombre": "Alberca Principal Renovada",
+  "descripcion": "Área de alberca climatizada con camastros",
+  "horaApertura": "07:00:00",
+  "horaCierre": "21:00:00"
+}
+
+### DELETE /api/areas/{id} (Dar de baja área común, rol: Administrador)
+DELETE {{Reservas.Api_HostAddress}}/api/areas/{{AreaId}}
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+### POST /api/areas/{id}/reactivar (Reactivar área común, rol: Administrador)
+POST {{Reservas.Api_HostAddress}}/api/areas/{{AreaId}}/reactivar
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+
+# ==============================================================================
+# RESERVAS DE RESIDENTES (ReservasController)
+# ==============================================================================
+
+### GET /api/reservas/calendario (Consultar calendario de reservas)
+GET {{Reservas.Api_HostAddress}}/api/reservas/calendario?from=2026-10-20T00:00:00Z&to=2026-10-27T00:00:00Z&areaId={{AreaId}}&page=1&pageSize=20
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+### GET /api/reservas/mias (Listar mis reservas, rol: Residente)
+GET {{Reservas.Api_HostAddress}}/api/reservas/mias?estado=aprobada&page=1&pageSize=10
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+### GET /api/reservas/por-aprobar-titular (Reservas pendientes del titular, rol: Residente)
+GET {{Reservas.Api_HostAddress}}/api/reservas/por-aprobar-titular?page=1&pageSize=10
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+### POST /api/reservas (Solicitar reserva, rol: Residente)
+POST {{Reservas.Api_HostAddress}}/api/reservas
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Content-Type: application/json
+Accept: application/json
+
+{
+  "areaId": "{{AreaId}}",
+  "inicio": "2026-10-25T14:00:00Z",
+  "fin": "2026-10-25T18:00:00Z"
+}
+
+### POST /api/reservas/{id}/aprobar-titular (Aprobar reserva por titular, rol: Residente)
+POST {{Reservas.Api_HostAddress}}/api/reservas/{{ReservaId}}/aprobar-titular
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+### POST /api/reservas/{id}/rechazar-titular (Rechazar reserva por titular, rol: Residente)
+POST {{Reservas.Api_HostAddress}}/api/reservas/{{ReservaId}}/rechazar-titular
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Content-Type: application/json
+Accept: application/json
+
+{
+  "motivo": "No estaré presente en el domicilio durante ese fin de semana"
+}
+
+### POST /api/reservas/{id}/confirmar (Confirmar asistencia a reserva, rol: Residente)
+POST {{Reservas.Api_HostAddress}}/api/reservas/{{ReservaId}}/confirmar
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+### POST /api/reservas/{id}/cancelar (Cancelar reserva, rol: Residente)
+POST {{Reservas.Api_HostAddress}}/api/reservas/{{ReservaId}}/cancelar
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Content-Type: application/json
+Accept: application/json
+
+{
+  "motivo": "Cancelación por cambio de planes familiares"
+}
+
+
+# ==============================================================================
+# ADMINISTRACIÓN DE RESERVAS (AdminReservasController)
+# ==============================================================================
+
+### GET /api/admin/reservas (Listar reservas para administrador, rol: Administrador)
+GET {{Reservas.Api_HostAddress}}/api/admin/reservas?estado=pendiente_admin&areaId={{AreaId}}&from=2026-10-20T00:00:00Z&to=2026-10-27T00:00:00Z&page=1&pageSize=10
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+### GET /api/admin/reservas/no-shows (Listar historial de no-shows, rol: Administrador)
+GET {{Reservas.Api_HostAddress}}/api/admin/reservas/no-shows?titularId={{UsuarioId}}&page=1&pageSize=10
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+### POST /api/admin/reservas/{id}/aprobar (Aprobar reserva por admin, rol: Administrador)
+POST {{Reservas.Api_HostAddress}}/api/admin/reservas/{{ReservaId}}/aprobar
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+### POST /api/admin/reservas/{id}/rechazar (Rechazar reserva por admin, rol: Administrador)
+POST {{Reservas.Api_HostAddress}}/api/admin/reservas/{{ReservaId}}/rechazar
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Content-Type: application/json
+Accept: application/json
+
+{
+  "motivo": "Área reservada para evento oficial del condominio"
+}
+
+### POST /api/admin/reservas/{id}/cancelar (Cancelar reserva por admin, rol: Administrador)
+POST {{Reservas.Api_HostAddress}}/api/admin/reservas/{{ReservaId}}/cancelar
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Content-Type: application/json
+Accept: application/json
+
+{
+  "motivo": "Cierre de instalaciones por contingencia climática"
+}
+
+### POST /api/admin/reservas/{id}/no-utilizada (Marcar no-show, rol: Administrador)
+POST {{Reservas.Api_HostAddress}}/api/admin/reservas/{{ReservaId}}/no-utilizada
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+
+# ==============================================================================
+# BLOQUEOS DE ÁREAS (BloqueosController)
+# ==============================================================================
+
+### POST /api/admin/bloqueos (Crear bloqueo de área común, rol: Administrador)
+POST {{Reservas.Api_HostAddress}}/api/admin/bloqueos
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Content-Type: application/json
+Accept: application/json
+
+{
+  "areaId": "{{AreaId}}",
+  "inicio": "2026-10-28T08:00:00Z",
+  "fin": "2026-10-28T18:00:00Z",
+  "motivo": "Mantenimiento preventivo general y pintura de alberca"
+}
