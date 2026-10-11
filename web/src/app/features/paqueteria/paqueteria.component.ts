@@ -2,6 +2,7 @@ import { Component, ChangeDetectionStrategy, OnInit, computed, inject, signal } 
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import Swal from 'sweetalert2';
 import { AuthService } from '../../core/services/auth.service';
 import { ViviendasService } from '../../core/services/viviendas.service';
 import { PaqueteriaService } from '../../core/services/paqueteria.service';
@@ -11,9 +12,11 @@ import {
   Paquete,
   estadoEfectivoPaquete,
   paqueteCoincideConBusqueda,
+  puedeModificarPaquete,
   textoVentanaPaquete
 } from '../../core/models/paquete.model';
 import { formatearFechaVisita } from '../../core/models/visita.model';
+import { mensajeAmigable } from '../../core/utils/api-errors.util';
 import { Vivienda } from '../../core/models/vivienda.model';
 import { UserMenuComponent } from '../../core/components/user-menu/user-menu.component';
 import { PaqueteFormComponent } from './paquete-form/paquete-form.component';
@@ -243,6 +246,26 @@ type Pestana = 'pendientes' | 'historial';
                     @if (estadoDe(p) === 'vencido') {
                       <p class="text-xs text-amber-700">La fecha en que lo esperabas ya pasó.</p>
                     }
+                    @if (puedeModificar(p)) {
+                      <div class="flex items-center gap-1.5 pt-1">
+                        <button
+                          type="button"
+                          (click)="abrirFormulario(p)"
+                          [attr.aria-label]="'Editar el paquete de ' + (p.servicioNombre || 'tu pedido')"
+                          class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                          >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          (click)="confirmarCancelar(p)"
+                          [attr.aria-label]="'Cancelar el aviso del paquete de ' + (p.servicioNombre || 'tu pedido')"
+                          class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
+                          >
+                          Cancelar
+                        </button>
+                      </div>
+                    }
                   </li>
                 }
               </ul>
@@ -258,8 +281,10 @@ type Pestana = 'pendientes' | 'historial';
         [viviendaInicial]="viviendas()[0]?.id ?? null"
         [servicios]="paqueteriaService.servicios()"
         [nombreSugerido]="nombreSugerido()"
+        [paquete]="paqueteEditando()"
         (cerrado)="cerrarFormulario()"
         (guardado)="alGuardar()"
+        (obsoleto)="alObsoleto()"
       />
     }
   `
@@ -276,6 +301,8 @@ export class PaqueteriaComponent implements OnInit {
   readonly pestana = signal<Pestana>('pendientes');
   readonly busqueda = signal<string>('');
   readonly formularioAbierto = signal<boolean>(false);
+  /** Paquete que se está corrigiendo; null cuando el formulario da de alta un aviso nuevo */
+  readonly paqueteEditando = signal<Paquete | null>(null);
 
   /** Nombre de quien avisa; es el destinatario más común */
   readonly nombreSugerido = computed(() => {
@@ -294,6 +321,8 @@ export class PaqueteriaComponent implements OnInit {
     try {
       this.viviendas.set(await this.viviendasService.obtenerMisViviendas());
       if (this.viviendas().length > 0) {
+        // El catálogo se pide en paralelo para que ya esté listo cuando se abra el formulario
+        void this.paqueteriaService.cargarServicios();
         await this.paqueteriaService.cargar();
       }
     } finally {
@@ -313,14 +342,62 @@ export class PaqueteriaComponent implements OnInit {
     await this.paqueteriaService.cargar();
   }
 
-  abrirFormulario(): void {
-    // El catálogo solo se pide cuando se va a usar; si ya cargó no se repite
+  /** Sin paquete abre el aviso nuevo; con paquete, la corrección de ese aviso */
+  abrirFormulario(paquete?: Paquete): void {
+    // Si el catálogo no alcanzó a cargar se vuelve a pedir; si ya está, no se repite
     if (this.paqueteriaService.servicios().length === 0) void this.paqueteriaService.cargarServicios();
+    this.paqueteEditando.set(paquete ?? null);
     this.formularioAbierto.set(true);
   }
 
   cerrarFormulario(): void {
     this.formularioAbierto.set(false);
+    this.paqueteEditando.set(null);
+  }
+
+  /** El paquete ya cambió en caseta: se cierra el formulario y se trae la lista al día */
+  alObsoleto(): void {
+    this.cerrarFormulario();
+    void this.recargar();
+  }
+
+  /** Cancelar o corregir solo aplica a un aviso vigente que aún no llegó a caseta */
+  puedeModificar(p: Paquete): boolean {
+    return puedeModificarPaquete(p);
+  }
+
+  async confirmarCancelar(p: Paquete): Promise<void> {
+    const resultado = await Swal.fire({
+      title: '¿Cancelar este aviso?',
+      text: 'Caseta ya no esperará este paquete.',
+      icon: 'warning',
+      input: 'text',
+      inputPlaceholder: 'Motivo (opcional)',
+      inputAttributes: { maxlength: '200', 'aria-label': 'Motivo de la cancelación (opcional)' },
+      showCancelButton: true,
+      confirmButtonColor: '#EF4444',
+      cancelButtonColor: '#64748B',
+      confirmButtonText: 'Cancelar aviso',
+      cancelButtonText: 'Volver'
+    });
+    if (!resultado.isConfirmed) return;
+
+    try {
+      await this.paqueteriaService.cancelar(p.id, typeof resultado.value === 'string' ? resultado.value : undefined);
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Aviso cancelado', showConfirmButton: false, timer: 2500 });
+    } catch (err: any) {
+      console.error('[PaqueteriaComponent] Error al cancelar el aviso:', err);
+      const yaNoSePuede = err?.status === 404 || err?.status === 409;
+      Swal.fire({
+        icon: yaNoSePuede ? 'info' : 'error',
+        title: yaNoSePuede ? 'Este paquete ya cambió' : 'No se pudo cancelar',
+        text: yaNoSePuede
+          ? 'Ya no se puede cancelar, por ejemplo porque llegó a caseta. Actualizamos tu lista.'
+          : mensajeAmigable(err, 'No fue posible cancelar el aviso. Intenta de nuevo en unos segundos.'),
+        confirmButtonColor: '#111C99'
+      });
+      if (yaNoSePuede) await this.recargar();
+    }
   }
 
   /** El aviso nuevo es un paquete esperado: se muestra en Pendientes */
