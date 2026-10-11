@@ -1,5 +1,7 @@
 using HavenApi.Shared.Extensions;
+using Reservas.Api.Options;
 using Reservas.Api.Services;
+using Reservas.Api.Workers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,6 +13,17 @@ builder.Services.AddHavenExceptionHandler();
 builder.Services.AddAuthorization();
 
 builder.Services.AddHttpClient<ISupabaseService, SupabaseService>();
+builder.Services.AddHttpClient<INotificacionesPushClient, NotificacionesPushClient>();
+
+builder.Services.AddOptions<PushWorkerOptions>()
+    .BindConfiguration(PushWorkerOptions.SectionName)
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+if (builder.Configuration.GetValue<bool>($"{PushWorkerOptions.SectionName}:Enabled", true))
+{
+    builder.Services.AddHostedService<PushNotificationWorker>();
+}
 
 builder.Services.AddControllers();
 
