@@ -215,6 +215,162 @@ describe('PaqueteFormComponent', () => {
     expect(botonGuardar().disabled).toBeTrue();
   });
 
+  describe('editar un paquete esperado', () => {
+    const original: Paquete = {
+      id: 'p1',
+      viviendaId: 33,
+      destinatarioNombre: 'Angel Gómez',
+      servicioId: 1,
+      servicioNombre: 'Amazon',
+      numeroGuia: 'ML-9845',
+      descripcion: 'Caja de zapatos',
+      notas: 'Dejar en caseta',
+      fechaEsperadaDesde: new Date(2099, 1, 1, 12).toISOString(),
+      fechaEsperadaHasta: new Date(2099, 1, 3, 12).toISOString(),
+      estado: 'esperado'
+    };
+
+    function abrirEdicion(paquete: Paquete, servicios: any[] = catalogo): void {
+      fixture = TestBed.createComponent(PaqueteFormComponent);
+      component = fixture.componentInstance;
+      fixture.componentRef.setInput('viviendas', [casa, { id: 34, numeroCasa: 'PRUEBA-02' }]);
+      fixture.componentRef.setInput('servicios', servicios);
+      fixture.componentRef.setInput('paquete', paquete);
+      fixture.detectChanges();
+    }
+
+    it('rellena los datos del paquete, no pide vivienda y no deja guardar sin cambios', async () => {
+      abrirEdicion(original);
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(texto()).toContain('Editar paquete');
+      expect((campo('paq-destinatario') as HTMLInputElement).value).toBe('Angel Gómez');
+      expect((campo('paq-guia') as HTMLInputElement).value).toBe('ML-9845');
+      expect((campo('paq-desde') as HTMLInputElement).value).toBe('2099-02-01');
+      expect((campo('paq-hasta') as HTMLInputElement).value).toBe('2099-02-03');
+      expect(campo('paq-vivienda')).toBeNull();
+      expect(component.form.servicio).toBe(1);
+      expect(component.hayCambios()).toBeFalse();
+      expect(botonGuardar().textContent).toContain('Guardar cambios');
+      expect(botonGuardar().disabled).toBeTrue();
+    });
+
+    it('sin cambios no arma ningún campo', () => {
+      abrirEdicion(original);
+
+      expect(component.armarCambios()).toEqual({});
+    });
+
+    it('envía solo lo que cambió', () => {
+      abrirEdicion(original);
+      component.form.numeroGuia = ' ML-0001 ';
+      component.form.notas = '';
+      component.form.hasta = '2099-02-10';
+
+      const cambios = component.armarCambios();
+
+      expect(Object.keys(cambios).sort()).toEqual(['fechaEsperadaHasta', 'notas', 'numeroGuia']);
+      expect(cambios.numeroGuia).toBe('ML-0001');
+      expect(cambios.notas).toBe('');
+      expect(new Date(cambios.fechaEsperadaHasta!).getTime()).toBe(new Date('2099-02-10T23:59:59.999').getTime());
+      expect(component.hayCambios()).toBeTrue();
+    });
+
+    it('cambiar a otra empresa del catálogo manda su id', () => {
+      abrirEdicion(original);
+      component.form.servicio = 2;
+
+      expect(component.armarCambios()).toEqual({ servicioId: 2 });
+    });
+
+    it('una empresa que no está en el catálogo se muestra como "otra" con su nombre', () => {
+      abrirEdicion({ ...original, servicioId: null, servicioNombre: 'Paquetexpress' });
+
+      expect(component.form.servicio).toBe('otro');
+      expect(component.form.servicioOtro).toBe('Paquetexpress');
+      expect(component.armarCambios()).toEqual({});
+      component.form.servicioOtro = 'Redpack';
+      expect(component.armarCambios()).toEqual({ servicioNombre: 'Redpack' });
+    });
+
+    it('reconoce la empresa por nombre si el paquete no trae su id', () => {
+      abrirEdicion({ ...original, servicioId: null, servicioNombre: 'dhl' });
+
+      expect(component.form.servicio).toBe(2);
+    });
+
+    it('si el catálogo llega después de abrir, selecciona la empresa del paquete', () => {
+      abrirEdicion(original, []);
+      expect(component.usaOtraEmpresa()).toBeTrue();
+
+      fixture.componentRef.setInput('servicios', catalogo);
+      fixture.detectChanges();
+
+      expect(component.form.servicio).toBe(1);
+      expect(component.hayCambios()).toBeFalse();
+    });
+
+    it('si la persona ya eligió otra empresa, una recarga del catálogo no se la cambia', () => {
+      abrirEdicion(original);
+      component.form.servicio = 2;
+
+      fixture.componentRef.setInput('servicios', [...catalogo]);
+      fixture.detectChanges();
+
+      expect(component.form.servicio).toBe(2);
+    });
+
+    it('al guardar envía los cambios, actualiza y avisa al padre', async () => {
+      const actualizado = { ...original, numeroGuia: 'ML-0001' };
+      const actualizar = jasmine.createSpy('actualizar').and.resolveTo(actualizado);
+      (servicio as any).actualizar = actualizar;
+      abrirEdicion(original);
+      component.form.numeroGuia = 'ML-0001';
+      const guardados: Paquete[] = [];
+      component.guardado.subscribe(p => guardados.push(p));
+
+      await component.guardar();
+
+      expect(actualizar).toHaveBeenCalledOnceWith('p1', { numeroGuia: 'ML-0001' });
+      expect(servicio.crear).not.toHaveBeenCalled();
+      expect(guardados).toEqual([actualizado]);
+      expect((swal.calls.mostRecent().args[0] as any).title).toBe('Paquete actualizado');
+    });
+
+    it('si ya lo recibieron en caseta (409) avisa con claridad y pide refrescar la lista', async () => {
+      spyOn(console, 'error');
+      (servicio as any).actualizar = jasmine.createSpy('actualizar').and.rejectWith({ status: 409 });
+      abrirEdicion(original);
+      component.form.numeroGuia = 'ML-0001';
+      let obsoletos = 0;
+      component.obsoleto.subscribe(() => obsoletos++);
+
+      await component.guardar();
+
+      const aviso = swal.calls.mostRecent().args[0] as any;
+      expect(aviso.icon).toBe('info');
+      expect(aviso.text).toContain('Ya no se puede modificar');
+      expect(obsoletos).toBe(1);
+    });
+
+    it('un error de validación muestra su motivo sin pedir refrescar', async () => {
+      spyOn(console, 'error');
+      (servicio as any).actualizar = jasmine.createSpy('actualizar').and.rejectWith({ status: 400, error: { error: 'La fecha límite esperada debe ser posterior a la fecha inicial.' } });
+      abrirEdicion(original);
+      component.form.numeroGuia = 'ML-0001';
+      let obsoletos = 0;
+      component.obsoleto.subscribe(() => obsoletos++);
+
+      await component.guardar();
+
+      const aviso = swal.calls.mostRecent().args[0] as any;
+      expect(aviso.icon).toBe('error');
+      expect(aviso.text).toBe('La fecha límite esperada debe ser posterior a la fecha inicial.');
+      expect(obsoletos).toBe(0);
+    });
+  });
+
   it('Escape y Cancelar cierran sin guardar', () => {
     abrir();
     let cierres = 0;
