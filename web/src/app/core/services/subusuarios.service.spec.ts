@@ -48,4 +48,37 @@ describe('SubusuariosService (consulta por vivienda)', () => {
     api.get.and.returnValue(throwError(() => ({ status: 500 })));
     await expectAsync(service.listarPorVivienda(33)).toBeRejected();
   });
+
+  describe('mapaViviendasDeSubusuarios', () => {
+    const casa = (id: number, numeroCasa: string) => ({ id, numeroCasa, tipo: 'Casa' });
+    const activo = (id: string) => ({ id, nombre: id, email: `${id}@example.com`, telefono: '55', parentesco: 'Familiar', estado: 'Activo', creado_en: null });
+    const pendiente = { id: 'inv-1', nombre: 'Pendiente', email: 'x@example.com', telefono: 'Pendiente', parentesco: 'Otro', estado: 'Pendiente', creado_en: null };
+
+    it('indexa por usuario las viviendas donde es sub-usuario activo y omite invitaciones pendientes', async () => {
+      api.get.and.callFake(((_url: string, params: HttpParams) =>
+        of(params.get('viviendaId') === '1' ? [activo('u1'), pendiente] : [activo('u1'), activo('u2')])) as any);
+
+      const mapa = await service.mapaViviendasDeSubusuarios([casa(1, 'A-1'), casa(2, 'B-2')]);
+
+      expect(mapa.get('u1')!.map(v => v.id)).toEqual([1, 2]);
+      expect(mapa.get('u2')!.map(v => v.id)).toEqual([2]);
+      expect(mapa.has('inv-1')).toBeFalse();
+    });
+
+    it('si una vivienda falla la omite y sigue con las demás', async () => {
+      api.get.and.callFake(((_url: string, params: HttpParams) =>
+        params.get('viviendaId') === '1' ? throwError(() => ({ status: 500 })) : of([activo('u2')])) as any);
+
+      const mapa = await service.mapaViviendasDeSubusuarios([casa(1, 'A-1'), casa(2, 'B-2')]);
+
+      expect(Array.from(mapa.keys())).toEqual(['u2']);
+    });
+
+    it('sin viviendas devuelve un mapa vacío sin consultar nada', async () => {
+      const mapa = await service.mapaViviendasDeSubusuarios([]);
+
+      expect(mapa.size).toBe(0);
+      expect(api.get).not.toHaveBeenCalled();
+    });
+  });
 });
