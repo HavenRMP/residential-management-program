@@ -7,7 +7,8 @@ import {
   paqueteCoincideConBusqueda,
   paqueteEsPendiente,
   paqueteVencido,
-  puedeModificarPaquete
+  puedeModificarPaquete,
+  textoVentanaPaquete
 } from './paquete.model';
 
 const base: Paquete = { id: 'p1', viviendaId: 33, destinatarioNombre: 'Angel Gómez', estado: 'esperado' };
@@ -104,6 +105,28 @@ describe('paquete.model', () => {
     it('un texto vacío deja pasar todo y uno ajeno no', () => {
       expect(paqueteCoincideConBusqueda(paquete, '   ')).toBeTrue();
       expect(paqueteCoincideConBusqueda(paquete, 'fedex')).toBeFalse();
+    });
+  });
+
+  describe('textoVentanaPaquete', () => {
+    const dia = (d: number, h = 12) => new Date(2026, 9, d, h).toISOString();
+
+    it('con las dos fechas muestra el rango de días', () => {
+      expect(textoVentanaPaquete({ fechaEsperadaDesde: dia(12), fechaEsperadaHasta: dia(14) })).toMatch(/^Del .+ al .+$/);
+    });
+
+    it('si es el mismo día lo dice una sola vez', () => {
+      expect(textoVentanaPaquete({ fechaEsperadaDesde: dia(12, 0), fechaEsperadaHasta: dia(12, 23) })).toMatch(/^El /);
+    });
+
+    it('con una sola fecha usa "Hasta el" o "A partir del"', () => {
+      expect(textoVentanaPaquete({ fechaEsperadaHasta: dia(14) })).toMatch(/^Hasta el /);
+      expect(textoVentanaPaquete({ fechaEsperadaDesde: dia(12) })).toMatch(/^A partir del /);
+    });
+
+    it('sin fechas válidas devuelve texto vacío', () => {
+      expect(textoVentanaPaquete({})).toBe('');
+      expect(textoVentanaPaquete({ fechaEsperadaDesde: '0001-01-01T00:00:00Z', fechaEsperadaHasta: 'basura' })).toBe('');
     });
   });
 });
