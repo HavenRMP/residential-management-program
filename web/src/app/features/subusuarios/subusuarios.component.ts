@@ -111,10 +111,17 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
         <!-- Sin vivienda asignada -->
         @if (!isLoadingVivienda() && !viviendaId()) {
           <div class="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-2xs space-y-2">
-            <h2 class="text-base font-semibold text-slate-900">Necesitas una vivienda asignada</h2>
-            <p class="text-xs text-slate-500 max-w-md mx-auto">
-              Vincula tu cuenta a una vivienda desde el portal para poder invitar sub-usuarios.
-            </p>
+            @if (subusuariosService.invitacionesRecibidas().length > 0) {
+              <h2 class="text-base font-semibold text-slate-900">Aún no tienes una vivienda propia</h2>
+              <p class="text-xs text-slate-500 max-w-md mx-auto">
+                Acepta una invitación de arriba para entrar como sub-usuario. Para invitar a otras personas necesitas una vivienda asignada.
+              </p>
+            } @else {
+              <h2 class="text-base font-semibold text-slate-900">Necesitas una vivienda asignada</h2>
+              <p class="text-xs text-slate-500 max-w-md mx-auto">
+                Vincula tu cuenta a una vivienda desde el portal para poder invitar sub-usuarios.
+              </p>
+            }
             <a routerLink="/dashboard/residente" class="h-8 px-4 inline-flex items-center justify-center rounded-md bg-[#111C99] hover:bg-[#0d1577] text-white text-xs font-medium transition-colors shadow-2xs mt-2">
               Volver al portal
             </a>
