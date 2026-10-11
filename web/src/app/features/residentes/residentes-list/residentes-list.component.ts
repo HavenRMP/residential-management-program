@@ -437,6 +437,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
               [viviendas]="residenteSeleccionado() ? obtenerViviendasDeResidente(residenteSeleccionado()!.id) : []"
           [subusuarioDe]="residenteSeleccionado() ? viviendasComoSubusuario(residenteSeleccionado()!.id) : []"
               (cerrado)="cerrarDetalle()"
+          (desvinculado)="alDesvincular()"
             ></app-residentes-detalle>
           </aside>
         }
@@ -627,6 +628,11 @@ export class ResidentesListComponent implements OnInit {
 
   cerrarDetalle(): void {
     this.isDetalleOpen.set(false);
+  }
+
+  /** Se le quitó una vivienda al residente abierto: se vuelve a consultar para que la fila y los contadores no queden viejos */
+  async alDesvincular(): Promise<void> {
+    await this.cargarResidentes(true);
   }
 }
 
