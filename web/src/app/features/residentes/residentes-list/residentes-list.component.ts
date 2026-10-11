@@ -5,6 +5,7 @@ import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { ResidentesService } from '../../../core/services/residentes.service';
 import { Residente } from '../../../core/models/residente.model';
 import { ViviendasService } from '../../../core/services/viviendas.service';
+import { SubusuariosService } from '../../../core/services/subusuarios.service';
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { ResidentesDetalleComponent } from '../residentes-detalle/residentes-detalle.component';
 import { getInitials } from '../../../core/utils/iniciales.util';
@@ -303,6 +304,14 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
                               </span>
                             }
                           </div>
+                        } @else if (viviendasComoSubusuario(r.id).length > 0) {
+                          <span
+                            [title]="'Entra como sub-usuario a: ' + viviendasComoSubusuario(r.id).map(v => formatearNumeroCasa(v.numeroCasa)).join(', ')"
+                            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-sky-50 text-sky-800 border border-sky-200"
+                            >
+                            <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+                            Sub-usuario · {{ formatearNumeroCasa(viviendasComoSubusuario(r.id)[0].numeroCasa) }}@if (viviendasComoSubusuario(r.id).length > 1) { +{{ viviendasComoSubusuario(r.id).length - 1 }}}
+                          </span>
                         } @else {
                           <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
                             <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
@@ -426,6 +435,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
             <app-residentes-detalle
               [residente]="residenteSeleccionado()"
               [viviendas]="residenteSeleccionado() ? obtenerViviendasDeResidente(residenteSeleccionado()!.id) : []"
+          [subusuarioDe]="residenteSeleccionado() ? viviendasComoSubusuario(residenteSeleccionado()!.id) : []"
               (cerrado)="cerrarDetalle()"
             ></app-residentes-detalle>
           </aside>
@@ -437,11 +447,14 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
 export class ResidentesListComponent implements OnInit {
   private readonly residentesService = inject(ResidentesService);
   private readonly viviendasService = inject(ViviendasService);
+  private readonly subusuariosService = inject(SubusuariosService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
   readonly residentes = signal<Residente[]>([]);
   readonly viviendasMap = signal<Map<string, Vivienda[]>>(new Map());
+  /** Viviendas a las que cada persona entra como sub-usuario activo (id de usuario → viviendas) */
+  readonly subusuariosMap = signal<Map<string, Vivienda[]>>(new Map());
   readonly searchQuery = signal<string>('');
   readonly isLoading = signal<boolean>(true);
   readonly errorMessage = signal<string | null>(null);
@@ -472,7 +485,7 @@ export class ResidentesListComponent implements OnInit {
       const nombreCompleto = normalizar(`${r.nombre || ''} ${r.apellidos || ''}`);
       const email = normalizar(r.email || '');
       const telefono = normalizar(r.telefono || '');
-      const vivs = mapa.get(r.id) || [];
+      const vivs = [...(mapa.get(r.id) || []), ...(this.subusuariosMap().get(r.id) || [])];
       const vivMatch = vivs.some(v => normalizar(v.numeroCasa || '').includes(query));
       return nombreCompleto.includes(query) || email.includes(query) || telefono.includes(query) || vivMatch;
     });
@@ -552,21 +565,25 @@ export class ResidentesListComponent implements OnInit {
     const soloSinVivienda = this.tabActiva() === 'sin-vivienda';
 
     try {
-      const [data, mapa] = await Promise.all([
+      const [data, mapa, mapaSubusuarios] = await Promise.all([
         this.residentesService.listar(soloSinVivienda, forceRefresh),
-        this.viviendasService.obtenerMapaViviendasPorResidente(forceRefresh)
+        this.viviendasService.obtenerMapaViviendasPorResidente(forceRefresh),
+        this.cargarMapaSubusuarios(forceRefresh)
       ]);
-      this.residentes.set(data || []);
+      // Un sub-usuario activo ya tiene acceso a una casa: no cuenta como "sin vivienda"
+      const lista = soloSinVivienda ? (data || []).filter(r => !mapaSubusuarios.has(r.id)) : (data || []);
+      this.residentes.set(lista);
       this.viviendasMap.set(mapa);
+      this.subusuariosMap.set(mapaSubusuarios);
 
       if (!soloSinVivienda) {
-        this.totalResidentesRegistrados.set((data || []).length);
+        this.totalResidentesRegistrados.set(lista.length);
         // Consultar en segundo plano la cantidad sin vivienda para actualizar el badge de la subpágina
         this.residentesService.listar(true, forceRefresh).then(sinV => {
-          this.conteoSinVivienda.set(sinV.length);
+          this.conteoSinVivienda.set(sinV.filter(r => !mapaSubusuarios.has(r.id)).length);
         }).catch(() => {});
       } else {
-        this.conteoSinVivienda.set((data || []).length);
+        this.conteoSinVivienda.set(lista.length);
       }
     } catch {
       this.errorMessage.set('No fue posible cargar la lista de residentes desde el servidor.');
@@ -577,6 +594,21 @@ export class ResidentesListComponent implements OnInit {
 
   obtenerViviendasDeResidente(residenteId: string): Vivienda[] {
     return this.viviendasMap().get(residenteId) || [];
+  }
+
+  /** Casas a las que la persona entra como sub-usuario activo (no las tiene a su nombre) */
+  viviendasComoSubusuario(residenteId: string): Vivienda[] {
+    return this.subusuariosMap().get(residenteId) || [];
+  }
+
+  /** Si la consulta de sub-usuarios falla no se rompe la lista: solo no se distingue a los sub-usuarios */
+  private async cargarMapaSubusuarios(forceRefresh: boolean): Promise<Map<string, Vivienda[]>> {
+    try {
+      const viviendas = await this.viviendasService.listar(undefined, undefined, forceRefresh);
+      return await this.subusuariosService.mapaViviendasDeSubusuarios(viviendas ?? []);
+    } catch {
+      return new Map();
+    }
   }
 
   obtenerTooltipViviendas(residenteId: string): string {
