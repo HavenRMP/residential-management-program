@@ -88,7 +88,9 @@ type Pestana = 'pendientes' | 'historial';
                 <p class="text-sm font-semibold text-emerald-900">
                   {{ paqueteriaService.enCaseta().length === 1 ? 'Tienes 1 paquete en caseta' : 'Tienes ' + paqueteriaService.enCaseta().length + ' paquetes en caseta' }}
                 </p>
-                <p class="text-xs text-emerald-800 mt-0.5">Pasa a recogerlo con vigilancia.</p>
+                <p class="text-xs text-emerald-800 mt-0.5">
+                  {{ paqueteriaService.enCaseta().length === 1 ? 'Pasa a recogerlo con vigilancia.' : 'Pasa a recogerlos con vigilancia.' }}
+                </p>
               </div>
             </div>
           }
@@ -134,7 +136,7 @@ type Pestana = 'pendientes' | 'historial';
                   class="h-8 px-3 rounded-md text-xs font-medium border transition-colors cursor-pointer"
                   [ngClass]="pestana() === 'pendientes' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'"
                   >
-                  Pendientes ({{ paqueteriaService.pendientes().length }})
+                  Pendientes @if (mostrarConteos()) {({{ paqueteriaService.pendientes().length }})}
                 </button>
                 <button
                   type="button"
@@ -144,7 +146,7 @@ type Pestana = 'pendientes' | 'historial';
                   class="h-8 px-3 rounded-md text-xs font-medium border transition-colors cursor-pointer"
                   [ngClass]="pestana() === 'historial' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'"
                   >
-                  Historial ({{ paqueteriaService.historial().length }})
+                  Historial @if (mostrarConteos()) {({{ paqueteriaService.historial().length }})}
                 </button>
               </div>
               <div class="relative w-full md:w-80">
@@ -309,6 +311,9 @@ export class PaqueteriaComponent implements OnInit {
     const u = this.currentUser();
     return [u?.nombre, u?.apellidos].filter(Boolean).join(' ');
   });
+
+  /** Mientras llegan los primeros datos los contadores dirían "(0)" sin ser cierto, así que se ocultan */
+  readonly mostrarConteos = computed(() => !(this.paqueteriaService.isLoading() && this.paqueteriaService.items().length === 0));
 
   /** Lista de la pestaña activa, ya filtrada por la búsqueda */
   readonly listaVisible = computed(() => {
