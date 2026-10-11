@@ -1,3 +1,4 @@
+import Swal from 'sweetalert2';
 import { Component, Input, Output, EventEmitter, HostListener, inject, OnChanges, SimpleChanges, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { Residente } from '../../../core/models/residente.model';
@@ -7,6 +8,7 @@ import { SubusuariosService } from '../../../core/services/subusuarios.service';
 import { SubUsuarioItem } from '../../../core/models/subusuario.model';
 import { getInitials } from '../../../core/utils/iniciales.util';
 import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
+import { mensajeAmigable } from '../../../core/utils/api-errors.util';
 
 interface GrupoSubusuarios {
   viviendaId: number;
@@ -113,10 +115,22 @@ interface GrupoSubusuarios {
                       <p class="text-[11px] text-slate-600 font-medium">Tipo: {{ v.tipo || 'Residencial' }}</p>
                     </div>
                   </div>
-                  <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                    Asignada
-                  </span>
+                  <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      Asignada
+                    </span>
+                    <button
+                      type="button"
+                      (click)="confirmarDesvinculacion(v)"
+                      [disabled]="desvinculando() !== null"
+                      [attr.aria-label]="'Desvincular a ' + residente?.nombre + ' de ' + formatearNumeroCasa(v.numeroCasa)"
+                      title="Quitar la asignación de esta vivienda (la cuenta no se borra)"
+                      class="h-7 px-2.5 text-[11px] font-semibold rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-rose-300"
+                    >
+                      {{ desvinculando() === v.id ? 'Desvinculando...' : 'Desvincular' }}
+                    </button>
+                  </div>
                 </div>
               }
             </div>
@@ -275,11 +289,15 @@ export class ResidentesDetalleComponent implements OnChanges {
   /** Viviendas a las que esta persona entra como sub-usuario activo (no las tiene a su nombre) */
   @Input() subusuarioDe: Vivienda[] = [];
   @Output() cerrado = new EventEmitter<void>();
+  /** Se quitó una vivienda a este residente: el padre debe refrescar su lista */
+  @Output() desvinculado = new EventEmitter<void>();
 
   private readonly viviendasService = inject(ViviendasService);
   private readonly subusuariosService = inject(SubusuariosService);
 
   readonly cargandoViviendas = signal<boolean>(false);
+  /** Id de la vivienda que se está desvinculando; bloquea los botones mientras tanto */
+  readonly desvinculando = signal<number | null>(null);
   readonly viviendasAsignadas = signal<Vivienda[]>([]);
   readonly gruposSubusuarios = signal<GrupoSubusuarios[]>([]);
   /** Evita que la respuesta lenta de un residente anterior pise la del que se abrió después */
@@ -327,6 +345,44 @@ export class ResidentesDetalleComponent implements OnChanges {
       this.viviendasAsignadas.set([]);
     } finally {
       this.cargandoViviendas.set(false);
+    }
+  }
+
+  /** Quita la asignación de una vivienda a este residente. La cuenta no se borra. */
+  async confirmarDesvinculacion(vivienda: Vivienda): Promise<void> {
+    if (!this.residente || this.desvinculando() !== null) return;
+    const residente = this.residente;
+    const casa = formatearNumeroCasa(vivienda.numeroCasa);
+
+    const confirmacion = await Swal.fire({
+      title: '¿Desvincular de esta vivienda?',
+      text: `Se retirará a ${residente.nombre} ${residente.apellidos} de la ${casa}. Su cuenta no se borra.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, desvincular',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#e11d48',
+      cancelButtonColor: '#64748b'
+    });
+    if (!confirmacion.isConfirmed) return;
+
+    this.desvinculando.set(vivienda.id);
+    try {
+      await this.viviendasService.desvincularResidente(vivienda.id, residente.id);
+      this.viviendasAsignadas.update(lista => lista.filter(v => v.id !== vivienda.id));
+      void this.cargarSubusuarios();
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `Desvinculado de la ${casa}`, showConfirmButton: false, timer: 2500 });
+      this.desvinculado.emit();
+    } catch (err: any) {
+      console.error('[ResidentesDetalleComponent] Error al desvincular:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo desvincular',
+        text: mensajeAmigable(err, 'No fue posible quitar la vivienda. Intenta de nuevo en unos segundos.'),
+        confirmButtonColor: '#0F172A'
+      });
+    } finally {
+      this.desvinculando.set(null);
     }
   }
 
