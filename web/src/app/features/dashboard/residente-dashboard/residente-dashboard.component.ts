@@ -8,6 +8,7 @@ import { ViviendasService } from '../../../core/services/viviendas.service';
 import { CondominiosService } from '../../../core/services/condominios.service';
 import { AvisosService } from '../../../core/services/avisos.service';
 import { SubusuariosService } from '../../../core/services/subusuarios.service';
+import { PaqueteriaService } from '../../../core/services/paqueteria.service';
 import { CacheService } from '../../../core/services/cache.service';
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { Aviso, AvisoPrioridad } from '../../../core/models/aviso.model';
@@ -83,6 +84,20 @@ import { claseBadgePrioridad, etiquetaPrioridad, tiempoRestanteAviso } from '../
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 <span>Visitas</span>
+              </a>
+              <a
+                routerLink="/dashboard/residente/paquetes"
+                class="h-8 px-3 inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition-colors shadow-2xs"
+                >
+                <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                </svg>
+                <span>Paquetería</span>
+                @if (paquetesEnCaseta() > 0) {
+                  <span class="min-w-5 h-5 px-1 inline-flex items-center justify-center rounded-full bg-emerald-600 text-white text-[11px] font-semibold">
+                    {{ paquetesEnCaseta() }}<span class="sr-only"> en caseta</span>
+                  </span>
+                }
               </a>
               <a
                 routerLink="/dashboard/residente/subusuarios"
@@ -330,6 +345,10 @@ export class ResidenteDashboardComponent implements OnInit {
   private readonly router = inject(Router);
   readonly avisosService = inject(AvisosService);
   readonly subusuariosService = inject(SubusuariosService);
+  private readonly paqueteriaService = inject(PaqueteriaService);
+
+  /** Paquetes que ya llegaron a caseta y esperan a que los recojan */
+  readonly paquetesEnCaseta = signal<number>(0);
 
   readonly currentUser = this.authService.currentUser;
   readonly misViviendas = signal<Vivienda[]>([]);
@@ -351,8 +370,14 @@ export class ResidenteDashboardComponent implements OnInit {
     }
     // Sin await: el banner de invitaciones no debe retrasar la carga del portal
     this.subusuariosService.cargarInvitacionesRecibidas();
+    void this.cargarPaquetesEnCaseta();
     await this.cargarDatosResidente();
     this.abrirAvisoDesdeNotificacion();
+  }
+
+  /** Solo es un aviso del botón de paquetería: si la consulta falla el portal sigue igual */
+  private async cargarPaquetesEnCaseta(): Promise<void> {
+    this.paquetesEnCaseta.set(await this.paqueteriaService.contarEnCaseta());
   }
 
   /**
