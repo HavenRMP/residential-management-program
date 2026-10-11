@@ -4,10 +4,16 @@ import { AuthService } from '../../../core/services/auth.service';
 import { ViviendasService } from '../../../core/services/viviendas.service';
 import { ResidentesService } from '../../../core/services/residentes.service';
 import { CondominiosService } from '../../../core/services/condominios.service';
+import { DirectorioCasasService } from '../../../core/services/directorio-casas.service';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { Residente } from '../../../core/models/residente.model';
+import { ViviendaConResidentes } from '../../../core/models/vivienda.model';
+
+const casa = (id: number, numeroCasa: string, totalResidentes: number): ViviendaConResidentes => ({
+  id, numeroCasa, tipo: 'Casa', totalResidentes, estaOcupada: totalResidentes > 0, residentes: []
+});
 
 describe('AdminDashboardComponent', () => {
   let component: AdminDashboardComponent;
@@ -16,6 +22,7 @@ describe('AdminDashboardComponent', () => {
   let mockViviendasService: any;
   let mockResidentesService: any;
   let mockCondominiosService: any;
+  let mockDirectorio: { cargar: jasmine.Spy; errorMessage: ReturnType<typeof signal<string | null>>; casas: ReturnType<typeof signal<ViviendaConResidentes[]>> };
 
   const mockViviendas: Vivienda[] = [
     { id: 1, numeroCasa: '101', tipo: 'Casa', condominioId: 'cond-1' },
@@ -39,9 +46,13 @@ describe('AdminDashboardComponent', () => {
 
     mockViviendasService = {
       listar: jasmine.createSpy('listar').and.returnValue(Promise.resolve(mockViviendas)),
-      obtenerResidentesVivienda: jasmine.createSpy('obtenerResidentesVivienda').and.callFake((id: number) => {
-        return Promise.resolve(id === 1 ? mockResidentes : []);
-      })
+      obtenerResidentesVivienda: jasmine.createSpy('obtenerResidentesVivienda').and.resolveTo([])
+    };
+
+    mockDirectorio = {
+      cargar: jasmine.createSpy('cargar').and.resolveTo(),
+      errorMessage: signal<string | null>(null),
+      casas: signal<ViviendaConResidentes[]>([casa(1, '101', 1), casa(2, '102', 0)])
     };
 
     mockResidentesService = {
@@ -61,6 +72,7 @@ describe('AdminDashboardComponent', () => {
         { provide: ViviendasService, useValue: mockViviendasService },
         { provide: ResidentesService, useValue: mockResidentesService },
         { provide: CondominiosService, useValue: mockCondominiosService },
+        { provide: DirectorioCasasService, useValue: mockDirectorio },
         provideRouter([])
       ]
     }).compileComponents();
@@ -85,6 +97,55 @@ describe('AdminDashboardComponent', () => {
     expect(component.viviendasDisponibles()).toBe(1);
     expect(component.porcentajeOcupacion()).toBe(50);
     expect(component.errorMessage()).toBeNull();
+  });
+
+  it('calcula la ocupación con una sola consulta del directorio, sin pedir los residentes de cada vivienda', async () => {
+    await component.cargarMetricas();
+
+    expect(mockDirectorio.cargar).toHaveBeenCalledWith(false);
+    expect(mockViviendasService.obtenerResidentesVivienda).not.toHaveBeenCalled();
+  });
+
+  it('la ocupación coincide con la del directorio de viviendas aunque haya muchas casas', async () => {
+    const muchas: Vivienda[] = Array.from({ length: 40 }, (_, i) => ({ id: i + 1, numeroCasa: `C-${i + 1}`, tipo: 'Casa', condominioId: 'cond-1' }));
+    mockViviendasService.listar.and.resolveTo(muchas);
+    mockDirectorio.casas.set(muchas.map((v, i) => casa(v.id, v.numeroCasa, i % 4 === 0 ? 1 : 0)));
+
+    await component.cargarMetricas();
+
+    expect(component.totalViviendas()).toBe(40);
+    expect(component.viviendasAsignadas()).toBe(10);
+    expect(component.viviendasDisponibles()).toBe(30);
+    expect(component.porcentajeOcupacion()).toBe(25);
+    expect(mockViviendasService.obtenerResidentesVivienda).not.toHaveBeenCalled();
+    expect(component.viviendasResumen().length).toBe(5);
+    expect(component.viviendasResumen()[0].asignada).toBeTrue();
+    expect(component.viviendasResumen()[1].asignada).toBeFalse();
+  });
+
+  it('una vivienda que el directorio no trae cuenta como disponible', async () => {
+    mockDirectorio.casas.set([casa(1, '101', 1)]);
+
+    await component.cargarMetricas();
+
+    expect(component.viviendasAsignadas()).toBe(1);
+    expect(component.viviendasDisponibles()).toBe(1);
+  });
+
+  it('si el directorio falla muestra el error en vez de un 0% engañoso', async () => {
+    mockDirectorio.errorMessage.set('No se pudo cargar el directorio de casas.');
+
+    await component.cargarMetricas();
+
+    expect(component.errorMessage()).toContain('No se pudo establecer conexión');
+    expect(component.viviendasAsignadas()).toBe(0);
+    expect(component.totalViviendas()).toBe(0);
+  });
+
+  it('actualizar vuelve a consultar el directorio con datos frescos', async () => {
+    await component.cargarMetricas(true);
+
+    expect(mockDirectorio.cargar).toHaveBeenCalledWith(true);
   });
 
   it('debe formatear nombres y badges de vivienda adecuadamente', () => {
@@ -161,9 +222,12 @@ describe('AdminDashboardComponent (estado de viviendas)', () => {
         {
           provide: ViviendasService,
           useValue: {
-            listar: () => Promise.resolve([{ id: 7, numeroCasa: 'A-12', tipo: 'Casa' }, { id: 8, numeroCasa: 'B-07', tipo: 'Casa' }]),
-            obtenerResidentesVivienda: (id: number) => Promise.resolve(id === 7 ? [{ id: 'r' }] : [])
+            listar: () => Promise.resolve([{ id: 7, numeroCasa: 'A-12', tipo: 'Casa' }, { id: 8, numeroCasa: 'B-07', tipo: 'Casa' }])
           }
+        },
+        {
+          provide: DirectorioCasasService,
+          useValue: { cargar: () => Promise.resolve(), errorMessage: signal<string | null>(null), casas: signal([casa(7, 'A-12', 1), casa(8, 'B-07', 0)]) }
         },
         { provide: ResidentesService, useValue: { listar: () => Promise.resolve([]) } },
         {
