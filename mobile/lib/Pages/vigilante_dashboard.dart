@@ -1110,22 +1110,6 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           FloatingActionButton.small(
-            heroTag: 'fab_paqueteria',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PaqueteriaCasetaScreen(controller: widget.controller),
-                ),
-              );
-            },
-            backgroundColor: const Color(0xFFECFDF5),
-            foregroundColor: const Color(0xFF059669),
-            tooltip: 'Paquetería en Caseta',
-            child: const Icon(Icons.inventory_2_outlined),
-          ),
-          const SizedBox(height: 10),
-          FloatingActionButton.small(
             heroTag: 'fab_manual_code',
             onPressed: _abrirValidarCodigoDialog,
             backgroundColor: Colors.white,
