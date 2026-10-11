@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using HavenApi.Shared.Services;
+using Reservas.Api.DTOs;
 using Reservas.Api.Options;
 using Reservas.Api.Services;
 
@@ -75,8 +76,21 @@ public class PushNotificationWorker : BackgroundService
 
     public async Task ProcesarLoteAsync(INotificacionesPushClient client, CancellationToken cancellationToken = default)
     {
-        var batchSize = _options.Value.BatchSize;
-        var notificaciones = await client.ReclamarPendientesAsync(batchSize, cancellationToken);
+        List<NotificacionPushPendienteDto>? notificaciones;
+        try
+        {
+            var batchSize = _options.Value.BatchSize;
+            notificaciones = await client.ReclamarPendientesAsync(batchSize, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al reclamar notificaciones pendientes de push.");
+            return;
+        }
 
         if (notificaciones == null || notificaciones.Count == 0)
         {
