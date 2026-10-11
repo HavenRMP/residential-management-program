@@ -16,13 +16,14 @@ import {
 import { formatearFechaVisita } from '../../core/models/visita.model';
 import { Vivienda } from '../../core/models/vivienda.model';
 import { UserMenuComponent } from '../../core/components/user-menu/user-menu.component';
+import { PaqueteFormComponent } from './paquete-form/paquete-form.component';
 
 type Pestana = 'pendientes' | 'historial';
 
 @Component({
   selector: 'app-paqueteria',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, UserMenuComponent],
+  imports: [CommonModule, FormsModule, RouterLink, UserMenuComponent, PaqueteFormComponent],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans antialiased">
@@ -106,6 +107,16 @@ type Pestana = 'pendientes' | 'historial';
                   >
                   Actualizar
                 </button>
+                <button
+                  type="button"
+                  (click)="abrirFormulario()"
+                  class="h-8 px-3 inline-flex items-center gap-1.5 rounded-md bg-[#111C99] hover:bg-[#0d1577] text-white text-xs font-medium transition-colors shadow-2xs cursor-pointer"
+                  >
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>Avisar un paquete</span>
+                </button>
               </div>
             </div>
 
@@ -170,6 +181,9 @@ type Pestana = 'pendientes' | 'historial';
                 } @else if (pestana() === 'pendientes') {
                   <p>No tienes paquetes pendientes.</p>
                   <p class="text-slate-400">Cuando esperes un envío, avisa a caseta para que lo reciban de inmediato.</p>
+                  <button type="button" (click)="abrirFormulario()" class="mt-2 h-8 px-3 inline-flex items-center rounded-md bg-[#111C99] hover:bg-[#0d1577] text-white text-xs font-medium transition-colors shadow-2xs cursor-pointer">
+                    Avisar un paquete
+                  </button>
                 } @else {
                   <p>Todavía no hay paquetes en tu historial.</p>
                   <p class="text-slate-400">Los paquetes entregados o cancelados se mostrarán aquí.</p>
@@ -237,6 +251,17 @@ type Pestana = 'pendientes' | 'historial';
         }
       </main>
     </div>
+
+    @if (formularioAbierto()) {
+      <app-paquete-form
+        [viviendas]="viviendas()"
+        [viviendaInicial]="viviendas()[0]?.id ?? null"
+        [servicios]="paqueteriaService.servicios()"
+        [nombreSugerido]="nombreSugerido()"
+        (cerrado)="cerrarFormulario()"
+        (guardado)="alGuardar()"
+      />
+    }
   `
 })
 export class PaqueteriaComponent implements OnInit {
@@ -250,6 +275,13 @@ export class PaqueteriaComponent implements OnInit {
   readonly viviendas = signal<Vivienda[]>([]);
   readonly pestana = signal<Pestana>('pendientes');
   readonly busqueda = signal<string>('');
+  readonly formularioAbierto = signal<boolean>(false);
+
+  /** Nombre de quien avisa; es el destinatario más común */
+  readonly nombreSugerido = computed(() => {
+    const u = this.currentUser();
+    return [u?.nombre, u?.apellidos].filter(Boolean).join(' ');
+  });
 
   /** Lista de la pestaña activa, ya filtrada por la búsqueda */
   readonly listaVisible = computed(() => {
@@ -279,6 +311,23 @@ export class PaqueteriaComponent implements OnInit {
 
   async recargar(): Promise<void> {
     await this.paqueteriaService.cargar();
+  }
+
+  abrirFormulario(): void {
+    // El catálogo solo se pide cuando se va a usar; si ya cargó no se repite
+    if (this.paqueteriaService.servicios().length === 0) void this.paqueteriaService.cargarServicios();
+    this.formularioAbierto.set(true);
+  }
+
+  cerrarFormulario(): void {
+    this.formularioAbierto.set(false);
+  }
+
+  /** El aviso nuevo es un paquete esperado: se muestra en Pendientes */
+  alGuardar(): void {
+    this.cerrarFormulario();
+    this.pestana.set('pendientes');
+    this.busqueda.set('');
   }
 
   /** Estado que se muestra: un esperado cuya ventana ya pasó figura como vencido aunque el backend aún no lo marque */
