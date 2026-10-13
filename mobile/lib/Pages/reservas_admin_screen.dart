@@ -7,10 +7,12 @@ import '../Utils/error_handler.dart';
 
 class ReservasAdminScreen extends StatefulWidget {
   final AppController controller;
+  final bool isEmbedded;
 
   const ReservasAdminScreen({
     super.key,
     required this.controller,
+    this.isEmbedded = false,
   });
 
   @override
@@ -715,52 +717,108 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
     return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 
+  PreferredSizeWidget _buildTabBar() {
+    return TabBar(
+      controller: _tabController,
+      labelColor: const Color(0xFF111C99),
+      unselectedLabelColor: const Color(0xFF64748B),
+      indicatorColor: const Color(0xFF111C99),
+      isScrollable: true,
+      tabs: [
+        Tab(
+          child: Row(
+            children: [
+              const Text('Pendientes'),
+              if (_pendientes.isNotEmpty) ...[
+                const SizedBox(width: 6),
+                Badge(
+                  label: Text('${_pendientes.length}'),
+                  backgroundColor: const Color(0xFFD97706),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const Tab(text: 'Todas'),
+        const Tab(text: 'Áreas Comunes'),
+        const Tab(text: 'No-Shows'),
+      ],
+    );
+  }
+
+  Widget _buildEmbeddedHeader() {
+    return Container(
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Row(
+              children: [
+                const Icon(Icons.event_available_rounded, color: Color(0xFF111C99), size: 22),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Administración de Reservas',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: _cargarTodo,
+                  icon: const Icon(Icons.refresh_rounded, color: Color(0xFF64748B)),
+                  tooltip: 'Actualizar',
+                ),
+              ],
+            ),
+          ),
+          _buildTabBar(),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text(
-          'Administración de Reservas',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-        ),
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        elevation: 0,
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: const Color(0xFF111C99),
-          unselectedLabelColor: const Color(0xFF64748B),
-          indicatorColor: const Color(0xFF111C99),
-          isScrollable: true,
-          tabs: [
-            Tab(
-              child: Row(
-                children: [
-                  const Text('Pendientes'),
-                  if (_pendientes.isNotEmpty) ...[
-                    const SizedBox(width: 6),
-                    Badge(
-                      label: Text('${_pendientes.length}'),
-                      backgroundColor: const Color(0xFFD97706),
-                    ),
-                  ],
-                ],
+      appBar: widget.isEmbedded
+          ? null
+          : AppBar(
+              title: const Text(
+                'Administración de Reservas',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
               ),
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.white,
+              elevation: 0,
+              bottom: _buildTabBar(),
+              actions: [
+                IconButton(
+                  onPressed: _cargarTodo,
+                  icon: const Icon(Icons.refresh_rounded, color: Color(0xFF64748B)),
+                  tooltip: 'Actualizar',
+                ),
+              ],
             ),
-            const Tab(text: 'Todas'),
-            const Tab(text: 'Áreas Comunes'),
-            const Tab(text: 'No-Shows'),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
+      body: Column(
         children: [
-          _buildPendientesTab(),
-          _buildTodasTab(),
-          _buildAreasTab(),
-          _buildNoShowsTab(),
+          if (widget.isEmbedded) _buildEmbeddedHeader(),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildPendientesTab(),
+                _buildTodasTab(),
+                _buildAreasTab(),
+                _buildNoShowsTab(),
+              ],
+            ),
+          ),
         ],
       ),
     );
