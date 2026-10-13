@@ -111,4 +111,97 @@ class ReservasService {
       };
     }
   }
+
+  /// POST /api/areas (Admin)
+  Future<Map<String, dynamic>> crearArea({
+    required String nombre,
+    String? descripcion,
+    required String horaApertura,
+    required String horaCierre,
+  }) async {
+    try {
+      final url = '$baseUrl/api/areas';
+      final body = jsonEncode({
+        'nombre': nombre.trim(),
+        if (descripcion != null && descripcion.trim().isNotEmpty)
+          'descripcion': descripcion.trim(),
+        'horaApertura': horaApertura,
+        'horaCierre': horaCierre,
+      });
+
+      final response = await controller.httpClient.post(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+        body: body,
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final decoded = jsonDecode(response.body);
+        return {
+          'success': true,
+          'area': AreaComunModel.fromJson(decoded as Map<String, dynamic>),
+        };
+      }
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudo crear el área común.',
+      );
+      return {'success': false, 'error': error};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al registrar área común.',
+        ),
+      };
+    }
+  }
+
+  /// PATCH /api/areas/{id} (Admin)
+  Future<Map<String, dynamic>> actualizarArea(
+    String id, {
+    String? nombre,
+    String? descripcion,
+    String? horaApertura,
+    String? horaCierre,
+  }) async {
+    try {
+      final url = '$baseUrl/api/areas/$id';
+      final bodyMap = <String, dynamic>{};
+      if (nombre != null) bodyMap['nombre'] = nombre.trim();
+      if (descripcion != null) bodyMap['descripcion'] = descripcion.trim();
+      if (horaApertura != null) bodyMap['horaApertura'] = horaApertura;
+      if (horaCierre != null) bodyMap['horaCierre'] = horaCierre;
+
+      final response = await controller.httpClient.patch(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+        body: jsonEncode(bodyMap),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final decoded = jsonDecode(response.body);
+        return {
+          'success': true,
+          'area': AreaComunModel.fromJson(decoded as Map<String, dynamic>),
+        };
+      }
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudo actualizar el área común.',
+      );
+      return {'success': false, 'error': error};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al actualizar área común.',
+        ),
+      };
+    }
+  }
 }
