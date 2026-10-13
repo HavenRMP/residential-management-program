@@ -807,4 +807,82 @@ class ReservasService {
       };
     }
   }
+
+  /// POST /api/admin/reservas/{id}/no-utilizada (solo después de fin)
+  Future<Map<String, dynamic>> marcarNoUtilizada(String reservaId) async {
+    try {
+      final url = '$baseUrl/api/admin/reservas/$reservaId/no-utilizada';
+      final response = await controller.httpClient.post(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {'success': true};
+      }
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudo marcar la inasistencia (no-show).',
+      );
+      return {'success': false, 'error': error};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al registrar inasistencia.',
+        ),
+      };
+    }
+  }
+
+  /// POST /api/admin/bloqueos
+  Future<Map<String, dynamic>> crearBloqueo({
+    required String areaId,
+    required DateTime inicio,
+    required DateTime fin,
+    required String motivo,
+  }) async {
+    try {
+      final url = '$baseUrl/api/admin/bloqueos';
+      final body = jsonEncode({
+        'areaId': areaId,
+        'inicio': inicio.toUtc().toIso8601String(),
+        'fin': fin.toUtc().toIso8601String(),
+        'motivo': motivo.trim(),
+      });
+
+      final response = await controller.httpClient.post(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+        body: body,
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final decoded = jsonDecode(response.body);
+        return {
+          'success': true,
+          'bloqueo': BloqueoModel.fromJson(decoded as Map<String, dynamic>),
+          'totalReservasAfectadas': decoded['totalReservasAfectadas'] ??
+              decoded['reservas_afectadas'] ??
+              0,
+        };
+      }
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudo crear el bloqueo por mantenimiento.',
+      );
+      return {'success': false, 'error': error};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al registrar bloqueo.',
+        ),
+      };
+    }
+  }
 }
