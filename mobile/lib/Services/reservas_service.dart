@@ -529,4 +529,69 @@ class ReservasService {
       };
     }
   }
+
+  /// POST /api/reservas/{id}/confirmar
+  Future<Map<String, dynamic>> confirmarReserva(String reservaId) async {
+    try {
+      final url = '$baseUrl/api/reservas/$reservaId/confirmar';
+      final response = await controller.httpClient.post(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {'success': true};
+      }
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudo confirmar la reserva.',
+      );
+      return {'success': false, 'error': error};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al confirmar asistencia.',
+        ),
+      };
+    }
+  }
+
+  /// POST /api/reservas/{id}/cancelar
+  Future<Map<String, dynamic>> cancelarReserva(
+    String reservaId, {
+    String? motivo,
+  }) async {
+    try {
+      final url = '$baseUrl/api/reservas/$reservaId/cancelar';
+      final response = await controller.httpClient.post(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+        body: jsonEncode({
+          if (motivo != null && motivo.trim().isNotEmpty)
+            'motivo': motivo.trim(),
+        }),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {'success': true};
+      }
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudo cancelar la reserva.',
+      );
+      return {'success': false, 'error': error};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al cancelar la reserva.',
+        ),
+      };
+    }
+  }
 }
