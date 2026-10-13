@@ -3,6 +3,7 @@ import '../Models/area_comun_model.dart';
 import '../Models/reserva_model.dart';
 import '../Services/app_controller.dart';
 import '../Services/reservas_service.dart';
+import '../Utils/error_handler.dart';
 
 class ReservasAdminScreen extends StatefulWidget {
   final AppController controller;
@@ -24,19 +25,23 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
   // Tab 1: Pendientes Admin
   List<ReservaModel> _pendientes = [];
   bool _isLoadingPendientes = true;
+  String? _errorPendientes;
 
   // Tab 2: Todas las Reservas
   List<ReservaModel> _todasReservas = [];
   bool _isLoadingTodas = true;
   String _filtroEstado = 'todas';
+  String? _errorTodas;
 
   // Tab 3: Áreas Comunes
   List<AreaComunModel> _areas = [];
   bool _isLoadingAreas = true;
+  String? _errorAreas;
 
   // Tab 4: No-Shows
   List<ReservaModel> _noShows = [];
   bool _isLoadingNoShows = true;
+  String? _errorNoShows;
 
   @override
   void initState() {
@@ -62,56 +67,116 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
   }
 
   Future<void> _cargarPendientes() async {
-    setState(() => _isLoadingPendientes = true);
-    final res = await _reservasService.getReservasAdmin(estado: 'pendiente_admin', pageSize: 50);
-    if (mounted) {
-      setState(() {
-        _isLoadingPendientes = false;
-        if (res['success'] == true) {
-          _pendientes = res['items'] as List<ReservaModel>;
-        }
-      });
+    setState(() {
+      _isLoadingPendientes = true;
+      _errorPendientes = null;
+    });
+    try {
+      final res = await _reservasService.getReservasAdmin(estado: 'pendiente_admin', pageSize: 50);
+      if (mounted) {
+        setState(() {
+          _isLoadingPendientes = false;
+          if (res['success'] == true) {
+            _pendientes = res['items'] as List<ReservaModel>;
+          } else {
+            _errorPendientes = res['error'] ?? 'No se pudieron cargar las solicitudes pendientes.';
+          }
+        });
+      }
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasAdminScreen._cargarPendientes');
+      if (mounted) {
+        setState(() {
+          _isLoadingPendientes = false;
+          _errorPendientes = ErrorHandler.parseException(e);
+        });
+      }
     }
   }
 
   Future<void> _cargarTodasReservas() async {
-    setState(() => _isLoadingTodas = true);
-    final estadoParam = _filtroEstado == 'todas' ? null : _filtroEstado;
-    final res = await _reservasService.getReservasAdmin(estado: estadoParam, pageSize: 50);
-    if (mounted) {
-      setState(() {
-        _isLoadingTodas = false;
-        if (res['success'] == true) {
-          _todasReservas = res['items'] as List<ReservaModel>;
-        }
-      });
+    setState(() {
+      _isLoadingTodas = true;
+      _errorTodas = null;
+    });
+    try {
+      final estadoParam = _filtroEstado == 'todas' ? null : _filtroEstado;
+      final res = await _reservasService.getReservasAdmin(estado: estadoParam, pageSize: 50);
+      if (mounted) {
+        setState(() {
+          _isLoadingTodas = false;
+          if (res['success'] == true) {
+            _todasReservas = res['items'] as List<ReservaModel>;
+          } else {
+            _errorTodas = res['error'] ?? 'No se pudieron cargar las reservas.';
+          }
+        });
+      }
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasAdminScreen._cargarTodasReservas');
+      if (mounted) {
+        setState(() {
+          _isLoadingTodas = false;
+          _errorTodas = ErrorHandler.parseException(e);
+        });
+      }
     }
   }
 
   Future<void> _cargarAreas() async {
-    setState(() => _isLoadingAreas = true);
-    // Mostrar todas (activas e inactivas) para administración
-    final res = await _reservasService.getAreas(soloActivas: false, pageSize: 50);
-    if (mounted) {
-      setState(() {
-        _isLoadingAreas = false;
-        if (res['success'] == true) {
-          _areas = res['items'] as List<AreaComunModel>;
-        }
-      });
+    setState(() {
+      _isLoadingAreas = true;
+      _errorAreas = null;
+    });
+    try {
+      // Mostrar todas (activas e inactivas) para administración
+      final res = await _reservasService.getAreas(soloActivas: false, pageSize: 50);
+      if (mounted) {
+        setState(() {
+          _isLoadingAreas = false;
+          if (res['success'] == true) {
+            _areas = res['items'] as List<AreaComunModel>;
+          } else {
+            _errorAreas = res['error'] ?? 'No se pudieron cargar las áreas comunes.';
+          }
+        });
+      }
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasAdminScreen._cargarAreas');
+      if (mounted) {
+        setState(() {
+          _isLoadingAreas = false;
+          _errorAreas = ErrorHandler.parseException(e);
+        });
+      }
     }
   }
 
   Future<void> _cargarNoShows() async {
-    setState(() => _isLoadingNoShows = true);
-    final res = await _reservasService.getNoShows(pageSize: 50);
-    if (mounted) {
-      setState(() {
-        _isLoadingNoShows = false;
-        if (res['success'] == true) {
-          _noShows = res['items'] as List<ReservaModel>;
-        }
-      });
+    setState(() {
+      _isLoadingNoShows = true;
+      _errorNoShows = null;
+    });
+    try {
+      final res = await _reservasService.getNoShows(pageSize: 50);
+      if (mounted) {
+        setState(() {
+          _isLoadingNoShows = false;
+          if (res['success'] == true) {
+            _noShows = res['items'] as List<ReservaModel>;
+          } else {
+            _errorNoShows = res['error'] ?? 'No se pudo cargar el historial de inasistencias.';
+          }
+        });
+      }
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasAdminScreen._cargarNoShows');
+      if (mounted) {
+        setState(() {
+          _isLoadingNoShows = false;
+          _errorNoShows = ErrorHandler.parseException(e);
+        });
+      }
     }
   }
 
@@ -139,14 +204,21 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
     );
 
     if (confirm == true) {
-      final res = await _reservasService.aprobarReservaAdmin(reserva.id);
-      if (mounted) {
-        if (res['success'] == true) {
-          widget.controller.notifyToast('Reserva aprobada exitosamente.', success: true);
-          _cargarPendientes();
-          _cargarTodasReservas();
-        } else {
-          widget.controller.notifyToast(res['error'] ?? 'No se pudo aprobar la reserva.', success: false);
+      try {
+        final res = await _reservasService.aprobarReservaAdmin(reserva.id);
+        if (mounted) {
+          if (res['success'] == true) {
+            widget.controller.notifyToast('Reserva aprobada exitosamente.', success: true);
+            _cargarPendientes();
+            _cargarTodasReservas();
+          } else {
+            widget.controller.notifyToast(res['error'] ?? 'No se pudo aprobar la reserva.', success: false);
+          }
+        }
+      } catch (e, s) {
+        ErrorHandler.trackError(e, s, 'ReservasAdminScreen._aprobarReserva');
+        if (mounted) {
+          widget.controller.notifyToast(ErrorHandler.parseException(e), success: false);
         }
       }
     }
@@ -196,14 +268,21 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
     );
 
     if (confirm == true) {
-      final res = await _reservasService.rechazarReservaAdmin(reserva.id, motivo: motivoCtrl.text.trim());
-      if (mounted) {
-        if (res['success'] == true) {
-          widget.controller.notifyToast('Reserva rechazada.', success: true);
-          _cargarPendientes();
-          _cargarTodasReservas();
-        } else {
-          widget.controller.notifyToast(res['error'] ?? 'No se pudo rechazar.', success: false);
+      try {
+        final res = await _reservasService.rechazarReservaAdmin(reserva.id, motivo: motivoCtrl.text.trim());
+        if (mounted) {
+          if (res['success'] == true) {
+            widget.controller.notifyToast('Reserva rechazada.', success: true);
+            _cargarPendientes();
+            _cargarTodasReservas();
+          } else {
+            widget.controller.notifyToast(res['error'] ?? 'No se pudo rechazar.', success: false);
+          }
+        }
+      } catch (e, s) {
+        ErrorHandler.trackError(e, s, 'ReservasAdminScreen._rechazarReserva');
+        if (mounted) {
+          widget.controller.notifyToast(ErrorHandler.parseException(e), success: false);
         }
       }
     }
@@ -253,13 +332,20 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
     );
 
     if (confirm == true) {
-      final res = await _reservasService.cancelarReservaAdmin(reserva.id, motivo: motivoCtrl.text.trim());
-      if (mounted) {
-        if (res['success'] == true) {
-          widget.controller.notifyToast('Reserva cancelada por administración.', success: true);
-          _cargarTodasReservas();
-        } else {
-          widget.controller.notifyToast(res['error'] ?? 'No se pudo cancelar.', success: false);
+      try {
+        final res = await _reservasService.cancelarReservaAdmin(reserva.id, motivo: motivoCtrl.text.trim());
+        if (mounted) {
+          if (res['success'] == true) {
+            widget.controller.notifyToast('Reserva cancelada por administración.', success: true);
+            _cargarTodasReservas();
+          } else {
+            widget.controller.notifyToast(res['error'] ?? 'No se pudo cancelar.', success: false);
+          }
+        }
+      } catch (e, s) {
+        ErrorHandler.trackError(e, s, 'ReservasAdminScreen._cancelarReservaAdmin');
+        if (mounted) {
+          widget.controller.notifyToast(ErrorHandler.parseException(e), success: false);
         }
       }
     }
@@ -289,14 +375,21 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
     );
 
     if (confirm == true) {
-      final res = await _reservasService.marcarNoUtilizada(reserva.id);
-      if (mounted) {
-        if (res['success'] == true) {
-          widget.controller.notifyToast('Inasistencia registrada correctamente.', success: true);
-          _cargarTodasReservas();
-          _cargarNoShows();
-        } else {
-          widget.controller.notifyToast(res['error'] ?? 'No se pudo registrar.', success: false);
+      try {
+        final res = await _reservasService.marcarNoUtilizada(reserva.id);
+        if (mounted) {
+          if (res['success'] == true) {
+            widget.controller.notifyToast('Inasistencia registrada correctamente.', success: true);
+            _cargarTodasReservas();
+            _cargarNoShows();
+          } else {
+            widget.controller.notifyToast(res['error'] ?? 'No se pudo registrar.', success: false);
+          }
+        }
+      } catch (e, s) {
+        ErrorHandler.trackError(e, s, 'ReservasAdminScreen._marcarNoShow');
+        if (mounted) {
+          widget.controller.notifyToast(ErrorHandler.parseException(e), success: false);
         }
       }
     }
@@ -392,19 +485,26 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
       final apStr = '${horaApertura.hour.toString().padLeft(2, '0')}:${horaApertura.minute.toString().padLeft(2, '0')}:00';
       final ciStr = '${horaCierre.hour.toString().padLeft(2, '0')}:${horaCierre.minute.toString().padLeft(2, '0')}:00';
 
-      final res = await _reservasService.crearArea(
-        nombre: nombreCtrl.text.trim(),
-        descripcion: descCtrl.text.trim(),
-        horaApertura: apStr,
-        horaCierre: ciStr,
-      );
+      try {
+        final res = await _reservasService.crearArea(
+          nombre: nombreCtrl.text.trim(),
+          descripcion: descCtrl.text.trim(),
+          horaApertura: apStr,
+          horaCierre: ciStr,
+        );
 
-      if (mounted) {
-        if (res['success'] == true) {
-          widget.controller.notifyToast('Área común registrada exitosamente.', success: true);
-          _cargarAreas();
-        } else {
-          widget.controller.notifyToast(res['error'] ?? 'Error al registrar área.', success: false);
+        if (mounted) {
+          if (res['success'] == true) {
+            widget.controller.notifyToast('Área común registrada exitosamente.', success: true);
+            _cargarAreas();
+          } else {
+            widget.controller.notifyToast(res['error'] ?? 'Error al registrar área.', success: false);
+          }
+        }
+      } catch (e, s) {
+        ErrorHandler.trackError(e, s, 'ReservasAdminScreen._abrirModalCrearArea');
+        if (mounted) {
+          widget.controller.notifyToast(ErrorHandler.parseException(e), success: false);
         }
       }
     }
@@ -433,19 +533,26 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
     );
 
     if (confirm == true) {
-      final res = esBaja
-          ? await _reservasService.bajaArea(area.id)
-          : await _reservasService.reactivarArea(area.id);
+      try {
+        final res = esBaja
+            ? await _reservasService.bajaArea(area.id)
+            : await _reservasService.reactivarArea(area.id);
 
-      if (mounted) {
-        if (res['success'] == true) {
-          widget.controller.notifyToast(
-            esBaja ? 'Área dada de baja.' : 'Área reactivada.',
-            success: true,
-          );
-          _cargarAreas();
-        } else {
-          widget.controller.notifyToast(res['error'] ?? 'No se pudo completar.', success: false);
+        if (mounted) {
+          if (res['success'] == true) {
+            widget.controller.notifyToast(
+              esBaja ? 'Área dada de baja.' : 'Área reactivada.',
+              success: true,
+            );
+            _cargarAreas();
+          } else {
+            widget.controller.notifyToast(res['error'] ?? 'No se pudo completar.', success: false);
+          }
+        }
+      } catch (e, s) {
+        ErrorHandler.trackError(e, s, 'ReservasAdminScreen._cambiarEstadoArea');
+        if (mounted) {
+          widget.controller.notifyToast(ErrorHandler.parseException(e), success: false);
         }
       }
     }
@@ -571,23 +678,30 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
       final inicioDt = DateTime(fecha.year, fecha.month, fecha.day, horaInicio.hour, horaInicio.minute);
       final finDt = DateTime(fecha.year, fecha.month, fecha.day, horaFin.hour, horaFin.minute);
 
-      final res = await _reservasService.crearBloqueo(
-        areaId: selectedArea.id,
-        inicio: inicioDt,
-        fin: finDt,
-        motivo: motivoCtrl.text.trim(),
-      );
+      try {
+        final res = await _reservasService.crearBloqueo(
+          areaId: selectedArea.id,
+          inicio: inicioDt,
+          fin: finDt,
+          motivo: motivoCtrl.text.trim(),
+        );
 
-      if (mounted) {
-        if (res['success'] == true) {
-          final afect = res['totalReservasAfectadas'] ?? 0;
-          widget.controller.notifyToast(
-            'Bloqueo registrado. $afect reserva(s) afectada(s) canceladas.',
-            success: true,
-          );
-          _cargarTodasReservas();
-        } else {
-          widget.controller.notifyToast(res['error'] ?? 'Error al crear bloqueo.', success: false);
+        if (mounted) {
+          if (res['success'] == true) {
+            final afect = res['totalReservasAfectadas'] ?? 0;
+            widget.controller.notifyToast(
+              'Bloqueo registrado. $afect reserva(s) afectada(s) canceladas.',
+              success: true,
+            );
+            _cargarTodasReservas();
+          } else {
+            widget.controller.notifyToast(res['error'] ?? 'Error al crear bloqueo.', success: false);
+          }
+        }
+      } catch (e, s) {
+        ErrorHandler.trackError(e, s, 'ReservasAdminScreen._abrirModalBloqueoMantenimiento');
+        if (mounted) {
+          widget.controller.notifyToast(ErrorHandler.parseException(e), success: false);
         }
       }
     }
@@ -660,21 +774,23 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
       onRefresh: _cargarPendientes,
       child: _isLoadingPendientes
           ? const Center(child: CircularProgressIndicator())
-          : _pendientes.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.check_circle_outline_rounded, size: 64, color: Color(0xFFCBD5E1)),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'No hay solicitudes pendientes de aprobación',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+          : _errorPendientes != null && _pendientes.isEmpty
+              ? _buildErrorView(_errorPendientes!, _cargarPendientes)
+              : _pendientes.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.check_circle_outline_rounded, size: 64, color: Color(0xFFCBD5E1)),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'No hay solicitudes pendientes de aprobación',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                )
-              : ListView.builder(
+                    )
+                  : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: _pendientes.length,
                   itemBuilder: (ctx, idx) {
@@ -819,9 +935,11 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
           Expanded(
             child: _isLoadingTodas
                 ? const Center(child: CircularProgressIndicator())
-                : _todasReservas.isEmpty
-                    ? const Center(child: Text('No hay reservas registradas.'))
-                    : ListView.builder(
+                : _errorTodas != null && _todasReservas.isEmpty
+                    ? _buildErrorView(_errorTodas!, _cargarTodasReservas)
+                    : _todasReservas.isEmpty
+                        ? const Center(child: Text('No hay reservas registradas.'))
+                        : ListView.builder(
                         padding: const EdgeInsets.all(16),
                         itemCount: _todasReservas.length,
                         itemBuilder: (ctx, idx) {
@@ -938,7 +1056,9 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
         onRefresh: _cargarAreas,
         child: _isLoadingAreas
             ? const Center(child: CircularProgressIndicator())
-            : ListView.builder(
+            : _errorAreas != null && _areas.isEmpty
+                ? _buildErrorView(_errorAreas!, _cargarAreas)
+                : ListView.builder(
                 padding: const EdgeInsets.all(16),
                 itemCount: _areas.length,
                 itemBuilder: (ctx, idx) {
@@ -1051,26 +1171,28 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
       onRefresh: _cargarNoShows,
       child: _isLoadingNoShows
           ? const Center(child: CircularProgressIndicator())
-          : _noShows.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.sentiment_satisfied_alt_rounded, size: 64, color: Color(0xFFCBD5E1)),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'No hay inasistencias registradas',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+          : _errorNoShows != null && _noShows.isEmpty
+              ? _buildErrorView(_errorNoShows!, _cargarNoShows)
+              : _noShows.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.sentiment_satisfied_alt_rounded, size: 64, color: Color(0xFFCBD5E1)),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'No hay inasistencias registradas',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Los residentes han cumplido con sus reservas confirmadas.',
+                            style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Los residentes han cumplido con sus reservas confirmadas.',
-                        style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.builder(
+                    )
+                  : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: _noShows.length,
                   itemBuilder: (ctx, idx) {
@@ -1122,6 +1244,41 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
                     );
                   },
                 ),
+    );
+  }
+
+  Widget _buildErrorView(String message, Future<void> Function() onRetry) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.cloud_off_rounded, size: 56, color: Color(0xFFEF4444)),
+            const SizedBox(height: 12),
+            const Text(
+              'Ocurrió un problema al cargar los datos',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              message,
+              style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Reintentar'),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF111C99),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
