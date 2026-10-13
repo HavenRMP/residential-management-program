@@ -164,4 +164,51 @@ void main() {
       expect(res['success'], isTrue);
     });
   });
+
+  group('ReservasService - Panel Admin', () {
+    test('aprobarReservaAdmin exitosa retorna success true', () async {
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/api/admin/reservas/res-10/aprobar' && request.method == 'POST') {
+          return http.Response('', 204);
+        }
+        return http.Response('Error', 400);
+      });
+
+      final controller = AppController(null, client: mockClient);
+      final service = ReservasService(controller);
+
+      final res = await service.aprobarReservaAdmin('res-10');
+      expect(res['success'], isTrue);
+    });
+
+    test('crearBloqueo exitoso retorna datos del bloqueo y reservas afectadas', () async {
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/api/admin/bloqueos' && request.method == 'POST') {
+          final data = {
+            'bloqueoId': 'b1a2c3d4-e5f6-7890-abcd-ef1234567890',
+            'areaId': 'area-1',
+            'inicio': '2026-11-20T08:00:00Z',
+            'fin': '2026-11-20T18:00:00Z',
+            'motivo': 'Mantenimiento preventivo',
+            'totalReservasAfectadas': 2,
+          };
+          return http.Response(jsonEncode(data), 201, headers: {'content-type': 'application/json'});
+        }
+        return http.Response('Error', 400);
+      });
+
+      final controller = AppController(null, client: mockClient);
+      final service = ReservasService(controller);
+
+      final res = await service.crearBloqueo(
+        areaId: 'area-1',
+        inicio: DateTime.utc(2026, 11, 20, 8),
+        fin: DateTime.utc(2026, 11, 20, 18),
+        motivo: 'Mantenimiento preventivo',
+      );
+
+      expect(res['success'], isTrue);
+      expect(res['totalReservasAfectadas'], 2);
+    });
+  });
 }
