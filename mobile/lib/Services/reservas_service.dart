@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'app_controller.dart';
 import '../Models/area_comun_model.dart';
@@ -38,10 +41,9 @@ class ReservasService {
     try {
       final query = 'soloActivas=$soloActivas&page=$page&pageSize=$pageSize';
       final url = '$baseUrl/api/areas?$query';
-      final response = await controller.httpClient.get(
-        Uri.parse(url),
-        headers: await _getHeaders(),
-      );
+      final response = await controller.httpClient
+          .get(Uri.parse(url), headers: await _getHeaders())
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -65,14 +67,46 @@ class ReservasService {
         response.body,
         statusCode: response.statusCode,
         defaultMessage: 'No se pudieron consultar las áreas comunes.',
+        context: 'ReservasService.getAreas',
       );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.getAreas');
       return {'success': false, 'error': error, 'items': <AreaComunModel>[]};
-    } catch (e) {
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getAreas');
+      return {
+        'success': false,
+        'error': 'Tiempo de espera agotado al consultar áreas comunes.',
+        'items': <AreaComunModel>[],
+      };
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getAreas');
+      return {
+        'success': false,
+        'error': 'Sin conexión a internet al consultar áreas comunes.',
+        'items': <AreaComunModel>[],
+      };
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getAreas');
+      return {
+        'success': false,
+        'error': 'Error de comunicación al consultar áreas comunes.',
+        'items': <AreaComunModel>[],
+      };
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getAreas');
+      return {
+        'success': false,
+        'error': 'Respuesta con formato no válido al consultar áreas comunes.',
+        'items': <AreaComunModel>[],
+      };
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getAreas');
       return {
         'success': false,
         'error': ErrorHandler.parseException(
           e,
           defaultMessage: 'Error de conexión al consultar las áreas comunes.',
+          context: 'ReservasService.getAreas',
         ),
         'items': <AreaComunModel>[],
       };
@@ -83,10 +117,9 @@ class ReservasService {
   Future<Map<String, dynamic>> getAreaById(String id) async {
     try {
       final url = '$baseUrl/api/areas/$id';
-      final response = await controller.httpClient.get(
-        Uri.parse(url),
-        headers: await _getHeaders(),
-      );
+      final response = await controller.httpClient
+          .get(Uri.parse(url), headers: await _getHeaders())
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -99,14 +132,42 @@ class ReservasService {
         response.body,
         statusCode: response.statusCode,
         defaultMessage: 'Área común no encontrada.',
+        context: 'ReservasService.getAreaById',
       );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.getAreaById');
       return {'success': false, 'error': error};
-    } catch (e) {
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getAreaById');
+      return {
+        'success': false,
+        'error': 'Tiempo de espera agotado al consultar detalle del área común.',
+      };
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getAreaById');
+      return {
+        'success': false,
+        'error': 'Sin conexión a internet al consultar el área común.',
+      };
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getAreaById');
+      return {
+        'success': false,
+        'error': 'Error de comunicación de red al consultar el área común.',
+      };
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getAreaById');
+      return {
+        'success': false,
+        'error': 'Respuesta con formato no válido del área común.',
+      };
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getAreaById');
       return {
         'success': false,
         'error': ErrorHandler.parseException(
           e,
           defaultMessage: 'Error de conexión al obtener el área común.',
+          context: 'ReservasService.getAreaById',
         ),
       };
     }
@@ -129,11 +190,9 @@ class ReservasService {
         'horaCierre': horaCierre,
       });
 
-      final response = await controller.httpClient.post(
-        Uri.parse(url),
-        headers: await _getHeaders(),
-        body: body,
-      );
+      final response = await controller.httpClient
+          .post(Uri.parse(url), headers: await _getHeaders(), body: body)
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -146,14 +205,42 @@ class ReservasService {
         response.body,
         statusCode: response.statusCode,
         defaultMessage: 'No se pudo crear el área común.',
+        context: 'ReservasService.crearArea',
       );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.crearArea');
       return {'success': false, 'error': error};
-    } catch (e) {
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.crearArea');
+      return {
+        'success': false,
+        'error': 'Tiempo de espera agotado al registrar área común.',
+      };
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.crearArea');
+      return {
+        'success': false,
+        'error': 'Sin conexión a internet al registrar área común.',
+      };
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.crearArea');
+      return {
+        'success': false,
+        'error': 'Error de comunicación de red al registrar área común.',
+      };
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.crearArea');
+      return {
+        'success': false,
+        'error': 'Respuesta con formato no válido al crear área común.',
+      };
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.crearArea');
       return {
         'success': false,
         'error': ErrorHandler.parseException(
           e,
           defaultMessage: 'Error al registrar área común.',
+          context: 'ReservasService.crearArea',
         ),
       };
     }
@@ -175,11 +262,13 @@ class ReservasService {
       if (horaApertura != null) bodyMap['horaApertura'] = horaApertura;
       if (horaCierre != null) bodyMap['horaCierre'] = horaCierre;
 
-      final response = await controller.httpClient.patch(
-        Uri.parse(url),
-        headers: await _getHeaders(),
-        body: jsonEncode(bodyMap),
-      );
+      final response = await controller.httpClient
+          .patch(
+            Uri.parse(url),
+            headers: await _getHeaders(),
+            body: jsonEncode(bodyMap),
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -192,14 +281,42 @@ class ReservasService {
         response.body,
         statusCode: response.statusCode,
         defaultMessage: 'No se pudo actualizar el área común.',
+        context: 'ReservasService.actualizarArea',
       );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.actualizarArea');
       return {'success': false, 'error': error};
-    } catch (e) {
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.actualizarArea');
+      return {
+        'success': false,
+        'error': 'Tiempo de espera agotado al actualizar área común.',
+      };
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.actualizarArea');
+      return {
+        'success': false,
+        'error': 'Sin conexión a internet al actualizar área común.',
+      };
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.actualizarArea');
+      return {
+        'success': false,
+        'error': 'Error de comunicación de red al actualizar área común.',
+      };
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.actualizarArea');
+      return {
+        'success': false,
+        'error': 'Respuesta con formato no válido al actualizar área común.',
+      };
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.actualizarArea');
       return {
         'success': false,
         'error': ErrorHandler.parseException(
           e,
           defaultMessage: 'Error al actualizar área común.',
+          context: 'ReservasService.actualizarArea',
         ),
       };
     }
@@ -209,10 +326,9 @@ class ReservasService {
   Future<Map<String, dynamic>> bajaArea(String id) async {
     try {
       final url = '$baseUrl/api/areas/$id/baja';
-      final response = await controller.httpClient.post(
-        Uri.parse(url),
-        headers: await _getHeaders(),
-      );
+      final response = await controller.httpClient
+          .post(Uri.parse(url), headers: await _getHeaders())
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {'success': true};
@@ -221,14 +337,42 @@ class ReservasService {
         response.body,
         statusCode: response.statusCode,
         defaultMessage: 'No se pudo dar de baja el área común.',
+        context: 'ReservasService.bajaArea',
       );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.bajaArea');
       return {'success': false, 'error': error};
-    } catch (e) {
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.bajaArea');
+      return {
+        'success': false,
+        'error': 'Tiempo de espera agotado al dar de baja el área común.',
+      };
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.bajaArea');
+      return {
+        'success': false,
+        'error': 'Sin conexión a internet al dar de baja el área común.',
+      };
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.bajaArea');
+      return {
+        'success': false,
+        'error': 'Error de comunicación de red al dar de baja el área común.',
+      };
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.bajaArea');
+      return {
+        'success': false,
+        'error': 'Respuesta con formato no válido al dar de baja el área común.',
+      };
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.bajaArea');
       return {
         'success': false,
         'error': ErrorHandler.parseException(
           e,
           defaultMessage: 'Error al dar de baja el área común.',
+          context: 'ReservasService.bajaArea',
         ),
       };
     }
@@ -238,10 +382,9 @@ class ReservasService {
   Future<Map<String, dynamic>> reactivarArea(String id) async {
     try {
       final url = '$baseUrl/api/areas/$id/reactivar';
-      final response = await controller.httpClient.post(
-        Uri.parse(url),
-        headers: await _getHeaders(),
-      );
+      final response = await controller.httpClient
+          .post(Uri.parse(url), headers: await _getHeaders())
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {'success': true};
@@ -250,14 +393,42 @@ class ReservasService {
         response.body,
         statusCode: response.statusCode,
         defaultMessage: 'No se pudo reactivar el área común.',
+        context: 'ReservasService.reactivarArea',
       );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.reactivarArea');
       return {'success': false, 'error': error};
-    } catch (e) {
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.reactivarArea');
+      return {
+        'success': false,
+        'error': 'Tiempo de espera agotado al reactivar el área común.',
+      };
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.reactivarArea');
+      return {
+        'success': false,
+        'error': 'Sin conexión a internet al reactivar el área común.',
+      };
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.reactivarArea');
+      return {
+        'success': false,
+        'error': 'Error de comunicación de red al reactivar el área común.',
+      };
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.reactivarArea');
+      return {
+        'success': false,
+        'error': 'Respuesta con formato no válido al reactivar el área común.',
+      };
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.reactivarArea');
       return {
         'success': false,
         'error': ErrorHandler.parseException(
           e,
           defaultMessage: 'Error al reactivar el área común.',
+          context: 'ReservasService.reactivarArea',
         ),
       };
     }
