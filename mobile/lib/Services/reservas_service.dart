@@ -318,4 +318,106 @@ class ReservasService {
       };
     }
   }
+
+  /// GET /api/reservas/mias
+  Future<Map<String, dynamic>> getMisReservas({
+    String? estado,
+    int page = 1,
+    int pageSize = 10,
+  }) async {
+    try {
+      var query = 'page=$page&pageSize=$pageSize';
+      if (estado != null && estado.isNotEmpty) {
+        query += '&estado=${Uri.encodeComponent(estado.toLowerCase())}';
+      }
+
+      final url = '$baseUrl/api/reservas/mias?$query';
+      final response = await controller.httpClient.get(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          final itemsRaw = decoded['items'] as List<dynamic>? ?? [];
+          final reservas = itemsRaw
+              .map((j) => ReservaModel.fromJson(j as Map<String, dynamic>))
+              .toList();
+          return {
+            'success': true,
+            'items': reservas,
+            'page': decoded['page'] ?? page,
+            'pageSize': decoded['pageSize'] ?? pageSize,
+            'totalCount': decoded['totalCount'] ?? reservas.length,
+            'totalPages': decoded['totalPages'] ?? 1,
+            'hasNextPage': decoded['hasNextPage'] ?? false,
+          };
+        }
+      }
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudieron consultar tus reservas.',
+      );
+      return {'success': false, 'error': error, 'items': <ReservaModel>[]};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al consultar tus reservas.',
+        ),
+        'items': <ReservaModel>[],
+      };
+    }
+  }
+
+  /// GET /api/reservas/por-aprobar-titular
+  Future<Map<String, dynamic>> getPendientesTitular({
+    int page = 1,
+    int pageSize = 10,
+  }) async {
+    try {
+      final query = 'page=$page&pageSize=$pageSize';
+      final url = '$baseUrl/api/reservas/por-aprobar-titular?$query';
+      final response = await controller.httpClient.get(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          final itemsRaw = decoded['items'] as List<dynamic>? ?? [];
+          final reservas = itemsRaw
+              .map((j) => ReservaModel.fromJson(j as Map<String, dynamic>))
+              .toList();
+          return {
+            'success': true,
+            'items': reservas,
+            'page': decoded['page'] ?? page,
+            'pageSize': decoded['pageSize'] ?? pageSize,
+            'totalCount': decoded['totalCount'] ?? reservas.length,
+            'totalPages': decoded['totalPages'] ?? 1,
+          };
+        }
+      }
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudieron consultar solicitudes pendientes.',
+      );
+      return {'success': false, 'error': error, 'items': <ReservaModel>[]};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al consultar solicitudes por aprobar.',
+        ),
+        'items': <ReservaModel>[],
+      };
+    }
+  }
 }
