@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
@@ -211,4 +213,180 @@ void main() {
       expect(res['totalReservasAfectadas'], 2);
     });
   });
+
+  group('ReservasService - Manejo Descriptivo de Errores y Excepciones', () {
+    test('getAreas maneja TimeoutException descriptivamente sin crashear', () async {
+      final mockClient = MockClient((request) async {
+        throw TimeoutException('Request timed out after 10s');
+      });
+
+      final controller = AppController(null, client: mockClient);
+      final service = ReservasService(controller);
+
+      final res = await service.getAreas();
+      expect(res['success'], isFalse);
+      expect(res['error'], contains('Tiempo de espera agotado'));
+      expect(res['items'], isEmpty);
+    });
+
+    test('getCalendario maneja SocketException (sin conexión) descriptivamente', () async {
+      final mockClient = MockClient((request) async {
+        throw const SocketException('No address associated with hostname');
+      });
+
+      final controller = AppController(null, client: mockClient);
+      final service = ReservasService(controller);
+
+      final res = await service.getCalendario(
+        from: DateTime(2026, 11, 1),
+        to: DateTime(2026, 11, 2),
+      );
+      expect(res['success'], isFalse);
+      expect(res['error'], contains('Sin conexión a internet'));
+      expect(res['items'], isEmpty);
+    });
+
+    test('solicitarReserva maneja http.ClientException de red adecuadamente', () async {
+      final mockClient = MockClient((request) async {
+        throw http.ClientException('Connection reset by peer');
+      });
+
+      final controller = AppController(null, client: mockClient);
+      final service = ReservasService(controller);
+
+      final res = await service.solicitarReserva(
+        areaId: 'area-1',
+        inicio: DateTime.now().add(const Duration(days: 10)),
+        fin: DateTime.now().add(const Duration(days: 10, hours: 2)),
+      );
+      expect(res['success'], isFalse);
+      expect(res['error'], isNotEmpty);
+    });
+
+    test('getMisReservas maneja respuesta HTML inesperada (502 Gateway) sin volcar etiquetas', () async {
+      final mockClient = MockClient((request) async {
+        return http.Response(
+          '<html><body><h1>502 Bad Gateway</h1><p>Render is currently unavailable</p></body></html>',
+          502,
+          headers: {'content-type': 'text/html'},
+        );
+      });
+
+      final controller = AppController(null, client: mockClient);
+      final service = ReservasService(controller);
+
+      final res = await service.getMisReservas();
+      expect(res['success'], isFalse);
+      expect(res['error'], isNot(contains('<html')));
+      expect(res['items'], isEmpty);
+    });
+
+    test('solicitarReserva traduce código RE008 (reserva ya existente en la fecha)', () async {
+      final mockClient = MockClient((request) async {
+        return http.Response(
+          jsonEncode({'code': 'RE008'}),
+          400,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final controller = AppController(null, client: mockClient);
+      final service = ReservasService(controller);
+
+      final res = await service.solicitarReserva(
+        areaId: 'area-1',
+        inicio: DateTime.now().add(const Duration(days: 8)),
+        fin: DateTime.now().add(const Duration(days: 8, hours: 2)),
+      );
+      expect(res['success'], isFalse);
+      expect(res['error'], 'Ya tienes una reserva para ese día.');
+    });
+
+    test('solicitarReserva traduce código RE009 (choque de horario o bloqueo de área)', () async {
+      final mockClient = MockClient((request) async {
+        return http.Response(
+          jsonEncode({'message': 'RE009: Conflict with existing reservation'}),
+          409,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final controller = AppController(null, client: mockClient);
+      final service = ReservasService(controller);
+
+      final res = await service.solicitarReserva(
+        areaId: 'area-1',
+        inicio: DateTime.now().add(const Duration(days: 8)),
+        fin: DateTime.now().add(const Duration(days: 8, hours: 2)),
+      );
+      expect(res['success'], isFalse);
+      expect(res['error'], 'El horario choca con otra reserva aprobada o con un bloqueo del área.');
+    });
+
+    test('confirmarReserva traduce código RE011 (fuera de ventana permitida)', () async {
+      final mockClient = MockClient((request) async {
+        return http.Response(
+          jsonEncode({'error': 'RE011'}),
+          400,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final controller = AppController(null, client: mockClient);
+      final service = ReservasService(controller);
+
+      final res = await service.confirmarReserva('res-bad-time');
+      expect(res['success'], isFalse);
+      expect(res['error'], 'La reserva solo puede confirmarse entre 7 días y 72 horas antes del evento.');
+    });
+
+    test('marcarNoUtilizada traduce código RE013 (reserva aún no concluida)', () async {
+      final mockClient = MockClient((request) async {
+        return http.Response(
+          jsonEncode({'detail': 'RE013'}),
+          400,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final controller = AppController(null, client: mockClient);
+      final service = ReservasService(controller);
+
+      final res = await service.marcarNoUtilizada('res-in-progress');
+      expect(res['success'], isFalse);
+      expect(res['error'], 'La reserva aún no termina, no puede marcarse como no utilizada.');
+    });
+
+    test('rechazarReservaAdmin traduce código RE010 cuando falta el motivo', () async {
+      final mockClient = MockClient((request) async {
+        return http.Response(
+          jsonEncode({'error': 'RE010'}),
+          400,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final controller = AppController(null, client: mockClient);
+      final service = ReservasService(controller);
+
+      final res = await service.rechazarReservaAdmin('res-no-motivo', motivo: '');
+      expect(res['success'], isFalse);
+      expect(res['error'], 'El motivo es obligatorio.');
+    });
+
+    test('getAreaById retorna error descriptivo si el recurso no existe (404)', () async {
+      final mockClient = MockClient((request) async {
+        return http.Response(jsonEncode({'message': 'Area not found'}), 404);
+      });
+
+      final controller = AppController(null, client: mockClient);
+      final service = ReservasService(controller);
+
+      final res = await service.getAreaById('area-inexistente');
+      expect(res['success'], isFalse);
+      expect(res['error'], isNotEmpty);
+      expect(res['area'], isNull);
+    });
+  });
 }
+
