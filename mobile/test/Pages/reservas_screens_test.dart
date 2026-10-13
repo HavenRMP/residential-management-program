@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:haven/Pages/reservas_residente_screen.dart';
 import 'package:haven/Pages/reservas_admin_screen.dart';
+import 'package:haven/Widgets/calendario_reservas_vigilante_modal.dart';
+import 'package:haven/Widgets/solicitar_reserva_modal.dart';
 import 'package:haven/Services/app_controller.dart';
 
 void main() {
@@ -125,6 +127,75 @@ void main() {
       expect(find.text('Cancha de Tenis'), findsOneWidget);
       expect(find.text('Aprobar'), findsOneWidget);
       expect(find.text('Rechazar'), findsOneWidget);
+    });
+  });
+
+  group('CalendarioReservasVigilanteModal Tests', () {
+    testWidgets('Renders restricted calendar view with events', (tester) async {
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/api/reservas/calendario') {
+          final data = {
+            'items': [
+              {
+                'id': 'cal-1',
+                'areaId': 'area-1',
+                'areaNombre': 'Salón Social',
+                'estado': 'CONFIRMADA',
+                'tipo': 'reserva',
+                'inicio': '2026-11-15T15:00:00Z',
+                'fin': '2026-11-15T19:00:00Z',
+              }
+            ],
+            'totalCount': 1,
+          };
+          return http.Response(jsonEncode(data), 200, headers: {'content-type': 'application/json'});
+        }
+        return http.Response('Not found', 404);
+      });
+
+      final controller = AppController(null, client: mockClient);
+
+      await tester.pumpWidget(createTestWidget(CalendarioReservasVigilanteModal(controller: controller)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Uso de Áreas Comunes'), findsOneWidget);
+      expect(find.text('Salón Social'), findsOneWidget);
+      expect(find.textContaining('Horario ocupado:'), findsOneWidget);
+    });
+  });
+
+  group('SolicitarReservaModal Tests', () {
+    testWidgets('Renders common area options and form controls', (tester) async {
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/api/areas') {
+          final data = {
+            'items': [
+              {
+                'id': 'area-1',
+                'nombre': 'Gimnasio Residencial',
+                'horaApertura': '06:00:00',
+                'horaCierre': '22:00:00',
+                'activo': true,
+              }
+            ],
+            'totalCount': 1,
+          };
+          return http.Response(jsonEncode(data), 200, headers: {'content-type': 'application/json'});
+        }
+        return http.Response('Not found', 404);
+      });
+
+      final controller = AppController(null, client: mockClient);
+
+      await tester.pumpWidget(createTestWidget(SolicitarReservaModal(controller: controller)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Solicitar Reserva'), findsOneWidget);
+      expect(find.text('Área Común'), findsOneWidget);
+      expect(find.text('Fecha del Evento'), findsOneWidget);
+      expect(find.text('Hora de Inicio'), findsOneWidget);
+      expect(find.text('Hora de Fin'), findsOneWidget);
+      expect(find.text('Enviar Solicitud'), findsOneWidget);
     });
   });
 }
