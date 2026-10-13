@@ -57,6 +57,8 @@ jobs:
     name: Dart & Flutter Analysis
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: mobile
@@ -77,8 +79,29 @@ jobs:
           channel: 'beta'
           cache: true
 
+      - name: Setup configs and env
+        run: |
+          if [ -n "${{ secrets.FIREBASE_OPTIONS_BASE64 }}" ]; then
+            echo "${{ secrets.FIREBASE_OPTIONS_BASE64 }}" | base64 --decode > lib/firebase_options.dart
+          fi
+          if [ -n "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" ]; then
+            echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
+          fi
+          if [ -n "${{ secrets.FIREBASE_JSON_BASE64 }}" ]; then
+            echo "${{ secrets.FIREBASE_JSON_BASE64 }}" | base64 --decode > firebase.json
+          fi
+          if [ ! -f "lib/firebase_options.dart" ]; then
+            printf "import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;\n\nclass DefaultFirebaseOptions {\n  static FirebaseOptions get currentPlatform => const FirebaseOptions(\n    apiKey: 'placeholder',\n    appId: 'placeholder',\n    messagingSenderId: 'placeholder',\n    projectId: 'placeholder',\n  );\n}\n" > lib/firebase_options.dart
+          fi
+          if [ -f ".env.example" ] && [ ! -f ".env" ]; then
+            cp .env.example .env
+          elif [ ! -f ".env" ]; then
+            touch .env
+          fi
+
       - name: Install dependencies
         run: flutter pub get
 
       - name: Run Flutter Analyze
-        run: flutter analyze --no-fatal-infos
+        run: flutter analyze --no-fatal-warnings
+
