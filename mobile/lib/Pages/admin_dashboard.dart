@@ -160,6 +160,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ResidentesListScreen(controller: widget.controller),
       ViviendasListScreen(controller: widget.controller),
       VisitasAdminScreen(controller: widget.controller),
+      ReservasAdminScreen(
+        controller: widget.controller,
+        isEmbedded: true,
+      ),
       AvisosAdminScreen(controller: widget.controller),
     ];
 
@@ -262,52 +266,70 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         },
         children: pages,
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: _onDestinationSelected,
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        indicatorColor: const Color(0xFFEEF2FF),
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined, color: Color(0xFF64748B)),
-            selectedIcon: Icon(
-              Icons.dashboard_rounded,
-              color: Color(0xFF111C99),
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          border: Border(
+            top: BorderSide(
+              color: Color(0xFFE2E8F0),
+              width: 1,
             ),
-            label: 'Inicio',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.people_outline_rounded, color: Color(0xFF64748B)),
-            selectedIcon: Icon(Icons.people_rounded, color: Color(0xFF111C99)),
-            label: 'Residentes',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.apartment_outlined, color: Color(0xFF64748B)),
-            selectedIcon: Icon(
-              Icons.apartment_rounded,
-              color: Color(0xFF111C99),
+        ),
+        child: NavigationBar(
+          selectedIndex: _currentIndex,
+          onDestinationSelected: _onDestinationSelected,
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.white,
+          indicatorColor: const Color(0xFFEEF2FF),
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.dashboard_outlined, color: Color(0xFF64748B)),
+              selectedIcon: Icon(
+                Icons.dashboard_rounded,
+                color: Color(0xFF111C99),
+              ),
+              label: 'Inicio',
             ),
-            label: 'Viviendas',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.badge_outlined, color: Color(0xFF64748B)),
-            selectedIcon: Icon(
-              Icons.badge_rounded,
-              color: Color(0xFF111C99),
+            NavigationDestination(
+              icon: Icon(Icons.people_outline_rounded, color: Color(0xFF64748B)),
+              selectedIcon: Icon(Icons.people_rounded, color: Color(0xFF111C99)),
+              label: 'Residentes',
             ),
-            label: 'Visitas',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.campaign_outlined, color: Color(0xFF64748B)),
-            selectedIcon: Icon(
-              Icons.campaign_rounded,
-              color: Color(0xFF111C99),
+            NavigationDestination(
+              icon: Icon(Icons.apartment_outlined, color: Color(0xFF64748B)),
+              selectedIcon: Icon(
+                Icons.apartment_rounded,
+                color: Color(0xFF111C99),
+              ),
+              label: 'Viviendas',
             ),
-            label: 'Avisos',
-          ),
-        ],
+            NavigationDestination(
+              icon: Icon(Icons.badge_outlined, color: Color(0xFF64748B)),
+              selectedIcon: Icon(
+                Icons.badge_rounded,
+                color: Color(0xFF111C99),
+              ),
+              label: 'Visitas',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.event_available_outlined, color: Color(0xFF64748B)),
+              selectedIcon: Icon(
+                Icons.event_available_rounded,
+                color: Color(0xFF111C99),
+              ),
+              label: 'Reservas',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.campaign_outlined, color: Color(0xFF64748B)),
+              selectedIcon: Icon(
+                Icons.campaign_rounded,
+                color: Color(0xFF111C99),
+              ),
+              label: 'Avisos',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -540,7 +562,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               _buildActionCard(
                 title: 'Gestión de Viviendas',
                 icon: Icons.home_work_outlined,
-                onTap: () => setState(() => _currentIndex = 2),
+                onTap: () => _onDestinationSelected(2),
                 insight: _totalViviendas > 0
                     ? Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -595,7 +617,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               _buildActionCard(
                 title: 'Directorio de Residentes',
                 icon: Icons.people_outline,
-                onTap: () => setState(() => _currentIndex = 1),
+                onTap: () => _onDestinationSelected(1),
                 insight: Text(
                   '$_totalResidentes residentes en el padrón',
                   style: const TextStyle(
@@ -609,14 +631,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               _buildActionCard(
                 title: 'Reservas y Áreas Comunes',
                 icon: Icons.event_available_outlined,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ReservasAdminScreen(controller: widget.controller),
-                    ),
-                  );
-                },
+                onTap: () => _onDestinationSelected(4),
                 insight: const Text(
                   'Aprobar solicitudes, crear bloqueos y áreas comunes',
                   style: TextStyle(
@@ -629,7 +644,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               _buildActionCard(
                 title: 'Gestión de Avisos',
                 icon: Icons.campaign_outlined,
-                onTap: () => setState(() => _currentIndex = 4),
+                onTap: () => _onDestinationSelected(5),
               ),
               const SizedBox(height: 12),
               _buildActionCard(
