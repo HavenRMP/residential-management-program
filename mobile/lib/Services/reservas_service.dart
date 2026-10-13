@@ -1024,10 +1024,9 @@ class ReservasService {
       }
 
       final url = '$baseUrl/api/admin/reservas?$query';
-      final response = await controller.httpClient.get(
-        Uri.parse(url),
-        headers: await _getHeaders(),
-      );
+      final response = await controller.httpClient
+          .get(Uri.parse(url), headers: await _getHeaders())
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -1051,14 +1050,46 @@ class ReservasService {
         response.body,
         statusCode: response.statusCode,
         defaultMessage: 'No se pudieron consultar las reservas administrativas.',
+        context: 'ReservasService.getReservasAdmin',
       );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.getReservasAdmin');
       return {'success': false, 'error': error, 'items': <ReservaModel>[]};
-    } catch (e) {
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getReservasAdmin');
+      return {
+        'success': false,
+        'error': 'Tiempo de espera agotado al consultar reservas administrativas.',
+        'items': <ReservaModel>[],
+      };
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getReservasAdmin');
+      return {
+        'success': false,
+        'error': 'Sin conexión a internet al consultar reservas administrativas.',
+        'items': <ReservaModel>[],
+      };
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getReservasAdmin');
+      return {
+        'success': false,
+        'error': 'Error de comunicación al consultar reservas como administrador.',
+        'items': <ReservaModel>[],
+      };
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getReservasAdmin');
+      return {
+        'success': false,
+        'error': 'Respuesta con formato no válido de reservas administrativas.',
+        'items': <ReservaModel>[],
+      };
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getReservasAdmin');
       return {
         'success': false,
         'error': ErrorHandler.parseException(
           e,
           defaultMessage: 'Error al consultar reservas como administrador.',
+          context: 'ReservasService.getReservasAdmin',
         ),
         'items': <ReservaModel>[],
       };
@@ -1078,10 +1109,9 @@ class ReservasService {
       }
 
       final url = '$baseUrl/api/admin/reservas/no-shows?$query';
-      final response = await controller.httpClient.get(
-        Uri.parse(url),
-        headers: await _getHeaders(),
-      );
+      final response = await controller.httpClient
+          .get(Uri.parse(url), headers: await _getHeaders())
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -1103,14 +1133,46 @@ class ReservasService {
         response.body,
         statusCode: response.statusCode,
         defaultMessage: 'No se pudo consultar el historial de no-shows.',
+        context: 'ReservasService.getNoShows',
       );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.getNoShows');
       return {'success': false, 'error': error, 'items': <ReservaModel>[]};
-    } catch (e) {
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getNoShows');
+      return {
+        'success': false,
+        'error': 'Tiempo de espera agotado al consultar no-shows.',
+        'items': <ReservaModel>[],
+      };
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getNoShows');
+      return {
+        'success': false,
+        'error': 'Sin conexión a internet al consultar no-shows.',
+        'items': <ReservaModel>[],
+      };
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getNoShows');
+      return {
+        'success': false,
+        'error': 'Error de comunicación al consultar el registro de inasistencias.',
+        'items': <ReservaModel>[],
+      };
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getNoShows');
+      return {
+        'success': false,
+        'error': 'Respuesta con formato no válido de inasistencias.',
+        'items': <ReservaModel>[],
+      };
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getNoShows');
       return {
         'success': false,
         'error': ErrorHandler.parseException(
           e,
           defaultMessage: 'Error al consultar no-shows.',
+          context: 'ReservasService.getNoShows',
         ),
         'items': <ReservaModel>[],
       };
@@ -1121,10 +1183,9 @@ class ReservasService {
   Future<Map<String, dynamic>> aprobarReservaAdmin(String reservaId) async {
     try {
       final url = '$baseUrl/api/admin/reservas/$reservaId/aprobar';
-      final response = await controller.httpClient.post(
-        Uri.parse(url),
-        headers: await _getHeaders(),
-      );
+      final response = await controller.httpClient
+          .post(Uri.parse(url), headers: await _getHeaders())
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {'success': true};
@@ -1133,14 +1194,42 @@ class ReservasService {
         response.body,
         statusCode: response.statusCode,
         defaultMessage: 'No se pudo aprobar la reserva.',
+        context: 'ReservasService.aprobarReservaAdmin',
       );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.aprobarReservaAdmin');
       return {'success': false, 'error': error};
-    } catch (e) {
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.aprobarReservaAdmin');
+      return {
+        'success': false,
+        'error': 'Tiempo de espera agotado al aprobar la reserva.',
+      };
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.aprobarReservaAdmin');
+      return {
+        'success': false,
+        'error': 'Sin conexión a internet al aprobar la reserva.',
+      };
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.aprobarReservaAdmin');
+      return {
+        'success': false,
+        'error': 'Error de comunicación de red al aprobar reserva.',
+      };
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.aprobarReservaAdmin');
+      return {
+        'success': false,
+        'error': 'Respuesta con formato no válido al aprobar reserva.',
+      };
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.aprobarReservaAdmin');
       return {
         'success': false,
         'error': ErrorHandler.parseException(
           e,
           defaultMessage: 'Error al aprobar reserva.',
+          context: 'ReservasService.aprobarReservaAdmin',
         ),
       };
     }
@@ -1153,11 +1242,13 @@ class ReservasService {
   }) async {
     try {
       final url = '$baseUrl/api/admin/reservas/$reservaId/rechazar';
-      final response = await controller.httpClient.post(
-        Uri.parse(url),
-        headers: await _getHeaders(),
-        body: jsonEncode({'motivo': motivo.trim()}),
-      );
+      final response = await controller.httpClient
+          .post(
+            Uri.parse(url),
+            headers: await _getHeaders(),
+            body: jsonEncode({'motivo': motivo.trim()}),
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {'success': true};
@@ -1166,14 +1257,42 @@ class ReservasService {
         response.body,
         statusCode: response.statusCode,
         defaultMessage: 'No se pudo rechazar la reserva.',
+        context: 'ReservasService.rechazarReservaAdmin',
       );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.rechazarReservaAdmin');
       return {'success': false, 'error': error};
-    } catch (e) {
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.rechazarReservaAdmin');
+      return {
+        'success': false,
+        'error': 'Tiempo de espera agotado al rechazar la reserva.',
+      };
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.rechazarReservaAdmin');
+      return {
+        'success': false,
+        'error': 'Sin conexión a internet al rechazar la reserva.',
+      };
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.rechazarReservaAdmin');
+      return {
+        'success': false,
+        'error': 'Error de comunicación al rechazar la reserva.',
+      };
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.rechazarReservaAdmin');
+      return {
+        'success': false,
+        'error': 'Respuesta con formato no válido al rechazar reserva.',
+      };
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.rechazarReservaAdmin');
       return {
         'success': false,
         'error': ErrorHandler.parseException(
           e,
           defaultMessage: 'Error al rechazar reserva.',
+          context: 'ReservasService.rechazarReservaAdmin',
         ),
       };
     }
@@ -1186,11 +1305,13 @@ class ReservasService {
   }) async {
     try {
       final url = '$baseUrl/api/admin/reservas/$reservaId/cancelar';
-      final response = await controller.httpClient.post(
-        Uri.parse(url),
-        headers: await _getHeaders(),
-        body: jsonEncode({'motivo': motivo.trim()}),
-      );
+      final response = await controller.httpClient
+          .post(
+            Uri.parse(url),
+            headers: await _getHeaders(),
+            body: jsonEncode({'motivo': motivo.trim()}),
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {'success': true};
@@ -1199,14 +1320,42 @@ class ReservasService {
         response.body,
         statusCode: response.statusCode,
         defaultMessage: 'No se pudo cancelar la reserva.',
+        context: 'ReservasService.cancelarReservaAdmin',
       );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.cancelarReservaAdmin');
       return {'success': false, 'error': error};
-    } catch (e) {
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.cancelarReservaAdmin');
+      return {
+        'success': false,
+        'error': 'Tiempo de espera agotado al cancelar la reserva administrativamente.',
+      };
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.cancelarReservaAdmin');
+      return {
+        'success': false,
+        'error': 'Sin conexión a internet al cancelar la reserva.',
+      };
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.cancelarReservaAdmin');
+      return {
+        'success': false,
+        'error': 'Error de comunicación de red al cancelar reserva.',
+      };
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.cancelarReservaAdmin');
+      return {
+        'success': false,
+        'error': 'Respuesta con formato no válido al cancelar reserva.',
+      };
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.cancelarReservaAdmin');
       return {
         'success': false,
         'error': ErrorHandler.parseException(
           e,
           defaultMessage: 'Error al cancelar reserva.',
+          context: 'ReservasService.cancelarReservaAdmin',
         ),
       };
     }
@@ -1216,10 +1365,9 @@ class ReservasService {
   Future<Map<String, dynamic>> marcarNoUtilizada(String reservaId) async {
     try {
       final url = '$baseUrl/api/admin/reservas/$reservaId/no-utilizada';
-      final response = await controller.httpClient.post(
-        Uri.parse(url),
-        headers: await _getHeaders(),
-      );
+      final response = await controller.httpClient
+          .post(Uri.parse(url), headers: await _getHeaders())
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {'success': true};
@@ -1228,14 +1376,42 @@ class ReservasService {
         response.body,
         statusCode: response.statusCode,
         defaultMessage: 'No se pudo marcar la inasistencia (no-show).',
+        context: 'ReservasService.marcarNoUtilizada',
       );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.marcarNoUtilizada');
       return {'success': false, 'error': error};
-    } catch (e) {
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.marcarNoUtilizada');
+      return {
+        'success': false,
+        'error': 'Tiempo de espera agotado al registrar inasistencia.',
+      };
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.marcarNoUtilizada');
+      return {
+        'success': false,
+        'error': 'Sin conexión a internet al registrar inasistencia.',
+      };
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.marcarNoUtilizada');
+      return {
+        'success': false,
+        'error': 'Error de comunicación al registrar inasistencia.',
+      };
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.marcarNoUtilizada');
+      return {
+        'success': false,
+        'error': 'Respuesta con formato no válido al marcar inasistencia.',
+      };
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.marcarNoUtilizada');
       return {
         'success': false,
         'error': ErrorHandler.parseException(
           e,
           defaultMessage: 'Error al registrar inasistencia.',
+          context: 'ReservasService.marcarNoUtilizada',
         ),
       };
     }
@@ -1257,11 +1433,9 @@ class ReservasService {
         'motivo': motivo.trim(),
       });
 
-      final response = await controller.httpClient.post(
-        Uri.parse(url),
-        headers: await _getHeaders(),
-        body: body,
-      );
+      final response = await controller.httpClient
+          .post(Uri.parse(url), headers: await _getHeaders(), body: body)
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -1277,14 +1451,42 @@ class ReservasService {
         response.body,
         statusCode: response.statusCode,
         defaultMessage: 'No se pudo crear el bloqueo por mantenimiento.',
+        context: 'ReservasService.crearBloqueo',
       );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.crearBloqueo');
       return {'success': false, 'error': error};
-    } catch (e) {
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.crearBloqueo');
+      return {
+        'success': false,
+        'error': 'Tiempo de espera agotado al registrar bloqueo por mantenimiento.',
+      };
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.crearBloqueo');
+      return {
+        'success': false,
+        'error': 'Sin conexión a internet al registrar bloqueo.',
+      };
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.crearBloqueo');
+      return {
+        'success': false,
+        'error': 'Error de comunicación de red al crear bloqueo.',
+      };
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.crearBloqueo');
+      return {
+        'success': false,
+        'error': 'Respuesta con formato no válido al crear bloqueo.',
+      };
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.crearBloqueo');
       return {
         'success': false,
         'error': ErrorHandler.parseException(
           e,
           defaultMessage: 'Error al registrar bloqueo.',
+          context: 'ReservasService.crearBloqueo',
         ),
       };
     }
