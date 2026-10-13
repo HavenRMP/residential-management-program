@@ -102,5 +102,57 @@ void main() {
       expect(ErrorHandler.parseException(null), isNotEmpty);
       expect(ErrorHandler.parseException(Exception('El residente ya no habita aquí')), 'El residente ya no habita aquí');
     });
+
+    test('Parsea y traduce códigos de negocio del módulo de Reservas (RE001 a RE015)', () {
+      expect(
+        ErrorHandler.parseException(Exception('RE001: Area no valida')),
+        contains('El área común no existe o está inactiva'),
+      );
+      expect(
+        ErrorHandler.parseException(Exception('RE005: Out of bounds')),
+        contains('fuera del horario de operación'),
+      );
+      expect(
+        ErrorHandler.parseException(Exception('RE006: Too short')),
+        contains('entre 30 minutos y 12 horas'),
+      );
+      expect(
+        ErrorHandler.parseException(Exception('RE007: Window violated')),
+        contains('entre 7 y 30 días de anticipación'),
+      );
+      expect(
+        ErrorHandler.parseException(Exception('RE008: Duplicate')),
+        contains('Ya tienes una reserva para ese día'),
+      );
+      expect(
+        ErrorHandler.parseException(Exception('RE009: Conflict')),
+        contains('El horario choca con otra reserva aprobada'),
+      );
+      expect(
+        ErrorHandler.parseException(Exception('RE011: Confirm window')),
+        contains('entre 7 días y 72 horas antes del evento'),
+      );
+      expect(
+        ErrorHandler.parseException(Exception('RE013: Not finished yet')),
+        contains('aún no termina'),
+      );
+    });
+
+    test('trackError registra excepciones y stackTrace de forma segura', () {
+      expect(() => ErrorHandler.trackError('Error de prueba', StackTrace.current, 'TestContext'), returnsNormally);
+      expect(() => ErrorHandler.trackError(Exception('Sin stack'), null, null), returnsNormally);
+    });
+  });
+
+  group('ErrorHandler.extractErrorMessage - Códigos de Reservas', () {
+    test('Traduce payload con {"code": "RE007"} a mensaje en español', () {
+      final msg = ErrorHandler.extractErrorMessage('{"code": "RE007"}', statusCode: 400);
+      expect(msg, contains('entre 7 y 30 días de anticipación'));
+    });
+
+    test('Traduce payload con {"error": "RE009"} a mensaje descriptivo de choque', () {
+      final msg = ErrorHandler.extractErrorMessage('{"error": "RE009"}', statusCode: 409);
+      expect(msg, contains('El horario choca con otra reserva'));
+    });
   });
 }
