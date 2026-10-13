@@ -451,10 +451,9 @@ class ReservasService {
       }
 
       final url = '$baseUrl/api/reservas/calendario?$query';
-      final response = await controller.httpClient.get(
-        Uri.parse(url),
-        headers: await _getHeaders(),
-      );
+      final response = await controller.httpClient
+          .get(Uri.parse(url), headers: await _getHeaders())
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -476,14 +475,46 @@ class ReservasService {
         response.body,
         statusCode: response.statusCode,
         defaultMessage: 'No se pudo cargar el calendario.',
+        context: 'ReservasService.getCalendario',
       );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.getCalendario');
       return {'success': false, 'error': error, 'items': <ReservaModel>[]};
-    } catch (e) {
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getCalendario');
+      return {
+        'success': false,
+        'error': 'Tiempo de espera agotado al consultar el calendario de reservas.',
+        'items': <ReservaModel>[],
+      };
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getCalendario');
+      return {
+        'success': false,
+        'error': 'Sin conexión a internet al consultar el calendario.',
+        'items': <ReservaModel>[],
+      };
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getCalendario');
+      return {
+        'success': false,
+        'error': 'Error de comunicación al consultar el calendario.',
+        'items': <ReservaModel>[],
+      };
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getCalendario');
+      return {
+        'success': false,
+        'error': 'Respuesta con formato no válido del calendario.',
+        'items': <ReservaModel>[],
+      };
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getCalendario');
       return {
         'success': false,
         'error': ErrorHandler.parseException(
           e,
           defaultMessage: 'Error al consultar el calendario.',
+          context: 'ReservasService.getCalendario',
         ),
         'items': <ReservaModel>[],
       };
@@ -503,10 +534,9 @@ class ReservasService {
       }
 
       final url = '$baseUrl/api/reservas/mias?$query';
-      final response = await controller.httpClient.get(
-        Uri.parse(url),
-        headers: await _getHeaders(),
-      );
+      final response = await controller.httpClient
+          .get(Uri.parse(url), headers: await _getHeaders())
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -530,14 +560,46 @@ class ReservasService {
         response.body,
         statusCode: response.statusCode,
         defaultMessage: 'No se pudieron consultar tus reservas.',
+        context: 'ReservasService.getMisReservas',
       );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.getMisReservas');
       return {'success': false, 'error': error, 'items': <ReservaModel>[]};
-    } catch (e) {
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getMisReservas');
+      return {
+        'success': false,
+        'error': 'Tiempo de espera agotado al consultar tus reservas.',
+        'items': <ReservaModel>[],
+      };
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getMisReservas');
+      return {
+        'success': false,
+        'error': 'Sin conexión a internet al consultar tus reservas.',
+        'items': <ReservaModel>[],
+      };
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getMisReservas');
+      return {
+        'success': false,
+        'error': 'Error de comunicación de red al consultar tus reservas.',
+        'items': <ReservaModel>[],
+      };
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getMisReservas');
+      return {
+        'success': false,
+        'error': 'Respuesta con formato no válido de tus reservas.',
+        'items': <ReservaModel>[],
+      };
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getMisReservas');
       return {
         'success': false,
         'error': ErrorHandler.parseException(
           e,
           defaultMessage: 'Error al consultar tus reservas.',
+          context: 'ReservasService.getMisReservas',
         ),
         'items': <ReservaModel>[],
       };
@@ -552,10 +614,9 @@ class ReservasService {
     try {
       final query = 'page=$page&pageSize=$pageSize';
       final url = '$baseUrl/api/reservas/por-aprobar-titular?$query';
-      final response = await controller.httpClient.get(
-        Uri.parse(url),
-        headers: await _getHeaders(),
-      );
+      final response = await controller.httpClient
+          .get(Uri.parse(url), headers: await _getHeaders())
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -578,14 +639,46 @@ class ReservasService {
         response.body,
         statusCode: response.statusCode,
         defaultMessage: 'No se pudieron consultar solicitudes pendientes.',
+        context: 'ReservasService.getPendientesTitular',
       );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.getPendientesTitular');
       return {'success': false, 'error': error, 'items': <ReservaModel>[]};
-    } catch (e) {
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getPendientesTitular');
+      return {
+        'success': false,
+        'error': 'Tiempo de espera agotado al consultar solicitudes por aprobar.',
+        'items': <ReservaModel>[],
+      };
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getPendientesTitular');
+      return {
+        'success': false,
+        'error': 'Sin conexión a internet al consultar solicitudes pendientes.',
+        'items': <ReservaModel>[],
+      };
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getPendientesTitular');
+      return {
+        'success': false,
+        'error': 'Error de comunicación al consultar solicitudes de subusuarios.',
+        'items': <ReservaModel>[],
+      };
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getPendientesTitular');
+      return {
+        'success': false,
+        'error': 'Respuesta con formato no válido al consultar solicitudes.',
+        'items': <ReservaModel>[],
+      };
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.getPendientesTitular');
       return {
         'success': false,
         'error': ErrorHandler.parseException(
           e,
           defaultMessage: 'Error al consultar solicitudes por aprobar.',
+          context: 'ReservasService.getPendientesTitular',
         ),
         'items': <ReservaModel>[],
       };
@@ -606,11 +699,9 @@ class ReservasService {
         'fin': fin.toUtc().toIso8601String(),
       });
 
-      final response = await controller.httpClient.post(
-        Uri.parse(url),
-        headers: await _getHeaders(),
-        body: body,
-      );
+      final response = await controller.httpClient
+          .post(Uri.parse(url), headers: await _getHeaders(), body: body)
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -623,14 +714,42 @@ class ReservasService {
         response.body,
         statusCode: response.statusCode,
         defaultMessage: 'No se pudo crear la reserva.',
+        context: 'ReservasService.solicitarReserva',
       );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.solicitarReserva');
       return {'success': false, 'error': error};
-    } catch (e) {
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.solicitarReserva');
+      return {
+        'success': false,
+        'error': 'Tiempo de espera agotado al solicitar la reserva.',
+      };
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.solicitarReserva');
+      return {
+        'success': false,
+        'error': 'Sin conexión a internet al enviar la solicitud de reserva.',
+      };
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.solicitarReserva');
+      return {
+        'success': false,
+        'error': 'Error de comunicación de red al solicitar reserva.',
+      };
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.solicitarReserva');
+      return {
+        'success': false,
+        'error': 'Respuesta con formato no válido al procesar solicitud de reserva.',
+      };
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.solicitarReserva');
       return {
         'success': false,
         'error': ErrorHandler.parseException(
           e,
           defaultMessage: 'Error al solicitar reserva.',
+          context: 'ReservasService.solicitarReserva',
         ),
       };
     }
@@ -640,10 +759,9 @@ class ReservasService {
   Future<Map<String, dynamic>> aprobarReservaTitular(String reservaId) async {
     try {
       final url = '$baseUrl/api/reservas/$reservaId/aprobar-titular';
-      final response = await controller.httpClient.post(
-        Uri.parse(url),
-        headers: await _getHeaders(),
-      );
+      final response = await controller.httpClient
+          .post(Uri.parse(url), headers: await _getHeaders())
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {'success': true};
@@ -652,14 +770,42 @@ class ReservasService {
         response.body,
         statusCode: response.statusCode,
         defaultMessage: 'No se pudo dar visto bueno a la solicitud.',
+        context: 'ReservasService.aprobarReservaTitular',
       );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.aprobarReservaTitular');
       return {'success': false, 'error': error};
-    } catch (e) {
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.aprobarReservaTitular');
+      return {
+        'success': false,
+        'error': 'Tiempo de espera agotado al aprobar solicitud de subusuario.',
+      };
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.aprobarReservaTitular');
+      return {
+        'success': false,
+        'error': 'Sin conexión a internet al aprobar solicitud.',
+      };
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.aprobarReservaTitular');
+      return {
+        'success': false,
+        'error': 'Error de comunicación de red al aprobar solicitud.',
+      };
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.aprobarReservaTitular');
+      return {
+        'success': false,
+        'error': 'Respuesta con formato no válido al aprobar solicitud.',
+      };
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.aprobarReservaTitular');
       return {
         'success': false,
         'error': ErrorHandler.parseException(
           e,
           defaultMessage: 'Error al aprobar solicitud de subusuario.',
+          context: 'ReservasService.aprobarReservaTitular',
         ),
       };
     }
@@ -672,14 +818,16 @@ class ReservasService {
   }) async {
     try {
       final url = '$baseUrl/api/reservas/$reservaId/rechazar-titular';
-      final response = await controller.httpClient.post(
-        Uri.parse(url),
-        headers: await _getHeaders(),
-        body: jsonEncode({
-          if (motivo != null && motivo.trim().isNotEmpty)
-            'motivo': motivo.trim(),
-        }),
-      );
+      final response = await controller.httpClient
+          .post(
+            Uri.parse(url),
+            headers: await _getHeaders(),
+            body: jsonEncode({
+              if (motivo != null && motivo.trim().isNotEmpty)
+                'motivo': motivo.trim(),
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {'success': true};
@@ -688,14 +836,42 @@ class ReservasService {
         response.body,
         statusCode: response.statusCode,
         defaultMessage: 'No se pudo rechazar la solicitud.',
+        context: 'ReservasService.rechazarReservaTitular',
       );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.rechazarReservaTitular');
       return {'success': false, 'error': error};
-    } catch (e) {
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.rechazarReservaTitular');
+      return {
+        'success': false,
+        'error': 'Tiempo de espera agotado al rechazar solicitud.',
+      };
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.rechazarReservaTitular');
+      return {
+        'success': false,
+        'error': 'Sin conexión a internet al rechazar solicitud.',
+      };
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.rechazarReservaTitular');
+      return {
+        'success': false,
+        'error': 'Error de comunicación al rechazar solicitud.',
+      };
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.rechazarReservaTitular');
+      return {
+        'success': false,
+        'error': 'Respuesta con formato no válido al rechazar solicitud.',
+      };
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.rechazarReservaTitular');
       return {
         'success': false,
         'error': ErrorHandler.parseException(
           e,
           defaultMessage: 'Error al rechazar solicitud.',
+          context: 'ReservasService.rechazarReservaTitular',
         ),
       };
     }
@@ -705,10 +881,9 @@ class ReservasService {
   Future<Map<String, dynamic>> confirmarReserva(String reservaId) async {
     try {
       final url = '$baseUrl/api/reservas/$reservaId/confirmar';
-      final response = await controller.httpClient.post(
-        Uri.parse(url),
-        headers: await _getHeaders(),
-      );
+      final response = await controller.httpClient
+          .post(Uri.parse(url), headers: await _getHeaders())
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {'success': true};
@@ -717,14 +892,42 @@ class ReservasService {
         response.body,
         statusCode: response.statusCode,
         defaultMessage: 'No se pudo confirmar la reserva.',
+        context: 'ReservasService.confirmarReserva',
       );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.confirmarReserva');
       return {'success': false, 'error': error};
-    } catch (e) {
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.confirmarReserva');
+      return {
+        'success': false,
+        'error': 'Tiempo de espera agotado al confirmar asistencia.',
+      };
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.confirmarReserva');
+      return {
+        'success': false,
+        'error': 'Sin conexión a internet al confirmar asistencia.',
+      };
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.confirmarReserva');
+      return {
+        'success': false,
+        'error': 'Error de comunicación al confirmar asistencia.',
+      };
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.confirmarReserva');
+      return {
+        'success': false,
+        'error': 'Respuesta con formato no válido al confirmar reserva.',
+      };
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.confirmarReserva');
       return {
         'success': false,
         'error': ErrorHandler.parseException(
           e,
           defaultMessage: 'Error al confirmar asistencia.',
+          context: 'ReservasService.confirmarReserva',
         ),
       };
     }
@@ -737,14 +940,16 @@ class ReservasService {
   }) async {
     try {
       final url = '$baseUrl/api/reservas/$reservaId/cancelar';
-      final response = await controller.httpClient.post(
-        Uri.parse(url),
-        headers: await _getHeaders(),
-        body: jsonEncode({
-          if (motivo != null && motivo.trim().isNotEmpty)
-            'motivo': motivo.trim(),
-        }),
-      );
+      final response = await controller.httpClient
+          .post(
+            Uri.parse(url),
+            headers: await _getHeaders(),
+            body: jsonEncode({
+              if (motivo != null && motivo.trim().isNotEmpty)
+                'motivo': motivo.trim(),
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {'success': true};
@@ -753,14 +958,42 @@ class ReservasService {
         response.body,
         statusCode: response.statusCode,
         defaultMessage: 'No se pudo cancelar la reserva.',
+        context: 'ReservasService.cancelarReserva',
       );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.cancelarReserva');
       return {'success': false, 'error': error};
-    } catch (e) {
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.cancelarReserva');
+      return {
+        'success': false,
+        'error': 'Tiempo de espera agotado al cancelar la reserva.',
+      };
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.cancelarReserva');
+      return {
+        'success': false,
+        'error': 'Sin conexión a internet al cancelar la reserva.',
+      };
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.cancelarReserva');
+      return {
+        'success': false,
+        'error': 'Error de comunicación al cancelar la reserva.',
+      };
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.cancelarReserva');
+      return {
+        'success': false,
+        'error': 'Respuesta con formato no válido al cancelar reserva.',
+      };
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.cancelarReserva');
       return {
         'success': false,
         'error': ErrorHandler.parseException(
           e,
           defaultMessage: 'Error al cancelar la reserva.',
+          context: 'ReservasService.cancelarReserva',
         ),
       };
     }
