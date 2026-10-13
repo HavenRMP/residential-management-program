@@ -164,4 +164,24 @@ class ReservaModel {
   bool get esCancelada => estado == 'CANCELADA' || estado == 'CANCELADA_ADMIN';
   bool get esNoUtilizada => estado == 'NO_UTILIZADA';
   bool get esFinalizada => estado == 'FINALIZADA';
+
+  /// Regla RE011: Habilitada entre 7 días y 72 horas antes del evento.
+  bool get esConfirmable {
+    if (!esAprobada) return false;
+    final ahora = DateTime.now();
+    final diferencia = inicio.difference(ahora);
+    return diferencia.inHours >= 72 && diferencia.inDays <= 7;
+  }
+
+  /// Indica si la reserva puede cancelarse por el residente (antes de su inicio)
+  bool get esCancelable {
+    if (DateTime.now().isAfter(inicio)) return false;
+    return esPendienteTitular || esPendienteAdmin || esAprobada || esConfirmada;
+  }
+
+  /// Indica si el administrador puede marcarla como no utilizada (después de terminar)
+  bool get esMarcableNoShow {
+    if (DateTime.now().isBefore(fin)) return false;
+    return esConfirmada || esAprobada;
+  }
 }
