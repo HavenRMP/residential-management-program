@@ -145,4 +145,23 @@ class ReservaModel {
       'noShowsSolicitante': noShowsSolicitante,
     };
   }
+
+  String get solicitanteCompleto {
+    final parts = [solicitanteNombre, solicitanteApellidos].where((p) => p != null && p.isNotEmpty).join(' ');
+    return parts.isNotEmpty ? parts : 'Solicitante';
+  }
+
+  String get titularCompleto {
+    final parts = [titularNombre, titularApellidos].where((p) => p != null && p.isNotEmpty).join(' ');
+    return parts.isNotEmpty ? parts : 'Titular';
+  }
+
+  bool get esPendienteTitular => estado == 'PENDIENTE_TITULAR';
+  bool get esPendienteAdmin => estado == 'PENDIENTE_ADMIN';
+  bool get esAprobada => estado == 'APROBADA';
+  bool get esConfirmada => estado == 'CONFIRMADA';
+  bool get esRechazada => estado == 'RECHAZADA_TITULAR' || estado == 'RECHAZADA_ADMIN';
+  bool get esCancelada => estado == 'CANCELADA' || estado == 'CANCELADA_ADMIN';
+  bool get esNoUtilizada => estado == 'NO_UTILIZADA';
+  bool get esFinalizada => estado == 'FINALIZADA';
 }
