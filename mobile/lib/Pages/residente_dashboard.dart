@@ -329,7 +329,10 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
         misViviendas: _misViviendas,
         isEmbedded: true,
       ),
-      ReservasResidenteScreen(controller: widget.controller),
+      ReservasResidenteScreen(
+        controller: widget.controller,
+        isEmbedded: true,
+      ),
       if (hasCondominio) AvisosResidenteScreen(
         controller: widget.controller,
         onAvisoRead: () {
@@ -661,101 +664,10 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                   _buildViviendasAsignadas()
                 else
                   _buildViviendaPendiente(),
-
-                if (user?.condominioId != null && user!.condominioId!.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  _buildReservasCard(),
-                ],
               ],
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildReservasCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEEF2FF),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.event_available_rounded,
-                  color: Color(0xFF111C99),
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 14),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Áreas Comunes y Reservas',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF0F172A),
-                      ),
-                    ),
-                    Text(
-                      'Alberca, gimnasio, asadores y canchas',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          const Text(
-            'Aparta las instalaciones del condominio con anticipación, confirma tu asistencia o revisa los horarios disponibles.',
-            style: TextStyle(fontSize: 13, color: Color(0xFF475569), height: 1.4),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: () {
-                _onDestinationSelected(3);
-              },
-              icon: const Icon(Icons.calendar_month_rounded, size: 18),
-              label: const Text(
-                'Ver Áreas y Reservas',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF111C99),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
