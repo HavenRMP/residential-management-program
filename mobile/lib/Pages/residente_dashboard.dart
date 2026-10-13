@@ -412,6 +412,21 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
               tooltip: 'Invitaciones recibidas',
             ),
           IconButton(
+            onPressed: () async {
+              final code = await QrScannerView.openScanner(
+                context,
+                titulo: 'Escanear Código',
+                instrucciones: 'Apunta la cámara al código QR de acceso o invitación',
+              );
+              if (code != null && code.trim().isNotEmpty) {
+                _codigoController.text = code.trim();
+                await _redimirCodigo();
+              }
+            },
+            icon: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF64748B)),
+            tooltip: 'Escanear código QR',
+          ),
+          IconButton(
             onPressed: () {
               Navigator.push(
                 context,
