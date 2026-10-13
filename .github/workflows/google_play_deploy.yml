@@ -14,12 +14,15 @@ on:
         - beta
         - production
 
+permissions:
+  contents: read
+
 jobs:
   build-and-deploy:
     name: Build & Deploy to Google Play
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     defaults:
       run:
         working-directory: ./mobile

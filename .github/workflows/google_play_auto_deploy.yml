@@ -8,10 +8,15 @@ on:
       - 'mobile/pubspec.yaml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   check-version-change:
     name: Check Version Change in Pubspec
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       should_deploy: ${{ steps.check.outputs.should_deploy }}
       new_version: ${{ steps.check.outputs.new_version }}
@@ -71,7 +76,7 @@ jobs:
     if: needs.check-version-change.outputs.should_deploy == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     defaults:
       run:
         working-directory: ./mobile
