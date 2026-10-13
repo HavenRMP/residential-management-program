@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../Models/reserva_model.dart';
 import '../Services/app_controller.dart';
 import '../Services/reservas_service.dart';
+import '../Utils/error_handler.dart';
 
 class CalendarioReservasVigilanteModal extends StatefulWidget {
   final AppController controller;
@@ -21,6 +22,7 @@ class _CalendarioReservasVigilanteModalState
   late final ReservasService _reservasService;
   List<ReservaModel> _eventos = [];
   bool _isLoading = true;
+  String? _errorMessage;
   DateTime _selectedDate = DateTime.now();
 
   @override
@@ -31,19 +33,34 @@ class _CalendarioReservasVigilanteModalState
   }
 
   Future<void> _cargarCalendario() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     // Cargar para el día seleccionado (00:00:00 a 23:59:59)
     final from = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, 0, 0, 0);
     final to = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, 23, 59, 59);
 
-    final res = await _reservasService.getCalendario(from: from, to: to, pageSize: 100);
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-        if (res['success'] == true) {
-          _eventos = res['items'] as List<ReservaModel>;
-        }
-      });
+    try {
+      final res = await _reservasService.getCalendario(from: from, to: to, pageSize: 100);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          if (res['success'] == true) {
+            _eventos = res['items'] as List<ReservaModel>;
+          } else {
+            _errorMessage = res['error'] ?? 'No fue posible cargar el calendario.';
+          }
+        });
+      }
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'CalendarioReservasVigilanteModal._cargarCalendario');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = ErrorHandler.parseException(e);
+        });
+      }
     }
   }
 
@@ -146,21 +163,45 @@ class _CalendarioReservasVigilanteModalState
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : _eventos.isEmpty
+                : _errorMessage != null && _eventos.isEmpty
                     ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.event_available_rounded, size: 48, color: Color(0xFFCBD5E1)),
-                            const SizedBox(height: 10),
-                            Text(
-                              'Sin eventos ni bloqueos programados para este día.',
-                              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                            ),
-                          ],
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.cloud_off_rounded, size: 48, color: Color(0xFFEF4444)),
+                              const SizedBox(height: 10),
+                              Text(
+                                _errorMessage!,
+                                style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 12),
+                              OutlinedButton.icon(
+                                onPressed: _cargarCalendario,
+                                icon: const Icon(Icons.refresh_rounded, size: 16),
+                                label: const Text('Reintentar'),
+                              ),
+                            ],
+                          ),
                         ),
                       )
-                    : ListView.builder(
+                    : _eventos.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.event_available_rounded, size: 48, color: Color(0xFFCBD5E1)),
+                                const SizedBox(height: 10),
+                                Text(
+                                  'Sin eventos ni bloqueos programados para este día.',
+                                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.builder(
                         itemCount: _eventos.length,
                         itemBuilder: (ctx, idx) {
                           final evento = _eventos[idx];

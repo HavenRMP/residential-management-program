@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../Models/area_comun_model.dart';
 import '../Services/app_controller.dart';
 import '../Services/reservas_service.dart';
+import '../Utils/error_handler.dart';
 
 class SolicitarReservaModal extends StatefulWidget {
   final AppController controller;
@@ -37,22 +38,32 @@ class _SolicitarReservaModalState extends State<SolicitarReservaModal> {
   }
 
   Future<void> _cargarAreas() async {
-    final res = await _reservasService.getAreas(soloActivas: true, pageSize: 50);
-    if (mounted) {
-      setState(() {
-        _isLoadingAreas = false;
-        if (res['success'] == true) {
-          _areas = res['items'] as List<AreaComunModel>;
-          if (_selectedArea == null && _areas.isNotEmpty) {
-            _selectedArea = _areas.first;
-          } else if (_selectedArea != null) {
-            final found = _areas.where((a) => a.id == _selectedArea!.id);
-            if (found.isNotEmpty) {
-              _selectedArea = found.first;
+    try {
+      final res = await _reservasService.getAreas(soloActivas: true, pageSize: 50);
+      if (mounted) {
+        setState(() {
+          _isLoadingAreas = false;
+          if (res['success'] == true) {
+            _areas = res['items'] as List<AreaComunModel>;
+            if (_selectedArea == null && _areas.isNotEmpty) {
+              _selectedArea = _areas.first;
+            } else if (_selectedArea != null) {
+              final found = _areas.where((a) => a.id == _selectedArea!.id);
+              if (found.isNotEmpty) {
+                _selectedArea = found.first;
+              }
             }
+          } else {
+            widget.controller.notifyToast(res['error'] ?? 'No se pudieron cargar las áreas comunes.', success: false);
           }
-        }
-      });
+        });
+      }
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'SolicitarReservaModal._cargarAreas');
+      if (mounted) {
+        setState(() => _isLoadingAreas = false);
+        widget.controller.notifyToast(ErrorHandler.parseException(e), success: false);
+      }
     }
   }
 
@@ -65,7 +76,9 @@ class _SolicitarReservaModalState extends State<SolicitarReservaModal> {
           minute: int.parse(parts[1]),
         );
       }
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'SolicitarReservaModal._parseTime');
+    }
     return null;
   }
 
@@ -183,41 +196,49 @@ class _SolicitarReservaModalState extends State<SolicitarReservaModal> {
 
     setState(() => _isSubmitting = true);
 
-    final inicioDt = DateTime(
-      _selectedDate!.year,
-      _selectedDate!.month,
-      _selectedDate!.day,
-      _startTime!.hour,
-      _startTime!.minute,
-    );
+    try {
+      final inicioDt = DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day,
+        _startTime!.hour,
+        _startTime!.minute,
+      );
 
-    final finDt = DateTime(
-      _selectedDate!.year,
-      _selectedDate!.month,
-      _selectedDate!.day,
-      _endTime!.hour,
-      _endTime!.minute,
-    );
+      final finDt = DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day,
+        _endTime!.hour,
+        _endTime!.minute,
+      );
 
-    final res = await _reservasService.solicitarReserva(
-      areaId: _selectedArea!.id,
-      inicio: inicioDt,
-      fin: finDt,
-    );
+      final res = await _reservasService.solicitarReserva(
+        areaId: _selectedArea!.id,
+        inicio: inicioDt,
+        fin: finDt,
+      );
 
-    if (mounted) {
-      setState(() => _isSubmitting = false);
-      if (res['success'] == true) {
-        widget.controller.notifyToast(
-          '¡Solicitud de reserva enviada exitosamente!',
-          success: true,
-        );
-        Navigator.pop(context, true);
-      } else {
-        widget.controller.notifyToast(
-          res['error'] ?? 'No se pudo crear la reserva.',
-          success: false,
-        );
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        if (res['success'] == true) {
+          widget.controller.notifyToast(
+            '¡Solicitud de reserva enviada exitosamente!',
+            success: true,
+          );
+          Navigator.pop(context, true);
+        } else {
+          widget.controller.notifyToast(
+            res['error'] ?? 'No se pudo crear la reserva.',
+            success: false,
+          );
+        }
+      }
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'SolicitarReservaModal._enviarSolicitud');
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        widget.controller.notifyToast(ErrorHandler.parseException(e), success: false);
       }
     }
   }
