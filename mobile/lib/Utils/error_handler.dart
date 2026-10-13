@@ -349,6 +349,12 @@ class ErrorHandler {
       case 403:
         return 'No tienes los permisos necesarios para realizar esta acción.';
       case 404:
+        if (context != null && context.toLowerCase().contains('reservas')) {
+          return 'El servicio de reservas no se encuentra disponible temporalmente.';
+        }
+        if (fallback != null && fallback.trim().isNotEmpty) {
+          return fallback.trim();
+        }
         return 'El recurso solicitado no fue encontrado o ya no está disponible.';
       case 408:
         return 'El servidor tardó demasiado tiempo en responder. Intenta nuevamente.';
@@ -405,7 +411,14 @@ class ErrorHandler {
         lower == 'internal server error' ||
         lower == 'ocurrió un error' ||
         lower == 'ocurrió un error inesperado' ||
-        lower == 'error inesperado';
+        lower == 'error inesperado' ||
+        lower == 'not found' ||
+        lower == '404 not found' ||
+        lower == 'not found.' ||
+        lower == 'no-server' ||
+        lower == 'no server' ||
+        lower == 'resource not found' ||
+        lower == 'endpoint not found';
   }
 
   static String _cleanMessage(String str) {

@@ -54,6 +54,26 @@ void main() {
       expect(msg.contains('System.Runtime'), isFalse);
       expect(msg, contains('error interno'));
     });
+
+    test('Descarta texto genérico "Not Found" o "no-server" en body y mapea 404 a mensaje descriptivo para Reservas', () {
+      final msg = ErrorHandler.extractErrorMessage(
+        'Not Found',
+        statusCode: 404,
+        context: 'ReservasService.getMisReservas',
+        defaultMessage: 'No se pudieron consultar tus reservas.',
+      );
+      expect(msg, 'El servicio de reservas no se encuentra disponible temporalmente.');
+    });
+
+    test('Mapea 404 con defaultMessage cuando no es de reservas y body es Not Found', () {
+      final msg = ErrorHandler.extractErrorMessage(
+        'Not Found',
+        statusCode: 404,
+        context: 'UsuariosService',
+        defaultMessage: 'No se pudo consultar el usuario.',
+      );
+      expect(msg, 'No se pudo consultar el usuario.');
+    });
   });
 
   group('ErrorHandler.parseException Tests', () {
