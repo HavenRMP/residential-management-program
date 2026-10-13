@@ -10,6 +10,7 @@ import 'residentes_list.dart';
 import 'viviendas_list.dart';
 import 'avisos_admin_screen.dart';
 import 'visitas_admin_screen.dart';
+import 'reservas_admin_screen.dart';
 import 'perfil_screen.dart';
 import '../Services/push_notifications_service.dart';
 import '../Widgets/qr_dialog.dart';
@@ -601,6 +602,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     fontSize: 13,
                     color: Color(0xFF64748B),
                     fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildActionCard(
+                title: 'Reservas y Áreas Comunes',
+                icon: Icons.event_available_outlined,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ReservasAdminScreen(controller: widget.controller),
+                    ),
+                  );
+                },
+                insight: const Text(
+                  'Aprobar solicitudes, crear bloqueos y áreas comunes',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: Color(0xFF64748B),
                   ),
                 ),
               ),

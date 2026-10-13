@@ -15,6 +15,7 @@ import '../Utils/error_handler.dart';
 import '../Services/offline_sync_service.dart';
 import '../Widgets/offline_banner.dart';
 import '../Widgets/skeleton_loading.dart';
+import '../Widgets/calendario_reservas_vigilante_modal.dart';
 import '../Utils/haptic_helper.dart';
 
 class VigilanteDashboardScreen extends StatefulWidget {
@@ -138,6 +139,18 @@ class _VigilanteDashboardScreenState extends State<VigilanteDashboardScreen> {
           ),
         ),
         actions: [
+          IconButton(
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => CalendarioReservasVigilanteModal(controller: widget.controller),
+              );
+            },
+            icon: const Icon(Icons.event_available_rounded, color: Color(0xFFD97706)),
+            tooltip: 'Uso de áreas comunes',
+          ),
           IconButton(
             onPressed: () => _onDestinationSelected(1),
             icon: const Icon(Icons.inventory_2_outlined, color: Color(0xFF059669)),
