@@ -113,4 +113,36 @@ class ReservaModel {
           : (json['no_shows_solicitante'] is num ? (json['no_shows_solicitante'] as num).toInt() : 0),
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'areaId': areaId,
+      'areaNombre': areaNombre,
+      if (condominioId != null) 'condominioId': condominioId,
+      if (tipo != null) 'tipo': tipo,
+      'estado': estado,
+      'inicio': inicio.toUtc().toIso8601String(),
+      'fin': fin.toUtc().toIso8601String(),
+      if (titularId != null) 'titularId': titularId,
+      if (titularNombre != null) 'titularNombre': titularNombre,
+      if (titularApellidos != null) 'titularApellidos': titularApellidos,
+      if (viviendaId != null) 'viviendaId': viviendaId,
+      if (numeroCasa != null) 'numeroCasa': numeroCasa,
+      if (solicitanteId != null) 'solicitanteId': solicitanteId,
+      if (solicitanteNombre != null) 'solicitanteNombre': solicitanteNombre,
+      if (solicitanteApellidos != null) 'solicitanteApellidos': solicitanteApellidos,
+      if (solicitanteEmail != null) 'solicitanteEmail': solicitanteEmail,
+      if (parentesco != null) 'parentesco': parentesco,
+      if (aprobadorId != null) 'aprobadorId': aprobadorId,
+      if (aprobadorNombre != null) 'aprobadorNombre': aprobadorNombre,
+      if (aprobadorApellidos != null) 'aprobadorApellidos': aprobadorApellidos,
+      if (motivo != null) 'motivo': motivo,
+      if (confirmadaEn != null) 'confirmadaEn': confirmadaEn!.toUtc().toIso8601String(),
+      if (creadoEn != null) 'creadoEn': creadoEn!.toUtc().toIso8601String(),
+      if (actualizadoEn != null) 'actualizadoEn': actualizadoEn!.toUtc().toIso8601String(),
+      'noShowsTitular': noShowsTitular,
+      'noShowsSolicitante': noShowsSolicitante,
+    };
+  }
 }
