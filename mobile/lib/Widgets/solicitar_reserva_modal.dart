@@ -24,6 +24,7 @@ class _SolicitarReservaModalState extends State<SolicitarReservaModal> {
   AreaComunModel? _selectedArea;
   bool _isLoadingAreas = true;
   bool _isSubmitting = false;
+  String? _errorMessage;
 
   DateTime? _selectedDate;
   TimeOfDay? _startTime;
@@ -54,15 +55,21 @@ class _SolicitarReservaModalState extends State<SolicitarReservaModal> {
               }
             }
           } else {
-            widget.controller.notifyToast(res['error'] ?? 'No se pudieron cargar las áreas comunes.', success: false);
+            final errorMsg = res['error'] ?? 'No se pudieron cargar las áreas comunes.';
+            _errorMessage = errorMsg;
+            widget.controller.notifyToast(errorMsg, success: false);
           }
         });
       }
     } catch (e, s) {
       ErrorHandler.trackError(e, s, 'SolicitarReservaModal._cargarAreas');
       if (mounted) {
-        setState(() => _isLoadingAreas = false);
-        widget.controller.notifyToast(ErrorHandler.parseException(e), success: false);
+        final errorMsg = ErrorHandler.parseException(e);
+        setState(() {
+          _isLoadingAreas = false;
+          _errorMessage = errorMsg;
+        });
+        widget.controller.notifyToast(errorMsg, success: false);
       }
     }
   }
@@ -83,6 +90,12 @@ class _SolicitarReservaModalState extends State<SolicitarReservaModal> {
   }
 
   int _timeToMinutes(TimeOfDay t) => t.hour * 60 + t.minute;
+
+  String _formatearHoraSimple(DateTime dt) {
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '$h:$m';
+  }
 
   Future<void> _seleccionarFecha() async {
     final now = DateTime.now();
@@ -107,6 +120,7 @@ class _SolicitarReservaModalState extends State<SolicitarReservaModal> {
     if (picked != null) {
       setState(() {
         _selectedDate = picked;
+        _errorMessage = null;
       });
     }
   }
@@ -121,6 +135,7 @@ class _SolicitarReservaModalState extends State<SolicitarReservaModal> {
     if (picked != null) {
       setState(() {
         _startTime = picked;
+        _errorMessage = null;
         // Si la hora de fin es menor o igual, sugerir hora fin 2 horas después
         if (_endTime == null || _timeToMinutes(_endTime!) <= _timeToMinutes(picked)) {
           final newHour = (picked.hour + 2) % 24;
@@ -140,6 +155,7 @@ class _SolicitarReservaModalState extends State<SolicitarReservaModal> {
     if (picked != null) {
       setState(() {
         _endTime = picked;
+        _errorMessage = null;
       });
     }
   }
@@ -184,17 +200,45 @@ class _SolicitarReservaModalState extends State<SolicitarReservaModal> {
       }
     }
 
+    final now = DateTime.now();
+    final inicioDt = DateTime(
+      _selectedDate!.year,
+      _selectedDate!.month,
+      _selectedDate!.day,
+      _startTime!.hour,
+      _startTime!.minute,
+    );
+
+    // RE007: Ventana de 7 a 30 días de anticipación
+    final minPermitido = now.add(const Duration(days: 7));
+    if (inicioDt.isBefore(minPermitido)) {
+      final diff = minPermitido.difference(inicioDt);
+      if (diff.inHours < 24) {
+        return 'La reserva debe hacerse con al menos 7 días de anticipación (a partir de las ${_formatearHoraSimple(minPermitido)}).';
+      }
+      return 'La reserva debe hacerse con entre 7 y 30 días de anticipación.';
+    }
+
+    final maxPermitido = now.add(const Duration(days: 30));
+    if (inicioDt.isAfter(maxPermitido)) {
+      return 'La reserva debe hacerse con máximo 30 días de anticipación.';
+    }
+
     return null;
   }
 
   Future<void> _enviarSolicitud() async {
     final error = _validarFormulario();
     if (error != null) {
+      setState(() => _errorMessage = error);
       widget.controller.notifyToast(error, success: false);
       return;
     }
 
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
 
     try {
       final inicioDt = DateTime(
@@ -220,16 +264,24 @@ class _SolicitarReservaModalState extends State<SolicitarReservaModal> {
       );
 
       if (mounted) {
-        setState(() => _isSubmitting = false);
         if (res['success'] == true) {
+          setState(() {
+            _isSubmitting = false;
+            _errorMessage = null;
+          });
           widget.controller.notifyToast(
             '¡Solicitud de reserva enviada exitosamente!',
             success: true,
           );
           Navigator.pop(context, true);
         } else {
+          final errorMsg = res['error']?.toString() ?? 'No se pudo crear la reserva.';
+          setState(() {
+            _isSubmitting = false;
+            _errorMessage = errorMsg;
+          });
           widget.controller.notifyToast(
-            res['error'] ?? 'No se pudo crear la reserva.',
+            errorMsg,
             success: false,
           );
         }
@@ -237,8 +289,12 @@ class _SolicitarReservaModalState extends State<SolicitarReservaModal> {
     } catch (e, s) {
       ErrorHandler.trackError(e, s, 'SolicitarReservaModal._enviarSolicitud');
       if (mounted) {
-        setState(() => _isSubmitting = false);
-        widget.controller.notifyToast(ErrorHandler.parseException(e), success: false);
+        final errorMsg = ErrorHandler.parseException(e);
+        setState(() {
+          _isSubmitting = false;
+          _errorMessage = errorMsg;
+        });
+        widget.controller.notifyToast(errorMsg, success: false);
       }
     }
   }
@@ -489,6 +545,40 @@ class _SolicitarReservaModalState extends State<SolicitarReservaModal> {
                 ],
               ),
             ),
+
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFCA5A5)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _errorMessage!,
+                        style: const TextStyle(
+                          color: Color(0xFF991B1B),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () => setState(() => _errorMessage = null),
+                      child: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF991B1B)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
 
             const SizedBox(height: 24),
 
