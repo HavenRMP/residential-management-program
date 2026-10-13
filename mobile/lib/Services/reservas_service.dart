@@ -594,4 +594,122 @@ class ReservasService {
       };
     }
   }
+
+  /// GET /api/admin/reservas
+  Future<Map<String, dynamic>> getReservasAdmin({
+    String? estado,
+    String? areaId,
+    DateTime? from,
+    DateTime? to,
+    int page = 1,
+    int pageSize = 10,
+  }) async {
+    try {
+      var query = 'page=$page&pageSize=$pageSize';
+      if (estado != null && estado.isNotEmpty) {
+        query += '&estado=${Uri.encodeComponent(estado.toLowerCase())}';
+      }
+      if (areaId != null && areaId.isNotEmpty) {
+        query += '&areaId=${Uri.encodeComponent(areaId)}';
+      }
+      if (from != null) {
+        query += '&from=${Uri.encodeComponent(from.toUtc().toIso8601String())}';
+      }
+      if (to != null) {
+        query += '&to=${Uri.encodeComponent(to.toUtc().toIso8601String())}';
+      }
+
+      final url = '$baseUrl/api/admin/reservas?$query';
+      final response = await controller.httpClient.get(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          final itemsRaw = decoded['items'] as List<dynamic>? ?? [];
+          final reservas = itemsRaw
+              .map((j) => ReservaModel.fromJson(j as Map<String, dynamic>))
+              .toList();
+          return {
+            'success': true,
+            'items': reservas,
+            'page': decoded['page'] ?? page,
+            'pageSize': decoded['pageSize'] ?? pageSize,
+            'totalCount': decoded['totalCount'] ?? reservas.length,
+            'totalPages': decoded['totalPages'] ?? 1,
+            'hasNextPage': decoded['hasNextPage'] ?? false,
+          };
+        }
+      }
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudieron consultar las reservas administrativas.',
+      );
+      return {'success': false, 'error': error, 'items': <ReservaModel>[]};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al consultar reservas como administrador.',
+        ),
+        'items': <ReservaModel>[],
+      };
+    }
+  }
+
+  /// GET /api/admin/reservas/no-shows
+  Future<Map<String, dynamic>> getNoShows({
+    String? titularId,
+    int page = 1,
+    int pageSize = 10,
+  }) async {
+    try {
+      var query = 'page=$page&pageSize=$pageSize';
+      if (titularId != null && titularId.isNotEmpty) {
+        query += '&titularId=${Uri.encodeComponent(titularId)}';
+      }
+
+      final url = '$baseUrl/api/admin/reservas/no-shows?$query';
+      final response = await controller.httpClient.get(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          final itemsRaw = decoded['items'] as List<dynamic>? ?? [];
+          final noShows = itemsRaw
+              .map((j) => ReservaModel.fromJson(j as Map<String, dynamic>))
+              .toList();
+          return {
+            'success': true,
+            'items': noShows,
+            'page': decoded['page'] ?? page,
+            'pageSize': decoded['pageSize'] ?? pageSize,
+            'totalCount': decoded['totalCount'] ?? noShows.length,
+          };
+        }
+      }
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudo consultar el historial de no-shows.',
+      );
+      return {'success': false, 'error': error, 'items': <ReservaModel>[]};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al consultar no-shows.',
+        ),
+        'items': <ReservaModel>[],
+      };
+    }
+  }
 }
