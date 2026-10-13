@@ -204,4 +204,62 @@ class ReservasService {
       };
     }
   }
+
+  /// POST /api/areas/{id}/baja (Admin)
+  Future<Map<String, dynamic>> bajaArea(String id) async {
+    try {
+      final url = '$baseUrl/api/areas/$id/baja';
+      final response = await controller.httpClient.post(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {'success': true};
+      }
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudo dar de baja el área común.',
+      );
+      return {'success': false, 'error': error};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al dar de baja el área común.',
+        ),
+      };
+    }
+  }
+
+  /// POST /api/areas/{id}/reactivar (Admin)
+  Future<Map<String, dynamic>> reactivarArea(String id) async {
+    try {
+      final url = '$baseUrl/api/areas/$id/reactivar';
+      final response = await controller.httpClient.post(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {'success': true};
+      }
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudo reactivar el área común.',
+      );
+      return {'success': false, 'error': error};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al reactivar el área común.',
+        ),
+      };
+    }
+  }
 }
