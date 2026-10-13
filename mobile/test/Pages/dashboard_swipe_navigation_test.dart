@@ -69,22 +69,21 @@ API_BASE_URL_VISITAS=https://visitas-api.onrender.com
       expect(find.byType(PaqueteriaResidenteScreen), findsOneWidget);
       expect(find.byType(QrScannerView), findsNothing);
 
-      // Navegar a la pestaña Escanear mediante la barra de navegación
-      final escanearTab = find.text('Escanear');
-      expect(escanearTab, findsOneWidget);
-      await tester.tap(escanearTab);
+      // Navegar a la pestaña Reservas mediante la barra de navegación
+      final reservasTab = find.text('Reservas');
+      expect(reservasTab, findsOneWidget);
+      await tester.tap(reservasTab);
       await tester.pumpAndSettle();
 
-      // Ahora sí se monta el visor de cámara para escanear
-      expect(find.byType(QrScannerView), findsOneWidget);
+      // Verifica que cargue la pantalla de reservas
+      expect(find.text('Reservas de Áreas Comunes'), findsOneWidget);
 
-      // Navegar de regreso a Inicio
-      final inicioTab = find.text('Inicio');
-      await tester.tap(inicioTab);
-      await tester.pumpAndSettle();
-
-      // La cámara debe desmontarse inmediatamente para apagar el sensor de hardware
+      // El sensor de cámara no está montado en la pestaña
       expect(find.byType(QrScannerView), findsNothing);
+
+      // El botón de escanear ahora está disponible en el AppBar
+      final scannerButton = find.byTooltip('Escanear código QR');
+      expect(scannerButton, findsOneWidget);
     });
 
     testWidgets('VigilanteDashboard soporta deslizamiento horizontal entre Visitas y Paquetería', (WidgetTester tester) async {

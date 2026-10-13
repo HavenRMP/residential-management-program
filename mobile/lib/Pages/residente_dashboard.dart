@@ -329,7 +329,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
         misViviendas: _misViviendas,
         isEmbedded: true,
       ),
-      _buildScannerTab(),
+      ReservasResidenteScreen(controller: widget.controller),
       if (hasCondominio) AvisosResidenteScreen(
         controller: widget.controller,
         onAvisoRead: () {
@@ -475,9 +475,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
       body: PageView(
         key: const Key('residente_dashboard_page_view'),
         controller: _pageController,
-        physics: _currentIndex == 3
-            ? const NeverScrollableScrollPhysics()
-            : const ClampingScrollPhysics(),
+        physics: const ClampingScrollPhysics(),
         onPageChanged: (index) {
           HapticHelper.selection();
           setState(() {
@@ -537,9 +535,9 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
               label: 'Paquetes',
             ),
             const NavigationDestination(
-              icon: Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF64748B)),
-              selectedIcon: Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF111C99)),
-              label: 'Escanear',
+              icon: Icon(Icons.event_available_outlined, color: Color(0xFF64748B)),
+              selectedIcon: Icon(Icons.event_available_rounded, color: Color(0xFF111C99)),
+              label: 'Reservas',
             ),
             if (hasCondominio)
               NavigationDestination(
@@ -558,34 +556,6 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildScannerTab() {
-    if (_currentIndex != 3) {
-      // El sensor de la cámara permanece totalmente apagado y desconectado
-      // mientras el usuario se desliza por las demás pestañas.
-      return const ColoredBox(
-        color: Colors.black,
-        child: SizedBox.expand(),
-      );
-    }
-    return _buildScannerPage();
-  }
-
-  Widget _buildScannerPage() {
-    return Container(
-      color: Colors.black,
-      child: QrScannerView(
-        titulo: 'Escanear Código',
-        instrucciones: 'Apunta la cámara al código QR de acceso o invitación',
-        isEmbedded: true,
-        onScanned: (codigo) async {
-          _codigoController.text = codigo.trim();
-          _onDestinationSelected(0);
-          await _redimirCodigo();
-        },
       ),
     );
   }
@@ -771,12 +741,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ReservasResidenteScreen(controller: widget.controller),
-                  ),
-                );
+                _onDestinationSelected(3);
               },
               icon: const Icon(Icons.calendar_month_rounded, size: 18),
               label: const Text(

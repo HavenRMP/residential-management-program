@@ -392,6 +392,8 @@ class _ReservasResidenteScreenState extends State<ReservasResidenteScreen>
         elevation: 0,
         bottom: TabBar(
           controller: _tabController,
+          isScrollable: true,
+          tabAlignment: TabAlignment.center,
           labelColor: const Color(0xFF111C99),
           unselectedLabelColor: const Color(0xFF64748B),
           indicatorColor: const Color(0xFF111C99),
