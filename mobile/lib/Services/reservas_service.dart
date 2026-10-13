@@ -19,9 +19,10 @@ class ReservasService {
     if (envUrl != null &&
         envUrl.trim().isNotEmpty &&
         !envUrl.contains('haven.app')) {
-      return envUrl.trim();
+      final trimmed = envUrl.trim();
+      return trimmed.endsWith('/') ? trimmed.substring(0, trimmed.length - 1) : trimmed;
     }
-    return 'https://reservas-api.onrender.com';
+    return 'https://reservas-api-hmos.onrender.com';
   }
 
   Future<Map<String, String>> _getHeaders() async {
