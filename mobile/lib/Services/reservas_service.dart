@@ -712,4 +712,99 @@ class ReservasService {
       };
     }
   }
+
+  /// POST /api/admin/reservas/{id}/aprobar
+  Future<Map<String, dynamic>> aprobarReservaAdmin(String reservaId) async {
+    try {
+      final url = '$baseUrl/api/admin/reservas/$reservaId/aprobar';
+      final response = await controller.httpClient.post(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {'success': true};
+      }
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudo aprobar la reserva.',
+      );
+      return {'success': false, 'error': error};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al aprobar reserva.',
+        ),
+      };
+    }
+  }
+
+  /// POST /api/admin/reservas/{id}/rechazar (motivo obligatorio)
+  Future<Map<String, dynamic>> rechazarReservaAdmin(
+    String reservaId, {
+    required String motivo,
+  }) async {
+    try {
+      final url = '$baseUrl/api/admin/reservas/$reservaId/rechazar';
+      final response = await controller.httpClient.post(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+        body: jsonEncode({'motivo': motivo.trim()}),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {'success': true};
+      }
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudo rechazar la reserva.',
+      );
+      return {'success': false, 'error': error};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al rechazar reserva.',
+        ),
+      };
+    }
+  }
+
+  /// POST /api/admin/reservas/{id}/cancelar (motivo obligatorio)
+  Future<Map<String, dynamic>> cancelarReservaAdmin(
+    String reservaId, {
+    required String motivo,
+  }) async {
+    try {
+      final url = '$baseUrl/api/admin/reservas/$reservaId/cancelar';
+      final response = await controller.httpClient.post(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+        body: jsonEncode({'motivo': motivo.trim()}),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {'success': true};
+      }
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudo cancelar la reserva.',
+      );
+      return {'success': false, 'error': error};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al cancelar reserva.',
+        ),
+      };
+    }
+  }
 }
