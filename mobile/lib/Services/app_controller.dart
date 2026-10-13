@@ -920,7 +920,7 @@ class AppController extends ChangeNotifier {
           ],
         ),
         behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 88),
         backgroundColor: success
             ? const Color(0xFFDCFCE7)
             : const Color(0xFFFEE2E2),
