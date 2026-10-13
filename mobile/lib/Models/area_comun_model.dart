@@ -56,4 +56,19 @@ class AreaComunModel {
       'totalBloqueosActivos': totalBloqueosActivos,
     };
   }
+
+  /// Devuelve el horario en formato legible, ej: "08:00 - 22:00"
+  String get horarioFormateado {
+    final ap = _formatearHoraSimple(horaApertura);
+    final ci = _formatearHoraSimple(horaCierre);
+    return '$ap - $ci';
+  }
+
+  static String _formatearHoraSimple(String raw) {
+    final parts = raw.split(':');
+    if (parts.length >= 2) {
+      return '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}';
+    }
+    return raw;
+  }
 }
