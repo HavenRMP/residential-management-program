@@ -8,10 +8,12 @@ import '../Widgets/solicitar_reserva_modal.dart';
 
 class ReservasResidenteScreen extends StatefulWidget {
   final AppController controller;
+  final bool isEmbedded;
 
   const ReservasResidenteScreen({
     super.key,
     required this.controller,
+    this.isEmbedded = false,
   });
 
   @override
@@ -24,10 +26,69 @@ class _ReservasResidenteScreenState extends State<ReservasResidenteScreen>
   late final ReservasService _reservasService;
 
   // Tab 1: Mis Reservas
-  List<ReservaModel> _misReservas = [];
+  List<ReservaModel> _todasMisReservas = [];
   bool _isLoadingMisReservas = true;
   String? _errorMisReservas;
   String _filtroEstado = 'todas';
+
+  List<ReservaModel> get _misReservas {
+    final ahora = DateTime.now();
+    switch (_filtroEstado) {
+      case 'todas':
+        return _todasMisReservas;
+
+      case 'por_aprobar':
+      case 'pendientes':
+        // Muestra todas las solicitudes pendientes de visto bueno (titular) o aprobación (admin)
+        return _todasMisReservas.where((r) {
+          final est = r.estado.toUpperCase();
+          return est == 'PENDIENTE_TITULAR' ||
+                 est == 'PENDIENTE_ADMIN' ||
+                 r.esPendienteTitular ||
+                 r.esPendienteAdmin;
+        }).toList();
+
+      case 'aprobada':
+      case 'aprobadas':
+        // Muestra reservas aprobadas o confirmadas cuya fecha de fin no ha concluido
+        return _todasMisReservas.where((r) {
+          final est = r.estado.toUpperCase();
+          final noVencida = r.fin.isAfter(ahora);
+          return (est == 'APROBADA' || est == 'CONFIRMADA' || r.esAprobada || r.esConfirmada) && noVencida;
+        }).toList();
+
+      case 'confirmada':
+      case 'confirmadas':
+        // Específico para reservas donde el residente ya confirmó asistencia y no ha vencido
+        return _todasMisReservas.where((r) {
+          final est = r.estado.toUpperCase();
+          final noVencida = r.fin.isAfter(ahora);
+          return (est == 'CONFIRMADA' || r.esConfirmada) && noVencida;
+        }).toList();
+
+      case 'finalizada':
+      case 'finalizadas':
+        // Reservas concluidas (su fecha fin ya pasó y fueron aprobadas/confirmadas) o explícitamente marcadas como finalizadas
+        return _todasMisReservas.where((r) {
+          final est = r.estado.toUpperCase();
+          final yaPaso = r.fin.isBefore(ahora);
+          return est == 'FINALIZADA' || r.esFinalizada ||
+                 (yaPaso && (est == 'APROBADA' || est == 'CONFIRMADA' || r.esAprobada || r.esConfirmada));
+        }).toList();
+
+      case 'cancelada':
+      case 'canceladas':
+        return _todasMisReservas.where((r) {
+          final est = r.estado.toUpperCase();
+          return est == 'CANCELADA' || est == 'CANCELADA_ADMIN' ||
+                 est == 'RECHAZADA_TITULAR' || est == 'RECHAZADA_ADMIN' ||
+                 est == 'NO_UTILIZADA' || r.esCancelada || r.esRechazada || r.esNoUtilizada;
+        }).toList();
+
+      default:
+        return _todasMisReservas.where((r) => r.estado.toLowerCase() == _filtroEstado.toLowerCase()).toList();
+    }
+  }
 
   // Tab 2: Solicitudes de Subusuarios por aprobar (Titular)
   List<ReservaModel> _pendientesTitular = [];
@@ -67,12 +128,11 @@ class _ReservasResidenteScreenState extends State<ReservasResidenteScreen>
       _errorMisReservas = null;
     });
     try {
-      final estadoParam = _filtroEstado == 'todas' ? null : _filtroEstado;
-      final res = await _reservasService.getMisReservas(estado: estadoParam, pageSize: 50);
+      final res = await _reservasService.getMisReservas(pageSize: 100);
       if (mounted) {
         setState(() {
           if (res['success'] == true) {
-            _misReservas = res['items'] as List<ReservaModel>;
+            _todasMisReservas = res['items'] as List<ReservaModel>;
             _errorMisReservas = null;
           } else {
             _errorMisReservas = res['error']?.toString() ?? 'No se pudieron consultar tus reservas.';
@@ -382,48 +442,31 @@ class _ReservasResidenteScreenState extends State<ReservasResidenteScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text(
-          'Reservas de Áreas Comunes',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-        ),
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        elevation: 0,
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          tabAlignment: TabAlignment.center,
-          labelColor: const Color(0xFF111C99),
-          unselectedLabelColor: const Color(0xFF64748B),
-          indicatorColor: const Color(0xFF111C99),
-          tabs: [
-            const Tab(text: 'Mis Reservas'),
-            Tab(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Por Aprobar'),
-                  if (_pendientesTitular.isNotEmpty) ...[
-                    const SizedBox(width: 6),
-                    Badge(
-                      label: Text('${_pendientesTitular.length}'),
-                      backgroundColor: const Color(0xFFD97706),
-                    ),
-                  ],
-                ],
+      appBar: widget.isEmbedded
+          ? null
+          : AppBar(
+              title: const Text(
+                'Reservas de Áreas Comunes',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
               ),
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.white,
+              elevation: 0,
+              bottom: _buildTabBar(),
             ),
-            const Tab(text: 'Áreas y Horarios'),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
+      body: Column(
         children: [
-          _buildMisReservasTab(),
-          _buildPorAprobarTab(),
-          _buildAreasTab(),
+          if (widget.isEmbedded) _buildEmbeddedHeader(),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildMisReservasTab(),
+                _buildPorAprobarTab(),
+                _buildAreasTab(),
+              ],
+            ),
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -431,6 +474,65 @@ class _ReservasResidenteScreenState extends State<ReservasResidenteScreen>
         backgroundColor: const Color(0xFF111C99),
         icon: const Icon(Icons.add_rounded, color: Colors.white),
         label: const Text('Nueva Reserva', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  PreferredSizeWidget _buildTabBar() {
+    return TabBar(
+      controller: _tabController,
+      isScrollable: true,
+      tabAlignment: TabAlignment.center,
+      labelColor: const Color(0xFF111C99),
+      unselectedLabelColor: const Color(0xFF64748B),
+      indicatorColor: const Color(0xFF111C99),
+      tabs: [
+        const Tab(text: 'Mis Reservas'),
+        Tab(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Por Aprobar'),
+              if (_pendientesTitular.isNotEmpty) ...[
+                const SizedBox(width: 6),
+                Badge(
+                  label: Text('${_pendientesTitular.length}'),
+                  backgroundColor: const Color(0xFFD97706),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const Tab(text: 'Áreas y Horarios'),
+      ],
+    );
+  }
+
+  Widget _buildEmbeddedHeader() {
+    return Container(
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Row(
+              children: [
+                const Icon(Icons.event_available_rounded, color: Color(0xFF111C99), size: 22),
+                const SizedBox(width: 8),
+                const Text(
+                  'Reservas de Áreas Comunes',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _buildTabBar(),
+        ],
       ),
     );
   }
@@ -451,13 +553,17 @@ class _ReservasResidenteScreenState extends State<ReservasResidenteScreen>
               children: [
                 _buildFiltroChip('todas', 'Todas'),
                 const SizedBox(width: 8),
-                _buildFiltroChip('aprobada', 'Aprobadas'),
+                _buildFiltroChip('por_aprobar', 'Por aprobar'),
                 const SizedBox(width: 8),
-                _buildFiltroChip('confirmada', 'Confirmadas'),
+                _buildFiltroChip('pendientes', 'Pendientes'),
                 const SizedBox(width: 8),
-                _buildFiltroChip('pendiente_admin', 'Pendientes'),
+                _buildFiltroChip('aprobadas', 'Aprobadas'),
                 const SizedBox(width: 8),
-                _buildFiltroChip('finalizada', 'Finalizadas'),
+                _buildFiltroChip('confirmadas', 'Confirmadas'),
+                const SizedBox(width: 8),
+                _buildFiltroChip('finalizadas', 'Finalizadas'),
+                const SizedBox(width: 8),
+                _buildFiltroChip('canceladas', 'Canceladas'),
               ],
             ),
           ),
@@ -526,7 +632,6 @@ class _ReservasResidenteScreenState extends State<ReservasResidenteScreen>
       onSelected: (val) {
         if (val) {
           setState(() => _filtroEstado = estado);
-          _cargarMisReservas();
         }
       },
       selectedColor: const Color(0xFF111C99),
@@ -539,6 +644,13 @@ class _ReservasResidenteScreenState extends State<ReservasResidenteScreen>
   }
 
   Widget _buildReservaCard(ReservaModel reserva) {
+    final esConcluida = reserva.esFinalizada ||
+        (DateTime.now().isAfter(reserva.fin) &&
+            (reserva.esAprobada || reserva.esConfirmada));
+    final etiqueta = esConcluida ? 'Finalizada' : reserva.estadoEtiqueta;
+    final color = esConcluida ? const Color(0xFF64748B) : reserva.estadoColor;
+    final icono = esConcluida ? Icons.task_alt_rounded : reserva.estadoIcono;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(16),
@@ -566,10 +678,10 @@ class _ReservasResidenteScreenState extends State<ReservasResidenteScreen>
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: reserva.estadoColor.withValues(alpha: 0.12),
+                        color: color.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Icon(reserva.estadoIcono, color: reserva.estadoColor, size: 20),
+                      child: Icon(icono, color: color, size: 20),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -585,13 +697,13 @@ class _ReservasResidenteScreenState extends State<ReservasResidenteScreen>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: reserva.estadoColor.withValues(alpha: 0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: reserva.estadoColor.withValues(alpha: 0.3)),
+                  border: Border.all(color: color.withValues(alpha: 0.3)),
                 ),
                 child: Text(
-                  reserva.estadoEtiqueta,
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: reserva.estadoColor),
+                  etiqueta,
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color),
                 ),
               ),
             ],
