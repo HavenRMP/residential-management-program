@@ -420,4 +420,48 @@ class ReservasService {
       };
     }
   }
+
+  /// POST /api/reservas
+  Future<Map<String, dynamic>> solicitarReserva({
+    required String areaId,
+    required DateTime inicio,
+    required DateTime fin,
+  }) async {
+    try {
+      final url = '$baseUrl/api/reservas';
+      final body = jsonEncode({
+        'areaId': areaId,
+        'inicio': inicio.toUtc().toIso8601String(),
+        'fin': fin.toUtc().toIso8601String(),
+      });
+
+      final response = await controller.httpClient.post(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+        body: body,
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final decoded = jsonDecode(response.body);
+        return {
+          'success': true,
+          'reserva': ReservaModel.fromJson(decoded as Map<String, dynamic>),
+        };
+      }
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudo crear la reserva.',
+      );
+      return {'success': false, 'error': error};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al solicitar reserva.',
+        ),
+      };
+    }
+  }
 }
