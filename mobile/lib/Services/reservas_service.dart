@@ -464,4 +464,69 @@ class ReservasService {
       };
     }
   }
+
+  /// POST /api/reservas/{id}/aprobar-titular
+  Future<Map<String, dynamic>> aprobarReservaTitular(String reservaId) async {
+    try {
+      final url = '$baseUrl/api/reservas/$reservaId/aprobar-titular';
+      final response = await controller.httpClient.post(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {'success': true};
+      }
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudo dar visto bueno a la solicitud.',
+      );
+      return {'success': false, 'error': error};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al aprobar solicitud de subusuario.',
+        ),
+      };
+    }
+  }
+
+  /// POST /api/reservas/{id}/rechazar-titular
+  Future<Map<String, dynamic>> rechazarReservaTitular(
+    String reservaId, {
+    String? motivo,
+  }) async {
+    try {
+      final url = '$baseUrl/api/reservas/$reservaId/rechazar-titular';
+      final response = await controller.httpClient.post(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+        body: jsonEncode({
+          if (motivo != null && motivo.trim().isNotEmpty)
+            'motivo': motivo.trim(),
+        }),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {'success': true};
+      }
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudo rechazar la solicitud.',
+      );
+      return {'success': false, 'error': error};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al rechazar solicitud.',
+        ),
+      };
+    }
+  }
 }
