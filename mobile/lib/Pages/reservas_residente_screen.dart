@@ -3,6 +3,7 @@ import '../Models/area_comun_model.dart';
 import '../Models/reserva_model.dart';
 import '../Services/app_controller.dart';
 import '../Services/reservas_service.dart';
+import '../Utils/error_handler.dart';
 import '../Widgets/solicitar_reserva_modal.dart';
 
 class ReservasResidenteScreen extends StatefulWidget {
@@ -25,15 +26,18 @@ class _ReservasResidenteScreenState extends State<ReservasResidenteScreen>
   // Tab 1: Mis Reservas
   List<ReservaModel> _misReservas = [];
   bool _isLoadingMisReservas = true;
+  String? _errorMisReservas;
   String _filtroEstado = 'todas';
 
   // Tab 2: Solicitudes de Subusuarios por aprobar (Titular)
   List<ReservaModel> _pendientesTitular = [];
   bool _isLoadingPendientes = true;
+  String? _errorPendientes;
 
   // Tab 3: Áreas Comunes y Calendario
   List<AreaComunModel> _areas = [];
   bool _isLoadingAreas = true;
+  String? _errorAreas;
 
   @override
   void initState() {
@@ -58,212 +62,294 @@ class _ReservasResidenteScreenState extends State<ReservasResidenteScreen>
   }
 
   Future<void> _cargarMisReservas() async {
-    setState(() => _isLoadingMisReservas = true);
-    final estadoParam = _filtroEstado == 'todas' ? null : _filtroEstado;
-    final res = await _reservasService.getMisReservas(estado: estadoParam, pageSize: 50);
-    if (mounted) {
-      setState(() {
-        _isLoadingMisReservas = false;
-        if (res['success'] == true) {
-          _misReservas = res['items'] as List<ReservaModel>;
-        }
-      });
+    setState(() {
+      _isLoadingMisReservas = true;
+      _errorMisReservas = null;
+    });
+    try {
+      final estadoParam = _filtroEstado == 'todas' ? null : _filtroEstado;
+      final res = await _reservasService.getMisReservas(estado: estadoParam, pageSize: 50);
+      if (mounted) {
+        setState(() {
+          if (res['success'] == true) {
+            _misReservas = res['items'] as List<ReservaModel>;
+            _errorMisReservas = null;
+          } else {
+            _errorMisReservas = res['error']?.toString() ?? 'No se pudieron consultar tus reservas.';
+          }
+        });
+      }
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasResidenteScreen._cargarMisReservas');
+      if (mounted) {
+        setState(() {
+          _errorMisReservas = ErrorHandler.parseException(e, defaultMessage: 'Error al consultar reservas.');
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingMisReservas = false);
+      }
     }
   }
 
   Future<void> _cargarPendientesTitular() async {
-    setState(() => _isLoadingPendientes = true);
-    final res = await _reservasService.getPendientesTitular(pageSize: 50);
-    if (mounted) {
-      setState(() {
-        _isLoadingPendientes = false;
-        if (res['success'] == true) {
-          _pendientesTitular = res['items'] as List<ReservaModel>;
-        }
-      });
+    setState(() {
+      _isLoadingPendientes = true;
+      _errorPendientes = null;
+    });
+    try {
+      final res = await _reservasService.getPendientesTitular(pageSize: 50);
+      if (mounted) {
+        setState(() {
+          if (res['success'] == true) {
+            _pendientesTitular = res['items'] as List<ReservaModel>;
+            _errorPendientes = null;
+          } else {
+            _errorPendientes = res['error']?.toString() ?? 'No se pudieron consultar solicitudes pendientes.';
+          }
+        });
+      }
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasResidenteScreen._cargarPendientesTitular');
+      if (mounted) {
+        setState(() {
+          _errorPendientes = ErrorHandler.parseException(e, defaultMessage: 'Error al consultar solicitudes.');
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingPendientes = false);
+      }
     }
   }
 
   Future<void> _cargarAreas() async {
-    setState(() => _isLoadingAreas = true);
-    final res = await _reservasService.getAreas(soloActivas: true, pageSize: 50);
-    if (mounted) {
-      setState(() {
-        _isLoadingAreas = false;
-        if (res['success'] == true) {
-          _areas = res['items'] as List<AreaComunModel>;
-        }
-      });
+    setState(() {
+      _isLoadingAreas = true;
+      _errorAreas = null;
+    });
+    try {
+      final res = await _reservasService.getAreas(soloActivas: true, pageSize: 50);
+      if (mounted) {
+        setState(() {
+          if (res['success'] == true) {
+            _areas = res['items'] as List<AreaComunModel>;
+            _errorAreas = null;
+          } else {
+            _errorAreas = res['error']?.toString() ?? 'No se pudieron consultar las áreas comunes.';
+          }
+        });
+      }
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasResidenteScreen._cargarAreas');
+      if (mounted) {
+        setState(() {
+          _errorAreas = ErrorHandler.parseException(e, defaultMessage: 'Error al consultar áreas.');
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingAreas = false);
+      }
     }
   }
 
   Future<void> _confirmarAsistencia(ReservaModel reserva) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Confirmar Asistencia'),
-        content: Text(
-          '¿Confirmas que harás uso del área "${reserva.areaNombre}" el día ${_formatearFecha(reserva.inicio)} de ${_formatearHora(reserva.inicio)} a ${_formatearHora(reserva.fin)}?\n\n'
-          'Recuerda que si confirmas y no asistes, contará como inasistencia (no-show).',
+    try {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Confirmar Asistencia'),
+          content: Text(
+            '¿Confirmas que harás uso del área "${reserva.areaNombre}" el día ${_formatearFecha(reserva.inicio)} de ${_formatearHora(reserva.inicio)} a ${_formatearHora(reserva.fin)}?\n\n'
+            'Recuerda que si confirmas y no asistes, contará como inasistencia (no-show).',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+              child: const Text('Confirmar Asistencia'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
-            child: const Text('Confirmar Asistencia'),
-          ),
-        ],
-      ),
-    );
+      );
 
-    if (confirm == true) {
-      final res = await _reservasService.confirmarReserva(reserva.id);
-      if (mounted) {
-        if (res['success'] == true) {
-          widget.controller.notifyToast('¡Asistencia confirmada exitosamente!', success: true);
-          _cargarMisReservas();
-        } else {
-          widget.controller.notifyToast(res['error'] ?? 'No se pudo confirmar.', success: false);
+      if (confirm == true) {
+        final res = await _reservasService.confirmarReserva(reserva.id);
+        if (mounted) {
+          if (res['success'] == true) {
+            widget.controller.notifyToast('¡Asistencia confirmada exitosamente!', success: true);
+            _cargarMisReservas();
+          } else {
+            widget.controller.notifyToast(res['error'] ?? 'No se pudo confirmar.', success: false);
+          }
         }
+      }
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasResidenteScreen._confirmarAsistencia');
+      if (mounted) {
+        widget.controller.notifyToast(ErrorHandler.parseException(e), success: false);
       }
     }
   }
 
   Future<void> _cancelarReserva(ReservaModel reserva) async {
-    final motivoCtrl = TextEditingController();
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cancelar Reserva'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('¿Estás seguro de cancelar tu reserva para "${reserva.areaNombre}"?'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: motivoCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Motivo de cancelación (opcional)',
-                border: OutlineInputBorder(),
+    try {
+      final motivoCtrl = TextEditingController();
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Cancelar Reserva'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('¿Estás seguro de cancelar tu reserva para "${reserva.areaNombre}"?'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: motivoCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Motivo de cancelación (opcional)',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 2,
               ),
-              maxLines: 2,
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Volver'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+              child: const Text('Cancelar Reserva'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Volver'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
-            child: const Text('Cancelar Reserva'),
-          ),
-        ],
-      ),
-    );
+      );
 
-    if (confirm == true) {
-      final res = await _reservasService.cancelarReserva(reserva.id, motivo: motivoCtrl.text.trim());
-      if (mounted) {
-        if (res['success'] == true) {
-          widget.controller.notifyToast('Reserva cancelada correctamente.', success: true);
-          _cargarMisReservas();
-        } else {
-          widget.controller.notifyToast(res['error'] ?? 'No se pudo cancelar.', success: false);
+      if (confirm == true) {
+        final res = await _reservasService.cancelarReserva(reserva.id, motivo: motivoCtrl.text.trim());
+        if (mounted) {
+          if (res['success'] == true) {
+            widget.controller.notifyToast('Reserva cancelada correctamente.', success: true);
+            _cargarMisReservas();
+          } else {
+            widget.controller.notifyToast(res['error'] ?? 'No se pudo cancelar.', success: false);
+          }
         }
+      }
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasResidenteScreen._cancelarReserva');
+      if (mounted) {
+        widget.controller.notifyToast(ErrorHandler.parseException(e), success: false);
       }
     }
   }
 
   Future<void> _aprobarComoTitular(ReservaModel reserva) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Aprobar Solicitud'),
-        content: Text(
-          '¿Das el visto bueno a la reserva solicitada por ${reserva.solicitanteCompleto} para "${reserva.areaNombre}"?\n\n'
-          'Al aprobarla, se enviará a la administración para su autorización definitiva.',
+    try {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Aprobar Solicitud'),
+          content: Text(
+            '¿Das el visto bueno a la reserva solicitada por ${reserva.solicitanteCompleto} para "${reserva.areaNombre}"?\n\n'
+            'Al aprobarla, se enviará a la administración para su autorización definitiva.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+              child: const Text('Aprobar'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
-            child: const Text('Aprobar'),
-          ),
-        ],
-      ),
-    );
+      );
 
-    if (confirm == true) {
-      final res = await _reservasService.aprobarReservaTitular(reserva.id);
-      if (mounted) {
-        if (res['success'] == true) {
-          widget.controller.notifyToast('Solicitud aprobada y enviada a administración.', success: true);
-          _cargarPendientesTitular();
-          _cargarMisReservas();
-        } else {
-          widget.controller.notifyToast(res['error'] ?? 'No se pudo aprobar.', success: false);
+      if (confirm == true) {
+        final res = await _reservasService.aprobarReservaTitular(reserva.id);
+        if (mounted) {
+          if (res['success'] == true) {
+            widget.controller.notifyToast('Solicitud aprobada y enviada a administración.', success: true);
+            _cargarPendientesTitular();
+            _cargarMisReservas();
+          } else {
+            widget.controller.notifyToast(res['error'] ?? 'No se pudo aprobar.', success: false);
+          }
         }
+      }
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasResidenteScreen._aprobarComoTitular');
+      if (mounted) {
+        widget.controller.notifyToast(ErrorHandler.parseException(e), success: false);
       }
     }
   }
 
   Future<void> _rechazarComoTitular(ReservaModel reserva) async {
-    final motivoCtrl = TextEditingController();
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Rechazar Solicitud'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Indica a ${reserva.solicitanteCompleto} el motivo por el cual rechazas su solicitud:'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: motivoCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Motivo (opcional)',
-                border: OutlineInputBorder(),
+    try {
+      final motivoCtrl = TextEditingController();
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Rechazar Solicitud'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Indica a ${reserva.solicitanteCompleto} el motivo por el cual rechazas su solicitud:'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: motivoCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Motivo (opcional)',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 2,
               ),
-              maxLines: 2,
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Volver'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+              child: const Text('Rechazar'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Volver'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
-            child: const Text('Rechazar'),
-          ),
-        ],
-      ),
-    );
+      );
 
-    if (confirm == true) {
-      final res = await _reservasService.rechazarReservaTitular(reserva.id, motivo: motivoCtrl.text.trim());
-      if (mounted) {
-        if (res['success'] == true) {
-          widget.controller.notifyToast('Solicitud rechazada.', success: true);
-          _cargarPendientesTitular();
-        } else {
-          widget.controller.notifyToast(res['error'] ?? 'No se pudo rechazar.', success: false);
+      if (confirm == true) {
+        final res = await _reservasService.rechazarReservaTitular(reserva.id, motivo: motivoCtrl.text.trim());
+        if (mounted) {
+          if (res['success'] == true) {
+            widget.controller.notifyToast('Solicitud rechazada.', success: true);
+            _cargarPendientesTitular();
+          } else {
+            widget.controller.notifyToast(res['error'] ?? 'No se pudo rechazar.', success: false);
+          }
         }
+      }
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasResidenteScreen._rechazarComoTitular');
+      if (mounted) {
+        widget.controller.notifyToast(ErrorHandler.parseException(e), success: false);
       }
     }
   }
@@ -376,6 +462,30 @@ class _ReservasResidenteScreenState extends State<ReservasResidenteScreen>
           Expanded(
             child: _isLoadingMisReservas
                 ? const Center(child: CircularProgressIndicator())
+                : _errorMisReservas != null && _misReservas.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.error_outline_rounded, size: 56, color: Color(0xFFDC2626)),
+                              const SizedBox(height: 12),
+                              Text(
+                                _errorMisReservas!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 14, color: Color(0xFF991B1B), fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 16),
+                              OutlinedButton.icon(
+                                onPressed: _cargarMisReservas,
+                                icon: const Icon(Icons.refresh_rounded),
+                                label: const Text('Reintentar'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
                 : _misReservas.isEmpty
                     ? Center(
                         child: Column(
@@ -587,6 +697,30 @@ class _ReservasResidenteScreenState extends State<ReservasResidenteScreen>
       onRefresh: _cargarPendientesTitular,
       child: _isLoadingPendientes
           ? const Center(child: CircularProgressIndicator())
+          : _errorPendientes != null && _pendientesTitular.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline_rounded, size: 56, color: Color(0xFFDC2626)),
+                        const SizedBox(height: 12),
+                        Text(
+                          _errorPendientes!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 14, color: Color(0xFF991B1B), fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 16),
+                        OutlinedButton.icon(
+                          onPressed: _cargarPendientesTitular,
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('Reintentar'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
           : _pendientesTitular.isEmpty
               ? Center(
                   child: Column(
@@ -712,6 +846,30 @@ class _ReservasResidenteScreenState extends State<ReservasResidenteScreen>
       onRefresh: _cargarAreas,
       child: _isLoadingAreas
           ? const Center(child: CircularProgressIndicator())
+          : _errorAreas != null && _areas.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline_rounded, size: 56, color: Color(0xFFDC2626)),
+                        const SizedBox(height: 12),
+                        Text(
+                          _errorAreas!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 14, color: Color(0xFF991B1B), fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 16),
+                        OutlinedButton.icon(
+                          onPressed: _cargarAreas,
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('Reintentar'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
           : _areas.isEmpty
               ? const Center(child: Text('No hay áreas comunes registradas.'))
               : ListView.builder(
