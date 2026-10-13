@@ -184,4 +184,78 @@ class ReservaModel {
     if (DateTime.now().isBefore(fin)) return false;
     return esConfirmada || esAprobada;
   }
+
+  String get estadoEtiqueta {
+    switch (estado) {
+      case 'PENDIENTE_TITULAR':
+        return 'Pendiente Titular';
+      case 'PENDIENTE_ADMIN':
+        return 'Pendiente Admin';
+      case 'APROBADA':
+        return 'Aprobada';
+      case 'CONFIRMADA':
+        return 'Confirmada';
+      case 'RECHAZADA_TITULAR':
+        return 'Rechazada (Titular)';
+      case 'RECHAZADA_ADMIN':
+        return 'Rechazada (Admin)';
+      case 'CANCELADA':
+        return 'Cancelada';
+      case 'CANCELADA_ADMIN':
+        return 'Cancelada (Admin)';
+      case 'NO_UTILIZADA':
+        return 'No Utilizada (No-Show)';
+      case 'FINALIZADA':
+        return 'Finalizada';
+      default:
+        return estado;
+    }
+  }
+
+  Color get estadoColor {
+    switch (estado) {
+      case 'PENDIENTE_TITULAR':
+      case 'PENDIENTE_ADMIN':
+        return const Color(0xFFD97706); // Amber
+      case 'APROBADA':
+        return const Color(0xFF2563EB); // Blue
+      case 'CONFIRMADA':
+        return const Color(0xFF059669); // Emerald
+      case 'RECHAZADA_TITULAR':
+      case 'RECHAZADA_ADMIN':
+      case 'CANCELADA':
+      case 'CANCELADA_ADMIN':
+        return const Color(0xFFDC2626); // Red
+      case 'NO_UTILIZADA':
+        return const Color(0xFF7C3AED); // Purple
+      case 'FINALIZADA':
+        return const Color(0xFF64748B); // Slate
+      default:
+        return const Color(0xFF64748B);
+    }
+  }
+
+  IconData get estadoIcono {
+    switch (estado) {
+      case 'PENDIENTE_TITULAR':
+      case 'PENDIENTE_ADMIN':
+        return Icons.hourglass_top_rounded;
+      case 'APROBADA':
+        return Icons.check_circle_outline_rounded;
+      case 'CONFIRMADA':
+        return Icons.verified_rounded;
+      case 'RECHAZADA_TITULAR':
+      case 'RECHAZADA_ADMIN':
+        return Icons.cancel_outlined;
+      case 'CANCELADA':
+      case 'CANCELADA_ADMIN':
+        return Icons.block_rounded;
+      case 'NO_UTILIZADA':
+        return Icons.person_off_rounded;
+      case 'FINALIZADA':
+        return Icons.task_alt_rounded;
+      default:
+        return Icons.info_outline_rounded;
+    }
+  }
 }
