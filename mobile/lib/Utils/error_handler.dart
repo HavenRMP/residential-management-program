@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../Services/offline_sync_service.dart';
 
@@ -9,6 +10,82 @@ import '../Services/offline_sync_service.dart';
 /// clear, descriptive, user-friendly messages without crashing or exposing raw technical dumps.
 class ErrorHandler {
   const ErrorHandler._();
+
+  /// Registra y trackea cualquier excepción o fallo con su contexto y stackTrace para monitoreo.
+  static void trackError(
+    dynamic error, [
+    StackTrace? stackTrace,
+    String? context,
+  ]) {
+    final prefix = context != null ? '[$context] ' : '';
+    debugPrint('[ErrorHandler] ${prefix}Error capturado: $error');
+    if (stackTrace != null) {
+      debugPrint('[ErrorHandler] ${prefix}StackTrace: $stackTrace');
+    }
+  }
+
+  /// Mapea códigos de dominio de RPC de backend (Reservas RE, Visitas VI, Paquetería PQ, Códigos CD, etc.)
+  static String? mapDomainCode(String text) {
+    final upper = text.toUpperCase();
+
+    // Módulo de Reservas (RE001 a RE015)
+    if (upper.contains('RE001')) return 'El área común no existe o está inactiva.';
+    if (upper.contains('RE002')) return 'La reserva no existe.';
+    if (upper.contains('RE003')) return 'No tienes permiso sobre esta reserva.';
+    if (upper.contains('RE004')) return 'El estado de la reserva no permite esta operación.';
+    if (upper.contains('RE005')) return 'El horario solicitado está fuera del horario de operación del área.';
+    if (upper.contains('RE006')) return 'La duración de la reserva debe ser de entre 30 minutos y 12 horas.';
+    if (upper.contains('RE007')) return 'La reserva debe hacerse con entre 7 y 30 días de anticipación.';
+    if (upper.contains('RE008')) return 'Ya tienes una reserva para ese día.';
+    if (upper.contains('RE009')) return 'El horario choca con otra reserva aprobada o con un bloqueo del área.';
+    if (upper.contains('RE010')) return 'El motivo es obligatorio.';
+    if (upper.contains('RE011')) return 'La reserva solo puede confirmarse entre 7 días y 72 horas antes del evento.';
+    if (upper.contains('RE012')) return 'La reserva ya inició o terminó.';
+    if (upper.contains('RE013')) return 'La reserva aún no termina, no puede marcarse como no utilizada.';
+    if (upper.contains('RE014')) return 'El área o la reserva pertenece a otro condominio.';
+    if (upper.contains('RE015')) return 'No se encontró un titular para el usuario.';
+
+    // Módulo de Visitas (VI001 a VI009)
+    if (upper.contains('VI001')) return 'La visita no existe.';
+    if (upper.contains('VI002')) return 'No tienes permiso para realizar esta operación sobre la visita.';
+    if (upper.contains('VI003')) return 'La visita no permite esta operación en su estado actual.';
+    if (upper.contains('VI004')) return 'El código de visita no existe.';
+    if (upper.contains('VI005')) return 'La visita o su código ha expirado.';
+    if (upper.contains('VI006')) return 'La entrada de esta visita ya fue registrada.';
+    if (upper.contains('VI007')) return 'No se puede registrar la salida: la visita no ha ingresado.';
+    if (upper.contains('VI008')) return 'Los datos de la visita no son válidos.';
+    if (upper.contains('VI009')) return 'La vivienda no existe o está inactiva.';
+
+    // Módulo de Paquetería (PQ001 a PQ011)
+    if (upper.contains('PQ001')) return 'El paquete no existe.';
+    if (upper.contains('PQ002')) return 'No tienes permiso sobre el paquete o la vivienda.';
+    if (upper.contains('PQ003')) return 'La vivienda no existe o está inactiva.';
+    if (upper.contains('PQ004')) return 'El estado del paquete no permite la operación.';
+    if (upper.contains('PQ005')) return 'Las fechas ingresadas son incoherentes.';
+    if (upper.contains('PQ006')) return 'El servicio de paquetería no es válido.';
+    if (upper.contains('PQ007')) return 'El paquete o vivienda pertenece a otro condominio.';
+    if (upper.contains('PQ008')) return 'Validación de retiro fallida.';
+    if (upper.contains('PQ009')) return 'Faltan campos obligatorios.';
+    if (upper.contains('PQ010')) return 'Se requiere rol de vigilancia o administrador.';
+    if (upper.contains('PQ011')) return 'Se requiere rol de administrador.';
+
+    // Subusuarios e invitaciones (CD001 a CD004, SU001 a SU004)
+    if (upper.contains('CD001')) return 'El código de invitación no existe, ya fue utilizado o ha expirado.';
+    if (upper.contains('CD002')) return 'Este código ya fue utilizado.';
+    if (upper.contains('CD003')) return 'Este código ha expirado o fue invalidado.';
+    if (upper.contains('CD004')) return 'El usuario ya pertenece a un condominio diferente.';
+    if (upper.contains('SU001')) return 'Límite máximo de 2 sub-usuarios alcanzado en la vivienda.';
+    if (upper.contains('SU003')) return 'Ya te encuentras vinculado como residente o titular de esta vivienda.';
+    if (upper.contains('SU004')) return 'La invitación ya no está pendiente.';
+
+    // Postgres / Supabase Códigos Estándar
+    if (upper.contains('23505')) return 'Ya existe un registro duplicado o ya estás vinculado.';
+    if (upper.contains('42501')) return 'No tienes permiso para realizar esta operación.';
+    if (upper.contains('22023')) return 'Los datos enviados no son válidos.';
+    if (upper.contains('P0002')) return 'El recurso solicitado no existe.';
+
+    return null;
+  }
 
   /// Extracts a human-readable, descriptive error message from an API response body
   /// or HTTP status code, ensuring no raw HTML, JSON dumps, or technical stack traces are shown.
@@ -45,6 +122,14 @@ class ErrorHandler {
             }
           }
         }
+      }
+    }
+
+    // Traducir código de dominio si está contenido en el mensaje extraído
+    if (extracted != null && extracted.trim().isNotEmpty) {
+      final domainTranslation = mapDomainCode(extracted);
+      if (domainTranslation != null) {
+        return domainTranslation;
       }
     }
 
@@ -98,15 +183,10 @@ class ErrorHandler {
 
     final raw = error.toString();
 
-    // 5. PostgREST / Supabase known RPC domain codes
-    if (raw.contains('CD001') || raw.contains('no existe') || raw.contains('expirado')) {
-      return 'El código de invitación no existe, ya fue utilizado o ha expirado.';
-    }
-    if (raw.contains('SU001') || raw.contains('Límite') || raw.contains('limite')) {
-      return 'Límite máximo de 2 sub-usuarios alcanzado en la vivienda.';
-    }
-    if (raw.contains('SU003') || raw.contains('ya está vinculado') || raw.contains('ya es')) {
-      return 'Ya te encuentras vinculado como residente o titular de esta vivienda.';
+    // 5. Mapeo directo de códigos de dominio conocidos (RE, VI, PQ, CD, SU, SQL)
+    final domainMsg = mapDomainCode(raw);
+    if (domainMsg != null) {
+      return domainMsg;
     }
 
     // 6. Network & Client exceptions
@@ -214,13 +294,26 @@ class ErrorHandler {
       }
     }
 
-    // 2. Direct error fields: error, message, detail, title, msg, motivo, razon
-    const candidateKeys = ['error', 'message', 'detail', 'msg', 'motivo', 'razon', 'title', 'error_description'];
+    // 2. Direct error fields: error, message, detail, title, msg, motivo, razon, code, errorCode
+    const candidateKeys = [
+      'error',
+      'message',
+      'detail',
+      'msg',
+      'motivo',
+      'razon',
+      'title',
+      'error_description',
+      'code',
+      'errorCode',
+      'error_code',
+    ];
     for (final key in candidateKeys) {
       if (map.containsKey(key)) {
         final val = map[key];
         if (val is String && val.trim().isNotEmpty && !_isGenericPlaceholder(val)) {
-          return val.trim();
+          final domain = mapDomainCode(val.trim());
+          return domain ?? val.trim();
         } else if (val is Map) {
           final nested = _extractFromMap(val.cast<String, dynamic>());
           if (nested != null && nested.isNotEmpty) return nested;
