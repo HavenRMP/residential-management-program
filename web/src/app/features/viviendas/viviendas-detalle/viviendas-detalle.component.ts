@@ -7,6 +7,7 @@ import { ViviendasService } from '../../../core/services/viviendas.service';
 import { ResidentesService } from '../../../core/services/residentes.service';
 import { getInitials } from '../../../core/utils/iniciales.util';
 import Swal from 'sweetalert2';
+import { mensajeAmigable } from '../../../core/utils/api-errors.util';
 
 @Component({
   selector: 'app-viviendas-detalle',
@@ -411,7 +412,7 @@ export class ViviendasDetalleComponent implements OnChanges {
       await Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: err?.error?.error || 'Ocurrió un problema al solicitar el código.',
+        text: mensajeAmigable(err, 'Ocurrió un problema al solicitar el código.'),
         confirmButtonColor: '#111C99'
       });
     } finally {
@@ -520,7 +521,7 @@ export class ViviendasDetalleComponent implements OnChanges {
       this.viviendaUpdated.emit();
     } catch (err: any) {
       console.error('Error al vincular residente:', err);
-      const errorMsg = err?.error?.error || err?.message || 'No fue posible vincular el residente a la vivienda.';
+      const errorMsg = mensajeAmigable(err, 'No fue posible vincular el residente a la vivienda.');
 
       if (errorMsg.includes('ya está asignado a esta vivienda') || err?.status === 409) {
         this.mostrarFormularioVinculacion = false;
@@ -589,7 +590,7 @@ export class ViviendasDetalleComponent implements OnChanges {
       this.viviendaUpdated.emit();
     } catch (err: any) {
       console.error('Error al desvincular residente:', err);
-      const errorMsg = err?.error?.error || err?.message || 'No fue posible desvincular al habitante.';
+      const errorMsg = mensajeAmigable(err, 'No fue posible desvincular al habitante.');
       Swal.fire({
         title: 'Error al Desvincular',
         text: errorMsg,

@@ -20,6 +20,7 @@ import {
   rangoFechasIso,
   VisitaVigilancia
 } from '../../../core/models/visita.model';
+import { mensajeAmigable } from '../../../core/utils/api-errors.util';
 
 const BUSQUEDA_DEBOUNCE_MS = 350;
 
@@ -846,6 +847,6 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
   }
 
   private mensajeError(err: any): string {
-    return err?.error?.error || 'Ocurrió un error inesperado. Intenta de nuevo.';
+    return mensajeAmigable(err, 'Ocurrió un error inesperado. Intenta de nuevo.');
   }
 }

@@ -11,6 +11,7 @@ import { ocupacionPorVivienda } from '../../../core/utils/directorio-casas.util'
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { Residente } from '../../../core/models/residente.model';
 import { extractPagedItems } from '../../../core/models/pagination.model';
+import { mensajeAmigable } from '../../../core/utils/api-errors.util';
 
 @Component({
   selector: 'app-admin-dashboard',
@@ -473,7 +474,7 @@ export class AdminDashboardComponent implements OnInit {
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: err?.error?.error || 'No se pudo generar el código.',
+        text: mensajeAmigable(err, 'No se pudo generar el código.'),
         confirmButtonColor: '#111C99'
       });
     } finally {
