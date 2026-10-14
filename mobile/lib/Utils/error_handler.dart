@@ -78,6 +78,13 @@ class ErrorHandler {
     if (upper.contains('SU003')) return 'Ya te encuentras vinculado como residente o titular de esta vivienda.';
     if (upper.contains('SU004')) return 'La invitación ya no está pendiente.';
 
+    // Notificaciones (NT001 a NT005)
+    if (upper.contains('NT001')) return 'El usuario destinatario no existe.';
+    if (upper.contains('NT002')) return 'No se pueden enviar notificaciones a un usuario inactivo.';
+    if (upper.contains('NT003')) return 'El tipo de evento no puede estar vacío.';
+    if (upper.contains('NT004')) return 'El título de la notificación no puede estar vacío.';
+    if (upper.contains('NT005')) return 'El mensaje de la notificación no puede estar vacío.';
+
     // Postgres / Supabase Códigos Estándar
     if (upper.contains('23505')) return 'Ya existe un registro duplicado o ya estás vinculado.';
     if (upper.contains('42501')) return 'No tienes permiso para realizar esta operación.';

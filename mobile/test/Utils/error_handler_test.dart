@@ -158,6 +158,21 @@ void main() {
       );
     });
 
+    test('Parsea y traduce códigos de error de notificaciones (NT001 a NT005)', () {
+      expect(
+        ErrorHandler.parseException(Exception('NT001: User not found')),
+        contains('El usuario destinatario no existe'),
+      );
+      expect(
+        ErrorHandler.parseException(Exception('NT002: Inactive')),
+        contains('No se pueden enviar notificaciones a un usuario inactivo'),
+      );
+      expect(
+        ErrorHandler.extractErrorMessage('{"code": "NT001"}'),
+        contains('El usuario destinatario no existe'),
+      );
+    });
+
     test('trackError registra excepciones y stackTrace de forma segura', () {
       expect(() => ErrorHandler.trackError('Error de prueba', StackTrace.current, 'TestContext'), returnsNormally);
       expect(() => ErrorHandler.trackError(Exception('Sin stack'), null, null), returnsNormally);
