@@ -5,6 +5,7 @@ import { ViviendasService } from '../../../core/services/viviendas.service';
 import { CondominiosService } from '../../../core/services/condominios.service';
 import { AvisosService } from '../../../core/services/avisos.service';
 import { PaqueteriaService } from '../../../core/services/paqueteria.service';
+import { ReservasService } from '../../../core/services/reservas.service';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient, withXhr } from '@angular/common/http';
@@ -19,6 +20,7 @@ describe('ResidenteDashboardComponent', () => {
   let mockCondominiosService: any;
   let mockAvisosService: any;
   let mockPaqueteriaService: any;
+  let mockReservasService: any;
 
   const avisoMock: Aviso = {
     id: 'aviso-1',
@@ -63,6 +65,12 @@ describe('ResidenteDashboardComponent', () => {
       contarEnCaseta: jasmine.createSpy('contarEnCaseta').and.resolveTo(0)
     };
 
+    mockReservasService = {
+      accionesPendientes: signal<number>(0),
+      cargarMias: jasmine.createSpy('cargarMias').and.resolveTo(),
+      cargarPorAprobar: jasmine.createSpy('cargarPorAprobar').and.resolveTo()
+    };
+
     await TestBed.configureTestingModule({
       imports: [ResidenteDashboardComponent],
       providers: [
@@ -71,6 +79,7 @@ describe('ResidenteDashboardComponent', () => {
         { provide: CondominiosService, useValue: mockCondominiosService },
         { provide: AvisosService, useValue: mockAvisosService },
         { provide: PaqueteriaService, useValue: mockPaqueteriaService },
+        { provide: ReservasService, useValue: mockReservasService },
         provideRouter([]),
         provideHttpClient(withXhr()),
         provideHttpClientTesting()
@@ -109,6 +118,36 @@ describe('ResidenteDashboardComponent', () => {
       const lista = component.avisosService.vigentes();
       expect(lista.length).toBeGreaterThan(0);
       expect(new Date(lista[0].creadoEn).getTime()).toBeLessThanOrEqual(Date.now());
+    });
+  });
+
+  describe('Acceso a reservas', () => {
+    const botonReservas = (f: ComponentFixture<ResidenteDashboardComponent>) =>
+      f.nativeElement.querySelector('a[href="/dashboard/residente/reservas"]') as HTMLElement | null;
+
+    it('muestra el botón de reservas sin insignia cuando no hay nada por atender', async () => {
+      const f = TestBed.createComponent(ResidenteDashboardComponent);
+      f.detectChanges();
+      await f.whenStable();
+      f.detectChanges();
+
+      expect(botonReservas(f)?.textContent).toContain('Reservas');
+      expect(botonReservas(f)?.textContent).not.toContain('por atender');
+    });
+
+    it('la insignia cuenta las solicitudes por aprobar y las reservas por confirmar', async () => {
+      mockReservasService.accionesPendientes.set(3);
+      const f = TestBed.createComponent(ResidenteDashboardComponent);
+      f.detectChanges();
+      await f.whenStable();
+      f.detectChanges();
+
+      expect(botonReservas(f)?.textContent?.replace(/\s+/g, ' ')).toContain('3 por atender');
+    });
+
+    it('al abrir el portal consulta lo necesario para la insignia', () => {
+      expect(mockReservasService.cargarMias).toHaveBeenCalled();
+      expect(mockReservasService.cargarPorAprobar).toHaveBeenCalled();
     });
   });
 
