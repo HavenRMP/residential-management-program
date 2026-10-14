@@ -12,6 +12,7 @@ import {
   normalizarReserva,
   ordenarHistorial,
   ordenarProximas,
+  reservaEsConfirmable,
   reservaEsProxima
 } from '../models/reserva.model';
 
@@ -44,6 +45,9 @@ export class ReservasService {
   readonly proximas = computed(() => ordenarProximas(this.mias().filter(r => reservaEsProxima(r))));
   /** Ya terminaron o se cerraron (rechazadas, canceladas, no utilizadas), la más reciente primero */
   readonly historial = computed(() => ordenarHistorial(this.mias().filter(r => !reservaEsProxima(r))));
+
+  /** Lo que espera una acción de la persona: solicitudes por aprobar y reservas listas para confirmar asistencia */
+  readonly accionesPendientes = computed(() => this.porAprobar().length + this.mias().filter(r => reservaEsConfirmable(r)).length);
 
   private ultimaPeticion = 0;
 
