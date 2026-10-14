@@ -79,7 +79,8 @@ public class ValidarCodigoVisitaTests
         {
             Id = visitaId,
             Codigo = "XYZ123",
-            NombreVisitante = "Juan"
+            NombreVisitante = "Juan",
+            Estado = "programada"
         };
 
         mockSupabaseService.Setup(s => s.ValidarCodigoAsync("XYZ123", userId))
@@ -96,9 +97,30 @@ public class ValidarCodigoVisitaTests
         var content = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(visitaId.ToString(), content.GetProperty("id").GetString());
         Assert.Equal("Juan", content.GetProperty("nombreVisitante").GetString());
+        Assert.Equal("programada", content.GetProperty("estado").GetString());
         Assert.False(content.TryGetProperty("codigo", out _));
 
         mockSupabaseService.Verify(s => s.ValidarCodigoAsync("XYZ123", userId), Times.Once);
+    }
+
+    [Fact]
+    public void VisitaDto_DeserializaEstadoDesdeCampoEstado()
+    {
+        var json = "{\"id\":\"" + Guid.NewGuid() + "\",\"nombre_visitante\":\"Carlos\",\"estado\":\"programada\"}";
+        var dto = System.Text.Json.JsonSerializer.Deserialize<VisitaDto>(json);
+
+        Assert.NotNull(dto);
+        Assert.Equal("programada", dto.Estado);
+    }
+
+    [Fact]
+    public void VisitaDto_DeserializaEstadoDesdeCampoEstadoCalculado()
+    {
+        var json = "{\"id\":\"" + Guid.NewGuid() + "\",\"nombre_visitante\":\"Carlos\",\"estado_calculado\":\"expirada\"}";
+        var dto = System.Text.Json.JsonSerializer.Deserialize<VisitaDto>(json);
+
+        Assert.NotNull(dto);
+        Assert.Equal("expirada", dto.Estado);
     }
 
     [Fact]

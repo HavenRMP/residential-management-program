@@ -43,8 +43,27 @@ public class VisitaDto
     [JsonPropertyName("fecha_expiracion")]
     public DateTimeOffset VigenciaHasta { get; set; }
 
+    private string _estado = string.Empty;
+
+    [JsonPropertyName("estado")]
+    public string Estado
+    {
+        get => _estado;
+        set => _estado = value ?? string.Empty;
+    }
+
     [JsonPropertyName("estado_calculado")]
-    public string Estado { get; set; } = string.Empty;
+    public string? EstadoCalculado
+    {
+        get => _estado;
+        set
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                _estado = value;
+            }
+        }
+    }
 
     [JsonPropertyName("hora_entrada")]
     public DateTimeOffset? HoraEntrada { get; set; }
