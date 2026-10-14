@@ -2,6 +2,7 @@ import {
   Reserva,
   nombreCompleto,
   normalizarEstado,
+  normalizarReserva,
   ocupaHorario,
   ordenarHistorial,
   ordenarProximas,
@@ -25,6 +26,11 @@ describe('reserva.model', () => {
     expect(normalizarEstado(' aprobada ')).toBe('APROBADA');
     expect(normalizarEstado('PENDIENTE_ADMIN')).toBe('PENDIENTE_ADMIN');
     expect(normalizarEstado(null)).toBe('' as any);
+  });
+
+  it('normaliza el estado y el tipo de una reserva y asume RESERVA si el tipo no viene', () => {
+    expect(normalizarReserva({ estado: 'aprobada', tipo: 'bloqueo' })).toEqual({ estado: 'APROBADA', tipo: 'BLOQUEO' });
+    expect(normalizarReserva<{ estado: string; tipo?: string }>({ estado: 'PENDIENTE_ADMIN' })).toEqual({ estado: 'PENDIENTE_ADMIN', tipo: 'RESERVA' });
   });
 
   describe('reservaEsConfirmable', () => {
