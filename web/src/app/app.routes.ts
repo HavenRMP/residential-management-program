@@ -126,6 +126,14 @@ export const routes: Routes = [
     redirectTo: 'dashboard/residente/visitas'
   },
   {
+    // url_redireccion de las notificaciones de reservas (Reservas.Api): /reservas/{id}
+    path: 'reservas/:id',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/reservas/reserva-redirect/reserva-redirect.component')
+        .then(m => m.ReservaRedirectComponent)
+  },
+  {
     // url_redireccion de la notificación "¡Tu paquete ha llegado!" (Visitas.Api): /paquetes/{id}
     path: 'paquetes/:id',
     redirectTo: 'dashboard/residente/paquetes'
