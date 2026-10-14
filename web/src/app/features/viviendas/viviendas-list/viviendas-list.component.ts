@@ -118,6 +118,7 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
             <select
               [ngModel]="filtroTipo()"
               (ngModelChange)="onTipoChange($event)"
+              aria-label="Filtrar por tipo"
               class="h-8 px-2 text-xs bg-slate-50/70 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#111C99]/10 focus:border-[#111C99] transition-all cursor-pointer shrink-0"
               >
               <option value="todos">Todos los tipos</option>
@@ -356,6 +357,7 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
                   <select
                     [ngModel]="elementosPorPagina()"
                     (ngModelChange)="cambiarElementosPorPagina($event)"
+                    aria-label="Viviendas por página"
                     class="h-7 px-2 text-xs bg-white border border-slate-300 rounded font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#111C99]/20 focus:border-[#111C99] cursor-pointer"
                     >
                     @for (opt of opcionesPaginacion; track opt) {
