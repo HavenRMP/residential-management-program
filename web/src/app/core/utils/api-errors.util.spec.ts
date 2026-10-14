@@ -1,4 +1,4 @@
-import { esRecursoYaNoDisponible, mensajeAmigable } from './api-errors.util';
+import { esRecursoYaNoDisponible, mensajeAmigable, mensajeConValidacion } from './api-errors.util';
 
 describe('api-errors.util', () => {
   describe('esRecursoYaNoDisponible', () => {
@@ -34,6 +34,31 @@ describe('api-errors.util', () => {
       expect(mensajeAmigable({}, respaldo)).toBe(respaldo);
       expect(mensajeAmigable(undefined, respaldo)).toBe(respaldo);
       expect(mensajeAmigable({ error: { error: '   ' } }, respaldo)).toBe(respaldo);
+    });
+  });
+
+  describe('mensajeConValidacion', () => {
+    const respaldo = 'No se pudo completar la acción.';
+
+    it('usa el { error } del backend cuando lo trae', () => {
+      expect(mensajeConValidacion({ error: { error: 'Ya tienes una reserva para ese día.' } }, respaldo)).toBe('Ya tienes una reserva para ese día.');
+    });
+
+    it('si solo hay errores de validación usa el primero', () => {
+      const err = { error: { errors: { Motivo: ['El motivo es obligatorio'], Otro: ['x'] } } };
+
+      expect(mensajeConValidacion(err, respaldo)).toBe('El motivo es obligatorio');
+    });
+
+    it('el { error } tiene prioridad sobre los errores de validación', () => {
+      expect(mensajeConValidacion({ error: { error: 'Choca con un bloqueo', errors: { Motivo: ['x'] } } }, respaldo)).toBe('Choca con un bloqueo');
+    });
+
+    it('oculta el JSON técnico y usa el respaldo si no hay nada utilizable', () => {
+      expect(mensajeConValidacion({ error: { error: 'Error desde Supabase: {"code":"XX000"}' } }, respaldo)).toBe(respaldo);
+      expect(mensajeConValidacion({ error: { errors: {} } }, respaldo)).toBe(respaldo);
+      expect(mensajeConValidacion({ error: { errors: { Motivo: [''] } } }, respaldo)).toBe(respaldo);
+      expect(mensajeConValidacion(undefined, respaldo)).toBe(respaldo);
     });
   });
 });
