@@ -104,16 +104,13 @@ public class SupabaseUserContextClientTests
     }
 
     [Fact]
-    public async Task GetContextoUsuarioAsync_Respuesta401_RetornaNulls()
+    public async Task GetContextoUsuarioAsync_Respuesta401_LanzaSupabaseUnauthorizedException()
     {
         var handler = new FakeHttpMessageHandler(HttpStatusCode.Unauthorized, "");
         var httpClient = new HttpClient(handler);
 
-        var (rol, cond) = await SupabaseUserContextClient.GetContextoUsuarioAsync(
-            httpClient, _baseUrl, _anonKey, _userId, _accessToken);
-
-        Assert.Null(rol);
-        Assert.Null(cond);
+        await Assert.ThrowsAsync<SupabaseUnauthorizedException>(() =>
+            SupabaseUserContextClient.GetContextoUsuarioAsync(httpClient, _baseUrl, _anonKey, _userId, _accessToken));
     }
 
     [Fact]
