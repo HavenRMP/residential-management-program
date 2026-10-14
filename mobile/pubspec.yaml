@@ -1,7 +1,7 @@
 name: haven
 description: "Residential Management Program"
 publish_to: 'none'
-version: 6.0.1+105
+version: 6.0.1+106
 
 environment:
   sdk: ^3.11.1
