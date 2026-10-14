@@ -268,6 +268,43 @@ public class PaqueteriaControllerTests
         mockService.Verify(s => s.GetMisPaquetesAsync(It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<PaginationParams>()), Times.Never);
     }
 
+    [Fact]
+    public async Task MisPaquetes_MultiplesEstadosValidos_PropagaListaSeparadaPorComas()
+    {
+        var userId = Guid.NewGuid();
+        var mockService = new Mock<IPaqueteriaSupabaseService>();
+        var token = GenerateFakeToken(userId);
+        string? capturedEstado = null;
+
+        mockService.Setup(s => s.GetMisPaquetesAsync(It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<PaginationParams>()))
+            .Callback<string, int?, string?, PaginationParams>((t, v, e, p) => { capturedEstado = e; })
+            .ReturnsAsync((new List<PaqueteDto>(), 0));
+
+        await using var app = BuildApplication(mockService);
+        var client = app.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync("/api/paqueteria/mis-paquetes?estado=esperado,recibido");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("esperado,recibido", capturedEstado);
+    }
+
+    [Fact]
+    public async Task MisPaquetes_MultiplesEstadosUnoInvalido_ReturnsBadRequest()
+    {
+        var userId = Guid.NewGuid();
+        var mockService = new Mock<IPaqueteriaSupabaseService>();
+        await using var app = BuildApplication(mockService);
+        var client = app.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateFakeToken(userId));
+
+        var response = await client.GetAsync("/api/paqueteria/mis-paquetes?estado=esperado,invalido");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        mockService.Verify(s => s.GetMisPaquetesAsync(It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<PaginationParams>()), Times.Never);
+    }
+
     // --- 10. Editar: body vacío, válido y PQ004 ---
     [Fact]
     public async Task Editar_BodyVacio_ReturnsBadRequest()

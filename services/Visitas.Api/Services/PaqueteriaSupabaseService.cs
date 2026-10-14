@@ -57,7 +57,10 @@ public class PaqueteriaSupabaseService : IPaqueteriaSupabaseService
             new PaginationParams { PageSize = 100, Page = 1 }
         );
 
-        return result.Items ?? new List<ServicioPaqueteriaDto>();
+        var items = result.Items ?? new List<ServicioPaqueteriaDto>();
+        return items
+            .Where(s => !(s.EsSistema && string.Equals(s.Nombre?.Trim(), "Otro", StringComparison.OrdinalIgnoreCase)))
+            .ToList();
     }
 
     public async Task<PaqueteDto> CreatePaqueteEsperadoAsync(CreatePaqueteEsperadoRequestDto dto, Guid actorId)
@@ -141,8 +144,18 @@ public class PaqueteriaSupabaseService : IPaqueteriaSupabaseService
 
         if (!string.IsNullOrWhiteSpace(estado))
         {
-            var estadoLower = estado.Trim().ToLowerInvariant();
-            resourcePath += $"&estado=eq.{estadoLower}";
+            var estadosList = estado.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                    .Select(e => e.ToLowerInvariant())
+                                    .Distinct()
+                                    .ToList();
+            if (estadosList.Count == 1)
+            {
+                resourcePath += $"&estado=eq.{estadosList[0]}";
+            }
+            else if (estadosList.Count > 1)
+            {
+                resourcePath += $"&estado=in.({string.Join(",", estadosList)})";
+            }
         }
 
         var result = await SupabaseQueryClient.GetPagedAsync<PaqueteDto>(
@@ -249,9 +262,20 @@ public class PaqueteriaSupabaseService : IPaqueteriaSupabaseService
         {
             resourcePath += $"&vivienda_id=eq.{viviendaId.Value}";
         }
-        if (!string.IsNullOrEmpty(estado))
+        if (!string.IsNullOrWhiteSpace(estado))
         {
-            resourcePath += $"&estado=eq.{estado.ToLowerInvariant()}";
+            var estadosList = estado.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                    .Select(e => e.ToLowerInvariant())
+                                    .Distinct()
+                                    .ToList();
+            if (estadosList.Count == 1)
+            {
+                resourcePath += $"&estado=eq.{estadosList[0]}";
+            }
+            else if (estadosList.Count > 1)
+            {
+                resourcePath += $"&estado=in.({string.Join(",", estadosList)})";
+            }
         }
 
         var result = await SupabaseQueryClient.GetPagedAsync<PaqueteHistoricoDto>(
