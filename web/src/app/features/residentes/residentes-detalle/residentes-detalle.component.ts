@@ -106,8 +106,8 @@ interface GrupoSubusuarios {
                   class="rounded-lg bg-slate-50/80 border border-slate-200 overflow-hidden"
                   [attr.aria-label]="formatearNumeroCasa(v.numeroCasa) + ' y sus sub-usuarios'"
                   >
-                  <div class="flex items-center justify-between gap-3 p-3">
-                    <div class="flex items-center gap-3 min-w-0">
+                  <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 p-3">
+                    <div class="flex items-center gap-3">
                       <div class="w-8 h-8 shrink-0 rounded-lg bg-white border border-slate-200 text-indigo-700 flex items-center justify-center font-bold text-xs shadow-2xs">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
