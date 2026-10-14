@@ -100,6 +100,13 @@ export const routes: Routes = [
         .then(m => m.VisitasComponent)
   },
   {
+    path: 'dashboard/residente/reservas',
+    canActivate: [authGuard, roleGuard(['residente'])],
+    loadComponent: () =>
+      import('./features/reservas/reservas.component')
+        .then(m => m.ReservasComponent)
+  },
+  {
     path: 'dashboard/residente/paquetes',
     canActivate: [authGuard, roleGuard(['residente'])],
     loadComponent: () =>
