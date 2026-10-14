@@ -29,7 +29,10 @@ export const LIMITES_PAQUETE = {
   destinatario: 100,
   servicio: 50,
   guia: 100,
-  descripcion: 250
+  descripcion: 250,
+  ubicacion: 50,
+  /** Nombre de quien recoge el paquete en caseta */
+  recoge: 100
 } as const;
 
 /** Valor del selector de empresa para escribir una que no está en el catálogo */
@@ -63,6 +66,9 @@ export interface Paquete {
   recibidoPorNombre?: string | null;
   entregadoEn?: string | null;
   entregadoANombre?: string | null;
+  /** Solo lo devuelven las consultas de caseta y administración */
+  entregadoPorNombre?: string | null;
+  creadoPorNombre?: string | null;
   creadoEn?: string | null;
 }
 
@@ -80,6 +86,21 @@ export interface CrearPaqueteDto {
 }
 
 export type ActualizarPaqueteDto = Partial<Omit<CrearPaqueteDto, 'viviendaId'>>;
+
+/**
+ * Recepción en caseta. Con `paqueteId` se recibe un aviso del residente; sin él es un paquete que nadie avisó
+ * y el backend exige vivienda y destinatario.
+ */
+export interface RecibirPaqueteDto {
+  paqueteId?: string;
+  viviendaId?: number;
+  destinatarioNombre?: string;
+  servicioId?: number;
+  servicioNombre?: string;
+  numeroGuia?: string;
+  descripcion?: string;
+  ubicacionAlmacen?: string;
+}
 
 function aMilisegundos(iso: string | null | undefined): number | null {
   if (!iso) return null;
@@ -157,4 +178,32 @@ export function textoVentanaPaquete(p: Pick<Paquete, 'fechaEsperadaDesde' | 'fec
   if (hasta) return `Hasta el ${hasta}`;
   if (desde) return `A partir del ${desde}`;
   return '';
+}
+
+function inicioDelDia(ms: number): number {
+  const d = new Date(ms);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+/**
+ * El residente espera el paquete hoy: su ventana ya empezó (o no tiene inicio) y no ha terminado.
+ * Un aviso sin fechas también cuenta, porque puede llegar cualquier día.
+ */
+export function llegaHoy(p: Pick<Paquete, 'fechaEsperadaDesde' | 'fechaEsperadaHasta'>, ahora: number = Date.now()): boolean {
+  const desde = aMilisegundos(p.fechaEsperadaDesde);
+  const hasta = aMilisegundos(p.fechaEsperadaHasta);
+  const finDelDia = inicioDelDia(ahora) + 86_400_000;
+  return (desde === null || desde < finDelDia) && (hasta === null || hasta >= inicioDelDia(ahora));
+}
+
+/** Los que llegan hoy primero; luego, por cercanía de su ventana. Dentro de cada grupo, el aviso más reciente arriba */
+export function ordenarEsperadosParaCaseta<T extends Paquete>(paquetes: T[], ahora: number = Date.now()): T[] {
+  const peso = (p: T) => (llegaHoy(p, ahora) ? 0 : 1);
+  return [...paquetes].sort((a, b) => peso(a) - peso(b) || fechaActividadPaquete(b) - fechaActividadPaquete(a));
+}
+
+/** Desde hace más tiempo en caseta primero: son los que llevan más días esperando a que los recojan */
+export function ordenarPaquetesEnCaseta<T extends Paquete>(paquetes: T[]): T[] {
+  const recibido = (p: T) => aMilisegundos(p.recibidoEn) ?? aMilisegundos(p.creadoEn) ?? 0;
+  return [...paquetes].sort((a, b) => recibido(a) - recibido(b));
 }
