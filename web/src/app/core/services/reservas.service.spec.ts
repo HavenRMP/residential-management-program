@@ -154,6 +154,14 @@ describe('ReservasService', () => {
       expect(service.mias()).toEqual([]);
     });
 
+    it('sin área pide el calendario de todas las áreas', async () => {
+      api.get.and.returnValue(of({ items: [] }));
+
+      await service.calendario(null, '2026-10-21T00:00:00Z', '2026-10-22T00:00:00Z');
+
+      expect((api.get.calls.mostRecent().args[1] as HttpParams).has('areaId')).toBeFalse();
+    });
+
     it('si el error es del backend se propaga a quien llama', async () => {
       api.get.and.returnValue(throwError(() => ({ status: 400, error: { error: 'El rango de fechas no puede exceder los 62 días.' } })));
 
