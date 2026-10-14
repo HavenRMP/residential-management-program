@@ -961,7 +961,7 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: _subusuarios.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              separatorBuilder: (_, _) => const SizedBox(height: 10),
               itemBuilder: (context, index) {
                 final sub = _subusuarios[index];
                 final isActivo = sub.isActivo;

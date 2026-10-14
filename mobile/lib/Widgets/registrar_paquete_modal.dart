@@ -347,7 +347,7 @@ class _RegistrarPaqueteModalState extends State<RegistrarPaqueteModal> {
               ),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
-                value: _esOtroServicio
+                initialValue: _esOtroServicio
                     ? 'Otro'
                     : (_serviciosOpciones.contains(_servicioNombreSeleccionado)
                         ? _servicioNombreSeleccionado
