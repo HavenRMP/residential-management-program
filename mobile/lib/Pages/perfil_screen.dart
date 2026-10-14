@@ -538,9 +538,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
           ),
           if (_isLoadingBiometric)
             const SizedBox(
-              width: 20,
+              width: 36,
               height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
             )
           else
             Switch.adaptive(
