@@ -30,4 +30,7 @@ public class ViviendaConResidentesDto
 
     [JsonPropertyName("residentes")]
     public List<ResidenteVigilanciaDto> Residentes { get; set; } = new();
+
+    [JsonPropertyName("subusuarios")]
+    public List<SubusuarioResidencialDto> Subusuarios { get; set; } = new();
 }
