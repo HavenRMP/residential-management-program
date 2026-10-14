@@ -1,14 +1,27 @@
-import { Component, Input, Output, EventEmitter, HostListener, inject, OnChanges, SimpleChanges, signal } from '@angular/core';
+import Swal from 'sweetalert2';
+import { Component, Input, Output, EventEmitter, HostListener, inject, OnChanges, SimpleChanges, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { Residente } from '../../../core/models/residente.model';
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { ViviendasService } from '../../../core/services/viviendas.service';
+import { SubusuariosService } from '../../../core/services/subusuarios.service';
+import { SubUsuarioItem } from '../../../core/models/subusuario.model';
 import { getInitials } from '../../../core/utils/iniciales.util';
 import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
+import { mensajeAmigable } from '../../../core/utils/api-errors.util';
+
+interface GrupoSubusuarios {
+  viviendaId: number;
+  numeroCasa: string;
+  items: SubUsuarioItem[];
+  cargando: boolean;
+  error: boolean;
+}
 
 @Component({
   selector: 'app-residentes-detalle',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [CommonModule, DatePipe],
   template: `
     <!-- Sticky Drawer Top Bar -->
@@ -19,7 +32,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
         </div>
         <span id="detalle-residente-title" class="text-sm font-bold text-slate-900 tracking-tight">Detalle del Residente</span>
       </div>
-
+    
       <!-- Close Button -->
       <button
         type="button"
@@ -27,13 +40,13 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
         class="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#111C99]/20"
         aria-label="Cerrar detalle del residente"
         title="Cerrar detalle (Esc)"
-      >
+        >
         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
     </div>
-
+    
     <div class="p-4 sm:p-6 space-y-6 flex-1 flex flex-col justify-between">
       <div class="space-y-5">
         <!-- Hero Profile -->
@@ -51,7 +64,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
             </span>
           </div>
         </div>
-
+    
         <!-- Viviendas Asignadas -->
         <div class="bg-white border border-slate-200/80 rounded-xl p-4 sm:p-5 shadow-xs space-y-3">
           <div class="flex items-center justify-between">
@@ -65,59 +78,160 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
                 Vivienda{{ viviendasAsignadas().length > 1 ? 's' : '' }} Asignada{{ viviendasAsignadas().length > 1 ? 's' : '' }}
               </h3>
             </div>
-
-            <span
-              *ngIf="!cargandoViviendas()"
-              class="text-[11px] font-semibold px-2.5 py-0.5 rounded-full"
-              [ngClass]="viviendasAsignadas().length > 0 ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-amber-50 text-amber-800 border border-amber-200'"
-            >
-              {{ viviendasAsignadas().length > 0 ? (viviendasAsignadas().length === 1 ? '1 vivienda' : viviendasAsignadas().length + ' viviendas') : 'Sin vivienda' }}
-            </span>
-          </div>
-
-          <!-- Spinner durante carga reactiva -->
-          <div *ngIf="cargandoViviendas()" class="flex items-center gap-2 py-3 justify-center text-xs text-slate-500 font-medium">
-            <div class="w-4 h-4 border-2 border-slate-200 border-t-indigo-700 rounded-full animate-spin"></div>
-            <span>Consultando viviendas...</span>
-          </div>
-
-          <!-- Lista de viviendas vinculadas -->
-          <div *ngIf="!cargandoViviendas() && viviendasAsignadas().length > 0" class="space-y-2 pt-1 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
-            <div
-              *ngFor="let v of viviendasAsignadas()"
-              class="flex items-center justify-between p-3 rounded-lg bg-slate-50/80 border border-slate-200 hover:bg-slate-100/70 transition-colors"
-            >
-              <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-indigo-700 flex items-center justify-center font-bold text-xs shadow-2xs">
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                </div>
-                <div>
-                  <p class="text-sm font-bold text-slate-900">{{ formatearNumeroCasa(v.numeroCasa) }}</p>
-                  <p class="text-[11px] text-slate-600 font-medium">Tipo: {{ v.tipo || 'Residencial' }}</p>
-                </div>
-              </div>
-
-              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                Asignada
+    
+            @if (!cargandoViviendas()) {
+              <span
+                class="text-[11px] font-semibold px-2.5 py-0.5 rounded-full"
+                [ngClass]="claseEtiquetaViviendas()"
+                >
+                {{ etiquetaViviendas() }}
               </span>
-            </div>
+            }
           </div>
-
+    
+          <!-- Spinner durante carga reactiva -->
+          @if (cargandoViviendas()) {
+            <div class="flex items-center gap-2 py-3 justify-center text-xs text-slate-500 font-medium">
+              <div class="w-4 h-4 border-2 border-slate-200 border-t-indigo-700 rounded-full animate-spin"></div>
+              <span>Consultando viviendas...</span>
+            </div>
+          }
+    
+          <!-- Lista de viviendas vinculadas -->
+          @if (!cargandoViviendas() && viviendasAsignadas().length > 0) {
+            <div class="space-y-2 pt-1 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
+              @for (v of viviendasAsignadas(); track v.id) {
+                <div
+                  class="flex items-center justify-between p-3 rounded-lg bg-slate-50/80 border border-slate-200 hover:bg-slate-100/70 transition-colors"
+                  >
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-indigo-700 flex items-center justify-center font-bold text-xs shadow-2xs">
+                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p class="text-sm font-bold text-slate-900">{{ formatearNumeroCasa(v.numeroCasa) }}</p>
+                      <p class="text-[11px] text-slate-600 font-medium">Tipo: {{ v.tipo || 'Residencial' }}</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      Asignada
+                    </span>
+                    <button
+                      type="button"
+                      (click)="confirmarDesvinculacion(v)"
+                      [disabled]="desvinculando() !== null"
+                      [attr.aria-label]="'Desvincular a ' + residente?.nombre + ' de ' + formatearNumeroCasa(v.numeroCasa)"
+                      title="Quitar la asignación de esta vivienda (la cuenta no se borra)"
+                      class="h-7 px-2.5 text-[11px] font-semibold rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-rose-300"
+                    >
+                      {{ desvinculando() === v.id ? 'Desvinculando...' : 'Desvincular' }}
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+    
           <!-- Estado vacío: Sin vivienda -->
-          <div *ngIf="!cargandoViviendas() && viviendasAsignadas().length === 0" class="p-3 rounded-lg bg-amber-50/70 border border-amber-200 text-xs text-amber-900 space-y-1">
-            <div class="flex items-center gap-1.5 font-semibold text-amber-900">
-              <span class="w-2 h-2 rounded-full bg-amber-500"></span>
-              <span>Sin vivienda vinculada</span>
+          @if (!cargandoViviendas() && viviendasAsignadas().length === 0 && subusuarioDe.length === 0) {
+            <div class="p-3 rounded-lg bg-amber-50/70 border border-amber-200 text-xs text-amber-900 space-y-1">
+              <div class="flex items-center gap-1.5 font-semibold text-amber-900">
+                <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                <span>Sin vivienda vinculada</span>
+              </div>
+              <p class="text-amber-800 text-[11px] leading-relaxed">
+                Este residente está registrado en el condominio pero aún no tiene una vivienda asignada.
+              </p>
             </div>
-            <p class="text-amber-800 text-[11px] leading-relaxed">
-              Este residente está registrado en el condominio pero aún no tiene una vivienda asignada.
-            </p>
-          </div>
+          }
         </div>
+    
+        <!-- Casas a las que entra como sub-usuario (no es titular) -->
+        @if (!cargandoViviendas() && subusuarioDe.length > 0) {
+          <div class="bg-white border border-slate-200/80 rounded-xl p-4 sm:p-5 shadow-xs space-y-3" aria-labelledby="detalle-acceso-subusuario">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-lg bg-sky-50 text-sky-700 flex items-center justify-center border border-sky-100">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a3 3 0 11-6 0 3 3 0 016 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <h3 id="detalle-acceso-subusuario" class="text-xs font-bold text-slate-900 uppercase tracking-wider">Acceso como sub-usuario</h3>
+            </div>
+            <p class="text-[11px] text-slate-600 leading-relaxed">Entra a la vivienda de otro residente. No es el titular de la casa.</p>
+            <ul class="space-y-2">
+              @for (v of subusuarioDe; track v.id) {
+                <li class="flex items-center justify-between p-3 rounded-lg bg-slate-50/80 border border-slate-200">
+                  <div>
+                    <p class="text-sm font-bold text-slate-900">{{ formatearNumeroCasa(v.numeroCasa) }}</p>
+                    <p class="text-[11px] text-slate-600 font-medium">Tipo: {{ v.tipo || 'Residencial' }}</p>
+                  </div>
+                  <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-200">Sub-usuario</span>
+                </li>
+              }
+            </ul>
+          </div>
+        }
 
+        <!-- Sub-usuarios de cada vivienda asignada -->
+        @if (!cargandoViviendas() && viviendasAsignadas().length > 0) {
+          <div class="bg-white border border-slate-200/80 rounded-xl p-4 sm:p-5 shadow-xs space-y-3" aria-labelledby="detalle-subusuarios-titulo">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center border border-indigo-100">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <h3 id="detalle-subusuarios-titulo" class="text-xs font-bold text-slate-900 uppercase tracking-wider">Sub-usuarios de la vivienda</h3>
+            </div>
+            @for (g of gruposSubusuarios(); track g.viviendaId) {
+              <div class="space-y-2">
+                @if (gruposSubusuarios().length > 1) {
+                  <p class="text-[11px] font-semibold text-slate-500">{{ formatearNumeroCasa(g.numeroCasa) }}</p>
+                }
+                @if (g.cargando) {
+                  <div class="flex items-center gap-2 py-2 justify-center text-xs text-slate-500 font-medium" aria-busy="true">
+                    <div class="w-4 h-4 border-2 border-slate-200 border-t-indigo-700 rounded-full animate-spin"></div>
+                    <span>Consultando sub-usuarios...</span>
+                  </div>
+                }
+                @if (!g.cargando && g.error) {
+                  <p class="p-3 rounded-lg bg-amber-50/70 border border-amber-200 text-[11px] text-amber-900">
+                    No se pudieron cargar los sub-usuarios de esta vivienda.
+                  </p>
+                }
+                @if (!g.cargando && !g.error && g.items.length === 0) {
+                  <p class="p-3 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-600">
+                    Esta vivienda no tiene sub-usuarios.
+                  </p>
+                }
+                @if (!g.cargando && !g.error && g.items.length > 0) {
+                  <ul class="space-y-2">
+                    @for (u of g.items; track u.id) {
+                      <li class="flex items-center justify-between gap-3 p-3 rounded-lg bg-slate-50/80 border border-slate-200">
+                        <div class="min-w-0">
+                          <p class="text-sm font-bold text-slate-900 truncate">{{ u.activo ? u.nombre : 'Invitación pendiente' }}</p>
+                          <p class="text-[11px] text-slate-600 font-medium truncate">{{ u.email || u.telefono || 'Sin contacto' }}</p>
+                        </div>
+                        <div class="shrink-0 flex flex-col items-end gap-1">
+                          <span class="px-2 py-0.5 rounded text-[10px] font-medium border bg-slate-100 text-slate-600 border-slate-200">{{ u.parentesco }}</span>
+                          <span
+                            class="px-2 py-0.5 rounded text-[10px] font-medium border"
+                            [ngClass]="u.activo ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'"
+                          >{{ u.activo ? 'Activo' : 'Invitación enviada' }}</span>
+                        </div>
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+            }
+          </div>
+        }
+    
         <!-- Información de Contacto -->
         <div class="bg-white border border-slate-200/80 rounded-xl p-4 sm:p-5 shadow-xs divide-y divide-slate-100">
           <!-- Correo Electrónico -->
@@ -132,7 +246,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
               <span class="break-all">{{ residente?.email || '—' }}</span>
             </div>
           </div>
-
+    
           <!-- Teléfono -->
           <div class="py-4">
             <span class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -145,7 +259,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
               <span>{{ residente?.telefono || '—' }}</span>
             </div>
           </div>
-
+    
           <!-- Fecha de Alta -->
           <div class="pt-4">
             <span class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -160,24 +274,36 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
           </div>
         </div>
       </div>
-
+    
       <!-- ID de Usuario (Soporte Admin) -->
       <div class="pt-6 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
         <span class="font-medium">ID de referencia:</span>
         <span class="font-mono bg-slate-100 px-2 py-1 rounded-md text-slate-600 select-all">{{ residente?.id || '—' }}</span>
       </div>
     </div>
-  `
+    `
 })
 export class ResidentesDetalleComponent implements OnChanges {
   @Input() residente: Residente | null = null;
   @Input() viviendas: Vivienda[] = [];
+  /** Viviendas a las que esta persona entra como sub-usuario activo (no las tiene a su nombre) */
+  @Input() subusuarioDe: Vivienda[] = [];
   @Output() cerrado = new EventEmitter<void>();
+  /** Se quitó una vivienda a este residente: el padre debe refrescar su lista */
+  @Output() desvinculado = new EventEmitter<void>();
 
   private readonly viviendasService = inject(ViviendasService);
+  private readonly subusuariosService = inject(SubusuariosService);
 
   readonly cargandoViviendas = signal<boolean>(false);
+  /** Id de la vivienda que se está desvinculando; bloquea los botones mientras tanto */
+  readonly desvinculando = signal<number | null>(null);
   readonly viviendasAsignadas = signal<Vivienda[]>([]);
+  readonly gruposSubusuarios = signal<GrupoSubusuarios[]>([]);
+  /** Evita que la respuesta lenta de un residente anterior pise la del que se abrió después */
+  private consultaSubusuarios = 0;
+  /** Viviendas (por id) de las que ya se pidieron sub-usuarios: el padre puede mandar una lista nueva con lo mismo en cada ciclo */
+  private viviendasConsultadas = '';
   readonly getInitials = getInitials;
   readonly formatearNumeroCasa = formatearNumeroCasa;
 
@@ -189,6 +315,7 @@ export class ResidentesDetalleComponent implements OnChanges {
   async ngOnChanges(changes: SimpleChanges): Promise<void> {
     if (changes['viviendas']) {
       this.viviendasAsignadas.set(this.viviendas || []);
+      void this.cargarSubusuarios();
     }
 
     if (changes['residente'] && this.residente) {
@@ -196,6 +323,7 @@ export class ResidentesDetalleComponent implements OnChanges {
       // confiamos en ella y evitamos disparar una petición de red redundante.
       if (this.viviendas !== undefined && this.viviendas !== null) {
         this.viviendasAsignadas.set(this.viviendas);
+        void this.cargarSubusuarios();
       } else {
         await this.cargarViviendasResidente();
       }
@@ -212,11 +340,84 @@ export class ResidentesDetalleComponent implements OnChanges {
     try {
       const list = await this.viviendasService.obtenerViviendasDeResidente(this.residente.id);
       this.viviendasAsignadas.set(list);
+      void this.cargarSubusuarios();
     } catch {
       this.viviendasAsignadas.set([]);
     } finally {
       this.cargandoViviendas.set(false);
     }
+  }
+
+  /** Quita la asignación de una vivienda a este residente. La cuenta no se borra. */
+  async confirmarDesvinculacion(vivienda: Vivienda): Promise<void> {
+    if (!this.residente || this.desvinculando() !== null) return;
+    const residente = this.residente;
+    const casa = formatearNumeroCasa(vivienda.numeroCasa);
+
+    const confirmacion = await Swal.fire({
+      title: '¿Desvincular de esta vivienda?',
+      text: `Se retirará a ${residente.nombre} ${residente.apellidos} de la ${casa}. Su cuenta no se borra.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, desvincular',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#e11d48',
+      cancelButtonColor: '#64748b'
+    });
+    if (!confirmacion.isConfirmed) return;
+
+    this.desvinculando.set(vivienda.id);
+    try {
+      await this.viviendasService.desvincularResidente(vivienda.id, residente.id);
+      this.viviendasAsignadas.update(lista => lista.filter(v => v.id !== vivienda.id));
+      void this.cargarSubusuarios();
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `Desvinculado de la ${casa}`, showConfirmButton: false, timer: 2500 });
+      this.desvinculado.emit();
+    } catch (err: any) {
+      console.error('[ResidentesDetalleComponent] Error al desvincular:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo desvincular',
+        text: mensajeAmigable(err, 'No fue posible quitar la vivienda. Intenta de nuevo en unos segundos.'),
+        confirmButtonColor: '#0F172A'
+      });
+    } finally {
+      this.desvinculando.set(null);
+    }
+  }
+
+  /** Pide los sub-usuarios de cada vivienda asignada; el fallo de una no afecta a las demás */
+  async cargarSubusuarios(): Promise<void> {
+    const viviendas = this.viviendasAsignadas();
+    const clave = viviendas.map(v => v.id).join(',');
+    if (clave === this.viviendasConsultadas) return;
+    this.viviendasConsultadas = clave;
+
+    const consulta = ++this.consultaSubusuarios;
+    this.gruposSubusuarios.set(viviendas.map(v => ({ viviendaId: v.id, numeroCasa: v.numeroCasa, items: [], cargando: true, error: false })));
+
+    const grupos = await Promise.all(viviendas.map(async (v): Promise<GrupoSubusuarios> => {
+      try {
+        return { viviendaId: v.id, numeroCasa: v.numeroCasa, items: await this.subusuariosService.listarPorVivienda(v.id), cargando: false, error: false };
+      } catch (err) {
+        console.error('[ResidentesDetalleComponent] Error al cargar sub-usuarios:', err);
+        return { viviendaId: v.id, numeroCasa: v.numeroCasa, items: [], cargando: false, error: true };
+      }
+    }));
+    if (consulta === this.consultaSubusuarios) this.gruposSubusuarios.set(grupos);
+  }
+
+  etiquetaViviendas(): string {
+    const propias = this.viviendasAsignadas().length;
+    if (propias > 0) return propias === 1 ? '1 vivienda' : `${propias} viviendas`;
+    return this.subusuarioDe.length > 0 ? 'Sub-usuario' : 'Sin vivienda';
+  }
+
+  claseEtiquetaViviendas(): string {
+    if (this.viviendasAsignadas().length > 0) return 'bg-indigo-50 text-indigo-700 border border-indigo-200';
+    return this.subusuarioDe.length > 0
+      ? 'bg-sky-50 text-sky-700 border border-sky-200'
+      : 'bg-amber-50 text-amber-800 border border-amber-200';
   }
 
   cerrar(): void {

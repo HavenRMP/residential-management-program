@@ -13,6 +13,26 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "chore(deps):"
+    # Angular, su CLI, el builder de variables de entorno y TypeScript deben subir juntos y de a una versión mayor
+    # (con ng update). Dependabot solo propone minor y patch agrupados; las mayores van por la tarea de migración.
+    groups:
+      angular:
+        patterns:
+          - "@angular/*"
+          - "@angular-devkit/*"
+          - "@ngx-env/*"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "@angular/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@angular-devkit/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@ngx-env/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
 
   - package-ecosystem: "github-actions"
     directory: "/"

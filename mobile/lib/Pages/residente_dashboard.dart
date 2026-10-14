@@ -16,6 +16,9 @@ import 'subusuarios_screen.dart';
 import 'invitaciones_recibidas_screen.dart';
 import 'visitas_residente_screen.dart';
 import 'perfil_screen.dart';
+import 'paqueteria_residente_screen.dart';
+import 'reservas_residente_screen.dart';
+import '../Services/paqueteria_service.dart';
 import '../Widgets/qr_scanner_view.dart';
 import '../Utils/haptic_helper.dart';
 
@@ -35,20 +38,67 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
   bool _isLoadingViviendas = true;
   int _unreadAvisosCount = 0;
   int _unreadNotificacionesCount = 0;
+  int _paquetesPendientesCount = 0;
 
   late final SubusuariosService _subusuariosService;
   List<InvitacionSubusuario> _invitacionesPendientes = [];
   final Set<String> _processingInvitacionIds = {};
 
+  late final PageController _pageController;
+
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: _currentIndex);
     _subusuariosService = SubusuariosService(widget.controller);
     _cargarMisViviendas();
     _cargarInvitacionesPendientes();
     _solicitarPermisos();
     _checkUnreadAvisos();
     _checkUnreadNotificaciones();
+    _checkPaquetesPendientes();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _codigoController.dispose();
+    super.dispose();
+  }
+
+  void _onDestinationSelected(int index) {
+    HapticHelper.selection();
+    if (_currentIndex != index) {
+      setState(() {
+        _currentIndex = index;
+        if (index == 2) {
+          _checkPaquetesPendientes();
+        }
+        if (widget.controller.currentUser?.condominioId != null && index == 4) {
+          _checkUnreadAvisos();
+        }
+      });
+      if (_pageController.hasClients) {
+        _pageController.animateToPage(
+          index,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOutCubic,
+        );
+      }
+    }
+  }
+
+  Future<void> _checkPaquetesPendientes() async {
+    try {
+      final srv = PaqueteriaService(widget.controller);
+      final res = await srv.getMisPaquetes(page: 1, pageSize: 50, estado: 'recibido');
+      if (res['success'] == true) {
+        final items = res['items'] as List<dynamic>? ?? [];
+        if (mounted) {
+          setState(() => _paquetesPendientesCount = items.length);
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _checkUnreadNotificaciones() async {
@@ -274,7 +324,15 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
         controller: widget.controller,
         misViviendas: _misViviendas,
       ),
-      _buildScannerPage(),
+      PaqueteriaResidenteScreen(
+        controller: widget.controller,
+        misViviendas: _misViviendas,
+        isEmbedded: true,
+      ),
+      ReservasResidenteScreen(
+        controller: widget.controller,
+        isEmbedded: true,
+      ),
       if (hasCondominio) AvisosResidenteScreen(
         controller: widget.controller,
         onAvisoRead: () {
@@ -294,8 +352,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
         elevation: 0,
         title: GestureDetector(
           onTap: () {
-            HapticHelper.selection();
-            setState(() => _currentIndex = pages.length - 1);
+            _onDestinationSelected(pages.length - 1);
           },
           child: Row(
             children: [
@@ -358,6 +415,21 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
               tooltip: 'Invitaciones recibidas',
             ),
           IconButton(
+            onPressed: () async {
+              final code = await QrScannerView.openScanner(
+                context,
+                titulo: 'Escanear Código',
+                instrucciones: 'Apunta la cámara al código QR de acceso o invitación',
+              );
+              if (code != null && code.trim().isNotEmpty) {
+                _codigoController.text = code.trim();
+                await _redimirCodigo();
+              }
+            },
+            icon: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF64748B)),
+            tooltip: 'Escanear código QR',
+          ),
+          IconButton(
             onPressed: () {
               Navigator.push(
                 context,
@@ -403,8 +475,22 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
           ),
         ],
       ),
-      body: IndexedStack(
-        index: _currentIndex,
+      body: PageView(
+        key: const Key('residente_dashboard_page_view'),
+        controller: _pageController,
+        physics: const ClampingScrollPhysics(),
+        onPageChanged: (index) {
+          HapticHelper.selection();
+          setState(() {
+            _currentIndex = index;
+            if (index == 2) {
+              _checkPaquetesPendientes();
+            }
+            if (hasCondominio && index == 4) {
+              _checkUnreadAvisos();
+            }
+          });
+        },
         children: pages,
       ),
       bottomNavigationBar: Container(
@@ -418,15 +504,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
         ),
         child: NavigationBar(
           selectedIndex: _currentIndex,
-          onDestinationSelected: (index) {
-            HapticHelper.selection();
-            setState(() {
-              _currentIndex = index;
-              if (hasCondominio && index == 3) {
-                 _checkUnreadAvisos();
-              }
-            });
-          },
+          onDestinationSelected: _onDestinationSelected,
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.white,
           indicatorColor: const Color(0xFFEEF2FF),
@@ -442,10 +520,27 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
               selectedIcon: Icon(Icons.badge_rounded, color: Color(0xFF111C99)),
               label: 'Visitas',
             ),
+            NavigationDestination(
+              icon: _paquetesPendientesCount > 0
+                  ? Badge(
+                      label: Text('$_paquetesPendientesCount'),
+                      backgroundColor: const Color(0xFF059669),
+                      child: const Icon(Icons.inventory_2_outlined, color: Color(0xFF64748B)),
+                    )
+                  : const Icon(Icons.inventory_2_outlined, color: Color(0xFF64748B)),
+              selectedIcon: _paquetesPendientesCount > 0
+                  ? Badge(
+                      label: Text('$_paquetesPendientesCount'),
+                      backgroundColor: const Color(0xFF059669),
+                      child: const Icon(Icons.inventory_2_rounded, color: Color(0xFF111C99)),
+                    )
+                  : const Icon(Icons.inventory_2_rounded, color: Color(0xFF111C99)),
+              label: 'Paquetes',
+            ),
             const NavigationDestination(
-              icon: Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF64748B)),
-              selectedIcon: Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF111C99)),
-              label: 'Escanear',
+              icon: Icon(Icons.event_available_outlined, color: Color(0xFF64748B)),
+              selectedIcon: Icon(Icons.event_available_rounded, color: Color(0xFF111C99)),
+              label: 'Reservas',
             ),
             if (hasCondominio)
               NavigationDestination(
@@ -464,22 +559,6 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildScannerPage() {
-    return Container(
-      color: Colors.black,
-      child: QrScannerView(
-        titulo: 'Escanear Código',
-        instrucciones: 'Apunta la cámara al código QR de acceso o invitación',
-        isEmbedded: true,
-        onScanned: (codigo) async {
-          _codigoController.text = codigo.trim();
-          setState(() => _currentIndex = 0);
-          await _redimirCodigo();
-        },
       ),
     );
   }
@@ -569,6 +648,12 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                 // Banner destacado de Invitaciones Pendientes
                 if (_invitacionesPendientes.isNotEmpty) ...[
                   _buildInvitacionesPendientesBanner(),
+                  const SizedBox(height: 20),
+                ],
+
+                // Banner de Paquetes en Caseta listos para recoger
+                if (_paquetesPendientesCount > 0) ...[
+                  _buildPaquetesPendientesBanner(),
                   const SizedBox(height: 20),
                 ],
 
@@ -753,6 +838,77 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
           ),
         );
       }).toList(),
+    );
+  }
+
+  Widget _buildPaquetesPendientesBanner() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFECFDF5), Color(0xFFD1FAE5)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFA7F3D0), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF059669).withValues(alpha: 0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF059669),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.inventory_2_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '¡Tienes $_paquetesPendientesCount paquete(s) en caseta!',
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF065F46),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Acude a vigilancia para recoger tus entregas.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF047857),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          FilledButton(
+            onPressed: () => _onDestinationSelected(2),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Ver', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -985,6 +1141,73 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 10),
+                  const Divider(color: Color(0xFFE2E8F0), height: 1),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.inventory_2_outlined, size: 16, color: Color(0xFF64748B)),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'Paquetería',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF334155),
+                            ),
+                          ),
+                          if (_paquetesPendientesCount > 0) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF059669),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '$_paquetesPendientesCount',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      InkWell(
+                        onTap: () => _onDestinationSelected(2),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFECFDF5),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFFA7F3D0)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Ver Paquetes',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF047857),
+                                ),
+                              ),
+                              SizedBox(width: 4),
+                              Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF047857)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             );
@@ -1143,16 +1366,18 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
-                  children: [
+                Row(
+                  children: const [
                     Icon(Icons.mark_email_read_rounded, color: Color(0xFF111C99), size: 20),
                     SizedBox(width: 8),
-                    Text(
-                      '¿Te invitaron como sub-usuario?',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1E3A8A),
+                    Expanded(
+                      child: Text(
+                        '¿Te invitaron como sub-usuario?',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E3A8A),
+                        ),
                       ),
                     ),
                   ],

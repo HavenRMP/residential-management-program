@@ -13,10 +13,15 @@ on:
       - 'mobile/**'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Unit and Widget Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: ./mobile
@@ -53,7 +58,9 @@ jobs:
           echo "API_BASE_URL_VIVIENDAS=${{ secrets.API_BASE_URL_VIVIENDAS }}" >> .env
           echo "API_BASE_URL_AVISOS=${{ secrets.API_BASE_URL_AVISOS }}" >> .env
           echo "API_BASE_URL_CONDOMINIOS=${{ secrets.API_BASE_URL_CONDOMINIOS }}" >> .env
-          echo "API_BASE_URL_VISITAS=${{ secrets.API_BASE_URL_VISITAS || 'https://visitas-api-r66s.onrender.com' }}" >> .env
+          echo "API_BASE_URL_VISITAS=${{ secrets.API_BASE_URL_VISITAS }}" >> .env
+          echo "API_BASE_URL_PAQUETERIA=${{ secrets.API_BASE_URL_PAQUETERIA }}" >> .env
+          echo "API_BASE_URL_RESERVAS=${{ secrets.API_BASE_URL_RESERVAS }}" >> .env
           echo "TEST_USER_EMAIL=${{ secrets.TEST_USER_EMAIL }}" >> .env
           echo "TEST_USER_PASSWORD=${{ secrets.TEST_USER_PASSWORD }}" >> .env
           echo "ADMIN_USER_EMAIL=${{ secrets.ADMIN_USER_EMAIL }}" >> .env
@@ -248,6 +255,8 @@ jobs:
   integration_test_linux:
     name: Linux Integration Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: ./mobile
@@ -284,7 +293,9 @@ jobs:
           echo "API_BASE_URL_VIVIENDAS=${{ secrets.API_BASE_URL_VIVIENDAS }}" >> .env
           echo "API_BASE_URL_AVISOS=${{ secrets.API_BASE_URL_AVISOS }}" >> .env
           echo "API_BASE_URL_CONDOMINIOS=${{ secrets.API_BASE_URL_CONDOMINIOS }}" >> .env
-          echo "API_BASE_URL_VISITAS=${{ secrets.API_BASE_URL_VISITAS || 'https://visitas-api-r66s.onrender.com' }}" >> .env
+          echo "API_BASE_URL_VISITAS=${{ secrets.API_BASE_URL_VISITAS }}" >> .env
+          echo "API_BASE_URL_PAQUETERIA=${{ secrets.API_BASE_URL_PAQUETERIA }}" >> .env
+          echo "API_BASE_URL_RESERVAS=${{ secrets.API_BASE_URL_RESERVAS }}" >> .env
           echo "TEST_USER_EMAIL=${{ secrets.TEST_USER_EMAIL }}" >> .env
           echo "TEST_USER_PASSWORD=${{ secrets.TEST_USER_PASSWORD }}" >> .env
           echo "ADMIN_USER_EMAIL=${{ secrets.ADMIN_USER_EMAIL }}" >> .env

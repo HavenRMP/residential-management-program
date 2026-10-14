@@ -100,6 +100,13 @@ export const routes: Routes = [
         .then(m => m.VisitasComponent)
   },
   {
+    path: 'dashboard/residente/paquetes',
+    canActivate: [authGuard, roleGuard(['residente'])],
+    loadComponent: () =>
+      import('./features/paqueteria/paqueteria.component')
+        .then(m => m.PaqueteriaComponent)
+  },
+  {
     path: 'avisos/:id',
     canActivate: [authGuard],
     loadComponent: () =>
@@ -110,6 +117,11 @@ export const routes: Routes = [
     // url_redireccion de la notificación "Tu visita ha llegado" (Visitas.Api): /visitas/{id}
     path: 'visitas/:id',
     redirectTo: 'dashboard/residente/visitas'
+  },
+  {
+    // url_redireccion de la notificación "¡Tu paquete ha llegado!" (Visitas.Api): /paquetes/{id}
+    path: 'paquetes/:id',
+    redirectTo: 'dashboard/residente/paquetes'
   },
   {
     path: 'dashboard/vigilante',

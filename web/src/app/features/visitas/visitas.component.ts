@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -57,9 +57,10 @@ function isoAInputLocal(iso: string): string {
   selector: 'app-visitas',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, UserMenuComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans antialiased">
-
+    
       <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
         <div class="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div class="flex items-center gap-3">
@@ -67,7 +68,7 @@ function isoAInputLocal(iso: string): string {
               routerLink="/dashboard/residente"
               class="h-8 w-8 inline-flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
               title="Volver"
-            >
+              >
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
@@ -79,286 +80,314 @@ function isoAInputLocal(iso: string): string {
               </span>
             </div>
           </div>
-
+    
           <app-user-menu [user]="currentUser()" (logout)="onLogout()" />
         </div>
       </header>
-
+    
       <main class="w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-
+    
         <nav class="flex items-center gap-2 text-xs text-slate-500 font-medium">
           <a routerLink="/dashboard/residente" class="hover:text-slate-900 transition-colors">Portal</a>
           <span>/</span>
           <span class="text-slate-900">Visitas</span>
         </nav>
-
+    
         <!-- Sin vivienda asignada -->
-        <div *ngIf="!isLoadingVivienda() && !viviendaId()" class="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-2xs space-y-2">
-          <h2 class="text-base font-semibold text-slate-900">Necesitas una vivienda asignada</h2>
-          <p class="text-xs text-slate-500 max-w-md mx-auto">
-            Vincula tu cuenta a una vivienda desde el portal para poder programar visitas.
-          </p>
-          <a routerLink="/dashboard/residente" class="h-8 px-4 inline-flex items-center justify-center rounded-md bg-[#111C99] hover:bg-[#0d1577] text-white text-xs font-medium transition-colors shadow-2xs mt-2">
-            Volver al portal
-          </a>
-        </div>
-
-        <section *ngIf="viviendaId()" class="rounded-lg border border-slate-200 bg-white p-5 shadow-2xs space-y-4">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-            <div>
-              <h2 class="text-sm font-semibold text-slate-900">Mis visitas</h2>
-              <p class="text-xs text-slate-500 mt-0.5">
-                Programa la llegada de tus invitados. Comparte el código de acceso para que caseta los deje pasar.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              (click)="abrirModalCrear()"
-              class="h-8 px-3 inline-flex items-center gap-1.5 rounded-md bg-[#111C99] hover:bg-[#0d1577] text-white text-xs font-medium transition-colors shadow-2xs cursor-pointer self-start sm:self-auto"
-            >
-              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-              </svg>
-              <span>Programar visita</span>
-            </button>
+        @if (!isLoadingVivienda() && !viviendaId()) {
+          <div class="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-2xs space-y-2">
+            <h2 class="text-base font-semibold text-slate-900">Necesitas una vivienda asignada</h2>
+            <p class="text-xs text-slate-500 max-w-md mx-auto">
+              Vincula tu cuenta a una vivienda desde el portal para poder programar visitas.
+            </p>
+            <a routerLink="/dashboard/residente" class="h-8 px-4 inline-flex items-center justify-center rounded-md bg-[#111C99] hover:bg-[#0d1577] text-white text-xs font-medium transition-colors shadow-2xs mt-2">
+              Volver al portal
+            </a>
           </div>
-
-          <!-- Filtro por estado -->
-          <div class="flex flex-wrap items-center gap-1.5">
-            <button
-              *ngFor="let f of filtros"
-              type="button"
-              (click)="cambiarFiltro(f.valor)"
-              class="h-7 px-2.5 rounded-md text-xs font-medium border transition-colors cursor-pointer"
-              [class.bg-slate-900]="filtroActivo() === f.valor"
-              [class.text-white]="filtroActivo() === f.valor"
-              [class.border-slate-900]="filtroActivo() === f.valor"
-              [class.bg-white]="filtroActivo() !== f.valor"
-              [class.text-slate-600]="filtroActivo() !== f.valor"
-              [class.border-slate-200]="filtroActivo() !== f.valor"
-            >
-              {{ f.etiqueta }}
-            </button>
-          </div>
-
-          <div *ngIf="visitasService.isLoading()" class="space-y-2">
-            <div *ngFor="let s of [1, 2]" class="p-4 rounded-md bg-white border border-slate-200 animate-pulse h-20"></div>
-          </div>
-
-          <div *ngIf="visitasService.errorMessage() as msg" class="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 font-medium">
-            {{ msg }}
-          </div>
-
-          <div
-            *ngIf="!visitasService.isLoading() && !visitasService.errorMessage() && visitasService.items().length === 0"
-            class="py-10 text-center text-xs text-slate-500 font-medium"
-          >
-            {{ filtroActivo() ? 'No hay visitas con este estado.' : 'Todavía no has programado ninguna visita.' }}
-          </div>
-
-          <ul *ngIf="!visitasService.isLoading()" class="grid grid-cols-1 xl:grid-cols-2 gap-2.5 items-start">
-            <li
-              *ngFor="let v of visitasService.items()"
-              class="p-4 rounded-md border border-slate-200 bg-white flex flex-col sm:flex-row sm:items-start justify-between gap-3"
-            >
-              <div class="min-w-0 space-y-1">
-                <div class="flex flex-wrap items-center gap-2">
-                  <p class="text-sm font-semibold text-slate-900">{{ v.nombreVisitante }} {{ v.apellidosVisitante }}</p>
-                  <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border" [ngClass]="claseEstado(estadoMostrado(v))">
-                    {{ etiquetaEstado(estadoMostrado(v)) }}
-                  </span>
-                  <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border bg-slate-50 text-slate-600 border-slate-200">
-                    {{ etiquetaMotivo(v.motivo) }}
-                  </span>
-                  <span *ngIf="viviendas().length > 1" class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border bg-slate-50 text-slate-600 border-slate-200">
-                    Casa {{ v.numeroCasa }}
-                  </span>
-                </div>
-                <p class="text-xs text-slate-600">
-                  Llegada: {{ formatearFecha(v.fechaLlegadaEsperada) }} · Vigente hasta {{ formatearFecha(v.vigenciaHasta) }}
-                </p>
-                <p class="text-xs text-slate-500">
-                  <span *ngIf="v.numAcompanantes > 0">{{ v.numAcompanantes }} acompañante(s) · </span>
-                  <span *ngIf="v.vehiculoPlacas">Placas {{ v.vehiculoPlacas }} · </span>
-                  <span *ngIf="v.telefonoVisitante">Tel. {{ v.telefonoVisitante }}</span>
-                </p>
-                <p *ngIf="v.notas" class="text-xs text-slate-500 italic">{{ v.notas }}</p>
-                <p *ngIf="v.horaEntrada" class="text-xs text-slate-500">
-                  Entrada: {{ formatearFecha(v.horaEntrada) }}<span *ngIf="v.horaSalida"> · Salida: {{ formatearFecha(v.horaSalida) }}</span>
+        }
+    
+        @if (viviendaId()) {
+          <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-2xs space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div>
+                <h2 class="text-sm font-semibold text-slate-900">Mis visitas</h2>
+                <p class="text-xs text-slate-500 mt-0.5">
+                  Programa la llegada de tus invitados. Comparte el código de acceso para que caseta los deje pasar.
                 </p>
               </div>
-
-              <div class="flex flex-col items-start sm:items-end gap-2 shrink-0">
-                <div *ngIf="v.codigo && !estaVencida(v) && (v.estado === 'programada' || v.estado === 'en_curso')" class="text-right">
-                  <p class="text-[10px] uppercase tracking-wide font-semibold text-slate-500">Código de acceso</p>
-                  <p class="font-mono text-base font-bold tracking-widest text-[#111C99]">{{ v.codigo }}</p>
-                  <div class="mt-1 flex items-center justify-end gap-1">
-                    <button type="button" (click)="copiarCodigo(v)"
-                      class="h-6 px-2 text-[11px] font-medium rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">
-                      Copiar
-                    </button>
-                    <button type="button" (click)="verQr(v)"
-                      class="h-6 px-2 text-[11px] font-medium rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">
-                      QR
-                    </button>
-                    <button type="button" (click)="compartirCodigo(v)"
-                      class="h-6 px-2 text-[11px] font-medium rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">
-                      Compartir
-                    </button>
-                    <button type="button" (click)="imprimirCodigo(v)"
-                      class="h-6 px-2 text-[11px] font-medium rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">
-                      Imprimir
-                    </button>
+              <button
+                type="button"
+                (click)="abrirModalCrear()"
+                class="h-8 px-3 inline-flex items-center gap-1.5 rounded-md bg-[#111C99] hover:bg-[#0d1577] text-white text-xs font-medium transition-colors shadow-2xs cursor-pointer self-start sm:self-auto"
+                >
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>Programar visita</span>
+              </button>
+            </div>
+            <!-- Filtro por estado -->
+            <div class="flex flex-wrap items-center gap-1.5">
+              @for (f of filtros; track f.etiqueta) {
+                <button
+                  type="button"
+                  (click)="cambiarFiltro(f.valor)"
+                  class="h-7 px-2.5 rounded-md text-xs font-medium border transition-colors cursor-pointer"
+                  [class.bg-slate-900]="filtroActivo() === f.valor"
+                  [class.text-white]="filtroActivo() === f.valor"
+                  [class.border-slate-900]="filtroActivo() === f.valor"
+                  [class.bg-white]="filtroActivo() !== f.valor"
+                  [class.text-slate-600]="filtroActivo() !== f.valor"
+                  [class.border-slate-200]="filtroActivo() !== f.valor"
+                  >
+                  {{ f.etiqueta }}
+                </button>
+              }
+            </div>
+            @if (visitasService.isLoading()) {
+              <div class="space-y-2">
+                @for (s of [1, 2]; track s) {
+                  <div class="p-4 rounded-md bg-white border border-slate-200 animate-pulse h-20"></div>
+                }
+              </div>
+            }
+            @if (visitasService.errorMessage(); as msg) {
+              <div class="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 font-medium">
+                {{ msg }}
+              </div>
+            }
+            @if (!visitasService.isLoading() && !visitasService.errorMessage() && visitasService.items().length === 0) {
+              <div
+                class="py-10 text-center text-xs text-slate-500 font-medium"
+                >
+                {{ filtroActivo() ? 'No hay visitas con este estado.' : 'Todavía no has programado ninguna visita.' }}
+              </div>
+            }
+            @if (!visitasService.isLoading()) {
+              <ul class="grid grid-cols-1 xl:grid-cols-2 gap-2.5 items-start">
+                @for (v of visitasService.items(); track v.id) {
+                  <li
+                    class="p-4 rounded-md border border-slate-200 bg-white flex flex-col sm:flex-row sm:items-start justify-between gap-3"
+                    >
+                    <div class="min-w-0 space-y-1">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <p class="text-sm font-semibold text-slate-900">{{ v.nombreVisitante }} {{ v.apellidosVisitante }}</p>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border" [ngClass]="claseEstado(estadoMostrado(v))">
+                          {{ etiquetaEstado(estadoMostrado(v)) }}
+                        </span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border bg-slate-50 text-slate-600 border-slate-200">
+                          {{ etiquetaMotivo(v.motivo) }}
+                        </span>
+                        @if (viviendas().length > 1) {
+                          <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border bg-slate-50 text-slate-600 border-slate-200">
+                            Casa {{ v.numeroCasa }}
+                          </span>
+                        }
+                      </div>
+                      <p class="text-xs text-slate-600">
+                        Llegada: {{ formatearFecha(v.fechaLlegadaEsperada) }} · Vigente hasta {{ formatearFecha(v.vigenciaHasta) }}
+                      </p>
+                      <p class="text-xs text-slate-500">
+                        @if (v.numAcompanantes > 0) {
+                          <span>{{ v.numAcompanantes }} acompañante(s) · </span>
+                        }
+                        @if (v.vehiculoPlacas) {
+                          <span>Placas {{ v.vehiculoPlacas }} · </span>
+                        }
+                        @if (v.telefonoVisitante) {
+                          <span>Tel. {{ v.telefonoVisitante }}</span>
+                        }
+                      </p>
+                      @if (v.notas) {
+                        <p class="text-xs text-slate-500 italic">{{ v.notas }}</p>
+                      }
+                      @if (v.horaEntrada) {
+                        <p class="text-xs text-slate-500">
+                          Entrada: {{ formatearFecha(v.horaEntrada) }}@if (v.horaSalida) {
+                          <span> · Salida: {{ formatearFecha(v.horaSalida) }}</span>
+                        }
+                      </p>
+                    }
+                  </div>
+                  <div class="flex flex-col items-start sm:items-end gap-2 shrink-0">
+                    @if (v.codigo && !estaVencida(v) && (v.estado === 'programada' || v.estado === 'en_curso')) {
+                      <div class="text-right">
+                        <p class="text-[10px] uppercase tracking-wide font-semibold text-slate-500">Código de acceso</p>
+                        <p class="font-mono text-base font-bold tracking-widest text-[#111C99]">{{ v.codigo }}</p>
+                        <div class="mt-1 flex items-center justify-end gap-1">
+                          <button type="button" (click)="copiarCodigo(v)"
+                            class="h-6 px-2 text-[11px] font-medium rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">
+                            Copiar
+                          </button>
+                          <button type="button" (click)="verQr(v)"
+                            class="h-6 px-2 text-[11px] font-medium rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">
+                            QR
+                          </button>
+                          <button type="button" (click)="compartirCodigo(v)"
+                            class="h-6 px-2 text-[11px] font-medium rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">
+                            Compartir
+                          </button>
+                          <button type="button" (click)="imprimirCodigo(v)"
+                            class="h-6 px-2 text-[11px] font-medium rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">
+                            Imprimir
+                          </button>
+                        </div>
+                      </div>
+                    }
+                    @if (v.estado === 'programada' && !estaVencida(v)) {
+                      <div class="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          (click)="abrirModalEditar(v)"
+                          class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                          >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          (click)="confirmarCancelar(v)"
+                          class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
+                          >
+                          Cancelar
+                        </button>
+                      </div>
+                    }
+                  </div>
+                </li>
+              }
+            </ul>
+          }
+          <!-- Paginación -->
+          @if (totalPaginas() > 1) {
+            <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                (click)="irAPagina(visitasService.page() - 1)"
+                [disabled]="visitasService.page() <= 1"
+                class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                >
+                Anterior
+              </button>
+              <span class="text-xs text-slate-500 font-medium">Página {{ visitasService.page() }} de {{ totalPaginas() }}</span>
+              <button
+                type="button"
+                (click)="irAPagina(visitasService.page() + 1)"
+                [disabled]="visitasService.page() >= totalPaginas()"
+                class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                >
+                Siguiente
+              </button>
+            </div>
+          }
+        </section>
+      }
+    </main>
+    </div>
+    
+    <!-- Modal programar / editar visita -->
+    @if (modalAbierto()) {
+      <div
+        class="fixed inset-0 z-50 overflow-y-auto bg-black/40 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+        <div class="bg-white rounded-lg max-w-lg w-full p-5 shadow-lg border border-slate-200">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <h3 class="text-sm font-semibold text-slate-900">{{ visitaEditandoId() ? 'Editar visita' : 'Programar visita' }}</h3>
+            <button type="button" (click)="cerrarModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div class="mt-3.5 space-y-3">
+            @if (viviendas().length > 1 && !visitaEditandoId()) {
+              <div>
+                <label class="block text-xs font-semibold text-slate-800 mb-1">Vivienda *</label>
+                <select [(ngModel)]="form.viviendaId"
+                  class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]">
+                  @for (viv of viviendas(); track viv.id) {
+                    <option [ngValue]="viv.id">{{ viv.numeroCasa }}</option>
+                  }
+                </select>
+              </div>
+            }
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-800 mb-1">Nombre *</label>
+                <input type="text" [(ngModel)]="form.nombreVisitante" maxlength="100" placeholder="Nombre"
+                  class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-800 mb-1">Apellidos *</label>
+                  <input type="text" [(ngModel)]="form.apellidosVisitante" maxlength="100" placeholder="Apellidos"
+                    class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
                   </div>
                 </div>
-
-                <div *ngIf="v.estado === 'programada' && !estaVencida(v)" class="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    (click)="abrirModalEditar(v)"
-                    class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    type="button"
-                    (click)="confirmarCancelar(v)"
-                    class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-            </li>
-          </ul>
-
-          <!-- Paginación -->
-          <div *ngIf="totalPaginas() > 1" class="flex items-center justify-between pt-2 border-t border-slate-100">
-            <button
-              type="button"
-              (click)="irAPagina(visitasService.page() - 1)"
-              [disabled]="visitasService.page() <= 1"
-              class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
-            >
-              Anterior
-            </button>
-            <span class="text-xs text-slate-500 font-medium">Página {{ visitasService.page() }} de {{ totalPaginas() }}</span>
-            <button
-              type="button"
-              (click)="irAPagina(visitasService.page() + 1)"
-              [disabled]="visitasService.page() >= totalPaginas()"
-              class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
-            >
-              Siguiente
-            </button>
-          </div>
-        </section>
-      </main>
-    </div>
-
-    <!-- Modal programar / editar visita -->
-    <div
-      *ngIf="modalAbierto()"
-      class="fixed inset-0 z-50 overflow-y-auto bg-black/40 backdrop-blur-xs flex items-center justify-center p-4"
-    >
-      <div class="bg-white rounded-lg max-w-lg w-full p-5 shadow-lg border border-slate-200">
-        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-          <h3 class="text-sm font-semibold text-slate-900">{{ visitaEditandoId() ? 'Editar visita' : 'Programar visita' }}</h3>
-          <button type="button" (click)="cerrarModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div class="mt-3.5 space-y-3">
-          <div *ngIf="viviendas().length > 1 && !visitaEditandoId()">
-            <label class="block text-xs font-semibold text-slate-800 mb-1">Vivienda *</label>
-            <select [(ngModel)]="form.viviendaId"
-              class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]">
-              <option *ngFor="let viv of viviendas()" [ngValue]="viv.id">{{ viv.numeroCasa }}</option>
-            </select>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-semibold text-slate-800 mb-1">Nombre *</label>
-              <input type="text" [(ngModel)]="form.nombreVisitante" maxlength="100" placeholder="Nombre"
-                class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-800 mb-1">Apellidos *</label>
-              <input type="text" [(ngModel)]="form.apellidosVisitante" maxlength="100" placeholder="Apellidos"
-                class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-semibold text-slate-800 mb-1">Motivo *</label>
-              <select [(ngModel)]="form.motivo"
-                class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]">
-                <option *ngFor="let m of motivos" [value]="m.valor">{{ m.etiqueta }}</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-800 mb-1">Teléfono</label>
-              <input type="tel" [(ngModel)]="form.telefonoVisitante" maxlength="20" placeholder="Opcional"
-                class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-semibold text-slate-800 mb-1">Llegada esperada *</label>
-              <input type="datetime-local" [(ngModel)]="form.fechaLlegada"
-                class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-800 mb-1">Vigencia (horas) *</label>
-              <input type="number" [(ngModel)]="form.horasVigencia" min="1" max="72"
-                class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
-              <p class="mt-1 text-[11px] text-slate-500">Entre 1 y 72 horas.</p>
-            </div>
-          </div>
-          <p *ngIf="visitaYaVencida()" class="text-[11px] text-red-600 font-medium">
-            Con esa llegada y vigencia la visita ya estaría vencida. Ajusta la fecha o aumenta la vigencia.
-          </p>
-
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-semibold text-slate-800 mb-1">Acompañantes</label>
-              <input type="number" [(ngModel)]="form.numAcompanantes" min="0" max="20"
-                class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-800 mb-1">Placas del vehículo</label>
-              <input type="text" [(ngModel)]="form.vehiculoPlacas" maxlength="15" placeholder="Opcional"
-                class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-xs font-semibold text-slate-800 mb-1">Notas</label>
-            <textarea [(ngModel)]="form.notas" maxlength="500" rows="2" placeholder="Opcional"
-              class="w-full text-xs rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"></textarea>
-          </div>
-
-          <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-            <button type="button" (click)="cerrarModal()"
-              class="h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer">
-              Cancelar
-            </button>
-            <button type="button" (click)="guardar()" [disabled]="isSaving() || !esFormularioValido()"
-              class="h-8 px-3.5 bg-[#111C99] hover:bg-[#0d1577] text-white rounded-md text-xs font-medium shadow-2xs transition-colors cursor-pointer disabled:opacity-50">
-              {{ isSaving() ? 'Guardando...' : (visitaEditandoId() ? 'Guardar cambios' : 'Programar') }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-800 mb-1">Motivo *</label>
+                    <select [(ngModel)]="form.motivo"
+                      class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]">
+                      @for (m of motivos; track m.valor) {
+                        <option [value]="m.valor">{{ m.etiqueta }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-800 mb-1">Teléfono</label>
+                    <input type="tel" [(ngModel)]="form.telefonoVisitante" maxlength="20" placeholder="Opcional"
+                      class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-800 mb-1">Llegada esperada *</label>
+                      <input type="datetime-local" [(ngModel)]="form.fechaLlegada"
+                        class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
+                      </div>
+                      <div>
+                        <label class="block text-xs font-semibold text-slate-800 mb-1">Vigencia (horas) *</label>
+                        <input type="number" [(ngModel)]="form.horasVigencia" min="1" max="72"
+                          class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
+                          <p class="mt-1 text-[11px] text-slate-500">Entre 1 y 72 horas.</p>
+                        </div>
+                      </div>
+                      @if (visitaYaVencida()) {
+                        <p class="text-[11px] text-red-600 font-medium">
+                          Con esa llegada y vigencia la visita ya estaría vencida. Ajusta la fecha o aumenta la vigencia.
+                        </p>
+                      }
+                      <div class="grid grid-cols-2 gap-3">
+                        <div>
+                          <label class="block text-xs font-semibold text-slate-800 mb-1">Acompañantes</label>
+                          <input type="number" [(ngModel)]="form.numAcompanantes" min="0" max="20"
+                            class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
+                          </div>
+                          <div>
+                            <label class="block text-xs font-semibold text-slate-800 mb-1">Placas del vehículo</label>
+                            <input type="text" [(ngModel)]="form.vehiculoPlacas" maxlength="15" placeholder="Opcional"
+                              class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
+                            </div>
+                          </div>
+                          <div>
+                            <label class="block text-xs font-semibold text-slate-800 mb-1">Notas</label>
+                            <textarea [(ngModel)]="form.notas" maxlength="500" rows="2" placeholder="Opcional"
+                            class="w-full text-xs rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"></textarea>
+                          </div>
+                          <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                            <button type="button" (click)="cerrarModal()"
+                              class="h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer">
+                              Cancelar
+                            </button>
+                            <button type="button" (click)="guardar()" [disabled]="isSaving() || !esFormularioValido()"
+                              class="h-8 px-3.5 bg-[#111C99] hover:bg-[#0d1577] text-white rounded-md text-xs font-medium shadow-2xs transition-colors cursor-pointer disabled:opacity-50">
+                              {{ isSaving() ? 'Guardando...' : (visitaEditandoId() ? 'Guardar cambios' : 'Programar') }}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  }
+    `
 })
 export class VisitasComponent implements OnInit {
   private readonly authService = inject(AuthService);

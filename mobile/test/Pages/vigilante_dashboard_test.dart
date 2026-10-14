@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:haven/Pages/vigilante_dashboard.dart';
+import 'package:haven/Pages/paqueteria_caseta_screen.dart';
 import 'package:haven/Services/app_controller.dart';
 import 'package:haven/Themes/app_theme.dart';
 
@@ -60,6 +61,7 @@ API_BASE_URL_VISITAS=https://visitas-api.onrender.com
       expect(find.byType(VigilanteDashboardScreen), findsOneWidget);
       expect(find.byType(NavigationBar), findsOneWidget);
       expect(find.text('Visitas'), findsOneWidget);
+      expect(find.text('Paquetería'), findsOneWidget);
       expect(find.text('Directorio'), findsOneWidget);
     });
 
@@ -90,6 +92,35 @@ API_BASE_URL_VISITAS=https://visitas-api.onrender.com
       await tester.pumpAndSettle();
 
       expect(find.byType(VigilanteDashboardScreen), findsOneWidget);
+    });
+
+    testWidgets('Permite alternar a la pestaña Paquetería', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final mockClient = MockClient((request) async {
+        return http.Response(jsonEncode([]), 200);
+      });
+
+      final controller = AppController(null, client: mockClient);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: VigilanteDashboardScreen(controller: controller),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final paqueteriaTab = find.text('Paquetería');
+      expect(paqueteriaTab, findsOneWidget);
+
+      await tester.tap(paqueteriaTab);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PaqueteriaCasetaScreen), findsOneWidget);
     });
   });
 }

@@ -7,7 +7,10 @@ import '../Pages/vigilante_dashboard.dart';
 import '../Pages/residente_dashboard.dart';
 import '../Pages/perfil_screen.dart';
 import '../Widgets/splash_screen.dart';
+import '../Themes/animation_constants.dart';
 
+/// Enrutador principal de nivel superior que gestiona el estado de autenticación
+/// y rol del usuario, incorporando transiciones suaves y fluidas entre estados.
 class AppRouter extends StatelessWidget {
   final AppController controller;
 
@@ -18,38 +21,76 @@ class AppRouter extends StatelessWidget {
     return AnimatedBuilder(
       animation: controller,
       builder: (context, _) {
+        final Widget activeScreen;
+
         if (controller.isInitializing) {
-          return const SplashScreen();
+          activeScreen = const SplashScreen(
+            key: ValueKey('router_splash'),
+          );
+        } else if (!controller.isAuthenticated) {
+          activeScreen = LoginScreen(
+            key: const ValueKey('router_login'),
+            controller: controller,
+          );
+        } else if (controller.isProfileIncomplete) {
+          activeScreen = PerfilScreen(
+            key: const ValueKey('router_onboarding'),
+            controller: controller,
+            isOnboarding: true,
+          );
+        } else {
+          final role = (controller.currentUser?.rol ??
+                  controller.currentUser?.role ??
+                  controller.currentUser?.rolNombre ??
+                  '')
+              .toLowerCase()
+              .trim();
+
+          if (role == 'administrador' ||
+              role == 'admin' ||
+              role == 'administrator' ||
+              role == '1') {
+            activeScreen = AdminDashboardScreen(
+              key: const ValueKey('router_admin'),
+              controller: controller,
+            );
+          } else if (role == 'vigilante' ||
+              role == 'guardia' ||
+              role == 'guard' ||
+              role == '3') {
+            activeScreen = VigilanteDashboardScreen(
+              key: const ValueKey('router_vigilante'),
+              controller: controller,
+            );
+          } else {
+            activeScreen = ResidenteDashboardScreen(
+              key: const ValueKey('router_residente'),
+              controller: controller,
+            );
+          }
         }
 
-        if (!controller.isAuthenticated) {
-          return LoginScreen(controller: controller);
-        }
-
-        // Onboarding para usuarios nuevos de Google (o perfil incompleto)
-        if (controller.isProfileIncomplete) {
-          return PerfilScreen(controller: controller, isOnboarding: true);
-        }
-
-        final role = (controller.currentUser?.rol ??
-                controller.currentUser?.role ??
-                controller.currentUser?.rolNombre ??
-                '')
-            .toLowerCase()
-            .trim();
-        if (role == 'administrador' ||
-            role == 'admin' ||
-            role == 'administrator' ||
-            role == '1') {
-          return AdminDashboardScreen(controller: controller);
-        }
-        if (role == 'vigilante' ||
-            role == 'guardia' ||
-            role == 'guard' ||
-            role == '3') {
-          return VigilanteDashboardScreen(controller: controller);
-        }
-        return ResidenteDashboardScreen(controller: controller);
+        return AnimatedSwitcher(
+          duration: HavenAnimationDurations.pageTransition,
+          reverseDuration: HavenAnimationDurations.pageTransitionReverse,
+          switchInCurve: HavenAnimationCurves.scaleEnterCurve,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, animation) {
+            return FadeTransition(
+              opacity: animation,
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.98, end: 1.0).animate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: HavenAnimationCurves.scaleEnterCurve,
+                  ),
+                ),
+                child: child,
+              ),
+            );
+          },
+          child: activeScreen,
+        );
       },
     );
   }

@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:haven/Pages/residente_dashboard.dart';
+import 'package:haven/Pages/paqueteria_residente_screen.dart';
 import 'package:haven/Services/app_controller.dart';
 import 'package:haven/Themes/app_theme.dart';
 
@@ -61,6 +62,7 @@ API_BASE_URL_VISITAS=https://visitas-api.onrender.com
       expect(find.byType(NavigationBar), findsOneWidget);
       expect(find.text('Inicio'), findsOneWidget);
       expect(find.text('Visitas'), findsOneWidget);
+      expect(find.text('Paquetes'), findsOneWidget);
       expect(find.text('Perfil'), findsOneWidget);
     });
 
@@ -86,6 +88,30 @@ API_BASE_URL_VISITAS=https://visitas-api.onrender.com
       await tester.pumpAndSettle();
 
       expect(find.byType(ResidenteDashboardScreen), findsOneWidget);
+    });
+
+    testWidgets('Permite navegar directamente a la pestaña dedicada de Paquetes', (WidgetTester tester) async {
+      final mockClient = MockClient((request) async {
+        return http.Response(jsonEncode({'success': true, 'items': [], 'total': 0}), 200);
+      });
+
+      final controller = AppController(null, client: mockClient);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: ResidenteDashboardScreen(controller: controller),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final paquetesTab = find.text('Paquetes');
+      expect(paquetesTab, findsOneWidget);
+
+      await tester.tap(paquetesTab);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PaqueteriaResidenteScreen), findsOneWidget);
     });
   });
 }

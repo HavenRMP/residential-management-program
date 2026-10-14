@@ -68,3 +68,21 @@ export function filtrarDirectorio(casas: ViviendaConResidentes[], consulta: stri
   }
   return filas;
 }
+
+/** Cuántos residentes tiene una casa y si cuenta como ocupada */
+export interface OcupacionCasa {
+  ocupada: boolean;
+  total: number;
+}
+
+/**
+ * Ocupación por id de vivienda. Una casa está ocupada si el backend la marca así o si tiene residentes.
+ * Es la única regla de ocupación: el directorio de viviendas y el dashboard la comparten para que sus números coincidan.
+ */
+export function ocupacionPorVivienda(casas: ViviendaConResidentes[]): Map<number, OcupacionCasa> {
+  const mapa = new Map<number, OcupacionCasa>();
+  for (const c of casas) {
+    mapa.set(c.id, { ocupada: c.estaOcupada || c.totalResidentes > 0, total: c.totalResidentes });
+  }
+  return mapa;
+}

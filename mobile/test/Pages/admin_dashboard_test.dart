@@ -70,6 +70,7 @@ API_BASE_URL_VISITAS=https://visitas-api.onrender.com
       expect(find.byType(NavigationBar), findsOneWidget);
       expect(find.text('Inicio'), findsOneWidget);
       expect(find.text('Visitas'), findsOneWidget);
+      expect(find.text('Reservas'), findsOneWidget);
       expect(find.text('Avisos'), findsOneWidget);
     });
 
@@ -95,6 +96,14 @@ API_BASE_URL_VISITAS=https://visitas-api.onrender.com
       await tester.pumpAndSettle();
 
       expect(find.byType(AdminDashboardScreen), findsOneWidget);
+
+      final reservasTab = find.text('Reservas');
+      expect(reservasTab, findsOneWidget);
+
+      await tester.tap(reservasTab);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Administración de Reservas'), findsOneWidget);
     });
   });
 }

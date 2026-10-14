@@ -1,6 +1,7 @@
 import 'Themes/app_theme.dart';
 import 'Services/app_controller.dart';
 import 'Routes/app_router.dart';
+import 'Routes/haven_page_route.dart';
 import 'Services/push_notifications_service.dart';
 
 import 'dart:async';
@@ -11,6 +12,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'Pages/invitaciones_recibidas_screen.dart';
 import 'Pages/visitas_residente_screen.dart';
 import 'Pages/avisos_residente_screen.dart';
+import 'Pages/paqueteria_residente_screen.dart';
 import 'Widgets/offline_banner.dart';
 import 'Utils/error_handler.dart';
 
@@ -106,14 +108,14 @@ class _HavenAppState extends State<HavenApp> {
 
       if (tipo == 'invitacion') {
         navigatorKey.currentState?.push(
-          MaterialPageRoute(
+          HavenPageRoute.slideHorizontal(
             builder: (_) => InvitacionesRecibidasScreen(controller: controller),
           ),
         );
       } else if (tipo == 'visita_llegada' || tipo == 'visita' || tipo == 'visita_entrada') {
         final misViviendas = await controller.obtenerMisViviendas();
         navigatorKey.currentState?.push(
-          MaterialPageRoute(
+          HavenPageRoute.slideHorizontal(
             builder: (_) => VisitasResidenteScreen(
               controller: controller,
               misViviendas: misViviendas,
@@ -122,8 +124,22 @@ class _HavenAppState extends State<HavenApp> {
         );
       } else if (tipo == 'aviso' || tipo == 'aviso_urgente') {
         navigatorKey.currentState?.push(
-          MaterialPageRoute(
+          HavenPageRoute.slideHorizontal(
             builder: (_) => AvisosResidenteScreen(controller: controller),
+          ),
+        );
+      } else if (tipo == 'paquete_llegada' ||
+          tipo == 'paquete_entregado' ||
+          tipo == 'paquete' ||
+          tipo == 'paqueteria') {
+        final misViviendas = await controller.obtenerMisViviendas();
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (_) => PaqueteriaResidenteScreen(
+              controller: controller,
+              misViviendas: misViviendas,
+              focusPaqueteId: data['paquete_id']?.toString() ?? data['paqueteId']?.toString(),
+            ),
           ),
         );
       }

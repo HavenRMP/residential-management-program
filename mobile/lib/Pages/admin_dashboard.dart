@@ -10,9 +10,11 @@ import 'residentes_list.dart';
 import 'viviendas_list.dart';
 import 'avisos_admin_screen.dart';
 import 'visitas_admin_screen.dart';
+import 'reservas_admin_screen.dart';
 import 'perfil_screen.dart';
 import '../Services/push_notifications_service.dart';
 import '../Widgets/qr_dialog.dart';
+import '../Utils/codigo_helper.dart';
 import '../Utils/haptic_helper.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -32,12 +34,37 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _viviendasOcupadas = 0;
   bool _isLoadingStats = true;
   bool _isSystemOnline = false;
+  late final PageController _pageController;
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: _currentIndex);
     _fetchStats();
     _solicitarPermisos();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onDestinationSelected(int index) {
+    HapticHelper.selection();
+    if (index == 0 && _currentIndex != 0) {
+      _fetchStats();
+    }
+    if (_currentIndex != index) {
+      setState(() => _currentIndex = index);
+      if (_pageController.hasClients) {
+        _pageController.animateToPage(
+          index,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOutCubic,
+        );
+      }
+    }
   }
 
   Future<void> _solicitarPermisos() async {
@@ -133,6 +160,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ResidentesListScreen(controller: widget.controller),
       ViviendasListScreen(controller: widget.controller),
       VisitasAdminScreen(controller: widget.controller),
+      ReservasAdminScreen(
+        controller: widget.controller,
+        isEmbedded: true,
+      ),
       AvisosAdminScreen(controller: widget.controller),
     ];
 
@@ -222,59 +253,83 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
         ],
       ),
-      body: IndexedStack(index: _currentIndex, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
+      body: PageView(
+        key: const Key('admin_dashboard_page_view'),
+        controller: _pageController,
+        physics: const ClampingScrollPhysics(),
+        onPageChanged: (index) {
           HapticHelper.selection();
           if (index == 0 && _currentIndex != 0) {
             _fetchStats();
           }
           setState(() => _currentIndex = index);
         },
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        indicatorColor: const Color(0xFFEEF2FF),
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined, color: Color(0xFF64748B)),
-            selectedIcon: Icon(
-              Icons.dashboard_rounded,
-              color: Color(0xFF111C99),
+        children: pages,
+      ),
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          border: Border(
+            top: BorderSide(
+              color: Color(0xFFE2E8F0),
+              width: 1,
             ),
-            label: 'Inicio',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.people_outline_rounded, color: Color(0xFF64748B)),
-            selectedIcon: Icon(Icons.people_rounded, color: Color(0xFF111C99)),
-            label: 'Residentes',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.apartment_outlined, color: Color(0xFF64748B)),
-            selectedIcon: Icon(
-              Icons.apartment_rounded,
-              color: Color(0xFF111C99),
+        ),
+        child: NavigationBar(
+          selectedIndex: _currentIndex,
+          onDestinationSelected: _onDestinationSelected,
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.white,
+          indicatorColor: const Color(0xFFEEF2FF),
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.dashboard_outlined, color: Color(0xFF64748B)),
+              selectedIcon: Icon(
+                Icons.dashboard_rounded,
+                color: Color(0xFF111C99),
+              ),
+              label: 'Inicio',
             ),
-            label: 'Viviendas',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.badge_outlined, color: Color(0xFF64748B)),
-            selectedIcon: Icon(
-              Icons.badge_rounded,
-              color: Color(0xFF111C99),
+            NavigationDestination(
+              icon: Icon(Icons.people_outline_rounded, color: Color(0xFF64748B)),
+              selectedIcon: Icon(Icons.people_rounded, color: Color(0xFF111C99)),
+              label: 'Residentes',
             ),
-            label: 'Visitas',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.campaign_outlined, color: Color(0xFF64748B)),
-            selectedIcon: Icon(
-              Icons.campaign_rounded,
-              color: Color(0xFF111C99),
+            NavigationDestination(
+              icon: Icon(Icons.apartment_outlined, color: Color(0xFF64748B)),
+              selectedIcon: Icon(
+                Icons.apartment_rounded,
+                color: Color(0xFF111C99),
+              ),
+              label: 'Viviendas',
             ),
-            label: 'Avisos',
-          ),
-        ],
+            NavigationDestination(
+              icon: Icon(Icons.badge_outlined, color: Color(0xFF64748B)),
+              selectedIcon: Icon(
+                Icons.badge_rounded,
+                color: Color(0xFF111C99),
+              ),
+              label: 'Visitas',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.event_available_outlined, color: Color(0xFF64748B)),
+              selectedIcon: Icon(
+                Icons.event_available_rounded,
+                color: Color(0xFF111C99),
+              ),
+              label: 'Reservas',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.campaign_outlined, color: Color(0xFF64748B)),
+              selectedIcon: Icon(
+                Icons.campaign_rounded,
+                color: Color(0xFF111C99),
+              ),
+              label: 'Avisos',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -410,23 +465,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   setState(() => _isGeneratingCode = false);
                                 }
 
-                                if (res != null && context.mounted) {
-                                  final codigo =
-                                      res['codigo'] ?? res['code'] ?? '—';
+                                final codigo = CodigoHelper.extractCodigo(res);
+                                if (codigo != null && context.mounted) {
                                   QrDialog.show(
                                     context,
-                                    codigo: codigo.toString(),
+                                    codigo: codigo,
                                     titulo: 'Código de Condominio',
                                     subtitulo: 'Comparte este código o código QR con los residentes.\nExpira en 24 horas y es de un solo uso.',
                                     tipoEtiqueta: 'Condominio',
                                   );
-                                } else {
-                                  if (context.mounted) {
-                                    widget.controller.notifyToast(
-                                      'Error al generar código',
-                                      success: false,
-                                    );
-                                  }
+                                } else if (context.mounted) {
+                                  final errorMsg = res != null && res['error'] != null
+                                      ? res['error'].toString()
+                                      : 'Error al generar código';
+                                  widget.controller.notifyToast(
+                                    errorMsg,
+                                    success: false,
+                                  );
                                 }
                               },
                         icon: _isGeneratingCode
@@ -507,7 +562,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               _buildActionCard(
                 title: 'Gestión de Viviendas',
                 icon: Icons.home_work_outlined,
-                onTap: () => setState(() => _currentIndex = 2),
+                onTap: () => _onDestinationSelected(2),
                 insight: _totalViviendas > 0
                     ? Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -562,7 +617,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               _buildActionCard(
                 title: 'Directorio de Residentes',
                 icon: Icons.people_outline,
-                onTap: () => setState(() => _currentIndex = 1),
+                onTap: () => _onDestinationSelected(1),
                 insight: Text(
                   '$_totalResidentes residentes en el padrón',
                   style: const TextStyle(
@@ -574,9 +629,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ),
               const SizedBox(height: 12),
               _buildActionCard(
+                title: 'Reservas y Áreas Comunes',
+                icon: Icons.event_available_outlined,
+                onTap: () => _onDestinationSelected(4),
+                insight: const Text(
+                  'Aprobar solicitudes, crear bloqueos y áreas comunes',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildActionCard(
                 title: 'Gestión de Avisos',
                 icon: Icons.campaign_outlined,
-                onTap: () => setState(() => _currentIndex = 4),
+                onTap: () => _onDestinationSelected(5),
               ),
               const SizedBox(height: 12),
               _buildActionCard(

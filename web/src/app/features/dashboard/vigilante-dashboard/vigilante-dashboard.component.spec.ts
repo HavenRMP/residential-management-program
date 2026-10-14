@@ -1,19 +1,23 @@
-import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
+import { Component, EventEmitter, Input, Output, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { VigilanteDashboardComponent } from './vigilante-dashboard.component';
 import { AuthService } from '../../../core/services/auth.service';
 
-@Component({ selector: 'app-user-menu', standalone: true, template: '' })
+@Component({ selector: 'app-user-menu', standalone: true, changeDetection: ChangeDetectionStrategy.Eager,
+ template: '' })
 class UserMenuStub {
   @Input() user: unknown;
   @Output() logout = new EventEmitter<void>();
 }
-@Component({ selector: 'app-caseta-visitas', standalone: true, template: '<p>caseta</p>' })
+@Component({ selector: 'app-caseta-visitas', standalone: true, changeDetection: ChangeDetectionStrategy.Eager,
+ template: '<p>caseta</p>' })
 class CasetaStub {}
-@Component({ selector: 'app-directorio-casas', standalone: true, template: '<p>directorio</p>' })
+@Component({ selector: 'app-directorio-casas', standalone: true, changeDetection: ChangeDetectionStrategy.Eager,
+ template: '<p>directorio</p>' })
 class DirectorioStub {}
-@Component({ selector: 'app-avisos-caseta', standalone: true, template: '<p>avisos</p>' })
+@Component({ selector: 'app-avisos-caseta', standalone: true, changeDetection: ChangeDetectionStrategy.Eager,
+ template: '<p>avisos</p>' })
 class AvisosStub {}
 
 describe('VigilanteDashboardComponent', () => {

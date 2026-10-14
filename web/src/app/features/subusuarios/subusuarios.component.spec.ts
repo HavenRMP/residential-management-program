@@ -100,6 +100,33 @@ describe('SubusuariosComponent', () => {
     });
   });
 
+  describe('persona sin vivienda propia', () => {
+    const texto = () => (fixture.nativeElement.textContent as string).replace(/\s+/g, ' ');
+    const invitacion = { id: 9, viviendaId: 33, numeroCasa: 'PRUEBA-01', parentesco: 'Familiar', invitadoPor: 'Residente Prueba' } as unknown as InvitacionRecibida;
+
+    async function mostrar(): Promise<void> {
+      usuario.set({ id: 'u1', nombre: 'Persona', rol: 'residente' });
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+
+    it('sin invitaciones pide una vivienda asignada', async () => {
+      await mostrar();
+
+      expect(texto()).toContain('Necesitas una vivienda asignada');
+    });
+
+    it('con una invitación pendiente la orienta a aceptarla en vez de pedirle una vivienda', async () => {
+      servicio.invitacionesRecibidas.set([invitacion]);
+      await mostrar();
+
+      expect(texto()).toContain('Aún no tienes una vivienda propia');
+      expect(texto()).toContain('Acepta una invitación');
+      expect(texto()).not.toContain('Necesitas una vivienda asignada');
+    });
+  });
+
   describe('validación de correo', () => {
     it('rechaza correos sin formato válido', () => {
       for (const malo of ['', 'abc', 'a@b', 'a b@c.com', '@c.com']) {

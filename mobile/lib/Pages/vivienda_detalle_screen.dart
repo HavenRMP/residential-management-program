@@ -7,6 +7,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../Services/app_controller.dart';
 import '../Services/viviendas_service.dart';
 import '../Utils/error_handler.dart';
+import '../Utils/codigo_helper.dart';
 import '../Widgets/qr_dialog.dart';
 
 class ViviendaDetalleScreen extends StatefulWidget {
@@ -773,19 +774,20 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
                           setState(() => _isGeneratingCode = false);
                         }
                         
-                        if (res != null && mounted) {
-                          final codigo = res['codigo'] ?? res['code'] ?? '—';
+                        final codigo = CodigoHelper.extractCodigo(res);
+                        if (codigo != null && mounted) {
                           QrDialog.show(
                             context,
-                            codigo: codigo.toString(),
+                            codigo: codigo,
                             titulo: 'Código de Vinculación',
                             subtitulo: 'Comparte este código o código QR con el residente.\nExpira en 24 horas y es de un solo uso.',
                             tipoEtiqueta: 'Vivienda ${_vivienda['numeroCasa'] ?? ''}',
                           );
-                        } else {
-                          if (context.mounted) {
-                            widget.controller.notifyToast('Error al generar código', success: false);
-                          }
+                        } else if (mounted) {
+                          final errorMsg = res != null && res['error'] != null
+                              ? res['error'].toString()
+                              : 'No se pudo generar el código para la vivienda';
+                          widget.controller.notifyToast(errorMsg, success: false);
                         }
                       },
                       icon: _isGeneratingCode 

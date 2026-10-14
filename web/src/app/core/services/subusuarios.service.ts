@@ -2,6 +2,7 @@ import { Injectable, inject, signal, computed } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { HttpParams } from '@angular/common/http';
 import { ApiService } from './api.service';
+import { Vivienda } from '../models/vivienda.model';
 import {
   SubUsuarioItem,
   SubusuarioItemApi,
@@ -57,6 +58,39 @@ export class SubusuariosService {
     } finally {
       this.isLoading.set(false);
     }
+  }
+
+  /**
+   * Sub-usuarios (activos e invitaciones pendientes) de cualquier vivienda, sin tocar el estado compartido de
+   * la pantalla del residente. Lo usa el detalle del residente en el panel del administrador.
+   * (GET /api/subusuarios/mis-subusuarios)
+   */
+  async listarPorVivienda(viviendaId: number): Promise<SubUsuarioItem[]> {
+    const params = new HttpParams().set('viviendaId', viviendaId.toString());
+    const response = await firstValueFrom(
+      this.apiService.get<SubusuarioItemApi[]>('/api/subusuarios/mis-subusuarios', params, undefined, 'usuarios')
+    );
+    return (response || []).map(mapSubusuarioApiToItem);
+  }
+
+  /**
+   * Viviendas a las que cada persona tiene acceso como sub-usuario **activo** (id de usuario → viviendas).
+   * Las invitaciones pendientes no cuentan. Consulta las viviendas en lotes de 6, como el mapa de residentes;
+   * si la consulta de una vivienda falla, esa vivienda se omite y el resto sigue.
+   */
+  async mapaViviendasDeSubusuarios(viviendas: Vivienda[]): Promise<Map<string, Vivienda[]>> {
+    const LOTE = 6;
+    const mapa = new Map<string, Vivienda[]>();
+    for (let i = 0; i < viviendas.length; i += LOTE) {
+      const lote = viviendas.slice(i, i + LOTE);
+      const resultados = await Promise.all(lote.map(v => this.listarPorVivienda(v.id).catch(() => [] as SubUsuarioItem[])));
+      resultados.forEach((subusuarios, j) => {
+        for (const s of subusuarios.filter(x => x.activo)) {
+          mapa.set(s.id, [...(mapa.get(s.id) ?? []), lote[j]]);
+        }
+      });
+    }
+    return mapa;
   }
 
   /**

@@ -1,5 +1,5 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, inject, signal, computed, OnInit, ChangeDetectionStrategy } from '@angular/core';
+
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import Swal from 'sweetalert2';
@@ -9,17 +9,18 @@ import { Vigilante } from '../../../core/models/vigilante.model';
 @Component({
   selector: 'app-vigilantes-list',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="p-4 sm:p-6 w-full space-y-4">
-
+    
       <!-- Breadcrumb -->
       <nav class="flex items-center gap-2 text-xs text-slate-600 font-semibold">
         <a routerLink="/dashboard/admin" class="hover:text-slate-900 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99] rounded">Panel</a>
         <span>/</span>
         <span class="text-slate-900">Vigilantes</span>
       </nav>
-
+    
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200">
         <div>
@@ -28,19 +29,19 @@ import { Vigilante } from '../../../core/models/vigilante.model';
             Personal de seguridad y control de accesos en caseta.
           </p>
         </div>
-
+    
         <button
           type="button"
           (click)="abrirModalCrear()"
           class="h-9 px-3.5 inline-flex items-center gap-2 rounded-md bg-[#111C99] hover:bg-[#0d1577] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#111C99] text-white text-xs font-semibold transition-colors shadow-2xs cursor-pointer shrink-0"
-        >
+          >
           <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
           <span>Nuevo vigilante</span>
         </button>
       </div>
-
+    
       <!-- Tabs -->
       <div class="flex items-center p-1 bg-slate-200/80 rounded-lg text-xs font-semibold text-slate-700 w-fit">
         <button
@@ -50,7 +51,7 @@ import { Vigilante } from '../../../core/models/vigilante.model';
           [class.text-slate-900]="tabActiva() === 'activos'"
           [class.shadow-2xs]="tabActiva() === 'activos'"
           class="px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
-        >
+          >
           <span>Activos</span>
           <span class="text-[10px] px-1.5 py-0.2 rounded-full font-mono bg-slate-100 text-slate-800 border border-slate-200">
             {{ vigilantesService.activos().length }}
@@ -63,199 +64,238 @@ import { Vigilante } from '../../../core/models/vigilante.model';
           [class.text-slate-900]="tabActiva() === 'inactivos'"
           [class.shadow-2xs]="tabActiva() === 'inactivos'"
           class="px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
-        >
+          >
           <span>Dados de baja</span>
           <span class="text-[10px] px-1.5 py-0.2 rounded-full font-mono bg-slate-100 text-slate-800 border border-slate-200">
             {{ vigilantesService.inactivos().length }}
           </span>
         </button>
       </div>
-
+    
       <!-- Loading skeleton -->
-      <div *ngIf="vigilantesService.isLoading()" class="rounded-xl border border-slate-200 bg-white divide-y divide-slate-100">
-        <div *ngFor="let s of [1, 2, 3]" class="p-4 animate-pulse flex items-center gap-3">
-          <div class="w-9 h-9 rounded-full bg-slate-200 shrink-0"></div>
-          <div class="flex-1 space-y-1.5">
-            <div class="h-3.5 w-1/3 bg-slate-200 rounded"></div>
-            <div class="h-3 w-1/2 bg-slate-100 rounded"></div>
-          </div>
+      @if (vigilantesService.isLoading()) {
+        <div class="rounded-xl border border-slate-200 bg-white divide-y divide-slate-100">
+          @for (s of [1, 2, 3]; track s) {
+            <div class="p-4 animate-pulse flex items-center gap-3">
+              <div class="w-9 h-9 rounded-full bg-slate-200 shrink-0"></div>
+              <div class="flex-1 space-y-1.5">
+                <div class="h-3.5 w-1/3 bg-slate-200 rounded"></div>
+                <div class="h-3 w-1/2 bg-slate-100 rounded"></div>
+              </div>
+            </div>
+          }
         </div>
-      </div>
-
+      }
+    
       <!-- Error de carga -->
-      <div *ngIf="vigilantesService.errorMessage() as msg" class="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 font-medium flex items-center justify-between gap-3">
-        <span>{{ msg }}</span>
-        <button type="button" (click)="vigilantesService.listar()" class="shrink-0 font-semibold underline cursor-pointer">Reintentar</button>
-      </div>
-
+      @if (vigilantesService.errorMessage(); as msg) {
+        <div class="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 font-medium flex items-center justify-between gap-3">
+          <span>{{ msg }}</span>
+          <button type="button" (click)="vigilantesService.listar()" class="shrink-0 font-semibold underline cursor-pointer">Reintentar</button>
+        </div>
+      }
+    
       <!-- Directorio -->
-      <div *ngIf="!vigilantesService.isLoading()" class="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
-        <table class="w-full text-left">
-          <thead class="bg-slate-50 border-b border-slate-200">
-            <tr>
-              <th class="px-4 py-2.5 text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Vigilante</th>
-              <th class="px-4 py-2.5 text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Contacto</th>
-              <th class="px-4 py-2.5 text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Estatus</th>
-              <th class="px-4 py-2.5 text-[11px] font-semibold text-slate-600 uppercase tracking-wide text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            <tr *ngFor="let v of vigilantesFiltrados()" class="hover:bg-slate-50/70 transition-colors">
-              <td class="px-4 py-3">
-                <p class="text-xs font-semibold text-slate-900">{{ v.nombre }} {{ v.apellidos }}</p>
-              </td>
-              <td class="px-4 py-3">
-                <p class="text-xs text-slate-700">{{ v.email }}</p>
-                <p class="text-[11px] text-slate-500">{{ v.telefono }}</p>
-              </td>
-              <td class="px-4 py-3">
-                <span
-                  class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border"
-                  [class.bg-emerald-50]="v.activo" [class.text-emerald-700]="v.activo" [class.border-emerald-200]="v.activo"
-                  [class.bg-rose-50]="!v.activo" [class.text-rose-700]="!v.activo" [class.border-rose-200]="!v.activo"
-                >
-                  {{ v.activo ? 'Activo' : 'Dado de baja' }}
-                </span>
-              </td>
-              <td class="px-4 py-3 text-right">
-                <button
-                  type="button"
-                  (click)="confirmarCambioEstado(v)"
-                  class="h-7 px-2.5 text-[11px] font-medium rounded-md border transition-colors cursor-pointer"
-                  [class.text-rose-700]="v.activo"
-                  [class.border-rose-200]="v.activo"
-                  [class.hover:bg-rose-50]="v.activo"
-                  [class.text-emerald-700]="!v.activo"
-                  [class.border-emerald-200]="!v.activo"
-                  [class.hover:bg-emerald-50]="!v.activo"
-                >
-                  {{ v.activo ? 'Dar de baja' : 'Reactivar' }}
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div *ngIf="vigilantesFiltrados().length === 0" class="p-8 text-center text-xs text-slate-500 font-medium">
-          {{ tabActiva() === 'activos' ? 'No hay vigilantes activos todavía.' : 'No hay vigilantes dados de baja.' }}
+      @if (!vigilantesService.isLoading()) {
+        <div class="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+          <table class="w-full text-left">
+            <thead class="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th class="px-4 py-2.5 text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Vigilante</th>
+                <th class="px-4 py-2.5 text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Contacto</th>
+                <th class="px-4 py-2.5 text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Estatus</th>
+                <th class="px-4 py-2.5 text-[11px] font-semibold text-slate-600 uppercase tracking-wide text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              @for (v of vigilantesFiltrados(); track v.id) {
+                <tr class="hover:bg-slate-50/70 transition-colors">
+                  <td class="px-4 py-3">
+                    <p class="text-xs font-semibold text-slate-900">{{ v.nombre }} {{ v.apellidos }}</p>
+                  </td>
+                  <td class="px-4 py-3">
+                    <p class="text-xs text-slate-700">{{ v.email }}</p>
+                    <p class="text-[11px] text-slate-500">{{ v.telefono }}</p>
+                  </td>
+                  <td class="px-4 py-3">
+                    <span
+                      class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border"
+                      [class.bg-emerald-50]="v.activo" [class.text-emerald-700]="v.activo" [class.border-emerald-200]="v.activo"
+                      [class.bg-rose-50]="!v.activo" [class.text-rose-700]="!v.activo" [class.border-rose-200]="!v.activo"
+                      >
+                      {{ v.activo ? 'Activo' : 'Dado de baja' }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 text-right">
+                    <button
+                      type="button"
+                      (click)="confirmarCambioEstado(v)"
+                      class="h-7 px-2.5 text-[11px] font-medium rounded-md border transition-colors cursor-pointer"
+                      [class.text-rose-700]="v.activo"
+                      [class.border-rose-200]="v.activo"
+                      [class.hover:bg-rose-50]="v.activo"
+                      [class.text-emerald-700]="!v.activo"
+                      [class.border-emerald-200]="!v.activo"
+                      [class.hover:bg-emerald-50]="!v.activo"
+                      >
+                      {{ v.activo ? 'Dar de baja' : 'Reactivar' }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          @if (vigilantesFiltrados().length === 0) {
+            <div class="p-8 text-center text-xs text-slate-500 font-medium">
+              {{ tabActiva() === 'activos' ? 'No hay vigilantes activos todavía.' : 'No hay vigilantes dados de baja.' }}
+            </div>
+          }
         </div>
-      </div>
+      }
     </div>
-
+    
     <!-- Modal Alta de Vigilante -->
-    <div
-      *ngIf="modalAbierto()"
-      class="fixed inset-0 z-50 overflow-y-auto bg-black/40 backdrop-blur-xs flex items-center justify-center p-4"
-    >
-      <div class="bg-white rounded-lg max-w-md w-full p-5 shadow-lg border border-slate-200">
-        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-          <h3 class="text-sm font-semibold text-slate-900">Nuevo vigilante</h3>
-          <button
-            type="button"
-            (click)="cerrarModal()"
-            class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer"
-          >
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <form [formGroup]="form" (ngSubmit)="guardar()" class="mt-3.5 space-y-3">
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-semibold text-slate-800 mb-1">Nombre *</label>
-              <input
-                type="text"
-                formControlName="nombre"
-                placeholder="Nombre"
-                class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
-              />
-              <div *ngIf="form.get('nombre')?.touched && form.get('nombre')?.invalid" class="mt-1 text-[11px] text-red-600 font-medium">
-                <span *ngIf="form.get('nombre')?.errors?.['required']">Requerido.</span>
-                <span *ngIf="form.get('nombre')?.errors?.['pattern']">Solo letras.</span>
-              </div>
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-800 mb-1">Apellidos *</label>
-              <input
-                type="text"
-                formControlName="apellidos"
-                placeholder="Apellidos"
-                class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
-              />
-              <div *ngIf="form.get('apellidos')?.touched && form.get('apellidos')?.invalid" class="mt-1 text-[11px] text-red-600 font-medium">
-                <span *ngIf="form.get('apellidos')?.errors?.['required']">Requerido.</span>
-                <span *ngIf="form.get('apellidos')?.errors?.['pattern']">Solo letras.</span>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-xs font-semibold text-slate-800 mb-1">Correo *</label>
-            <input
-              type="email"
-              formControlName="email"
-              placeholder="vigilante@haven.com"
-              class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
-            />
-            <div *ngIf="form.get('email')?.touched && form.get('email')?.invalid" class="mt-1 text-[11px] text-red-600 font-medium">
-              <span *ngIf="form.get('email')?.errors?.['required']">Requerido.</span>
-              <span *ngIf="form.get('email')?.errors?.['email']">Correo no válido.</span>
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-xs font-semibold text-slate-800 mb-1">Teléfono *</label>
-            <input
-              type="tel"
-              formControlName="telefono"
-              placeholder="10 dígitos"
-              maxlength="10"
-              class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
-            />
-            <div *ngIf="form.get('telefono')?.touched && form.get('telefono')?.invalid" class="mt-1 text-[11px] text-red-600 font-medium">
-              <span *ngIf="form.get('telefono')?.errors?.['required']">Requerido.</span>
-              <span *ngIf="form.get('telefono')?.errors?.['pattern']">Deben ser 10 dígitos.</span>
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-xs font-semibold text-slate-800 mb-1">Contraseña *</label>
-            <input
-              type="password"
-              formControlName="password"
-              autocomplete="new-password"
-              placeholder="Mínimo 8 caracteres"
-              class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
-            />
-            <div *ngIf="form.get('password')?.touched && form.get('password')?.invalid" class="mt-1 text-[11px] text-red-600 font-medium">
-              <span *ngIf="form.get('password')?.errors?.['required']">Requerida.</span>
-              <span *ngIf="form.get('password')?.errors?.['minlength']">Mínimo 8 caracteres.</span>
-              <span *ngIf="form.get('password')?.errors?.['maxlength']">Máximo 100 caracteres.</span>
-            </div>
-          </div>
-
-          <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+    @if (modalAbierto()) {
+      <div
+        class="fixed inset-0 z-50 overflow-y-auto bg-black/40 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+        <div class="bg-white rounded-lg max-w-md w-full p-5 shadow-lg border border-slate-200">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <h3 class="text-sm font-semibold text-slate-900">Nuevo vigilante</h3>
             <button
               type="button"
               (click)="cerrarModal()"
-              class="h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              [disabled]="isSaving() || form.invalid"
-              class="h-8 px-3.5 bg-[#111C99] hover:bg-[#0d1577] text-white rounded-md text-xs font-medium shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
-            >
-              {{ isSaving() ? 'Guardando...' : 'Registrar' }}
+              class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer"
+              >
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
-        </form>
-      </div>
-    </div>
-  `
+          <form [formGroup]="form" (ngSubmit)="guardar()" class="mt-3.5 space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-800 mb-1">Nombre *</label>
+                <input
+                  type="text"
+                  formControlName="nombre"
+                  placeholder="Nombre"
+                  class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+                  />
+                  @if (form.get('nombre')?.touched && form.get('nombre')?.invalid) {
+                    <div class="mt-1 text-[11px] text-red-600 font-medium">
+                      @if (form.get('nombre')?.errors?.['required']) {
+                        <span>Requerido.</span>
+                      }
+                      @if (form.get('nombre')?.errors?.['pattern']) {
+                        <span>Solo letras.</span>
+                      }
+                    </div>
+                  }
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-800 mb-1">Apellidos *</label>
+                  <input
+                    type="text"
+                    formControlName="apellidos"
+                    placeholder="Apellidos"
+                    class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+                    />
+                    @if (form.get('apellidos')?.touched && form.get('apellidos')?.invalid) {
+                      <div class="mt-1 text-[11px] text-red-600 font-medium">
+                        @if (form.get('apellidos')?.errors?.['required']) {
+                          <span>Requerido.</span>
+                        }
+                        @if (form.get('apellidos')?.errors?.['pattern']) {
+                          <span>Solo letras.</span>
+                        }
+                      </div>
+                    }
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-800 mb-1">Correo *</label>
+                  <input
+                    type="email"
+                    formControlName="email"
+                    placeholder="vigilante@haven.com"
+                    class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+                    />
+                    @if (form.get('email')?.touched && form.get('email')?.invalid) {
+                      <div class="mt-1 text-[11px] text-red-600 font-medium">
+                        @if (form.get('email')?.errors?.['required']) {
+                          <span>Requerido.</span>
+                        }
+                        @if (form.get('email')?.errors?.['email']) {
+                          <span>Correo no válido.</span>
+                        }
+                      </div>
+                    }
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-800 mb-1">Teléfono *</label>
+                    <input
+                      type="tel"
+                      formControlName="telefono"
+                      placeholder="10 dígitos"
+                      maxlength="10"
+                      class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+                      />
+                      @if (form.get('telefono')?.touched && form.get('telefono')?.invalid) {
+                        <div class="mt-1 text-[11px] text-red-600 font-medium">
+                          @if (form.get('telefono')?.errors?.['required']) {
+                            <span>Requerido.</span>
+                          }
+                          @if (form.get('telefono')?.errors?.['pattern']) {
+                            <span>Deben ser 10 dígitos.</span>
+                          }
+                        </div>
+                      }
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-800 mb-1">Contraseña *</label>
+                      <input
+                        type="password"
+                        formControlName="password"
+                        autocomplete="new-password"
+                        placeholder="Mínimo 8 caracteres"
+                        class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
+                        />
+                        @if (form.get('password')?.touched && form.get('password')?.invalid) {
+                          <div class="mt-1 text-[11px] text-red-600 font-medium">
+                            @if (form.get('password')?.errors?.['required']) {
+                              <span>Requerida.</span>
+                            }
+                            @if (form.get('password')?.errors?.['minlength']) {
+                              <span>Mínimo 8 caracteres.</span>
+                            }
+                            @if (form.get('password')?.errors?.['maxlength']) {
+                              <span>Máximo 100 caracteres.</span>
+                            }
+                          </div>
+                        }
+                      </div>
+                      <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          (click)="cerrarModal()"
+                          class="h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
+                          >
+                          Cancelar
+                        </button>
+                        <button
+                          type="submit"
+                          [disabled]="isSaving() || form.invalid"
+                          class="h-8 px-3.5 bg-[#111C99] hover:bg-[#0d1577] text-white rounded-md text-xs font-medium shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                          {{ isSaving() ? 'Guardando...' : 'Registrar' }}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              }
+    `
 })
 export class VigilantesListComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
