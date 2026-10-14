@@ -512,6 +512,132 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
     }
   }
 
+  TimeOfDay _parseTime(String raw, {int fallbackHour = 8, int fallbackMinute = 0}) {
+    try {
+      final parts = raw.split(':');
+      if (parts.length >= 2) {
+        return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+      }
+    } catch (_) {}
+    return TimeOfDay(hour: fallbackHour, minute: fallbackMinute);
+  }
+
+  Future<void> _abrirModalEditarArea(AreaComunModel area) async {
+    final nombreCtrl = TextEditingController(text: area.nombre);
+    final descCtrl = TextEditingController(text: area.descripcion ?? '');
+    TimeOfDay horaApertura = _parseTime(area.horaApertura, fallbackHour: 8);
+    TimeOfDay horaCierre = _parseTime(area.horaCierre, fallbackHour: 22);
+
+    final resultado = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => AlertDialog(
+          title: const Text('Editar Área Común'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nombreCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre del área *',
+                    hintText: 'Ej. Alberca Principal',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Descripción / Equipamiento',
+                    hintText: 'Ej. Asadores, camastros...',
+                  ),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 16),
+                const Text('Horario de Operación:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () async {
+                          final picked = await showTimePicker(context: ctx, initialTime: horaApertura);
+                          if (picked != null) {
+                            setModalState(() => horaApertura = picked);
+                          }
+                        },
+                        child: Text('Abre: ${horaApertura.hour.toString().padLeft(2, '0')}:${horaApertura.minute.toString().padLeft(2, '0')}'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () async {
+                          final picked = await showTimePicker(context: ctx, initialTime: horaCierre);
+                          if (picked != null) {
+                            setModalState(() => horaCierre = picked);
+                          }
+                        },
+                        child: Text('Cierra: ${horaCierre.hour.toString().padLeft(2, '0')}:${horaCierre.minute.toString().padLeft(2, '0')}'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (nombreCtrl.text.trim().isEmpty) {
+                  widget.controller.notifyToast('El nombre es obligatorio.', success: false);
+                  return;
+                }
+                Navigator.pop(ctx, true);
+              },
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF111C99)),
+              child: const Text('Guardar Cambios'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (resultado == true) {
+      final apStr = '${horaApertura.hour.toString().padLeft(2, '0')}:${horaApertura.minute.toString().padLeft(2, '0')}:00';
+      final ciStr = '${horaCierre.hour.toString().padLeft(2, '0')}:${horaCierre.minute.toString().padLeft(2, '0')}:00';
+
+      try {
+        final res = await _reservasService.actualizarArea(
+          area.id,
+          nombre: nombreCtrl.text.trim(),
+          descripcion: descCtrl.text.trim(),
+          horaApertura: apStr,
+          horaCierre: ciStr,
+        );
+
+        if (mounted) {
+          if (res['success'] == true) {
+            widget.controller.notifyToast('Área común actualizada correctamente.', success: true);
+            _cargarAreas();
+          } else {
+            widget.controller.notifyToast(res['error'] ?? 'Error al actualizar área.', success: false);
+          }
+        }
+      } catch (e, s) {
+        ErrorHandler.trackError(e, s, 'ReservasAdminScreen._abrirModalEditarArea');
+        if (mounted) {
+          widget.controller.notifyToast(ErrorHandler.parseException(e), success: false);
+        }
+      }
+    }
+  }
+
   Future<void> _cambiarEstadoArea(AreaComunModel area) async {
     final esBaja = area.activo;
     final accion = esBaja ? 'dar de baja' : 'reactivar';
@@ -1173,23 +1299,31 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
                         const SizedBox(height: 12),
                         const Divider(height: 1),
                         const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            onPressed: () => _cambiarEstadoArea(area),
-                            icon: Icon(
-                              area.activo ? Icons.block_rounded : Icons.replay_rounded,
-                              size: 16,
-                              color: area.activo ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton.icon(
+                              onPressed: () => _abrirModalEditarArea(area),
+                              icon: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF111C99)),
+                              label: const Text('Editar', style: TextStyle(color: Color(0xFF111C99), fontSize: 13)),
                             ),
-                            label: Text(
-                              area.activo ? 'Dar de Baja' : 'Reactivar',
-                              style: TextStyle(
+                            const SizedBox(width: 8),
+                            TextButton.icon(
+                              onPressed: () => _cambiarEstadoArea(area),
+                              icon: Icon(
+                                area.activo ? Icons.block_rounded : Icons.replay_rounded,
+                                size: 16,
                                 color: area.activo ? const Color(0xFFDC2626) : const Color(0xFF059669),
-                                fontSize: 13,
+                              ),
+                              label: Text(
+                                area.activo ? 'Dar de Baja' : 'Reactivar',
+                                style: TextStyle(
+                                  color: area.activo ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
-                          ),
+                          ],
                         ),
                       ],
                     ),
