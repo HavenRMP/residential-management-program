@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { PaqueteriaCasetaService } from '../../../core/services/paqueteria-caseta.service';
 import { DirectorioCasasService } from '../../../core/services/directorio-casas.service';
-import { LIMITES_PAQUETE, Paquete, RecibirPaqueteDto, SERVICIO_OTRO, ServicioPaqueteria } from '../../../core/models/paquete.model';
+import { LIMITES_PAQUETE, Paquete, RecibirPaqueteDto, SERVICIO_OTRO, ServicioPaqueteria, empresasSeleccionables } from '../../../core/models/paquete.model';
 import { ViviendaConResidentes } from '../../../core/models/vivienda.model';
 import { normalizarBusqueda } from '../../../core/utils/directorio-casas.util';
 import { mensajeConValidacion } from '../../../core/utils/api-errors.util';
@@ -233,7 +233,7 @@ export class PaqueteSinAvisoFormComponent implements AfterViewInit {
 
   /** "Otro" del catálogo se reemplaza por "Otra empresa", que sí pide el nombre */
   empresas(): ServicioPaqueteria[] {
-    return this.servicios.filter(s => s.nombre.trim().toLowerCase() !== 'otro');
+    return empresasSeleccionables(this.servicios);
   }
 
   ngAfterViewInit(): void {

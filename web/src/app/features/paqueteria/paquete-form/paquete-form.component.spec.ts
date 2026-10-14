@@ -74,6 +74,23 @@ describe('PaqueteFormComponent', () => {
     expect(dto.servicioId).toBeUndefined();
   });
 
+  it('no ofrece el "Otro" del catálogo: para otra empresa está "Otra empresa", que pide el nombre', () => {
+    abrir({ servicios: [...catalogo, { id: 9, nombre: 'Otro', activo: true, esSistema: true }] });
+
+    const opciones = Array.from((campo('paq-servicio') as HTMLSelectElement).options).map(o => o.textContent!.trim());
+
+    expect(opciones).toEqual(['Selecciona una empresa', 'Amazon', 'DHL', 'Otra empresa']);
+  });
+
+  it('si el catálogo solo trae "Otro" deja escribir la empresa', () => {
+    abrir({ servicios: [{ id: 9, nombre: 'Otro', activo: true, esSistema: true }] });
+
+    expect(campo('paq-otra')).not.toBeNull();
+    component.form.servicioOtro = 'Estafeta';
+    expect(component.armarDto().servicioNombre).toBe('Estafeta');
+    expect(component.armarDto().servicioId).toBeUndefined();
+  });
+
   it('si el catálogo no cargó deja escribir la empresa', () => {
     abrir({ servicios: [] });
 

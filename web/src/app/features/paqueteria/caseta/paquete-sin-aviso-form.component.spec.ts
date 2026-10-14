@@ -176,6 +176,15 @@ describe('PaqueteSinAvisoFormComponent', () => {
       expect(boton('Otro')).toBeUndefined();
     });
 
+    it('si el catálogo solo trae "Otro" solo ofrece "Otra empresa"', () => {
+      abrir([{ id: 9, nombre: 'Otro', activo: true, esSistema: true }]);
+      component.elegirCasa(directorio.casas()[0]);
+      fixture.detectChanges();
+
+      expect(boton('Otra empresa')).toBeDefined();
+      expect(boton('Otro')).toBeUndefined();
+    });
+
     it('si el catálogo no cargó solo ofrece "Otra empresa"', () => {
       abrir([]);
       component.elegirCasa(directorio.casas()[0]);
