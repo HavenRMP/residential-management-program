@@ -6,6 +6,7 @@ import '../Pages/admin_dashboard.dart';
 import '../Pages/vigilante_dashboard.dart';
 import '../Pages/residente_dashboard.dart';
 import '../Pages/perfil_screen.dart';
+import '../Pages/biometric_lock_screen.dart';
 import '../Widgets/splash_screen.dart';
 import '../Themes/animation_constants.dart';
 
@@ -30,6 +31,11 @@ class AppRouter extends StatelessWidget {
         } else if (!controller.isAuthenticated) {
           activeScreen = LoginScreen(
             key: const ValueKey('router_login'),
+            controller: controller,
+          );
+        } else if (controller.isBiometricLocked) {
+          activeScreen = BiometricLockScreen(
+            key: const ValueKey('router_biometric_lock'),
             controller: controller,
           );
         } else if (controller.isProfileIncomplete) {
