@@ -9,6 +9,7 @@ import { CondominiosService } from '../../../core/services/condominios.service';
 import { AvisosService } from '../../../core/services/avisos.service';
 import { SubusuariosService } from '../../../core/services/subusuarios.service';
 import { PaqueteriaService } from '../../../core/services/paqueteria.service';
+import { ReservasService } from '../../../core/services/reservas.service';
 import { CacheService } from '../../../core/services/cache.service';
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { Aviso, AvisoPrioridad } from '../../../core/models/aviso.model';
@@ -96,6 +97,20 @@ import { claseBadgePrioridad, etiquetaPrioridad, tiempoRestanteAviso } from '../
                 @if (paquetesEnCaseta() > 0) {
                   <span class="min-w-5 h-5 px-1 inline-flex items-center justify-center rounded-full bg-emerald-600 text-white text-[11px] font-semibold">
                     {{ paquetesEnCaseta() }}<span class="sr-only"> en caseta</span>
+                  </span>
+                }
+              </a>
+              <a
+                routerLink="/dashboard/residente/reservas"
+                class="h-8 px-3 inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition-colors shadow-2xs"
+                >
+                <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2zm4-6l2 2 4-4" />
+                </svg>
+                <span>Reservas</span>
+                @if (reservasService.accionesPendientes() > 0) {
+                  <span class="min-w-5 h-5 px-1 inline-flex items-center justify-center rounded-full bg-amber-500 text-white text-[11px] font-semibold">
+                    {{ reservasService.accionesPendientes() }}<span class="sr-only"> por atender</span>
                   </span>
                 }
               </a>
@@ -346,6 +361,8 @@ export class ResidenteDashboardComponent implements OnInit {
   readonly avisosService = inject(AvisosService);
   readonly subusuariosService = inject(SubusuariosService);
   private readonly paqueteriaService = inject(PaqueteriaService);
+  /** Solicitudes por aprobar y reservas por confirmar: se muestran como insignia en el botón de reservas */
+  readonly reservasService = inject(ReservasService);
 
   /** Paquetes que ya llegaron a caseta y esperan a que los recojan */
   readonly paquetesEnCaseta = signal<number>(0);
@@ -371,6 +388,9 @@ export class ResidenteDashboardComponent implements OnInit {
     // Sin await: el banner de invitaciones no debe retrasar la carga del portal
     this.subusuariosService.cargarInvitacionesRecibidas();
     void this.cargarPaquetesEnCaseta();
+    // Solo alimentan la insignia del botón: si fallan el portal sigue igual
+    void this.reservasService.cargarMias();
+    void this.reservasService.cargarPorAprobar();
     await this.cargarDatosResidente();
     this.abrirAvisoDesdeNotificacion();
   }
