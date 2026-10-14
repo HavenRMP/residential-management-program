@@ -16,6 +16,7 @@ import '../Utils/error_handler.dart';
 import 'push_notifications_service.dart';
 import 'offline_sync_service.dart';
 import 'visitas_service.dart';
+import 'biometric_service.dart';
 import '../main.dart';
 
 class AppController extends ChangeNotifier {
@@ -69,6 +70,18 @@ class AppController extends ChangeNotifier {
   bool get isOffline => _isOffline;
   int get pendingSyncCount => _pendingSyncCount;
   bool get isSyncing => _isSyncing;
+  bool _isBiometricLocked = false;
+  bool get isBiometricLocked => _isBiometricLocked;
+
+  void unlockBiometric() {
+    _isBiometricLocked = false;
+    notifyListeners();
+  }
+
+  void lockBiometric() {
+    _isBiometricLocked = true;
+    notifyListeners();
+  }
 
   void setOffline(bool offline) {
     if (_isOffline != offline) {
@@ -284,6 +297,10 @@ class AppController extends ChangeNotifier {
       try {
         await getValidAccessToken();
         await Future.wait([_refreshProfile(), splashDelay]);
+        final bioService = BiometricService();
+        if (await bioService.isBiometricEnabled()) {
+          _isBiometricLocked = true;
+        }
       } catch (e) {
         debugPrint('Bootstrap _refreshProfile error: $e');
       }
@@ -508,6 +525,7 @@ class AppController extends ChangeNotifier {
     _currentUser = null;
     _errorMessage = null;
     _isLoading = false;
+    _isBiometricLocked = false;
     notifyListeners();
   }
 
