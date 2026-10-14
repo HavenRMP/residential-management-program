@@ -151,6 +151,20 @@ describe('ResidenteDashboardComponent', () => {
     });
   });
 
+  describe('Accesos del portal en un teléfono', () => {
+    it('los botones de Visitas, Paquetes y Reservas pasan a otra línea en vez de salirse de la pantalla', async () => {
+      const f = TestBed.createComponent(ResidenteDashboardComponent);
+      f.detectChanges();
+      await f.whenStable();
+      f.detectChanges();
+
+      const fila = f.nativeElement.querySelector('[data-test="accesos-portal"]') as HTMLElement;
+
+      expect(fila.classList.contains('flex-wrap')).toBeTrue();
+      expect(fila.querySelectorAll('a').length).toBeGreaterThanOrEqual(3);
+    });
+  });
+
   describe('Acceso a paquetería', () => {
     const botonPaqueteria = (f: ComponentFixture<ResidenteDashboardComponent>) =>
       f.nativeElement.querySelector('a[href="/dashboard/residente/paquetes"]') as HTMLElement | null;
