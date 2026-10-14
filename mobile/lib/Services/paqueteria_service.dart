@@ -37,6 +37,7 @@ class PaqueteriaService {
     int page = 1,
     int pageSize = 10,
     String? estado,
+    List<String>? estados,
     int? viviendaId,
   }) async {
     try {
@@ -44,8 +45,11 @@ class PaqueteriaService {
         'page=$page',
         'pageSize=$pageSize',
       ];
-      if (estado != null && estado.trim().isNotEmpty) {
-        queryParams.add('estado=${Uri.encodeComponent(estado.trim().toLowerCase())}');
+      final estadoParam = (estados != null && estados.isNotEmpty)
+          ? estados.map((e) => e.trim().toLowerCase()).where((e) => e.isNotEmpty).join(',')
+          : (estado != null && estado.trim().isNotEmpty ? estado.trim().toLowerCase() : null);
+      if (estadoParam != null && estadoParam.isNotEmpty) {
+        queryParams.add('estado=${Uri.encodeComponent(estadoParam)}');
       }
       if (viviendaId != null && viviendaId > 0) {
         queryParams.add('viviendaId=$viviendaId');
@@ -427,6 +431,7 @@ class PaqueteriaService {
     DateTime? hasta,
     int? viviendaId,
     String? estado,
+    List<String>? estados,
     int page = 1,
     int pageSize = 10,
   }) async {
@@ -444,8 +449,11 @@ class PaqueteriaService {
       if (viviendaId != null && viviendaId > 0) {
         queryParams.add('viviendaId=$viviendaId');
       }
-      if (estado != null && estado.trim().isNotEmpty) {
-        queryParams.add('estado=${Uri.encodeComponent(estado.trim().toLowerCase())}');
+      final estadoParam = (estados != null && estados.isNotEmpty)
+          ? estados.map((e) => e.trim().toLowerCase()).where((e) => e.isNotEmpty).join(',')
+          : (estado != null && estado.trim().isNotEmpty ? estado.trim().toLowerCase() : null);
+      if (estadoParam != null && estadoParam.isNotEmpty) {
+        queryParams.add('estado=${Uri.encodeComponent(estadoParam)}');
       }
 
       final url = '$baseUrl/api/paqueteria/historico?${queryParams.join('&')}';
@@ -517,6 +525,7 @@ class PaqueteriaService {
         if (decoded is List) {
           return decoded
               .map((j) => ServicioPaqueteriaModel.fromJson(j as Map<String, dynamic>))
+              .where((s) => s.nombre.trim().toLowerCase() != 'otro')
               .toList();
         }
       }

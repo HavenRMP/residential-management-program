@@ -43,16 +43,24 @@ class _RegistrarPaqueteModalState extends State<RegistrarPaqueteModal> {
   bool _isLoading = false;
   String? _errorMessage;
 
-  final List<String> _serviciosComunes = [
-    'Amazon',
-    'Mercado Libre',
-    'DHL',
-    'FedEx',
-    'Estafeta',
-    'UPS',
-    'Correos de México',
-    'Otro',
-  ];
+  List<String> get _serviciosOpciones {
+    final list = <String>[];
+    if (widget.serviciosDisponibles.isNotEmpty) {
+      for (final s in widget.serviciosDisponibles) {
+        final name = s.nombre.trim();
+        if (name.isNotEmpty && name.toLowerCase() != 'otro' && !list.contains(name)) {
+          list.add(name);
+        }
+      }
+    }
+    if (list.isEmpty) {
+      list.addAll(['Amazon', 'Mercado Libre', 'DHL', 'FedEx', 'Estafeta', 'UPS', 'Correos de México']);
+    }
+    if (!list.contains('Otro')) {
+      list.add('Otro');
+    }
+    return list;
+  }
 
   @override
   void initState() {
@@ -68,7 +76,7 @@ class _RegistrarPaqueteModalState extends State<RegistrarPaqueteModal> {
       _servicioIdSeleccionado = editando.servicioId;
       _servicioNombreSeleccionado = editando.servicioNombre;
       _esOtroServicio = editando.servicioNombre != null &&
-          !_serviciosComunes.contains(editando.servicioNombre);
+          !_serviciosOpciones.contains(editando.servicioNombre);
       _otroServicioCtrl = TextEditingController(
         text: _esOtroServicio ? (editando.servicioNombre ?? '') : '',
       );
@@ -86,7 +94,11 @@ class _RegistrarPaqueteModalState extends State<RegistrarPaqueteModal> {
       _numeroGuiaCtrl = TextEditingController();
       _descripcionCtrl = TextEditingController();
       _notasCtrl = TextEditingController();
-      _servicioNombreSeleccionado = 'Amazon';
+      _servicioNombreSeleccionado = _serviciosOpciones.first;
+      final match = widget.serviciosDisponibles
+          .where((s) => s.nombre.trim().toLowerCase() == _servicioNombreSeleccionado!.toLowerCase())
+          .firstOrNull;
+      _servicioIdSeleccionado = match?.id;
       _otroServicioCtrl = TextEditingController();
     }
   }
@@ -128,7 +140,7 @@ class _RegistrarPaqueteModalState extends State<RegistrarPaqueteModal> {
     if (widget.paqueteAEditar != null) {
       final dto = UpdatePaqueteEsperadoDto(
         destinatarioNombre: _destinatarioCtrl.text.trim(),
-        servicioId: _servicioIdSeleccionado,
+        servicioId: _esOtroServicio ? null : _servicioIdSeleccionado,
         servicioNombre: servicioFinal,
         numeroGuia: _numeroGuiaCtrl.text.trim().isNotEmpty ? _numeroGuiaCtrl.text.trim() : null,
         descripcion: _descripcionCtrl.text.trim().isNotEmpty ? _descripcionCtrl.text.trim() : null,
@@ -153,7 +165,7 @@ class _RegistrarPaqueteModalState extends State<RegistrarPaqueteModal> {
       final dto = CreatePaqueteEsperadoDto(
         viviendaId: _viviendaIdSeleccionada!,
         destinatarioNombre: _destinatarioCtrl.text.trim(),
-        servicioId: _servicioIdSeleccionado,
+        servicioId: _esOtroServicio ? null : _servicioIdSeleccionado,
         servicioNombre: servicioFinal,
         numeroGuia: _numeroGuiaCtrl.text.trim().isNotEmpty ? _numeroGuiaCtrl.text.trim() : null,
         descripcion: _descripcionCtrl.text.trim().isNotEmpty ? _descripcionCtrl.text.trim() : null,
@@ -335,9 +347,9 @@ class _RegistrarPaqueteModalState extends State<RegistrarPaqueteModal> {
               ),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
-                initialValue: _esOtroServicio
+                value: _esOtroServicio
                     ? 'Otro'
-                    : (_serviciosComunes.contains(_servicioNombreSeleccionado)
+                    : (_serviciosOpciones.contains(_servicioNombreSeleccionado)
                         ? _servicioNombreSeleccionado
                         : 'Otro'),
                 decoration: InputDecoration(
@@ -345,17 +357,22 @@ class _RegistrarPaqueteModalState extends State<RegistrarPaqueteModal> {
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                items: _serviciosComunes.map((s) {
-                  return DropdownMenuItem(value: s, child: Text(s));
+                items: _serviciosOpciones.map((s) {
+                  return DropdownMenuItem(value: s, child: Text(s == 'Otro' ? 'Otra empresa' : s));
                 }).toList(),
                 onChanged: (val) {
                   setState(() {
                     if (val == 'Otro') {
                       _esOtroServicio = true;
                       _servicioNombreSeleccionado = null;
+                      _servicioIdSeleccionado = null;
                     } else {
                       _esOtroServicio = false;
                       _servicioNombreSeleccionado = val;
+                      final match = widget.serviciosDisponibles
+                          .where((s) => s.nombre.trim().toLowerCase() == (val ?? '').toLowerCase())
+                          .firstOrNull;
+                      _servicioIdSeleccionado = match?.id;
                     }
                   });
                 },
