@@ -20,7 +20,7 @@ const creada = (estado = 'PENDIENTE_ADMIN'): Reserva => ({
 describe('ReservaFormComponent', () => {
   let fixture: ComponentFixture<ReservaFormComponent>;
   let component: ReservaFormComponent;
-  let servicio: { areas: ReturnType<typeof signal<AreaComun[]>>; calendario: jasmine.Spy; solicitar: jasmine.Spy };
+  let servicio: { areas: ReturnType<typeof signal<AreaComun[]>>; mias: ReturnType<typeof signal<Reserva[]>>; calendario: jasmine.Spy; solicitar: jasmine.Spy };
   let swal: jasmine.Spy;
 
   const texto = () => (fixture.nativeElement.textContent as string).replace(/\s+/g, ' ');
@@ -52,6 +52,7 @@ describe('ReservaFormComponent', () => {
   beforeEach(() => {
     servicio = {
       areas: signal<AreaComun[]>([]),
+      mias: signal<Reserva[]>([]),
       calendario: jasmine.createSpy('calendario').and.resolveTo([]),
       solicitar: jasmine.createSpy('solicitar').and.callFake(async () => creada())
     };
@@ -196,6 +197,27 @@ describe('ReservaFormComponent', () => {
 
       expect(texto()).toContain('Ese horario ya está ocupado.');
       expect(boton('Solicitar reserva')!.disabled).toBeTrue();
+    });
+
+    it('avisa antes de enviar si la vivienda ya tiene una reserva ese día, aunque sea en otra área', () => {
+      servicio.mias.set([{ ...creada('PENDIENTE_ADMIN'), id: 'previa', areaId: 'a1', areaNombre: 'Alberca', inicio: instanteEnZona(dia, '16:00', MEXICO), fin: instanteEnZona(dia, '18:00', MEXICO) }]);
+
+      poner('10:00', '12:00');
+
+      expect(texto()).toContain('Tu vivienda ya tiene una reserva ese día (Alberca, 16:00 a 18:00). Solo se permite una por día.');
+      expect(boton('Solicitar reserva')!.disabled).toBeTrue();
+    });
+
+    it('una reserva cancelada o de otro día no impide reservar', () => {
+      servicio.mias.set([
+        { ...creada('CANCELADA'), id: 'c', inicio: instanteEnZona(dia, '16:00', MEXICO), fin: instanteEnZona(dia, '18:00', MEXICO) },
+        { ...creada('APROBADA'), id: 'o', inicio: instanteEnZona(fechaEnZona(Date.now() + 16 * 86_400_000, MEXICO), '16:00', MEXICO), fin: instanteEnZona(fechaEnZona(Date.now() + 16 * 86_400_000, MEXICO), '18:00', MEXICO) }
+      ]);
+
+      poner('10:00', '12:00');
+
+      expect(component.problema()).toBeNull();
+      expect(boton('Solicitar reserva')!.disabled).toBeFalse();
     });
 
     it('dibuja el horario elegido sobre la línea de tiempo', () => {
