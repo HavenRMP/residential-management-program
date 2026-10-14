@@ -13,8 +13,10 @@ import {
   Reserva,
   nombreCompleto,
   normalizarEstado,
+  estadoMostrado,
   reservaEsCancelable,
-  reservaEsConfirmable
+  reservaEsConfirmable,
+  reservaEstaConfirmada
 } from '../../core/models/reserva.model';
 import { diaLegible, rangoLegible } from '../../core/utils/reservas.util';
 import { mensajeConValidacion } from '../../core/utils/api-errors.util';
@@ -243,7 +245,7 @@ const HORA_MS = 3_600_000;
                       @if (r.motivo) {
                         <p class="text-xs text-slate-500 italic">Motivo: {{ r.motivo }}</p>
                       }
-                      @if (r.confirmadaEn) {
+                      @if (estaConfirmada(r)) {
                         <p class="text-xs text-emerald-700">Asistencia confirmada.</p>
                       }
                       @if (avisoConfirmacion(r); as aviso) {
@@ -336,11 +338,11 @@ export class ReservasComponent implements OnInit {
   }
 
   etiquetaEstado(r: Reserva): string {
-    return ETIQUETAS_ESTADO_RESERVA[normalizarEstado(r.estado)] ?? r.estado;
+    return ETIQUETAS_ESTADO_RESERVA[estadoMostrado(r)] ?? r.estado;
   }
 
   claseEstado(r: Reserva): string {
-    return CLASES_ESTADO_RESERVA[normalizarEstado(r.estado)] ?? 'bg-slate-100 text-slate-700 border-slate-200';
+    return CLASES_ESTADO_RESERVA[estadoMostrado(r)] ?? 'bg-slate-100 text-slate-700 border-slate-200';
   }
 
   esConfirmable(r: Reserva): boolean {
@@ -351,6 +353,10 @@ export class ReservasComponent implements OnInit {
     return reservaEsCancelable(r);
   }
 
+  estaConfirmada(r: Reserva): boolean {
+    return reservaEstaConfirmada(r);
+  }
+
   /** Una reserva que pidió otra persona de la vivienda (sub-usuario o titular) */
   solicitadaPorOtro(r: Reserva): boolean {
     return !!r.solicitanteId && r.solicitanteId !== this.currentUser()?.id;
@@ -358,7 +364,7 @@ export class ReservasComponent implements OnInit {
 
   /** Cuándo se puede confirmar la asistencia de una reserva ya aprobada, para que la persona no tenga que adivinarlo */
   avisoConfirmacion(r: Reserva): string | null {
-    if (normalizarEstado(r.estado) !== 'APROBADA') return null;
+    if (normalizarEstado(r.estado) !== 'APROBADA' || reservaEstaConfirmada(r)) return null;
     const ahora = Date.now();
     const faltan = new Date(r.inicio).getTime() - ahora;
     if (faltan <= 0) return null;
