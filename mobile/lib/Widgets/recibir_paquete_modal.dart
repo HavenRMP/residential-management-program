@@ -380,7 +380,7 @@ class _RecibirPaqueteModalState extends State<RecibirPaqueteModal> {
                 TextFormField(
                   controller: _numeroGuiaCtrl,
                   decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.qr_code_outlined),
+                    prefixIcon: const Icon(Icons.numbers_outlined),
                     hintText: 'Ej. 78923412',
                     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),

@@ -226,20 +226,13 @@ class PaqueteCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(6),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.qr_code_2_rounded, size: 15, color: Color(0xFF111C99)),
-                                const SizedBox(width: 4),
-                                Text(
-                                  paquete.numeroGuia!,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF111C99),
-                                  ),
-                                ),
-                              ],
+                            child: Text(
+                              paquete.numeroGuia!,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF111C99),
+                              ),
                             ),
                           ),
                         ),
