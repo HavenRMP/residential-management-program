@@ -19,7 +19,10 @@ describe('PaqueteFormComponent', () => {
 
   const campo = (id: string) => fixture.nativeElement.querySelector('#' + id) as HTMLInputElement | HTMLSelectElement | null;
   const texto = () => (fixture.nativeElement.textContent as string).replace(/\s+/g, ' ');
-  const botonGuardar = () => fixture.nativeElement.querySelector('button.bg-\\[\\#111C99\\]') as HTMLButtonElement;
+  const botonPorTexto = (t: string) =>
+    Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>).find(b => b.textContent!.trim() === t);
+  // Es el último botón con el color de marca: antes van las opciones de "¿Cuándo llega?", que también lo usan al estar elegidas
+  const botonGuardar = () => Array.from(fixture.nativeElement.querySelectorAll('button.bg-\\[\\#111C99\\]') as NodeListOf<HTMLButtonElement>).pop()!;
 
   function abrir(opciones: { viviendas?: any[]; servicios?: any[]; nombre?: string } = {}): void {
     fixture = TestBed.createComponent(PaqueteFormComponent);
@@ -96,9 +99,10 @@ describe('PaqueteFormComponent', () => {
     expect(dto.fechaEsperadaHasta).toBeUndefined();
   });
 
-  it('las fechas cubren el día completo de inicio y de fin', () => {
+  it('"varios días" cubre el día completo de inicio y de fin', () => {
     abrir();
     component.form.servicio = 1;
+    component.elegirCuando('rango');
     component.form.desde = component.hoy;
     component.form.hasta = component.hoy;
 
@@ -108,9 +112,82 @@ describe('PaqueteFormComponent', () => {
     expect(new Date(dto.fechaEsperadaHasta!).getTime()).toBe(new Date(`${component.hoy}T23:59:59.999`).getTime());
   });
 
+  it('"un día" manda ese día completo como inicio y fin', () => {
+    abrir();
+    component.form.servicio = 1;
+    component.elegirCuando('dia');
+    component.form.dia = '2099-03-05';
+
+    const dto = component.armarDto();
+
+    expect(new Date(dto.fechaEsperadaDesde!).getTime()).toBe(new Date('2099-03-05T00:00:00').getTime());
+    expect(new Date(dto.fechaEsperadaHasta!).getTime()).toBe(new Date('2099-03-05T23:59:59.999').getTime());
+  });
+
+  it('"no sé cuándo" no manda fechas aunque haya algo escrito en los otros campos', () => {
+    abrir();
+    component.form.servicio = 1;
+    component.form.dia = '2099-03-05';
+    component.form.desde = '2099-03-01';
+    component.form.hasta = '2099-03-09';
+
+    const dto = component.armarDto();
+
+    expect(dto.fechaEsperadaDesde).toBeUndefined();
+    expect(dto.fechaEsperadaHasta).toBeUndefined();
+  });
+
+  it('el selector "¿Cuándo llega?" muestra solo los campos de la opción elegida', () => {
+    abrir();
+    expect(campo('paq-dia')).toBeNull();
+    expect(campo('paq-desde')).toBeNull();
+
+    botonPorTexto('Un día')!.click();
+    fixture.detectChanges();
+    expect(campo('paq-dia')).not.toBeNull();
+    expect(campo('paq-desde')).toBeNull();
+
+    botonPorTexto('Varios días')!.click();
+    fixture.detectChanges();
+    expect(campo('paq-dia')).toBeNull();
+    expect(campo('paq-desde')).not.toBeNull();
+    expect(campo('paq-hasta')).not.toBeNull();
+    expect(botonPorTexto('Varios días')!.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('con "un día" o "varios días" pide las fechas antes de dejar avisar', () => {
+    abrir();
+    component.form.servicio = 1;
+    component.form.destinatarioNombre = 'Angel Gómez';
+    expect(component.esFormularioValido()).toBeTrue();
+
+    component.elegirCuando('dia');
+    expect(component.esFormularioValido()).toBeFalse();
+    component.form.dia = component.hoy;
+    expect(component.esFormularioValido()).toBeTrue();
+
+    component.elegirCuando('rango');
+    component.form.desde = component.hoy;
+    expect(component.esFormularioValido()).toBeFalse();
+    component.form.hasta = component.hoy;
+    expect(component.esFormularioValido()).toBeTrue();
+  });
+
+  it('un día que ya pasó no se acepta y lo explica', () => {
+    abrir();
+    component.form.servicio = 1;
+    component.elegirCuando('dia');
+    component.form.dia = '2020-01-01';
+    fixture.detectChanges();
+
+    expect(component.esFormularioValido()).toBeFalse();
+    expect(texto()).toContain('La fecha ya pasó');
+  });
+
   it('rechaza fechas invertidas o ya pasadas y lo explica', () => {
     abrir();
     component.form.servicio = 1;
+    component.elegirCuando('rango');
 
     component.form.desde = '2099-02-10';
     component.form.hasta = '2099-02-01';
@@ -122,7 +199,7 @@ describe('PaqueteFormComponent', () => {
     component.form.hasta = '2020-01-01';
     fixture.detectChanges();
     expect(component.esFormularioValido()).toBeFalse();
-    expect(texto()).toContain('La última fecha ya pasó');
+    expect(texto()).toContain('La fecha ya pasó');
   });
 
   it('exige el nombre del destinatario y respeta su largo máximo', () => {
@@ -247,6 +324,7 @@ describe('PaqueteFormComponent', () => {
       expect(texto()).toContain('Editar paquete');
       expect((campo('paq-destinatario') as HTMLInputElement).value).toBe('Angel Gómez');
       expect((campo('paq-guia') as HTMLInputElement).value).toBe('ML-9845');
+      expect(component.form.cuando).toBe('rango');
       expect((campo('paq-desde') as HTMLInputElement).value).toBe('2099-02-01');
       expect((campo('paq-hasta') as HTMLInputElement).value).toBe('2099-02-03');
       expect(campo('paq-vivienda')).toBeNull();
@@ -254,6 +332,20 @@ describe('PaqueteFormComponent', () => {
       expect(component.hayCambios()).toBeFalse();
       expect(botonGuardar().textContent).toContain('Guardar cambios');
       expect(botonGuardar().disabled).toBeTrue();
+    });
+
+    it('un aviso de un solo día se abre como "un día" y cambiar el día manda ambas fechas', () => {
+      abrirEdicion({ ...original, fechaEsperadaDesde: new Date(2099, 1, 1, 0, 0, 0).toISOString(), fechaEsperadaHasta: new Date(2099, 1, 1, 23, 59, 59, 999).toISOString() });
+      expect(component.form.cuando).toBe('dia');
+      expect(component.form.dia).toBe('2099-02-01');
+      expect(component.armarCambios()).toEqual({});
+
+      component.form.dia = '2099-02-04';
+      const cambios = component.armarCambios();
+
+      expect(Object.keys(cambios).sort()).toEqual(['fechaEsperadaDesde', 'fechaEsperadaHasta']);
+      expect(new Date(cambios.fechaEsperadaDesde!).getTime()).toBe(new Date('2099-02-04T00:00:00').getTime());
+      expect(new Date(cambios.fechaEsperadaHasta!).getTime()).toBe(new Date('2099-02-04T23:59:59.999').getTime());
     });
 
     it('sin cambios no arma ningún campo', () => {
