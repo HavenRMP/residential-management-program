@@ -156,11 +156,13 @@ class ReservaModel {
     return parts.isNotEmpty ? parts : 'Titular';
   }
 
-  bool get esPendienteTitular => estado == 'PENDIENTE_TITULAR';
-  bool get esPendienteAdmin => estado == 'PENDIENTE_ADMIN';
-  bool get esAprobada => estado == 'APROBADA';
-  bool get esConfirmada => estado == 'CONFIRMADA';
-  bool get esRechazada => estado == 'RECHAZADA_TITULAR' || estado == 'RECHAZADA_ADMIN';
+  bool get esBloqueo => (tipo ?? '').toUpperCase() == 'BLOQUEO';
+
+  bool get esPendienteTitular => !esBloqueo && estado == 'PENDIENTE_TITULAR';
+  bool get esPendienteAdmin => !esBloqueo && estado == 'PENDIENTE_ADMIN';
+  bool get esAprobada => !esBloqueo && estado == 'APROBADA';
+  bool get esConfirmada => !esBloqueo && estado == 'CONFIRMADA';
+  bool get esRechazada => !esBloqueo && (estado == 'RECHAZADA_TITULAR' || estado == 'RECHAZADA_ADMIN');
   bool get esCancelada => estado == 'CANCELADA' || estado == 'CANCELADA_ADMIN';
   bool get esNoUtilizada => estado == 'NO_UTILIZADA';
   bool get esFinalizada => estado == 'FINALIZADA';
@@ -175,17 +177,18 @@ class ReservaModel {
 
   /// Indica si la reserva puede cancelarse por el residente (antes de su inicio)
   bool get esCancelable {
-    if (DateTime.now().isAfter(inicio)) return false;
+    if (esBloqueo || DateTime.now().isAfter(inicio)) return false;
     return esPendienteTitular || esPendienteAdmin || esAprobada || esConfirmada;
   }
 
   /// Indica si el administrador puede marcarla como no utilizada (después de terminar)
   bool get esMarcableNoShow {
-    if (DateTime.now().isBefore(fin)) return false;
+    if (esBloqueo || DateTime.now().isBefore(fin)) return false;
     return esConfirmada || esAprobada;
   }
 
   String get estadoEtiqueta {
+    if (esBloqueo) return 'Bloqueo';
     switch (estado) {
       case 'PENDIENTE_TITULAR':
         return 'Pendiente Titular';
@@ -213,6 +216,7 @@ class ReservaModel {
   }
 
   Color get estadoColor {
+    if (esBloqueo) return const Color(0xFF334155); // Slate
     switch (estado) {
       case 'PENDIENTE_TITULAR':
       case 'PENDIENTE_ADMIN':
@@ -236,6 +240,7 @@ class ReservaModel {
   }
 
   IconData get estadoIcono {
+    if (esBloqueo) return Icons.block_rounded;
     switch (estado) {
       case 'PENDIENTE_TITULAR':
       case 'PENDIENTE_ADMIN':

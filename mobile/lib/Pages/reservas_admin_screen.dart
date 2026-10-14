@@ -292,6 +292,13 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
   }
 
   Future<void> _cancelarReservaAdmin(ReservaModel reserva) async {
+    if (reserva.esBloqueo) {
+      widget.controller.notifyToast(
+        'No se puede cancelar un bloqueo a través de este endpoint.',
+        success: false,
+      );
+      return;
+    }
     final motivoCtrl = TextEditingController();
     final confirm = await showDialog<bool>(
       context: context,
@@ -1190,7 +1197,11 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  '${item.solicitanteCompleto} (Casa #${item.numeroCasa ?? 'S/N'})',
+                                  item.esBloqueo
+                                      ? (item.motivo != null && item.motivo!.trim().isNotEmpty
+                                          ? 'Motivo: ${item.motivo}'
+                                          : 'Bloqueo administrativo del área')
+                                      : '${item.solicitanteCompleto} (Casa #${item.numeroCasa ?? 'S/N'})',
                                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
                                 ),
                                 const SizedBox(height: 4),
@@ -1198,7 +1209,13 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
                                   '${_formatearFecha(item.inicio)} de ${_formatearHora(item.inicio)} a ${_formatearHora(item.fin)}',
                                   style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
                                 ),
-                                if (item.esMarcableNoShow || item.esAprobada || item.esConfirmada) ...[
+                                if (item.esBloqueo) ...[
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    'Un bloqueo no se puede quitar desde aquí.',
+                                    style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Color(0xFF94A3B8)),
+                                  ),
+                                ] else if (item.esMarcableNoShow || item.esAprobada || item.esConfirmada) ...[
                                   const SizedBox(height: 12),
                                   const Divider(height: 1),
                                   const SizedBox(height: 8),
