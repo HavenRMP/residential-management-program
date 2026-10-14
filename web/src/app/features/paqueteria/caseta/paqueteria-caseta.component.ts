@@ -223,7 +223,7 @@ const BOTONES_GRANDES = {
                   type="button"
                   (click)="recibir(p)"
                   [disabled]="ocupado() === p.id"
-                  [attr.aria-label]="'Recibir el paquete de ' + (p.servicioNombre || 'paquetería') + ' para ' + p.destinatarioNombre"
+                  [attr.aria-label]="'Recibir paquete de ' + (p.servicioNombre || 'paquetería') + ' para ' + p.destinatarioNombre"
                   class="h-14 lg:w-56 px-6 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-lg font-bold shadow-2xs transition-colors cursor-pointer disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-600"
                   >
                   {{ ocupado() === p.id ? 'Guardando...' : 'Recibir paquete' }}
@@ -234,7 +234,7 @@ const BOTONES_GRANDES = {
                   type="button"
                   (click)="entregar(p)"
                   [disabled]="ocupado() === p.id"
-                  [attr.aria-label]="'Entregar el paquete de ' + (p.servicioNombre || 'paquetería') + ' para ' + p.destinatarioNombre"
+                  [attr.aria-label]="'Entregar paquete de ' + (p.servicioNombre || 'paquetería') + ' para ' + p.destinatarioNombre"
                   class="h-14 lg:w-56 px-6 rounded-lg bg-[#111C99] hover:bg-[#0d1577] text-white text-lg font-bold shadow-2xs transition-colors cursor-pointer disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#111C99]"
                   >
                   {{ ocupado() === p.id ? 'Guardando...' : 'Entregar paquete' }}
