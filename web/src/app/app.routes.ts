@@ -75,6 +75,12 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/visitas/visitas-historico/visitas-historico.component')
             .then(m => m.VisitasHistoricoComponent)
+      },
+      {
+        path: 'reservas',
+        loadComponent: () =>
+          import('./features/reservas/admin/reservas-admin.component')
+            .then(m => m.ReservasAdminComponent)
       }
     ]
   },
