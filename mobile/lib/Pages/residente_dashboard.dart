@@ -36,6 +36,7 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
   int _currentIndex = 0;
   List<Map<String, dynamic>> _misViviendas = [];
   bool _isLoadingViviendas = true;
+  bool _errorCargandoViviendas = false;
   int _unreadAvisosCount = 0;
   int _unreadNotificacionesCount = 0;
   int _paquetesPendientesCount = 0;
@@ -218,20 +219,26 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
   }
 
   Future<void> _cargarMisViviendas() async {
-    setState(() => _isLoadingViviendas = true);
+    setState(() {
+      _isLoadingViviendas = true;
+      _errorCargandoViviendas = false;
+    });
     try {
       final list = await widget.controller.obtenerMisViviendas();
       if (mounted) {
         setState(() {
           _misViviendas = list;
           _isLoadingViviendas = false;
+          _errorCargandoViviendas = false;
         });
       }
     } catch (_) {
       if (mounted) {
         setState(() {
-          _misViviendas = [];
           _isLoadingViviendas = false;
+          if (_misViviendas.isEmpty) {
+            _errorCargandoViviendas = true;
+          }
         });
       }
     }
@@ -662,6 +669,8 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                   _buildLoadingVivienda()
                 else if (_misViviendas.isNotEmpty)
                   _buildViviendasAsignadas()
+                else if (_errorCargandoViviendas)
+                  _buildErrorVivienda()
                 else
                   _buildViviendaPendiente(),
               ],
@@ -1212,6 +1221,121 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
               ),
             );
           }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorVivienda() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFFDE68A)),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.cloud_off_rounded,
+                      color: Color(0xFFD97706),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  const Text(
+                    'Mi Vivienda',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.wifi_off_rounded, size: 13, color: Color(0xFFB45309)),
+                    SizedBox(width: 4),
+                    Text(
+                      'Sin conexión',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFB45309),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFBEB),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFDE68A)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'No se pudo consultar tu vivienda',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF92400E),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Ocurrió una falla temporal de conexión con el servicio. Si ya cuentas con viviendas asignadas, volverán a mostrarse en cuanto se restablezca la conexión.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF78350F),
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _cargarMisViviendas,
+                    icon: const Icon(Icons.refresh_rounded, size: 16),
+                    label: const Text('Reintentar consulta'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF92400E),
+                      side: const BorderSide(color: Color(0xFFF59E0B)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
