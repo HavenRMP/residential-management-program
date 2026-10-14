@@ -1,5 +1,9 @@
 import {
   CLASES_ESTADO_RESERVA,
+  adminPuedeAprobar,
+  adminPuedeCancelar,
+  adminPuedeMarcarNoUtilizada,
+  adminPuedeRechazar,
   ETIQUETAS_ESTADO_RESERVA,
   Reserva,
   nombreCompleto,
@@ -151,5 +155,41 @@ describe('reserva.model', () => {
     expect(nombreCompleto('Ana', 'López')).toBe('Ana López');
     expect(nombreCompleto('Ana', null)).toBe('Ana');
     expect(nombreCompleto(null, undefined)).toBe('');
+  });
+
+  describe('acciones del administrador', () => {
+    it('aprueba solo lo que espera al administrador', () => {
+      expect(adminPuedeAprobar(reserva('PENDIENTE_ADMIN', 48))).toBeTrue();
+      for (const estado of ['PENDIENTE_TITULAR', 'APROBADA', 'CANCELADA', 'RECHAZADA'] as const) {
+        expect(adminPuedeAprobar(reserva(estado, 48))).withContext(estado).toBeFalse();
+      }
+    });
+
+    it('rechaza lo pendiente, también lo que espera al titular', () => {
+      expect(adminPuedeRechazar(reserva('PENDIENTE_ADMIN', 48))).toBeTrue();
+      expect(adminPuedeRechazar(reserva('PENDIENTE_TITULAR', 48))).toBeTrue();
+      expect(adminPuedeRechazar(reserva('APROBADA', 48))).toBeFalse();
+    });
+
+    it('cancela una aprobada que aún no empieza; no lo pendiente ni lo ya empezado', () => {
+      expect(adminPuedeCancelar(reserva('APROBADA', 48), ahora)).toBeTrue();
+      expect(adminPuedeCancelar(reserva('CONFIRMADA', 48), ahora)).toBeTrue();
+      expect(adminPuedeCancelar(reserva('APROBADA', -1), ahora)).toBeFalse();
+      expect(adminPuedeCancelar(reserva('PENDIENTE_ADMIN', 48), ahora)).toBeFalse();
+    });
+
+    it('marca como no utilizada una aprobada ya terminada', () => {
+      expect(adminPuedeMarcarNoUtilizada(reserva('APROBADA', -5), ahora)).toBeTrue();
+      expect(adminPuedeMarcarNoUtilizada(reserva('APROBADA', 48), ahora)).toBeFalse();
+    });
+
+    it('un bloqueo no admite ninguna acción', () => {
+      const bloqueo = reserva('APROBADA', 48, 2, { tipo: 'BLOQUEO' });
+
+      expect(adminPuedeAprobar({ ...bloqueo, estado: 'PENDIENTE_ADMIN' })).toBeFalse();
+      expect(adminPuedeRechazar({ ...bloqueo, estado: 'PENDIENTE_ADMIN' })).toBeFalse();
+      expect(adminPuedeCancelar(bloqueo, ahora)).toBeFalse();
+      expect(adminPuedeMarcarNoUtilizada(reserva('APROBADA', -5, 2, { tipo: 'BLOQUEO' }), ahora)).toBeFalse();
+    });
   });
 });
