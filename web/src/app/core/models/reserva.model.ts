@@ -5,6 +5,7 @@ export type EstadoReserva =
   | 'CONFIRMADA'
   | 'RECHAZADA_TITULAR'
   | 'RECHAZADA_ADMIN'
+  | 'RECHAZADA'
   | 'CANCELADA'
   | 'CANCELADA_ADMIN'
   | 'NO_UTILIZADA'
@@ -20,6 +21,7 @@ export const ETIQUETAS_ESTADO_RESERVA: Record<EstadoReserva, string> = {
   CONFIRMADA: 'Confirmada',
   RECHAZADA_TITULAR: 'Rechazada por el titular',
   RECHAZADA_ADMIN: 'Rechazada por el administrador',
+  RECHAZADA: 'Rechazada',
   CANCELADA: 'Cancelada',
   CANCELADA_ADMIN: 'Cancelada por el administrador',
   NO_UTILIZADA: 'No utilizada',
@@ -33,6 +35,7 @@ export const CLASES_ESTADO_RESERVA: Record<EstadoReserva, string> = {
   CONFIRMADA: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   RECHAZADA_TITULAR: 'bg-rose-50 text-rose-700 border-rose-200',
   RECHAZADA_ADMIN: 'bg-rose-50 text-rose-700 border-rose-200',
+  RECHAZADA: 'bg-rose-50 text-rose-700 border-rose-200',
   CANCELADA: 'bg-slate-100 text-slate-700 border-slate-200',
   CANCELADA_ADMIN: 'bg-slate-100 text-slate-700 border-slate-200',
   NO_UTILIZADA: 'bg-violet-50 text-violet-700 border-violet-200',
