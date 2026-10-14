@@ -1,4 +1,6 @@
 import {
+  CLASES_ESTADO_RESERVA,
+  ETIQUETAS_ESTADO_RESERVA,
   Reserva,
   nombreCompleto,
   normalizarEstado,
@@ -28,6 +30,13 @@ describe('reserva.model', () => {
     expect(normalizarEstado(' aprobada ')).toBe('APROBADA');
     expect(normalizarEstado('PENDIENTE_ADMIN')).toBe('PENDIENTE_ADMIN');
     expect(normalizarEstado(null)).toBe('' as any);
+  });
+
+  it('todas las reservas rechazadas tienen etiqueta y color, incluida la que el backend marca solo como RECHAZADA', () => {
+    for (const estado of ['RECHAZADA', 'RECHAZADA_TITULAR', 'RECHAZADA_ADMIN'] as const) {
+      expect(ETIQUETAS_ESTADO_RESERVA[estado]).withContext(estado).toContain('Rechazada');
+      expect(CLASES_ESTADO_RESERVA[estado]).withContext(estado).toContain('rose');
+    }
   });
 
   it('normaliza el estado y el tipo de una reserva y asume RESERVA si el tipo no viene', () => {
