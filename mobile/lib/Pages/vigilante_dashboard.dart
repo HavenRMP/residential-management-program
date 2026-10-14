@@ -17,6 +17,7 @@ import '../Widgets/offline_banner.dart';
 import '../Widgets/skeleton_loading.dart';
 import '../Widgets/calendario_reservas_vigilante_modal.dart';
 import '../Utils/haptic_helper.dart';
+import '../Utils/sound_helper.dart';
 
 class VigilanteDashboardScreen extends StatefulWidget {
   final AppController controller;
@@ -731,11 +732,13 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
     final service = VisitasService(widget.controller);
     final res = await service.validarCodigo(cod);
     if (res['success'] == true) {
+      SoundHelper.playSuccessBeep();
       final visita = res['visita'] as VisitaModel;
       if (mounted) {
         _mostrarResultadoValidacion(visita);
       }
     } else {
+      SoundHelper.playErrorBeep();
       widget.controller.notifyToast(
         res['error'] ?? 'Código inválido o expirado',
         success: false,
