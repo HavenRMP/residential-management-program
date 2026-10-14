@@ -3,9 +3,11 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { ReservasService } from '../../../core/services/reservas.service';
-import { AreaComun, REGLAS_RESERVA, Reserva, ReservaCalendario } from '../../../core/models/reserva.model';
+import { AreaComun, REGLAS_RESERVA, Reserva, ReservaCalendario, ocupaHorario } from '../../../core/models/reserva.model';
 import {
   diasReservables,
+  fechaEnZona,
+  horaEnZona,
   instanteEnZona,
   minutosDelDia,
   problemaDeSolicitud,
@@ -242,9 +244,26 @@ export class ReservaFormComponent {
     return total > 0 && hasta > desde ? { izquierda: ((desde - apertura) / total) * 100, ancho: ((hasta - desde) / total) * 100 } : null;
   });
 
+  /**
+   * El backend permite una sola reserva viva por vivienda y por día, aunque sea en otra área.
+   * Se avisa antes de enviar con las reservas de la persona que ya se conocen; si fue otra persona de la vivienda, lo dice el backend.
+   */
+  readonly reservaDelDia = computed(() => {
+    const a = this.area();
+    const fecha = this.fecha();
+    if (!a || !fecha) return null;
+    return this.reservasService.mias().find(r => r.tipo !== 'BLOQUEO' && ocupaHorario(r) && fechaEnZona(r.inicio, a.zonaHoraria) === fecha) ?? null;
+  });
+
   readonly problema = computed(() => {
     const a = this.area();
-    return a ? problemaDeSolicitud({ fecha: this.fecha(), horaInicio: this.horaInicio(), horaFin: this.horaFin() }, a, Date.now(), this.ocupados()) : null;
+    if (!a) return null;
+    const regla = problemaDeSolicitud({ fecha: this.fecha(), horaInicio: this.horaInicio(), horaFin: this.horaFin() }, a, Date.now(), this.ocupados());
+    if (regla) return regla;
+    const previa = this.reservaDelDia();
+    return previa
+      ? `Tu vivienda ya tiene una reserva ese día (${previa.areaNombre}, ${horaEnZona(previa.inicio, a.zonaHoraria)} a ${horaEnZona(previa.fin, a.zonaHoraria)}). Solo se permite una por día.`
+      : null;
   });
 
   readonly valido = computed(() => !!this.area() && !!this.fecha() && !!this.horaInicio() && !!this.horaFin() && this.problema() === null);
