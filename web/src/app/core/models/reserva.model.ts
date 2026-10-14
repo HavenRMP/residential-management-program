@@ -234,3 +234,8 @@ export function ordenarHistorial<T extends Pick<Reserva, 'inicio'>>(reservas: T[
 export function nombreCompleto(nombre?: string | null, apellidos?: string | null): string {
   return [nombre, apellidos].filter(p => !!p && p.trim()).join(' ').trim();
 }
+
+/** Deja el estado y el tipo en mayúsculas aunque el backend los mande de otra forma */
+export function normalizarReserva<T extends { estado: string; tipo?: string }>(r: T): T {
+  return { ...r, estado: normalizarEstado(r.estado), tipo: String(r.tipo ?? 'RESERVA').trim().toUpperCase() };
+}
