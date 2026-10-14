@@ -229,7 +229,7 @@ public class PaqueteriaController : ControllerBase
             return Unauthorized(new { error = "Token invalido o ausente" });
         }
 
-        if (!string.IsNullOrEmpty(estado))
+        if (!string.IsNullOrWhiteSpace(estado))
         {
             var validStates = new[] { 
                 PaqueteEstados.Esperado, 
@@ -239,12 +239,18 @@ public class PaqueteriaController : ControllerBase
                 PaqueteEstados.Vencido, 
                 PaqueteEstados.Devuelto 
             };
-            var estadoLower = estado.ToLowerInvariant();
-            if (!validStates.Contains(estadoLower))
+            var estadosArray = estado.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var normalizedList = new List<string>();
+            foreach (var est in estadosArray)
             {
-                return BadRequest(new { error = "El estado proporcionado no es válido." });
+                var lower = est.ToLowerInvariant();
+                if (!validStates.Contains(lower))
+                {
+                    return BadRequest(new { error = "El estado proporcionado no es válido." });
+                }
+                normalizedList.Add(lower);
             }
-            estado = estadoLower;
+            estado = string.Join(",", normalizedList);
         }
 
         var (items, totalCount) = await _paqueteriaService.GetMisPaquetesAsync(accessToken, viviendaId, estado, paginacion);
@@ -495,7 +501,7 @@ public class PaqueteriaController : ControllerBase
             return BadRequest(new { error = "La fecha 'desde' no puede ser posterior a la fecha 'hasta'." });
         }
 
-        if (!string.IsNullOrEmpty(estado))
+        if (!string.IsNullOrWhiteSpace(estado))
         {
             var validStates = new[] { 
                 PaqueteEstados.Esperado, 
@@ -505,10 +511,18 @@ public class PaqueteriaController : ControllerBase
                 PaqueteEstados.Vencido, 
                 PaqueteEstados.Devuelto 
             };
-            if (!validStates.Contains(estado.ToLowerInvariant()))
+            var estadosArray = estado.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var normalizedList = new List<string>();
+            foreach (var est in estadosArray)
             {
-                return BadRequest(new { error = "El estado proporcionado no es válido." });
+                var lower = est.ToLowerInvariant();
+                if (!validStates.Contains(lower))
+                {
+                    return BadRequest(new { error = "El estado proporcionado no es válido." });
+                }
+                normalizedList.Add(lower);
             }
+            estado = string.Join(",", normalizedList);
         }
 
         if (condominioId == null)
