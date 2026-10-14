@@ -209,12 +209,56 @@ public class SupabaseService : ISupabaseService
             _httpClient, _supabaseUrl, _serviceRoleKey, _serviceRoleKey, resourcePath, paginacion);
     }
 
+    private string? BuildEstadoFilter(string? estado)
+    {
+        if (string.IsNullOrWhiteSpace(estado))
+            return null;
+
+        var normalized = estado.Trim().ToLowerInvariant().Replace("-", "_");
+
+        return normalized switch
+        {
+            "finalizada" or "finalizadas" =>
+                $"&fin=lt.{FormatDateForSupabase(DateTimeOffset.UtcNow)}&estado=in.(APROBADA,CONFIRMADA)",
+
+            "pendiente" or "pendientes" or "por_aprobar" =>
+                "&estado=in.(PENDIENTE_TITULAR,PENDIENTE_ADMIN)",
+
+            "aprobada" or "aprobadas" =>
+                "&estado=in.(APROBADA,CONFIRMADA)",
+
+            "activa" or "activas" or "proxima" or "proximas" =>
+                $"&fin=gte.{FormatDateForSupabase(DateTimeOffset.UtcNow)}&estado=in.(APROBADA,CONFIRMADA)",
+
+            "confirmada" or "confirmadas" =>
+                "&estado=eq.CONFIRMADA",
+
+            "cancelada" or "canceladas" =>
+                "&estado=eq.CANCELADA",
+
+            "rechazada" or "rechazadas" =>
+                "&estado=eq.RECHAZADA",
+
+            "no_utilizada" or "no_utilizadas" =>
+                "&estado=eq.NO_UTILIZADA",
+
+            "pendiente_titular" =>
+                "&estado=eq.PENDIENTE_TITULAR",
+
+            "pendiente_admin" =>
+                "&estado=eq.PENDIENTE_ADMIN",
+
+            _ => $"&estado=eq.{Uri.EscapeDataString(normalized.ToUpperInvariant())}"
+        };
+    }
+
     public async Task<(List<ReservaUsuarioDto>? Items, int? TotalCount)> GetMisReservasAsync(Guid usuarioId, string? estado, PaginationParams paginacion)
     {
         var resourcePath = $"vw_reservas_usuario?or=(titular_id.eq.{usuarioId},solicitante_id.eq.{usuarioId})";
-        if (!string.IsNullOrEmpty(estado))
+        var estadoFilter = BuildEstadoFilter(estado);
+        if (!string.IsNullOrEmpty(estadoFilter))
         {
-            resourcePath += $"&estado=eq.{estado}";
+            resourcePath += estadoFilter;
         }
         resourcePath += "&order=inicio.desc";
 
@@ -233,9 +277,10 @@ public class SupabaseService : ISupabaseService
     public async Task<(List<ReservaAdminDto>? Items, int? TotalCount)> GetReservasAdminAsync(Guid condominioId, string? estado, Guid? areaId, DateTimeOffset? desde, DateTimeOffset? hasta, PaginationParams paginacion)
     {
         var resourcePath = $"vw_reservas_admin?condominio_id=eq.{condominioId}";
-        if (!string.IsNullOrEmpty(estado))
+        var estadoFilter = BuildEstadoFilter(estado);
+        if (!string.IsNullOrEmpty(estadoFilter))
         {
-            resourcePath += $"&estado=eq.{estado}";
+            resourcePath += estadoFilter;
         }
         if (areaId.HasValue)
         {

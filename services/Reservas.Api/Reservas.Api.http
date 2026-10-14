@@ -33,8 +33,8 @@ Accept: application/json
   "horaCierre": "20:00:00"
 }
 
-### PUT /api/areas/{id} (Actualizar área común, rol: Administrador)
-PUT {{Reservas.Api_HostAddress}}/api/areas/{{AreaId}}
+### PATCH /api/areas/{id} (Actualizar área común, rol: Administrador)
+PATCH {{Reservas.Api_HostAddress}}/api/areas/{{AreaId}}
 Authorization: Bearer YOUR_ACCESS_TOKEN
 Content-Type: application/json
 Accept: application/json
@@ -46,8 +46,8 @@ Accept: application/json
   "horaCierre": "21:00:00"
 }
 
-### DELETE /api/areas/{id} (Dar de baja área común, rol: Administrador)
-DELETE {{Reservas.Api_HostAddress}}/api/areas/{{AreaId}}
+### POST /api/areas/{id}/baja (Dar de baja área común, rol: Administrador)
+POST {{Reservas.Api_HostAddress}}/api/areas/{{AreaId}}/baja
 Authorization: Bearer YOUR_ACCESS_TOKEN
 Accept: application/json
 
@@ -66,8 +66,18 @@ GET {{Reservas.Api_HostAddress}}/api/reservas/calendario?from=2026-10-20T00:00:0
 Authorization: Bearer YOUR_ACCESS_TOKEN
 Accept: application/json
 
-### GET /api/reservas/mias (Listar mis reservas, rol: Residente)
-GET {{Reservas.Api_HostAddress}}/api/reservas/mias?estado=aprobada&page=1&pageSize=10
+### GET /api/reservas/mias (Listar mis reservas aprobadas y confirmadas, rol: Residente)
+GET {{Reservas.Api_HostAddress}}/api/reservas/mias?estado=aprobadas&page=1&pageSize=10
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+### GET /api/reservas/mias (Listar mis reservas pendientes de titular o admin, rol: Residente)
+GET {{Reservas.Api_HostAddress}}/api/reservas/mias?estado=pendientes&page=1&pageSize=10
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+### GET /api/reservas/mias (Listar mis reservas finalizadas por fecha, rol: Residente)
+GET {{Reservas.Api_HostAddress}}/api/reservas/mias?estado=finalizadas&page=1&pageSize=10
 Authorization: Bearer YOUR_ACCESS_TOKEN
 Accept: application/json
 
