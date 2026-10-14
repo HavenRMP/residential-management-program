@@ -5,6 +5,7 @@ import 'package:flutter/rendering.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import '../Utils/haptic_helper.dart';
+import '../Utils/brightness_helper.dart';
 
 /// Tarjeta digital de acceso diseñada para previsualización y exportación como imagen PNG.
 class DigitalPassCard extends StatelessWidget {
@@ -246,6 +247,18 @@ class DigitalPassPreviewDialog extends StatefulWidget {
 class _DigitalPassPreviewDialogState extends State<DigitalPassPreviewDialog> {
   final GlobalKey _boundaryKey = GlobalKey();
   bool _isSharing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    BrightnessHelper.setMaxBrightness();
+  }
+
+  @override
+  void dispose() {
+    BrightnessHelper.resetBrightness();
+    super.dispose();
+  }
 
   Future<void> _shareAsPng() async {
     setState(() => _isSharing = true);
