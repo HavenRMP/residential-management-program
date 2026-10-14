@@ -46,9 +46,18 @@ class ReservasService {
     try {
       final query = 'soloActivas=$soloActivas&page=$page&pageSize=$pageSize';
       final url = '$baseUrl/api/areas?$query';
-      final response = await controller.httpClient
-          .get(Uri.parse(url), headers: await _getHeaders())
+      var headers = await _getHeaders();
+      var response = await controller.httpClient
+          .get(Uri.parse(url), headers: headers)
           .timeout(requestTimeout);
+
+      if (response.statusCode == 401) {
+        await controller.forceRefreshSession();
+        headers = await _getHeaders();
+        response = await controller.httpClient
+            .get(Uri.parse(url), headers: headers)
+            .timeout(requestTimeout);
+      }
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -68,6 +77,13 @@ class ReservasService {
           };
         }
       }
+
+      // Direct Supabase fallback if backend returns error (such as 403 or 500)
+      final fallbackResult = await _getAreasSupabaseFallback(soloActivas);
+      if (fallbackResult != null) {
+        return fallbackResult;
+      }
+
       final error = ErrorHandler.extractErrorMessage(
         response.body,
         statusCode: response.statusCode,
@@ -78,6 +94,8 @@ class ReservasService {
       return {'success': false, 'error': error, 'items': <AreaComunModel>[]};
     } on TimeoutException catch (e, s) {
       ErrorHandler.trackError(e, s, 'ReservasService.getAreas');
+      final fallbackResult = await _getAreasSupabaseFallback(soloActivas);
+      if (fallbackResult != null) return fallbackResult;
       return {
         'success': false,
         'error': 'Tiempo de espera agotado al consultar áreas comunes.',
@@ -85,6 +103,8 @@ class ReservasService {
       };
     } on SocketException catch (e, s) {
       ErrorHandler.trackError(e, s, 'ReservasService.getAreas');
+      final fallbackResult = await _getAreasSupabaseFallback(soloActivas);
+      if (fallbackResult != null) return fallbackResult;
       return {
         'success': false,
         'error': 'Sin conexión a internet al consultar áreas comunes.',
@@ -92,6 +112,8 @@ class ReservasService {
       };
     } on http.ClientException catch (e, s) {
       ErrorHandler.trackError(e, s, 'ReservasService.getAreas');
+      final fallbackResult = await _getAreasSupabaseFallback(soloActivas);
+      if (fallbackResult != null) return fallbackResult;
       return {
         'success': false,
         'error': 'Error de comunicación al consultar áreas comunes.',
@@ -106,6 +128,8 @@ class ReservasService {
       };
     } catch (e, s) {
       ErrorHandler.trackError(e, s, 'ReservasService.getAreas');
+      final fallbackResult = await _getAreasSupabaseFallback(soloActivas);
+      if (fallbackResult != null) return fallbackResult;
       return {
         'success': false,
         'error': ErrorHandler.parseException(
@@ -116,6 +140,35 @@ class ReservasService {
         'items': <AreaComunModel>[],
       };
     }
+  }
+
+  Future<Map<String, dynamic>?> _getAreasSupabaseFallback(bool soloActivas) async {
+    final sb = controller.supabaseClient;
+    if (sb == null) return null;
+    try {
+      dynamic query = sb.from('vw_areas_comunes').select();
+      if (soloActivas) {
+        query = query.eq('activo', true);
+      }
+      final data = await query.order('nombre', ascending: true);
+      if (data is List && data.isNotEmpty) {
+        final areas = data
+            .map((j) => AreaComunModel.fromJson(j as Map<String, dynamic>))
+            .toList();
+        return {
+          'success': true,
+          'items': areas,
+          'page': 1,
+          'pageSize': areas.length,
+          'totalCount': areas.length,
+          'totalPages': 1,
+          'hasNextPage': false,
+        };
+      }
+    } catch (e) {
+      debugPrint('[ReservasService] Supabase fallback areas failed: $e');
+    }
+    return null;
   }
 
   /// GET /api/areas/{id}
@@ -456,9 +509,18 @@ class ReservasService {
       }
 
       final url = '$baseUrl/api/reservas/calendario?$query';
-      final response = await controller.httpClient
-          .get(Uri.parse(url), headers: await _getHeaders())
+      var headers = await _getHeaders();
+      var response = await controller.httpClient
+          .get(Uri.parse(url), headers: headers)
           .timeout(requestTimeout);
+
+      if (response.statusCode == 401) {
+        await controller.forceRefreshSession();
+        headers = await _getHeaders();
+        response = await controller.httpClient
+            .get(Uri.parse(url), headers: headers)
+            .timeout(requestTimeout);
+      }
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -539,9 +601,18 @@ class ReservasService {
       }
 
       final url = '$baseUrl/api/reservas/mias?$query';
-      final response = await controller.httpClient
-          .get(Uri.parse(url), headers: await _getHeaders())
+      var headers = await _getHeaders();
+      var response = await controller.httpClient
+          .get(Uri.parse(url), headers: headers)
           .timeout(requestTimeout);
+
+      if (response.statusCode == 401) {
+        await controller.forceRefreshSession();
+        headers = await _getHeaders();
+        response = await controller.httpClient
+            .get(Uri.parse(url), headers: headers)
+            .timeout(requestTimeout);
+      }
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
