@@ -382,9 +382,11 @@ class AppController extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
+    final cleanEmail = email.trim().toLowerCase();
+
     try {
       final response = await _supabaseClient.auth.signInWithPassword(
-        email: email,
+        email: cleanEmail,
         password: password,
       );
 
@@ -464,7 +466,7 @@ class AppController extends ChangeNotifier {
     notifyListeners();
     try {
       final response = await _supabaseClient.auth.signUp(
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password: password,
         data: {
           'nombre': nombre.trim(),
