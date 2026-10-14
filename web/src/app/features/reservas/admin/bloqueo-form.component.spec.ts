@@ -38,7 +38,8 @@ describe('BloqueoFormComponent', () => {
 
   it('advierte que cancela reservas y que el bloqueo no se puede quitar', () => {
     expect(texto()).toContain('Bloquear fechas · Salón de usos múltiples');
-    expect(texto()).toContain('Las reservas pendientes o aprobadas que caigan en ese horario se cancelan');
+    expect(texto()).toContain('Las reservas pendientes o aprobadas que caigan en ese horario se cierran');
+    expect(texto()).toContain('se rechazan las pendientes y se cancelan las aprobadas');
     expect(texto()).toContain('Un bloqueo no se puede quitar después.');
   });
 
@@ -112,16 +113,16 @@ describe('BloqueoFormComponent', () => {
     expect(servicio.crearBloqueo).not.toHaveBeenCalled();
   });
 
-  it('dice cuántas reservas se cancelaron, en singular y plural, o que no había ninguna', async () => {
+  it('dice cuántas reservas quedaron rechazadas o canceladas, en singular y plural, o que no había ninguna', async () => {
     llenar();
 
     servicio.crearBloqueo.and.resolveTo(resultado(2));
     await component.bloquear();
-    expect((swal.calls.mostRecent().args[0] as any).text).toBe('Se cancelaron 2 reservas que caían en ese horario.');
+    expect((swal.calls.mostRecent().args[0] as any).text).toBe('2 reservas que caían en ese horario quedaron rechazadas o canceladas.');
 
     servicio.crearBloqueo.and.resolveTo(resultado(1));
     await component.bloquear();
-    expect((swal.calls.mostRecent().args[0] as any).text).toBe('Se cancelaron 1 reserva que caían en ese horario.');
+    expect((swal.calls.mostRecent().args[0] as any).text).toBe('Una reserva que caía en ese horario quedó rechazada o cancelada.');
 
     servicio.crearBloqueo.and.resolveTo(resultado(0));
     await component.bloquear();
