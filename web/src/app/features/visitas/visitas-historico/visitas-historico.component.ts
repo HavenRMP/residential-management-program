@@ -39,18 +39,18 @@ const ESTADOS = Object.keys(ETIQUETAS_ESTADO_VISITA) as EstadoVisita[];
       <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
           <div>
-            <label class="block text-xs font-semibold text-slate-800 mb-1">Desde</label>
-            <input type="date" [(ngModel)]="desde"
+            <label for="hist-desde" class="block text-xs font-semibold text-slate-800 mb-1">Desde</label>
+            <input id="hist-desde" type="date" [(ngModel)]="desde"
               class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
             </div>
             <div>
-              <label class="block text-xs font-semibold text-slate-800 mb-1">Hasta</label>
-              <input type="date" [(ngModel)]="hasta"
+              <label for="hist-hasta" class="block text-xs font-semibold text-slate-800 mb-1">Hasta</label>
+              <input id="hist-hasta" type="date" [(ngModel)]="hasta"
                 class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-800 mb-1">Vivienda</label>
-                <select [(ngModel)]="viviendaId"
+                <label for="hist-vivienda" class="block text-xs font-semibold text-slate-800 mb-1">Vivienda</label>
+                <select id="hist-vivienda" [(ngModel)]="viviendaId"
                   class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]">
                   <option [ngValue]="null">Todas</option>
                   @for (v of viviendas(); track v.id) {
@@ -59,8 +59,8 @@ const ESTADOS = Object.keys(ETIQUETAS_ESTADO_VISITA) as EstadoVisita[];
                 </select>
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-800 mb-1">Estado</label>
-                <select [(ngModel)]="estado"
+                <label for="hist-estado" class="block text-xs font-semibold text-slate-800 mb-1">Estado</label>
+                <select id="hist-estado" [(ngModel)]="estado"
                   class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]">
                   <option [ngValue]="null">Todos</option>
                   @for (e of estados; track e) {
