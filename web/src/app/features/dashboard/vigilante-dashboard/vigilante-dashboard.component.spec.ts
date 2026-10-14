@@ -16,6 +16,9 @@ class CasetaStub {}
 @Component({ selector: 'app-directorio-casas', standalone: true, changeDetection: ChangeDetectionStrategy.Eager,
  template: '<p>directorio</p>' })
 class DirectorioStub {}
+@Component({ selector: 'app-paqueteria-caseta', standalone: true, changeDetection: ChangeDetectionStrategy.Eager,
+ template: '<p>paquetes</p>' })
+class PaquetesStub {}
 @Component({ selector: 'app-reservas-caseta', standalone: true, changeDetection: ChangeDetectionStrategy.Eager,
  template: '<p>reservas</p>' })
 class ReservasStub {}
@@ -34,24 +37,25 @@ describe('VigilanteDashboardComponent', () => {
       imports: [VigilanteDashboardComponent],
       providers: [{ provide: AuthService, useValue: { currentUser: signal(null), logout: () => undefined } }]
     }).overrideComponent(VigilanteDashboardComponent, {
-      set: { imports: [CommonModule, UserMenuStub, CasetaStub, DirectorioStub, AvisosStub, ReservasStub] }
+      set: { imports: [CommonModule, UserMenuStub, CasetaStub, DirectorioStub, AvisosStub, ReservasStub, PaquetesStub] }
     });
     fixture = TestBed.createComponent(VigilanteDashboardComponent);
     fixture.detectChanges();
   });
 
   it('abre en la vista de Caseta, con los avisos al lado, y oculta el directorio', () => {
-    expect(pestanas().map(p => p.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false']);
+    expect(pestanas().map(p => p.textContent!.trim())).toEqual(['Caseta', 'Paquetes', 'Directorio', 'Reservas']);
+    expect(pestanas().map(p => p.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false', 'false']);
     expect(contenedorDe('app-caseta-visitas').parentElement!.classList.contains('hidden')).toBeFalse();
     expect(fixture.nativeElement.querySelector('app-avisos-caseta')).not.toBeNull();
     expect(contenedorDe('app-directorio-casas').classList.contains('hidden')).toBeTrue();
   });
 
   it('al elegir Directorio muestra la lista de personas y oculta la caseta', () => {
-    pestanas()[1].click();
+    pestanas()[2].click();
     fixture.detectChanges();
 
-    expect(pestanas().map(p => p.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false']);
+    expect(pestanas().map(p => p.getAttribute('aria-selected'))).toEqual(['false', 'false', 'true', 'false']);
     expect(contenedorDe('app-directorio-casas').classList.contains('hidden')).toBeFalse();
     expect(contenedorDe('app-caseta-visitas').parentElement!.classList.contains('hidden')).toBeTrue();
   });
@@ -59,18 +63,18 @@ describe('VigilanteDashboardComponent', () => {
   it('Reservas no se carga al entrar al portal: solo la primera vez que se abre', () => {
     expect(fixture.nativeElement.querySelector('app-reservas-caseta')).toBeNull();
 
-    pestanas()[2].click();
+    pestanas()[3].click();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('app-reservas-caseta')).not.toBeNull();
-    expect(pestanas().map(p => p.getAttribute('aria-selected'))).toEqual(['false', 'false', 'true']);
+    expect(pestanas().map(p => p.getAttribute('aria-selected'))).toEqual(['false', 'false', 'false', 'true']);
     expect(contenedorDe('app-reservas-caseta').classList.contains('hidden')).toBeFalse();
     expect(contenedorDe('app-caseta-visitas').parentElement!.classList.contains('hidden')).toBeTrue();
     expect(contenedorDe('app-directorio-casas').classList.contains('hidden')).toBeTrue();
   });
 
   it('al salir de Reservas se oculta sin destruirse, para conservar el periodo y el área elegidos', () => {
-    pestanas()[2].click();
+    pestanas()[3].click();
     fixture.detectChanges();
     const reservas = fixture.nativeElement.querySelector('app-reservas-caseta');
 
@@ -78,15 +82,41 @@ describe('VigilanteDashboardComponent', () => {
     fixture.detectChanges();
 
     expect(contenedorDe('app-reservas-caseta').classList.contains('hidden')).toBeTrue();
-    pestanas()[2].click();
+    pestanas()[3].click();
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('app-reservas-caseta')).toBe(reservas);
+  });
+
+  it('Paquetes no se carga al entrar al portal: solo la primera vez que se abre', () => {
+    expect(fixture.nativeElement.querySelector('app-paqueteria-caseta')).toBeNull();
+
+    pestanas()[1].click();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('app-paqueteria-caseta')).not.toBeNull();
+    expect(pestanas().map(p => p.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false', 'false']);
+    expect(contenedorDe('app-paqueteria-caseta').classList.contains('hidden')).toBeFalse();
+    expect(contenedorDe('app-caseta-visitas').parentElement!.classList.contains('hidden')).toBeTrue();
+  });
+
+  it('al salir de Paquetes se oculta sin destruirse, para conservar la pestaña y la búsqueda', () => {
+    pestanas()[1].click();
+    fixture.detectChanges();
+    const paquetes = fixture.nativeElement.querySelector('app-paqueteria-caseta');
+
+    pestanas()[0].click();
+    fixture.detectChanges();
+
+    expect(contenedorDe('app-paqueteria-caseta').classList.contains('hidden')).toBeTrue();
+    pestanas()[1].click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('app-paqueteria-caseta')).toBe(paquetes);
   });
 
   it('cambiar de vista no destruye la caseta, para conservar su búsqueda y su pestaña', () => {
     const caseta = fixture.nativeElement.querySelector('app-caseta-visitas');
 
-    pestanas()[1].click();
+    pestanas()[2].click();
     fixture.detectChanges();
     pestanas()[0].click();
     fixture.detectChanges();

@@ -6,11 +6,14 @@ import { CasetaVisitasComponent } from '../../visitas/caseta-visitas/caseta-visi
 import { AvisosCasetaComponent } from '../../avisos/avisos-caseta/avisos-caseta.component';
 import { DirectorioCasasComponent } from '../../visitas/directorio-casas/directorio-casas.component';
 import { ReservasCasetaComponent } from '../../reservas/caseta/reservas-caseta.component';
+import { PaqueteriaCasetaComponent } from '../../paqueteria/caseta/paqueteria-caseta.component';
+
+type Vista = 'caseta' | 'paquetes' | 'directorio' | 'reservas';
 
 @Component({
   selector: 'app-vigilante-dashboard',
   standalone: true,
-  imports: [CommonModule, UserMenuComponent, CasetaVisitasComponent, DirectorioCasasComponent, AvisosCasetaComponent, ReservasCasetaComponent],
+  imports: [CommonModule, UserMenuComponent, CasetaVisitasComponent, DirectorioCasasComponent, AvisosCasetaComponent, ReservasCasetaComponent, PaqueteriaCasetaComponent],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="min-h-screen bg-[#F7F7F7] text-[#0f172a] font-sans antialiased">
@@ -39,42 +42,24 @@ import { ReservasCasetaComponent } from '../../reservas/caseta/reservas-caseta.c
             Control de Caseta y Accesos
           </h1>
           <p class="text-sm text-slate-600 mt-1">
-            Valida códigos, registra entradas y salidas, consulta a quién llamar en cada casa y revisa las reservas de áreas comunes.
+            Valida códigos, recibe y entrega paquetes, consulta a quién llamar en cada casa y revisa las reservas de áreas comunes.
           </p>
         </div>
 
-        <!-- Tres vistas para no saturar la pantalla: la caseta del día, el directorio de personas y las reservas de áreas comunes -->
-        <div class="flex items-center p-1 bg-slate-200/80 rounded-lg text-xs font-semibold text-slate-700 w-fit" role="tablist" aria-label="Secciones del portal de vigilancia">
-          <button
-            type="button"
-            role="tab"
-            [attr.aria-selected]="vista() === 'caseta'"
-            (click)="elegirVista('caseta')"
-            class="px-4 py-1.5 rounded-md transition-all cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
-            [ngClass]="vista() === 'caseta' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-700'"
-          >
-            Caseta
-          </button>
-          <button
-            type="button"
-            role="tab"
-            [attr.aria-selected]="vista() === 'directorio'"
-            (click)="elegirVista('directorio')"
-            class="px-4 py-1.5 rounded-md transition-all cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
-            [ngClass]="vista() === 'directorio' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-700'"
-          >
-            Directorio
-          </button>
-          <button
-            type="button"
-            role="tab"
-            [attr.aria-selected]="vista() === 'reservas'"
-            (click)="elegirVista('reservas')"
-            class="px-4 py-1.5 rounded-md transition-all cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
-            [ngClass]="vista() === 'reservas' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-700'"
-          >
-            Reservas
-          </button>
+        <!-- Cuatro vistas para no saturar la pantalla. Las pestañas son grandes: quien atiende la caseta las toca de pie y con prisa -->
+        <div class="grid grid-cols-2 sm:flex sm:w-fit items-center gap-1 p-1 bg-slate-200/80 rounded-lg text-sm sm:text-base font-semibold text-slate-700" role="tablist" aria-label="Secciones del portal de vigilancia">
+          @for (s of secciones; track s.id) {
+            <button
+              type="button"
+              role="tab"
+              [attr.aria-selected]="vista() === s.id"
+              (click)="elegirVista(s.id)"
+              class="min-h-11 px-5 py-2 rounded-md transition-all cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
+              [ngClass]="vista() === s.id ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-700 hover:bg-white/60'"
+            >
+              {{ s.texto }}
+            </button>
+          }
         </div>
 
         <!-- Las dos vistas se ocultan en vez de destruirse, para no perder la búsqueda ni la pestaña elegida -->
@@ -86,6 +71,13 @@ import { ReservasCasetaComponent } from '../../reservas/caseta/reservas-caseta.c
             <app-avisos-caseta />
           </aside>
         </div>
+
+        <!-- Los paquetes se piden la primera vez que se abre la vista, no al entrar al portal -->
+        @if (paquetesAbierta()) {
+          <div [class.hidden]="vista() !== 'paquetes'">
+            <app-paqueteria-caseta />
+          </div>
+        }
 
         <div [class.hidden]="vista() !== 'directorio'">
           <app-directorio-casas />
@@ -104,12 +96,20 @@ import { ReservasCasetaComponent } from '../../reservas/caseta/reservas-caseta.c
 export class VigilanteDashboardComponent {
   private readonly authService = inject(AuthService);
   readonly currentUser = this.authService.currentUser;
-  readonly vista = signal<'caseta' | 'directorio' | 'reservas'>('caseta');
-  /** Pasa a true la primera vez que se abre Reservas y ya no vuelve a false: la vista se oculta, no se destruye */
+  readonly secciones: { id: Vista; texto: string }[] = [
+    { id: 'caseta', texto: 'Caseta' },
+    { id: 'paquetes', texto: 'Paquetes' },
+    { id: 'directorio', texto: 'Directorio' },
+    { id: 'reservas', texto: 'Reservas' }
+  ];
+  readonly vista = signal<Vista>('caseta');
+  /** Pasan a true la primera vez que se abre la vista y ya no vuelven a false: la vista se oculta, no se destruye */
   readonly reservasAbierta = signal<boolean>(false);
+  readonly paquetesAbierta = signal<boolean>(false);
 
-  elegirVista(vista: 'caseta' | 'directorio' | 'reservas'): void {
+  elegirVista(vista: Vista): void {
     if (vista === 'reservas') this.reservasAbierta.set(true);
+    if (vista === 'paquetes') this.paquetesAbierta.set(true);
     this.vista.set(vista);
   }
 
