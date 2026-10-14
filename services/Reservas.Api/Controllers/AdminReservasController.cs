@@ -196,6 +196,12 @@ public class AdminReservasController : ControllerBase
 
         try
         {
+            var reserva = await _supabaseService.GetReservaAdminByIdAsync(id, condominioId.Value);
+            if (reserva != null && string.Equals(reserva.Tipo, "BLOQUEO", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { error = "No se puede cancelar un bloqueo a través de este endpoint." });
+            }
+
             var result = await _supabaseService.CancelarReservaAdminAsync(userId, id, dto.Motivo);
             if (result) return NoContent();
             return BadRequest(new { error = "No se pudo completar la operación" });

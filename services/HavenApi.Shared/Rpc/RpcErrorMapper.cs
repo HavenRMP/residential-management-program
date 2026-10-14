@@ -52,6 +52,11 @@ public static class RpcErrorMapper
             "RE013" => (409, "La reserva aún no termina, no puede marcarse como no utilizada."),
             "RE014" => (403, "El área o la reserva pertenece a otro condominio."),
             "RE015" => (404, "No se encontró un titular para el usuario."),
+            "NT001" => (404, "El usuario destinatario no existe."),
+            "NT002" => (400, "No se pueden enviar notificaciones a un usuario inactivo."),
+            "NT003" => (400, "El tipo de evento no puede estar vacío."),
+            "NT004" => (400, "El título de la notificación no puede estar vacío."),
+            "NT005" => (400, "El mensaje de la notificación no puede estar vacío."),
             _ => (500, $"Ocurrió un error inesperado al procesar el código. (Código: {ex.Code})")
         };
     }

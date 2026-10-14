@@ -401,6 +401,59 @@ public class AdminReservasYBloqueosControllerTests : IClassFixture<ReservasApiFa
     }
 
     [Fact]
+    public async Task CancelarReserva_SiEsBloqueo_Retorna400BadRequest()
+    {
+        var userId = Guid.NewGuid();
+        var bloqueoId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        SetupUserContext(userId, "Administrador", condominioId);
+
+        _factory.MockSupabaseService
+            .Setup(s => s.GetReservaAdminByIdAsync(bloqueoId, condominioId))
+            .ReturnsAsync(new ReservaAdminDto { Id = bloqueoId, Tipo = "BLOQUEO" });
+
+        var client = CreateAuthenticatedClient(userId);
+
+        var response = await client.PostAsJsonAsync(
+            $"/api/admin/reservas/{bloqueoId}/cancelar",
+            new MotivoObligatorioRequestDto { Motivo = "Cancelar bloqueo" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await AssertErrorResponseAsync(
+            response,
+            HttpStatusCode.BadRequest,
+            "No se puede cancelar un bloqueo a través de este endpoint.");
+    }
+
+    [Fact]
+    public async Task CancelarReserva_ErrorRpcNT001_Retorna404ConMensajeMapeado()
+    {
+        var userId = Guid.NewGuid();
+        var reservaId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        SetupUserContext(userId, "Administrador", condominioId);
+
+        _factory.MockSupabaseService
+            .Setup(s => s.GetReservaAdminByIdAsync(reservaId, condominioId))
+            .ReturnsAsync(new ReservaAdminDto { Id = reservaId, Tipo = "RESERVA" });
+
+        _factory.MockSupabaseService
+            .Setup(s => s.CancelarReservaAdminAsync(userId, reservaId, "Motivo"))
+            .ThrowsAsync(new SupabaseRpcException("NT001", "Usuario no existe"));
+
+        var client = CreateAuthenticatedClient(userId);
+
+        var response = await client.PostAsJsonAsync(
+            $"/api/admin/reservas/{reservaId}/cancelar",
+            new MotivoObligatorioRequestDto { Motivo = "Motivo" });
+
+        await AssertErrorResponseAsync(
+            response,
+            HttpStatusCode.NotFound,
+            "El usuario destinatario no existe.");
+    }
+
+    [Fact]
     public async Task AprobarReserva_ErrorRpcRE009_Retorna409ConMensajeMapeado()
     {
         var userId = Guid.NewGuid();

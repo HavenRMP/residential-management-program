@@ -300,6 +300,25 @@ public class SupabaseService : ISupabaseService
             _httpClient, _supabaseUrl, _serviceRoleKey, _serviceRoleKey, resourcePath, paginacion);
     }
 
+    public async Task<ReservaAdminDto?> GetReservaAdminByIdAsync(Guid id, Guid condominioId)
+    {
+        var requestUrl = $"{_supabaseUrl}/rest/v1/vw_reservas_admin?id=eq.{id}&condominio_id=eq.{condominioId}&select=*";
+        var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+        request.Headers.Add("apikey", _serviceRoleKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
+
+        var response = await SendRequestAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to fetch reserva admin {Id}. Status: {StatusCode}", id, response.StatusCode);
+            return null;
+        }
+
+        var reservas = await ParseJsonAsync<List<ReservaAdminDto>>(response.Content);
+        return reservas?.FirstOrDefault();
+    }
+
     public async Task<(List<NoShowDto>? Items, int? TotalCount)> GetNoShowsAsync(Guid condominioId, Guid? titularId, PaginationParams paginacion)
     {
         var resourcePath = $"vw_no_shows?condominio_id=eq.{condominioId}";
