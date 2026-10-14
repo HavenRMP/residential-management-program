@@ -8,7 +8,8 @@ export const environment = {
     viviendas: 'https://viviendas-api.onrender.com',
     condominios: 'https://condominios-api-vv32.onrender.com',
     avisos: 'https://avisos-api-qg5b.onrender.com',
-    visitas: 'https://visitas-api-r66s.onrender.com'
+    visitas: 'https://visitas-api-r66s.onrender.com',
+    reservas: 'https://reservas-api-hmos.onrender.com'
   },
   get apiUrl(): string { return this.services.default; },
   get usuariosApiUrl(): string { return this.services.usuarios; }
