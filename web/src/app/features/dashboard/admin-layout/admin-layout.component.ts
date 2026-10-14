@@ -254,6 +254,31 @@ import { NotificacionesPopoverComponent } from '../../../core/components/notific
                 <span class="whitespace-nowrap font-medium fade-in-direct">Visitas</span>
               }
             </a>
+
+            <!-- Reservas -->
+            <a
+              routerLink="/dashboard/admin/reservas"
+              [routerLinkActiveOptions]="{ exact: false }"
+              routerLinkActive="bg-[#111C99] text-white font-semibold shadow-xs"
+              class="flex items-center h-10 rounded-lg text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer group whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111C99]"
+              [class.px-3]="!sidebarCollapsed()"
+              [class.px-0]="sidebarCollapsed()"
+              [class.justify-center]="sidebarCollapsed()"
+              [title]="sidebarCollapsed() ? 'Reservas' : ''"
+              aria-label="Reservas"
+              (click)="mobileMenuOpen.set(false)"
+              >
+              <svg
+                class="w-5 h-5 shrink-0 transition-transform group-hover:scale-105"
+                [class.mr-3]="!sidebarCollapsed()"
+                fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2zm4-6l2 2 4-4" />
+              </svg>
+              @if (showText()) {
+                <span class="whitespace-nowrap font-medium fade-in-direct">Reservas</span>
+              }
+            </a>
           </nav>
         </div>
     
