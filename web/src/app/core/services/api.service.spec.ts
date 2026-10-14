@@ -18,6 +18,12 @@ describe('ApiService.resolveUrl', () => {
     expect(api.resolveUrl('/API/Paqueteria/servicios')).toBe(`${environment.services.visitas}/API/Paqueteria/servicios`);
   });
 
+  it('enruta áreas, reservas, administración de reservas y bloqueos al microservicio de reservas', () => {
+    for (const ruta of ['/api/areas', '/api/areas/abc/baja', '/api/reservas/mias', '/api/reservas/calendario', '/api/admin/reservas', '/api/admin/reservas/no-shows', '/api/admin/bloqueos']) {
+      expect(api.resolveUrl(ruta)).withContext(ruta).toBe(`${environment.services.reservas}${ruta}`);
+    }
+  });
+
   it('respeta el microservicio indicado y las URL completas', () => {
     expect(api.resolveUrl('/api/paqueteria', 'viviendas')).toBe(`${environment.services.viviendas}/api/paqueteria`);
     expect(api.resolveUrl('https://otro.example.com/x')).toBe('https://otro.example.com/x');
