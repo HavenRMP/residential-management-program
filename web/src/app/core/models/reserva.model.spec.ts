@@ -6,11 +6,13 @@ import {
   ocupaHorario,
   ordenarHistorial,
   ordenarProximas,
+  estadoMostrado,
   reservaConcluida,
   reservaEsCancelable,
   reservaEsConfirmable,
   reservaEsMarcableNoUtilizada,
-  reservaEsProxima
+  reservaEsProxima,
+  reservaEstaConfirmada
 } from './reserva.model';
 
 const ahora = new Date('2026-10-13T12:00:00Z').getTime();
@@ -31,6 +33,30 @@ describe('reserva.model', () => {
   it('normaliza el estado y el tipo de una reserva y asume RESERVA si el tipo no viene', () => {
     expect(normalizarReserva({ estado: 'aprobada', tipo: 'bloqueo' })).toEqual({ estado: 'APROBADA', tipo: 'BLOQUEO' });
     expect(normalizarReserva<{ estado: string; tipo?: string }>({ estado: 'PENDIENTE_ADMIN' })).toEqual({ estado: 'PENDIENTE_ADMIN', tipo: 'RESERVA' });
+  });
+
+  describe('asistencia confirmada', () => {
+    it('una reserva aprobada con confirmadaEn ya está confirmada aunque el estado siga siendo APROBADA', () => {
+      expect(reservaEstaConfirmada({ estado: 'APROBADA', confirmadaEn: '2026-10-14T03:35:38Z' })).toBeTrue();
+      expect(estadoMostrado({ estado: 'APROBADA', confirmadaEn: '2026-10-14T03:35:38Z' })).toBe('CONFIRMADA');
+    });
+
+    it('sin confirmadaEn sigue aprobada; el estado CONFIRMADA también cuenta', () => {
+      expect(reservaEstaConfirmada({ estado: 'APROBADA', confirmadaEn: null })).toBeFalse();
+      expect(estadoMostrado({ estado: 'APROBADA' })).toBe('APROBADA');
+      expect(reservaEstaConfirmada({ estado: 'CONFIRMADA' })).toBeTrue();
+    });
+
+    it('una reserva cancelada no figura como confirmada aunque conserve la fecha', () => {
+      expect(reservaEstaConfirmada({ estado: 'CANCELADA', confirmadaEn: '2026-10-14T03:35:38Z' })).toBeFalse();
+      expect(estadoMostrado({ estado: 'CANCELADA', confirmadaEn: '2026-10-14T03:35:38Z' })).toBe('CANCELADA');
+    });
+
+    it('una ya confirmada no se vuelve a ofrecer para confirmar', () => {
+      const confirmada = reserva('APROBADA', 5 * 24, 2, { confirmadaEn: enHoras(-1) });
+
+      expect(reservaEsConfirmable(confirmada, ahora)).toBeFalse();
+    });
   });
 
   describe('reservaEsConfirmable', () => {
