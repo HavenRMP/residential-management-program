@@ -142,9 +142,9 @@ export class ReservasAdminService {
     return creada;
   }
 
-  /** Corrige el nombre, la descripción o el horario de un área (PUT /api/areas/{id}) */
+  /** Corrige el nombre, la descripción o el horario de un área (PATCH /api/areas/{id}; el ejemplo .http del backend dice PUT pero el controlador expone PATCH) */
   async actualizarArea(id: string, dto: Partial<GuardarAreaDto>): Promise<AreaComun> {
-    const actualizada = await firstValueFrom(this.apiService.put<AreaComun>(`/api/areas/${id}`, dto, undefined, 'reservas'));
+    const actualizada = await firstValueFrom(this.apiService.patch<AreaComun>(`/api/areas/${id}`, dto, undefined, 'reservas'));
     this.areas.update(lista => lista.map(a => (a.id === id ? { ...a, ...actualizada } : a)));
     return actualizada;
   }
