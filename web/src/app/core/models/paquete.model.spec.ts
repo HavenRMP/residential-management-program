@@ -2,6 +2,9 @@ import {
   Paquete,
   estadoEfectivoPaquete,
   fechaActividadPaquete,
+  llegaHoy,
+  ordenarEsperadosParaCaseta,
+  ordenarPaquetesEnCaseta,
   ordenarPaquetesPendientes,
   ordenarPaquetesRecientesPrimero,
   paqueteCoincideConBusqueda,
@@ -127,6 +130,60 @@ describe('paquete.model', () => {
     it('sin fechas válidas devuelve texto vacío', () => {
       expect(textoVentanaPaquete({})).toBe('');
       expect(textoVentanaPaquete({ fechaEsperadaDesde: '0001-01-01T00:00:00Z', fechaEsperadaHasta: 'basura' })).toBe('');
+    });
+  });
+
+  describe('caseta', () => {
+    // Mediodía del 12 de octubre en la hora local: así "hoy" no depende de la zona horaria de quien corre la prueba
+    const mediodia = new Date(2026, 9, 12, 12).getTime();
+    const dia = (d: number, h = 12) => new Date(2026, 9, d, h).toISOString();
+
+    describe('llegaHoy', () => {
+      it('una ventana que incluye hoy llega hoy', () => {
+        expect(llegaHoy({ fechaEsperadaDesde: dia(10), fechaEsperadaHasta: dia(14) }, mediodia)).toBeTrue();
+        expect(llegaHoy({ fechaEsperadaDesde: dia(12, 0), fechaEsperadaHasta: dia(12, 23) }, mediodia)).toBeTrue();
+      });
+
+      it('sin fechas puede llegar cualquier día, así que cuenta como hoy', () => {
+        expect(llegaHoy({}, mediodia)).toBeTrue();
+      });
+
+      it('una ventana que empieza mañana o que terminó ayer no llega hoy', () => {
+        expect(llegaHoy({ fechaEsperadaDesde: dia(13, 0), fechaEsperadaHasta: dia(15) }, mediodia)).toBeFalse();
+        expect(llegaHoy({ fechaEsperadaDesde: dia(9), fechaEsperadaHasta: dia(11, 23) }, mediodia)).toBeFalse();
+      });
+
+      it('con solo un extremo se comporta como ventana abierta de ese lado', () => {
+        expect(llegaHoy({ fechaEsperadaHasta: dia(20) }, mediodia)).toBeTrue();
+        expect(llegaHoy({ fechaEsperadaDesde: dia(20) }, mediodia)).toBeFalse();
+      });
+    });
+
+    describe('ordenarEsperadosParaCaseta', () => {
+      it('los de hoy primero y, dentro de cada grupo, el aviso más reciente arriba', () => {
+        const lista: Paquete[] = [
+          { ...base, id: 'futuro', fechaEsperadaDesde: dia(20), fechaEsperadaHasta: dia(22), creadoEn: dia(1) },
+          { ...base, id: 'hoy-viejo', creadoEn: dia(2) },
+          { ...base, id: 'hoy-nuevo', creadoEn: dia(5) }
+        ];
+
+        const orden = ordenarEsperadosParaCaseta(lista, mediodia).map(p => p.id);
+
+        expect(orden).toEqual(['hoy-nuevo', 'hoy-viejo', 'futuro']);
+        expect(lista.map(p => p.id)).toEqual(['futuro', 'hoy-viejo', 'hoy-nuevo']);
+      });
+    });
+
+    describe('ordenarPaquetesEnCaseta', () => {
+      it('el que lleva más tiempo en caseta va primero', () => {
+        const lista: Paquete[] = [
+          { ...base, id: 'reciente', estado: 'recibido', recibidoEn: dia(11) },
+          { ...base, id: 'antiguo', estado: 'recibido', recibidoEn: dia(3) },
+          { ...base, id: 'sin-fecha', estado: 'recibido', creadoEn: dia(7) }
+        ];
+
+        expect(ordenarPaquetesEnCaseta(lista).map(p => p.id)).toEqual(['antiguo', 'sin-fecha', 'reciente']);
+      });
     });
   });
 });
