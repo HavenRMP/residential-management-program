@@ -109,19 +109,16 @@ export class ReservasService {
   }
 
   /**
-   * Lo que ocupa un área entre dos instantes: reservas pendientes y aprobadas de cualquier casa y bloqueos.
+   * Lo que ocupa un área (o todas, sin `areaId`) entre dos instantes: reservas y bloqueos. Qué estados llegan depende del rol:
+   * el residente ve también pendientes y canceladas de otras casas; el vigilante solo las aprobadas.
    * No toca el estado compartido; el backend admite hasta 62 días por consulta.
    * (GET /api/reservas/calendario)
    */
-  async calendario(areaId: string, desde: string, hasta: string): Promise<ReservaCalendario[]> {
+  async calendario(areaId: string | null, desde: string, hasta: string): Promise<ReservaCalendario[]> {
     const todos: ReservaCalendario[] = [];
     for (let page = 1; page <= MAX_PAGINAS; page++) {
-      const params = new HttpParams()
-        .set('from', desde)
-        .set('to', hasta)
-        .set('areaId', areaId)
-        .set('page', page.toString())
-        .set('pageSize', '100');
+      let params = new HttpParams().set('from', desde).set('to', hasta).set('page', page.toString()).set('pageSize', '100');
+      if (areaId) params = params.set('areaId', areaId);
       const response = await firstValueFrom(this.apiService.get<any>('/api/reservas/calendario', params, undefined, 'reservas'));
       const lote = extractPagedItems<ReservaCalendario>(response).map(normalizarReserva);
       todos.push(...lote);
