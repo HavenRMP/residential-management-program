@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import Swal from 'sweetalert2';
 import { ReservasAdminService } from '../../../core/services/reservas-admin.service';
@@ -50,9 +50,23 @@ import { BloqueoFormComponent } from './bloqueo-form.component';
         </div>
       }
 
-      @if (servicio.areas().length > 0) {
+      @if (!servicio.isLoadingAreas() && !servicio.errorAreas() && activas().length === 0 && deBaja().length > 0) {
+        <div class="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center space-y-1">
+          <p class="text-sm font-semibold text-slate-900">No hay áreas activas</p>
+          <p class="text-xs text-slate-500">Los residentes no pueden reservar nada. Reactiva un área o da de alta una nueva.</p>
+        </div>
+      }
+
+      @if (deBaja().length > 0) {
+        <button type="button" (click)="verBajas.set(!verBajas())" [attr.aria-expanded]="verBajas()"
+          class="h-8 px-3 text-xs font-medium rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer">
+          {{ verBajas() ? 'Ocultar' : 'Mostrar' }} áreas dadas de baja ({{ deBaja().length }})
+        </button>
+      }
+
+      @if (visibles().length > 0) {
         <ul class="grid grid-cols-1 xl:grid-cols-2 gap-3">
-          @for (a of servicio.areas(); track a.id) {
+          @for (a of visibles(); track a.id) {
             <li class="rounded-xl border bg-white p-4 shadow-xs space-y-3" [ngClass]="a.activo ? 'border-slate-200' : 'border-slate-200 bg-slate-50/70'">
               <div class="flex flex-wrap items-start justify-between gap-2">
                 <div class="min-w-0">
@@ -103,6 +117,13 @@ export class AreasAdminComponent implements OnInit {
   readonly areaBloqueo = signal<AreaComun | null>(null);
   /** Id del área a la que se le está dando de baja o reactivando */
   readonly procesando = signal<string | null>(null);
+  /** Las áreas dadas de baja no se pueden borrar y se acumulan: se esconden hasta que se piden */
+  readonly verBajas = signal<boolean>(false);
+
+  readonly activas = computed(() => this.servicio.areas().filter(a => a.activo));
+  readonly deBaja = computed(() => this.servicio.areas().filter(a => !a.activo));
+  /** Primero las activas; las dadas de baja solo si se pidieron */
+  readonly visibles = computed(() => (this.verBajas() ? [...this.activas(), ...this.deBaja()] : this.activas()));
 
   ngOnInit(): void {
     void this.servicio.cargarAreas();
