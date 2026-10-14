@@ -80,7 +80,7 @@ describe('ReservaFormComponent', () => {
     expect(campo('res-fecha')!.max).toBe(limites.max);
     expect(texto()).toContain('2. Elige el día');
     // Las fechas límite se leen como día legible, no como yyyy-MM-dd
-    expect(texto()).toMatch(/Del \w+, \d{1,2} de \w+ de \d{4} al \w+, \d{1,2} de \w+ de \d{4}\./);
+    expect(texto()).toMatch(/Del [\p{L}.]+, \d{1,2} de [\p{L}]+ de \d{4} al [\p{L}.]+, \d{1,2} de [\p{L}]+ de \d{4}\./u);
     expect(texto()).not.toContain(limites.min);
   });
 
