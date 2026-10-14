@@ -39,6 +39,7 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
   List<AreaComunModel> _areas = [];
   bool _isLoadingAreas = true;
   String? _errorAreas;
+  bool _verBajas = false;
 
   // Tab 4: No-Shows
   List<ReservaModel> _noShows = [];
@@ -1259,6 +1260,10 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
   // TAB 3: ÁREAS COMUNES
   // ─────────────────────────────────────────────────────────────
   Widget _buildAreasTab() {
+    final activas = _areas.where((a) => a.activo).toList();
+    final deBaja = _areas.where((a) => !a.activo).toList();
+    final visibles = _verBajas ? [...activas, ...deBaja] : activas;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: RefreshIndicator(
@@ -1267,94 +1272,153 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
             ? const Center(child: CircularProgressIndicator())
             : _errorAreas != null && _areas.isEmpty
                 ? _buildErrorView(_errorAreas!, _cargarAreas)
-                : ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: _areas.length,
-                itemBuilder: (ctx, idx) {
-                  final area = _areas[idx];
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 14),
+                : ListView(
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                area.nombre,
-                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    children: [
+                      if (activas.isEmpty && deBaja.isNotEmpty)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 14),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFCBD5E1)),
+                          ),
+                          child: const Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Text(
+                                'No hay áreas activas',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
                               ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: area.activo ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: area.activo ? const Color(0xFFA7F3D0) : const Color(0xFFFCA5A5),
-                                ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Los residentes no pueden reservar nada. Reactiva un área o da de alta una nueva.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                               ),
-                              child: Text(
-                                area.activo ? 'Activa' : 'Dada de Baja',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: area.activo ? const Color(0xFF047857) : const Color(0xFFDC2626),
-                                ),
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                        if (area.descripcion != null && area.descripcion!.isNotEmpty) ...[
-                          const SizedBox(height: 6),
-                          Text(area.descripcion!, style: const TextStyle(fontSize: 13, color: Color(0xFF64748B))),
-                        ],
-                        const SizedBox(height: 10),
-                        Text(
-                          'Horario: ${area.horarioFormateado}',
-                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
-                        ),
-                        const SizedBox(height: 12),
-                        const Divider(height: 1),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            TextButton.icon(
-                              onPressed: () => _abrirModalEditarArea(area),
-                              icon: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF111C99)),
-                              label: const Text('Editar', style: TextStyle(color: Color(0xFF111C99), fontSize: 13)),
-                            ),
-                            const SizedBox(width: 8),
-                            TextButton.icon(
-                              onPressed: () => _cambiarEstadoArea(area),
+                      if (deBaja.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: OutlinedButton.icon(
+                              onPressed: () => setState(() => _verBajas = !_verBajas),
                               icon: Icon(
-                                area.activo ? Icons.block_rounded : Icons.replay_rounded,
+                                _verBajas ? Icons.visibility_off_outlined : Icons.visibility_outlined,
                                 size: 16,
-                                color: area.activo ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                                color: const Color(0xFF475569),
                               ),
                               label: Text(
-                                area.activo ? 'Dar de Baja' : 'Reactivar',
-                                style: TextStyle(
-                                  color: area.activo ? const Color(0xFFDC2626) : const Color(0xFF059669),
-                                  fontSize: 13,
-                                ),
+                                '${_verBajas ? 'Ocultar' : 'Mostrar'} áreas dadas de baja (${deBaja.length})',
+                                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Color(0xFFCBD5E1)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                               ),
                             ),
-                          ],
+                          ),
                         ),
-                      ],
-                    ),
-                  );
-                },
-              ),
+                      if (visibles.isEmpty && deBaja.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 40),
+                          child: Center(
+                            child: Text(
+                              'El condominio aún no tiene áreas comunes registradas.',
+                              style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                            ),
+                          ),
+                        )
+                      else
+                        ...visibles.map((area) {
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 14),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: area.activo ? Colors.white : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        area.nombre,
+                                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: area.activo ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: area.activo ? const Color(0xFFA7F3D0) : const Color(0xFFFCA5A5),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        area.activo ? 'Activa' : 'Dada de Baja',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: area.activo ? const Color(0xFF047857) : const Color(0xFFDC2626),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (area.descripcion != null && area.descripcion!.isNotEmpty) ...[
+                                  const SizedBox(height: 6),
+                                  Text(area.descripcion!, style: const TextStyle(fontSize: 13, color: Color(0xFF64748B))),
+                                ],
+                                const SizedBox(height: 10),
+                                Text(
+                                  'Horario: ${area.horarioFormateado}',
+                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
+                                ),
+                                const SizedBox(height: 12),
+                                const Divider(height: 1),
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    TextButton.icon(
+                                      onPressed: () => _abrirModalEditarArea(area),
+                                      icon: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF111C99)),
+                                      label: const Text('Editar', style: TextStyle(color: Color(0xFF111C99), fontSize: 13)),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    TextButton.icon(
+                                      onPressed: () => _cambiarEstadoArea(area),
+                                      icon: Icon(
+                                        area.activo ? Icons.block_rounded : Icons.replay_rounded,
+                                        size: 16,
+                                        color: area.activo ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                                      ),
+                                      label: Text(
+                                        area.activo ? 'Dar de Baja' : 'Reactivar',
+                                        style: TextStyle(
+                                          color: area.activo ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                    ],
+                  ),
       ),
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
