@@ -10,6 +10,7 @@ import { OcupacionCasa, ocupacionPorVivienda } from '../../../core/utils/directo
 import { CondominiosService } from '../../../core/services/condominios.service';
 import { Condominio } from '../../../core/models/condominio.model';
 import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detalle.component';
+import { mensajeAmigable } from '../../../core/utils/api-errors.util';
 
 @Component({
   selector: 'app-viviendas-list',
@@ -824,7 +825,7 @@ export class ViviendasListComponent implements OnInit {
       await this.cargarViviendas();
     } catch (err: any) {
       console.error('Error al guardar vivienda:', err);
-      const msg = err?.error?.error || err?.message || 'Ocurrió un error al procesar la solicitud.';
+      const msg = mensajeAmigable(err, 'Ocurrió un error al procesar la solicitud.');
       this.formError.set(msg);
     } finally {
       this.isSaving.set(false);
@@ -859,7 +860,7 @@ export class ViviendasListComponent implements OnInit {
         await this.cargarViviendas();
       } catch (err: any) {
         console.error('Error al eliminar vivienda:', err);
-        const msg = err?.error?.error || err?.message || 'No fue posible eliminar la vivienda.';
+        const msg = mensajeAmigable(err, 'No fue posible eliminar la vivienda.');
         Swal.fire({
           title: 'Error al eliminar',
           text: msg,

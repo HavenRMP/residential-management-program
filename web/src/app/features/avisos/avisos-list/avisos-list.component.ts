@@ -8,6 +8,7 @@ import { CondominiosService } from '../../../core/services/condominios.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { Aviso, AvisoPrioridad, CrearAvisoDto } from '../../../core/models/aviso.model';
 import { etiquetaPrioridad, tiempoRestanteAviso } from '../../../core/utils/aviso-prioridad.util';
+import { mensajeAmigable } from '../../../core/utils/api-errors.util';
 
 @Component({
   selector: 'app-avisos-list',
@@ -683,7 +684,7 @@ export class AvisosListComponent implements OnInit {
       this.cerrarModal();
       await this.recargar();
     } catch (err: any) {
-      const msg = err?.error?.error || err?.error?.message || err?.message || 'No fue posible guardar el aviso.';
+      const msg = mensajeAmigable(err, 'No fue posible guardar el aviso.');
       Swal.fire({
         icon: 'error',
         title: 'Error al guardar',
@@ -719,7 +720,7 @@ export class AvisosListComponent implements OnInit {
         });
         await this.recargar();
       } catch (err: any) {
-        const msg = err?.error?.error || err?.error?.message || err?.message || 'No se pudo eliminar el aviso.';
+        const msg = mensajeAmigable(err, 'No se pudo eliminar el aviso.');
         Swal.fire({
           icon: 'error',
           title: 'Error al eliminar',

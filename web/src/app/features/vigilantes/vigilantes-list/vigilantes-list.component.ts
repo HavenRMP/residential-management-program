@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 import Swal from 'sweetalert2';
 import { VigilantesService } from '../../../core/services/vigilantes.service';
 import { Vigilante } from '../../../core/models/vigilante.model';
+import { mensajeAmigable } from '../../../core/utils/api-errors.util';
 
 @Component({
   selector: 'app-vigilantes-list',
@@ -353,7 +354,7 @@ export class VigilantesListComponent implements OnInit {
       Swal.fire({
         icon: 'error',
         title: 'No se pudo registrar',
-        text: err?.error?.error || 'Ocurrió un error al registrar al vigilante. Intenta de nuevo.',
+        text: mensajeAmigable(err, 'Ocurrió un error al registrar al vigilante. Intenta de nuevo.'),
         confirmButtonColor: '#111C99'
       });
     } finally {
@@ -393,7 +394,7 @@ export class VigilantesListComponent implements OnInit {
       Swal.fire({
         icon: 'error',
         title: darDeBaja ? 'No se pudo dar de baja' : 'No se pudo reactivar',
-        text: err?.error?.error || 'Ocurrió un error inesperado. Intenta de nuevo.',
+        text: mensajeAmigable(err, 'Ocurrió un error inesperado. Intenta de nuevo.'),
         confirmButtonColor: '#111C99'
       });
     }
