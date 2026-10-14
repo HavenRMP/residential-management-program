@@ -183,6 +183,18 @@ describe('ReservasComponent', () => {
       expect(lejos.textContent).toContain('Podrás confirmar tu asistencia a partir del');
     });
 
+    it('una reserva aprobada y ya confirmada figura como Confirmada, sin botón de confirmar ni avisos de plazo', async () => {
+      datos.mias = [reserva('ok', 'APROBADA', 5, { confirmadaEn: new Date().toISOString() })];
+      await abrir();
+      await irAMias();
+
+      expect(tarjetas()[0].textContent).toContain('Confirmada');
+      expect(texto()).toContain('Asistencia confirmada.');
+      expect(boton('Confirmar asistencia')).toBeUndefined();
+      expect(boton('Cancelar')).toBeDefined();
+      expect(texto()).not.toContain('Podrás confirmar');
+    });
+
     it('pasado el plazo de confirmación avisa que ya no se puede', async () => {
       datos.mias = [reserva('tarde', 'APROBADA', 1)];
       await abrir();
