@@ -17,7 +17,7 @@ describe('ReservasAdminComponent', () => {
     (Array.from(fixture.nativeElement.querySelectorAll('[role="tab"]')) as HTMLButtonElement[]).find(b => b.textContent!.trim() === nombre)!;
 
   beforeEach(async () => {
-    api = jasmine.createSpyObj('ApiService', ['get', 'post', 'put']);
+    api = jasmine.createSpyObj('ApiService', ['get', 'post', 'patch']);
     api.get.and.callFake((() => of({ items: [], totalCount: 0 })) as any);
     TestBed.configureTestingModule({
       imports: [ReservasAdminComponent],

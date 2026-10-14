@@ -16,7 +16,7 @@ describe('ReservasAdminService', () => {
   let api: jasmine.SpyObj<ApiService>;
 
   beforeEach(() => {
-    api = jasmine.createSpyObj('ApiService', ['get', 'post', 'put']);
+    api = jasmine.createSpyObj('ApiService', ['get', 'post', 'patch']);
     TestBed.configureTestingModule({ providers: [ReservasAdminService, { provide: ApiService, useValue: api }] });
     service = TestBed.inject(ReservasAdminService);
   });
@@ -95,9 +95,9 @@ describe('ReservasAdminService', () => {
       expect(api.post).toHaveBeenCalledWith('/api/areas', dto, undefined, 'reservas');
       expect(service.areas().map(a => a.id)).toEqual(['a1', 'a2']);
 
-      api.put.and.returnValue(of({ ...area('a1'), nombre: 'Salón nuevo' }));
+      api.patch.and.returnValue(of({ ...area('a1'), nombre: 'Salón nuevo' }));
       await service.actualizarArea('a1', { nombre: 'Salón nuevo' });
-      expect(api.put).toHaveBeenCalledWith('/api/areas/a1', { nombre: 'Salón nuevo' }, undefined, 'reservas');
+      expect(api.patch).toHaveBeenCalledWith('/api/areas/a1', { nombre: 'Salón nuevo' }, undefined, 'reservas');
       expect(service.areas()[0].nombre).toBe('Salón nuevo');
 
       api.post.and.returnValue(of(null));
