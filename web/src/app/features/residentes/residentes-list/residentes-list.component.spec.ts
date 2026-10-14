@@ -124,4 +124,12 @@ describe('ResidentesListComponent (sub-usuarios)', () => {
 
     expect(component.alDesvincular).toHaveBeenCalled();
   });
+
+  it('el selector de residentes por página tiene nombre accesible', async () => {
+    await crear();
+
+    const nombres = Array.from(fixture.nativeElement.querySelectorAll('select') as NodeListOf<HTMLSelectElement>).map(s => s.getAttribute('aria-label'));
+
+    expect(nombres).toContain('Residentes por página');
+  });
 });

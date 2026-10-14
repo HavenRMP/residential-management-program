@@ -122,4 +122,12 @@ describe('ViviendasListComponent (ocupación)', () => {
 
     expect(component.isDetalleOpen()).toBeFalse();
   });
+
+  it('los selectores de tipo, ocupación y viviendas por página tienen nombre accesible', async () => {
+    await crear();
+
+    const nombres = Array.from(fixture.nativeElement.querySelectorAll('select') as NodeListOf<HTMLSelectElement>).map(s => s.getAttribute('aria-label'));
+
+    expect(nombres).toEqual(['Filtrar por tipo', 'Filtrar por ocupación', 'Viviendas por página']);
+  });
 });

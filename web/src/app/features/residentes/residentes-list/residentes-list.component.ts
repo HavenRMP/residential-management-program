@@ -362,6 +362,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
                   <select
                     [ngModel]="elementosPorPagina()"
                     (ngModelChange)="cambiarElementosPorPagina($event)"
+                    aria-label="Residentes por página"
                     class="h-7 px-1.5 text-xs bg-white border border-slate-200 rounded font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#111C99] cursor-pointer"
                     >
                     @for (opt of opcionesPaginacion; track opt) {
