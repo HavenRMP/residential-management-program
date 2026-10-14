@@ -143,7 +143,8 @@ export class ReservasService {
   /** Confirma la asistencia; si luego no se asiste cuenta como inasistencia (POST /api/reservas/{id}/confirmar) */
   async confirmar(id: string): Promise<void> {
     await firstValueFrom(this.apiService.post<void>(`/api/reservas/${id}/confirmar`, {}, undefined, 'reservas'));
-    this.cambiarEstado(id, 'CONFIRMADA');
+    // El backend deja la reserva "aprobada" y solo registra cuándo se confirmó
+    this.mias.update(lista => lista.map(r => (r.id === id ? { ...r, confirmadaEn: new Date().toISOString() } : r)));
   }
 
   /** Cancela una reserva que aún no empieza; el motivo es opcional (POST /api/reservas/{id}/cancelar) */
