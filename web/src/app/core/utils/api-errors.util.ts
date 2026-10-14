@@ -16,3 +16,16 @@ export function mensajeAmigable(err: any, respaldo: string): string {
   const parecePayloadTecnico = /^\s*[{\[]/.test(texto) || /Error desde Supabase/i.test(texto) || /"code"\s*:/.test(texto);
   return parecePayloadTecnico ? respaldo : texto;
 }
+
+/**
+ * Como `mensajeAmigable`, pero si el backend no manda `{ error }` y responde con errores de validación
+ * (`{ errors: { Campo: ["mensaje"] } }`) usa el primero de ellos.
+ */
+export function mensajeConValidacion(err: any, respaldo: string): string {
+  const errores = err?.error?.errors;
+  if (!err?.error?.error && errores && typeof errores === 'object') {
+    const primero = Object.values(errores)[0] as string[] | undefined;
+    if (typeof primero?.[0] === 'string' && primero[0].trim()) return primero[0];
+  }
+  return mensajeAmigable(err, respaldo);
+}
