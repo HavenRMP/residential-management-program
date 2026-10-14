@@ -14,6 +14,10 @@ class ReservasService {
 
   ReservasService(this.controller);
 
+  /// Tiempo de espera para peticiones HTTP del servicio de reservas.
+  /// Configurado a 60 segundos para tolerar el arranque en frío (cold start) de instancias de Render.
+  static const Duration requestTimeout = Duration(seconds: 60);
+
   String get baseUrl {
     final envUrl = dotenv.env['API_BASE_URL_RESERVAS'];
     if (envUrl != null &&
@@ -44,7 +48,7 @@ class ReservasService {
       final url = '$baseUrl/api/areas?$query';
       final response = await controller.httpClient
           .get(Uri.parse(url), headers: await _getHeaders())
-          .timeout(const Duration(seconds: 15));
+          .timeout(requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -120,7 +124,7 @@ class ReservasService {
       final url = '$baseUrl/api/areas/$id';
       final response = await controller.httpClient
           .get(Uri.parse(url), headers: await _getHeaders())
-          .timeout(const Duration(seconds: 15));
+          .timeout(requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -193,7 +197,7 @@ class ReservasService {
 
       final response = await controller.httpClient
           .post(Uri.parse(url), headers: await _getHeaders(), body: body)
-          .timeout(const Duration(seconds: 15));
+          .timeout(requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -269,7 +273,7 @@ class ReservasService {
             headers: await _getHeaders(),
             body: jsonEncode(bodyMap),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -329,7 +333,7 @@ class ReservasService {
       final url = '$baseUrl/api/areas/$id/baja';
       final response = await controller.httpClient
           .post(Uri.parse(url), headers: await _getHeaders())
-          .timeout(const Duration(seconds: 15));
+          .timeout(requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {'success': true};
@@ -385,7 +389,7 @@ class ReservasService {
       final url = '$baseUrl/api/areas/$id/reactivar';
       final response = await controller.httpClient
           .post(Uri.parse(url), headers: await _getHeaders())
-          .timeout(const Duration(seconds: 15));
+          .timeout(requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {'success': true};
@@ -454,7 +458,7 @@ class ReservasService {
       final url = '$baseUrl/api/reservas/calendario?$query';
       final response = await controller.httpClient
           .get(Uri.parse(url), headers: await _getHeaders())
-          .timeout(const Duration(seconds: 15));
+          .timeout(requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -537,7 +541,7 @@ class ReservasService {
       final url = '$baseUrl/api/reservas/mias?$query';
       final response = await controller.httpClient
           .get(Uri.parse(url), headers: await _getHeaders())
-          .timeout(const Duration(seconds: 15));
+          .timeout(requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -617,7 +621,7 @@ class ReservasService {
       final url = '$baseUrl/api/reservas/por-aprobar-titular?$query';
       final response = await controller.httpClient
           .get(Uri.parse(url), headers: await _getHeaders())
-          .timeout(const Duration(seconds: 15));
+          .timeout(requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -702,7 +706,7 @@ class ReservasService {
 
       final response = await controller.httpClient
           .post(Uri.parse(url), headers: await _getHeaders(), body: body)
-          .timeout(const Duration(seconds: 15));
+          .timeout(requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -762,7 +766,7 @@ class ReservasService {
       final url = '$baseUrl/api/reservas/$reservaId/aprobar-titular';
       final response = await controller.httpClient
           .post(Uri.parse(url), headers: await _getHeaders())
-          .timeout(const Duration(seconds: 15));
+          .timeout(requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {'success': true};
@@ -828,7 +832,7 @@ class ReservasService {
                 'motivo': motivo.trim(),
             }),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {'success': true};
@@ -884,7 +888,7 @@ class ReservasService {
       final url = '$baseUrl/api/reservas/$reservaId/confirmar';
       final response = await controller.httpClient
           .post(Uri.parse(url), headers: await _getHeaders())
-          .timeout(const Duration(seconds: 15));
+          .timeout(requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {'success': true};
@@ -950,7 +954,7 @@ class ReservasService {
                 'motivo': motivo.trim(),
             }),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {'success': true};
@@ -1027,7 +1031,7 @@ class ReservasService {
       final url = '$baseUrl/api/admin/reservas?$query';
       final response = await controller.httpClient
           .get(Uri.parse(url), headers: await _getHeaders())
-          .timeout(const Duration(seconds: 15));
+          .timeout(requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -1112,7 +1116,7 @@ class ReservasService {
       final url = '$baseUrl/api/admin/reservas/no-shows?$query';
       final response = await controller.httpClient
           .get(Uri.parse(url), headers: await _getHeaders())
-          .timeout(const Duration(seconds: 15));
+          .timeout(requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -1186,7 +1190,7 @@ class ReservasService {
       final url = '$baseUrl/api/admin/reservas/$reservaId/aprobar';
       final response = await controller.httpClient
           .post(Uri.parse(url), headers: await _getHeaders())
-          .timeout(const Duration(seconds: 15));
+          .timeout(requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {'success': true};
@@ -1249,7 +1253,7 @@ class ReservasService {
             headers: await _getHeaders(),
             body: jsonEncode({'motivo': motivo.trim()}),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {'success': true};
@@ -1312,7 +1316,7 @@ class ReservasService {
             headers: await _getHeaders(),
             body: jsonEncode({'motivo': motivo.trim()}),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {'success': true};
@@ -1368,7 +1372,7 @@ class ReservasService {
       final url = '$baseUrl/api/admin/reservas/$reservaId/no-utilizada';
       final response = await controller.httpClient
           .post(Uri.parse(url), headers: await _getHeaders())
-          .timeout(const Duration(seconds: 15));
+          .timeout(requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {'success': true};
@@ -1436,7 +1440,7 @@ class ReservasService {
 
       final response = await controller.httpClient
           .post(Uri.parse(url), headers: await _getHeaders(), body: body)
-          .timeout(const Duration(seconds: 15));
+          .timeout(requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
