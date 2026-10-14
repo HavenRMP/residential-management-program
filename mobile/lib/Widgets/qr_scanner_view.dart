@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import '../Utils/sound_helper.dart';
 
 class QrScannerView extends StatefulWidget {
   const QrScannerView({
@@ -77,6 +78,7 @@ class _QrScannerViewState extends State<QrScannerView> with WidgetsBindingObserv
       final val = barcode.rawValue?.trim();
       if (val != null && val.isNotEmpty) {
         _isProcessing = true;
+        SoundHelper.playScannerBeep();
         widget.onScanned(val);
         // Desbloquear tras 2 segundos si la pantalla sigue montada
         Future.delayed(const Duration(seconds: 2), () {
