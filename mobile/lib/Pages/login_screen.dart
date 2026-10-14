@@ -72,7 +72,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final email = _emailController.text.trim();
+      final email = _emailController.text.trim().toLowerCase();
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('remember_login_email', _rememberEmail);
       if (_rememberEmail) {
