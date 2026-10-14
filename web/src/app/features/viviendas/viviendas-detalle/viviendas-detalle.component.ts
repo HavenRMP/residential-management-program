@@ -5,6 +5,8 @@ import { Vivienda } from '../../../core/models/vivienda.model';
 import { Residente } from '../../../core/models/residente.model';
 import { ViviendasService } from '../../../core/services/viviendas.service';
 import { ResidentesService } from '../../../core/services/residentes.service';
+import { SubusuariosService } from '../../../core/services/subusuarios.service';
+import { SubUsuarioItem } from '../../../core/models/subusuario.model';
 import { getInitials } from '../../../core/utils/iniciales.util';
 import Swal from 'sweetalert2';
 import { mensajeAmigable } from '../../../core/utils/api-errors.util';
@@ -320,6 +322,54 @@ import { mensajeAmigable } from '../../../core/utils/api-errors.util';
                 </div>
               }
             </div>
+            <!-- Sub-usuarios de la vivienda: personas que entran a la casa del titular -->
+            <div class="space-y-3" aria-labelledby="detalle-vivienda-subusuarios">
+              <div class="flex items-center justify-between gap-2">
+                <h4 id="detalle-vivienda-subusuarios" class="text-sm font-bold text-slate-900 tracking-tight">Sub-usuarios</h4>
+                @if (!cargandoSubusuarios && !errorSubusuarios) {
+                  <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                    {{ subusuarios.length }} de {{ maxSubusuarios }}
+                  </span>
+                }
+              </div>
+              @if (cargandoSubusuarios) {
+                <div class="flex items-center gap-2 py-2 text-xs text-slate-500 font-medium" aria-busy="true">
+                  <div class="w-4 h-4 border-2 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+                  <span>Consultando sub-usuarios...</span>
+                </div>
+              } @else if (errorSubusuarios) {
+                <p class="p-3 rounded-xl bg-amber-50/70 border border-amber-200 text-xs text-amber-900" role="alert">
+                  No se pudieron cargar los sub-usuarios de esta vivienda.
+                </p>
+              } @else if (subusuarios.length === 0) {
+                <p class="p-4 rounded-xl bg-slate-50/70 border border-dashed border-slate-200 text-xs text-slate-500 text-center">
+                  Esta vivienda no tiene sub-usuarios.
+                </p>
+              } @else {
+                <ul class="space-y-2">
+                  @for (u of subusuarios; track u.id) {
+                    <li
+                      class="flex items-center justify-between gap-3 p-3 rounded-xl border"
+                      [ngClass]="u.activo ? 'border-slate-200 bg-white' : 'border-dashed border-amber-300 bg-amber-50/40'"
+                    >
+                      <div class="min-w-0">
+                        <p class="text-sm font-bold text-slate-900 truncate">{{ u.activo ? u.nombre : (u.email || 'Invitación sin correo') }}</p>
+                        <p class="text-xs text-slate-600 font-medium truncate">
+                          {{ u.activo ? (u.email || u.telefono || 'Sin contacto') : 'Aún no acepta la invitación' }}
+                        </p>
+                      </div>
+                      <div class="shrink-0 flex flex-col items-end gap-1">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-medium border bg-slate-100 text-slate-600 border-slate-200">{{ u.parentesco }}</span>
+                        <span
+                          class="px-2 py-0.5 rounded text-[10px] font-medium border"
+                          [ngClass]="u.activo ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'"
+                        >{{ u.activo ? 'Activo' : 'Invitación pendiente' }}</span>
+                      </div>
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
             <!-- Informacion Tecnica Adicional -->
             <div class="bg-white border border-slate-200/80 rounded-xl p-5 shadow-xs divide-y divide-slate-100 text-xs">
               <div class="py-2 flex items-center justify-between">
@@ -348,8 +398,17 @@ export class ViviendasDetalleComponent implements OnChanges {
 
   private readonly viviendasService = inject(ViviendasService);
   private readonly residentesService = inject(ResidentesService);
+  private readonly subusuariosService = inject(SubusuariosService);
 
   readonly getInitials = getInitials;
+  readonly maxSubusuarios = this.subusuariosService.MAX_SUBUSUARIOS;
+
+  // Sub-usuarios de la vivienda abierta (activos e invitaciones pendientes), solo lectura
+  subusuarios: SubUsuarioItem[] = [];
+  cargandoSubusuarios = false;
+  errorSubusuarios = false;
+  /** Solo la respuesta de la última consulta se aplica: una lenta de otra vivienda no debe pisarla */
+  private consultaSubusuarios = 0;
 
   residenteAsignado: Residente | null = null;
   cargandoResidente = false;
@@ -436,6 +495,26 @@ export class ViviendasDetalleComponent implements OnChanges {
       this.mostrarFormularioVinculacion = false;
       this.residenteSeleccionadoId = null;
       this.cargarDetalleResidente();
+      void this.cargarSubusuarios();
+    }
+  }
+
+  async cargarSubusuarios(): Promise<void> {
+    if (!this.vivienda) return;
+    const consulta = ++this.consultaSubusuarios;
+    this.subusuarios = [];
+    this.errorSubusuarios = false;
+    this.cargandoSubusuarios = true;
+    try {
+      const lista = await this.subusuariosService.listarPorVivienda(this.vivienda.id);
+      if (consulta !== this.consultaSubusuarios) return;
+      this.subusuarios = lista;
+    } catch (err) {
+      if (consulta !== this.consultaSubusuarios) return;
+      console.error('[ViviendasDetalleComponent] Error al cargar sub-usuarios:', err);
+      this.errorSubusuarios = true;
+    } finally {
+      if (consulta === this.consultaSubusuarios) this.cargandoSubusuarios = false;
     }
   }
 
