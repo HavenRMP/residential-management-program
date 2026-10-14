@@ -82,6 +82,7 @@ class _VigilanteDashboardScreenState extends State<VigilanteDashboardScreen> {
       _VisitasCasetaSection(controller: widget.controller),
       PaqueteriaCasetaScreen(controller: widget.controller, isEmbedded: true),
       _DirectorioCasasTab(controller: widget.controller),
+      CalendarioReservasVigilanteModal(controller: widget.controller, isEmbedded: true),
       _AvisosCasetaTab(controller: widget.controller),
     ];
 
@@ -141,16 +142,9 @@ class _VigilanteDashboardScreenState extends State<VigilanteDashboardScreen> {
         ),
         actions: [
           IconButton(
-            onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: Colors.transparent,
-                builder: (_) => CalendarioReservasVigilanteModal(controller: widget.controller),
-              );
-            },
+            onPressed: () => _onDestinationSelected(3),
             icon: const Icon(Icons.event_available_rounded, color: Color(0xFFD97706)),
-            tooltip: 'Uso de áreas comunes',
+            tooltip: 'Uso de áreas comunes (Reservas)',
           ),
           IconButton(
             onPressed: () => _onDestinationSelected(1),
@@ -227,6 +221,14 @@ class _VigilanteDashboardScreenState extends State<VigilanteDashboardScreen> {
                 color: Color(0xFFD97706),
               ),
               label: 'Directorio',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.event_available_outlined, color: Color(0xFF64748B)),
+              selectedIcon: Icon(
+                Icons.event_available_rounded,
+                color: Color(0xFFD97706),
+              ),
+              label: 'Reservas',
             ),
             NavigationDestination(
               icon: Icon(Icons.campaign_outlined, color: Color(0xFF64748B)),
