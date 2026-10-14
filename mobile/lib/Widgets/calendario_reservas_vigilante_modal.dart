@@ -417,13 +417,13 @@ class _CalendarioReservasVigilanteModalState
                                           if (esBloqueo) ...[
                                             const SizedBox(height: 3),
                                             Text(
-                                              'Área bloqueada${evento.motivo != null && evento.motivo!.isNotEmpty ? ': ' + evento.motivo! : ''}',
+                                              'Área bloqueada${evento.motivo != null && evento.motivo!.isNotEmpty ? ': ${evento.motivo!}' : ''}',
                                               style: const TextStyle(fontSize: 11.5, color: Color(0xFFDC2626)),
                                             ),
                                           ] else ...[
                                             const SizedBox(height: 3),
                                             Text(
-                                              'Casa #${evento.numeroCasa ?? 'S/N'}${evento.solicitanteCompleto.isNotEmpty ? ' · ' + evento.solicitanteCompleto : ''}',
+                                              'Casa #${evento.numeroCasa ?? 'S/N'}${evento.solicitanteCompleto.isNotEmpty ? ' · ${evento.solicitanteCompleto}' : ''}',
                                               style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
                                             ),
                                           ],

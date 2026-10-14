@@ -811,6 +811,7 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
     );
 
     if (resultado == true) {
+      if (!mounted) return;
       final inicioDt = DateTime(fecha.year, fecha.month, fecha.day, horaInicio.hour, horaInicio.minute);
       final finDt = DateTime(fecha.year, fecha.month, fecha.day, horaFin.hour, horaFin.minute);
 
