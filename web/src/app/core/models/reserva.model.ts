@@ -194,11 +194,25 @@ export function ocupaHorario(r: Pick<ReservaCalendario, 'estado' | 'tipo'>): boo
 }
 
 /**
- * La asistencia solo se confirma entre 7 días y 72 horas antes del evento, y solo si la reserva ya está aprobada.
+ * La persona ya confirmó su asistencia. El backend no cambia el estado al confirmar: la reserva sigue "aprobada" y se llena
+ * `confirmadaEn`, así que se reconoce por esa fecha (y por el estado CONFIRMADA por si el backend algún día lo usa).
+ */
+export function reservaEstaConfirmada(r: Pick<Reserva, 'estado' | 'confirmadaEn'>): boolean {
+  const e = normalizarEstado(r.estado);
+  return e === 'CONFIRMADA' || (e === 'APROBADA' && !!r.confirmadaEn);
+}
+
+/** Estado que se muestra: una reserva aprobada y ya confirmada figura como "Confirmada" */
+export function estadoMostrado(r: Pick<Reserva, 'estado' | 'confirmadaEn'>): EstadoReserva {
+  return reservaEstaConfirmada(r) ? 'CONFIRMADA' : normalizarEstado(r.estado);
+}
+
+/**
+ * La asistencia solo se confirma entre 7 días y 72 horas antes del evento, una sola vez y solo si la reserva ya está aprobada.
  * Confirmar y no asistir cuenta como inasistencia.
  */
-export function reservaEsConfirmable(r: Pick<Reserva, 'estado' | 'inicio'>, ahora: number = Date.now()): boolean {
-  if (normalizarEstado(r.estado) !== 'APROBADA') return false;
+export function reservaEsConfirmable(r: Pick<Reserva, 'estado' | 'inicio' | 'confirmadaEn'>, ahora: number = Date.now()): boolean {
+  if (normalizarEstado(r.estado) !== 'APROBADA' || reservaEstaConfirmada(r)) return false;
   const faltan = ms(r.inicio) - ahora;
   return faltan <= REGLAS_RESERVA.confirmarHastaDiasAntes * DIA_MS && faltan >= REGLAS_RESERVA.confirmarDesdeHorasAntes * HORA_MS;
 }
