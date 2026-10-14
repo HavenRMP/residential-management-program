@@ -42,20 +42,46 @@ describe('AreasAdminComponent', () => {
     TestBed.configureTestingModule({ imports: [AreasAdminComponent], providers: [{ provide: ApiService, useValue: api }] });
   });
 
-  it('lista todas las áreas, también las dadas de baja, con su horario y zona', async () => {
+  it('muestra primero las áreas activas, con su horario y zona, y esconde las dadas de baja', async () => {
     await abrir();
 
-    expect(tarjetas().length).toBe(2);
+    expect(tarjetas().length).toBe(1);
+    expect(texto()).toContain('Mostrar áreas dadas de baja (1)');
     expect(tarjetas()[0].textContent).toContain('Salón de usos múltiples');
     expect(tarjetas()[0].textContent).toContain('Para fiestas');
     expect(tarjetas()[0].textContent).toContain('Activa');
     expect(tarjetas()[0].textContent).toContain('Abierta de 08:00 a 22:00');
     expect(tarjetas()[0].textContent).toContain('America/Mexico_City');
+    expect(texto()).not.toContain('Alberca');
+  });
+
+  it('el botón muestra y vuelve a ocultar las áreas dadas de baja, que van después de las activas', async () => {
+    await abrir();
+
+    boton('Mostrar áreas dadas de baja')!.click();
+    fixture.detectChanges();
+    expect(tarjetas().length).toBe(2);
+    expect(tarjetas()[1].textContent).toContain('Alberca');
     expect(tarjetas()[1].textContent).toContain('De baja');
+    expect(texto()).toContain('Ocultar áreas dadas de baja (1)');
+
+    boton('Ocultar áreas dadas de baja')!.click();
+    fixture.detectChanges();
+    expect(tarjetas().length).toBe(1);
+  });
+
+  it('si todas están de baja avisa que los residentes no pueden reservar nada', async () => {
+    areas = [area('a2', 'Alberca', false)];
+    await abrir();
+
+    expect(texto()).toContain('No hay áreas activas');
+    expect(tarjetas().length).toBe(0);
   });
 
   it('un área activa ofrece Editar, Bloquear fechas y Dar de baja; una de baja solo Editar y Reactivar', async () => {
     await abrir();
+    boton('Mostrar áreas dadas de baja')!.click();
+    fixture.detectChanges();
 
     expect(boton('Editar', tarjetas()[0])).toBeDefined();
     expect(boton('Bloquear fechas', tarjetas()[0])).toBeDefined();
@@ -87,7 +113,7 @@ describe('AreasAdminComponent', () => {
     fixture.detectChanges();
 
     expect(texto()).not.toContain('Servicio no disponible');
-    expect(tarjetas().length).toBe(2);
+    expect(tarjetas().length).toBe(1);
   });
 
   describe('formularios', () => {
@@ -134,7 +160,7 @@ describe('AreasAdminComponent', () => {
   });
 
   describe('baja y reactivación', () => {
-    it('dar de baja pide confirmación, la da de baja y la tarjeta cambia', async () => {
+    it('dar de baja pide confirmación, la da de baja y deja de aparecer entre las activas', async () => {
       await abrir();
 
       await component.darDeBaja(areas[0]);
@@ -142,7 +168,8 @@ describe('AreasAdminComponent', () => {
 
       expect((swal.calls.argsFor(0)[0] as any).text).toContain('Los residentes ya no podrán reservar Salón de usos múltiples');
       expect(api.post).toHaveBeenCalledWith('/api/areas/a1/baja', {}, undefined, 'reservas');
-      expect(tarjetas()[0].textContent).toContain('De baja');
+      expect(tarjetas().length).toBe(0);
+      expect(texto()).toContain('Mostrar áreas dadas de baja (2)');
     });
 
     it('si se arrepiente no pasa nada', async () => {
@@ -154,14 +181,16 @@ describe('AreasAdminComponent', () => {
       expect(api.post).not.toHaveBeenCalled();
     });
 
-    it('reactivar la habilita sin pedir confirmación', async () => {
+    it('reactivar la habilita sin pedir confirmación y pasa a las activas', async () => {
       await abrir();
 
       await component.reactivar(areas[1]);
       fixture.detectChanges();
 
       expect(api.post).toHaveBeenCalledWith('/api/areas/a2/reactivar', {}, undefined, 'reservas');
+      expect(tarjetas().length).toBe(2);
       expect(tarjetas()[1].textContent).toContain('Activa');
+      expect(texto()).not.toContain('Mostrar áreas dadas de baja');
     });
 
     it('si falla muestra el motivo; si el área ya cambió (409) vuelve a pedir la lista', async () => {
