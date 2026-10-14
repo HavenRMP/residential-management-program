@@ -149,6 +149,17 @@ public class ViviendasController : ControllerBase
                 nombre = r.Nombre,
                 apellidos = r.Apellidos,
                 telefono = r.Telefono
+            }).ToList(),
+            subusuarios = v.Subusuarios.Select(s => new
+            {
+                id = s.Id,
+                usuarioId = s.UsuarioId,
+                viviendaId = s.ViviendaId,
+                nombre = s.Nombre,
+                email = s.Email,
+                telefono = s.Telefono,
+                parentesco = s.Parentesco,
+                activo = s.Activo
             }).ToList()
         }).Cast<object>().ToList();
 

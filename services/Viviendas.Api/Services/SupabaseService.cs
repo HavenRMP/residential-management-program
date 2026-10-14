@@ -68,6 +68,10 @@ public class SupabaseService : ISupabaseService
 
         if (!response.IsSuccessStatusCode)
         {
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                throw new SupabaseUnauthorizedException("El token de sesión es inválido o ha expirado.");
+            }
             _logger.LogWarning("Failed to fetch user rol. Status: {StatusCode}", response.StatusCode);
             return null;
         }
@@ -160,6 +164,63 @@ public class SupabaseService : ISupabaseService
                 if (item.Residentes == null)
                 {
                     item.Residentes = new List<ResidenteVigilanciaDto>();
+                }
+                if (item.Subusuarios == null)
+                {
+                    item.Subusuarios = new List<SubusuarioResidencialDto>();
+                }
+            }
+
+            if (items.Count > 0)
+            {
+                try
+                {
+                    var viviendaIds = string.Join(",", items.Select(v => v.Id));
+                    var subusuariosPath = $"vw_vivienda_subusuarios?vivienda_id=in.({viviendaIds})&activo=eq.true&select=id,vivienda_id,usuario_id,usuario_nombre,usuario_email,usuario_telefono,parentesco,activo";
+                    var request = new HttpRequestMessage(HttpMethod.Get, $"{_supabaseUrl}/rest/v1/{subusuariosPath}");
+                    request.Headers.Add("apikey", _serviceRoleKey);
+                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
+
+                    var response = await SendRequestAsync(request);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var subsJson = await response.Content.ReadAsStringAsync();
+                        using var doc = System.Text.Json.JsonDocument.Parse(subsJson);
+                        var subDict = new Dictionary<int, List<SubusuarioResidencialDto>>();
+                        foreach (var el in doc.RootElement.EnumerateArray())
+                        {
+                            var vId = el.GetProperty("vivienda_id").GetInt32();
+                            var sub = new SubusuarioResidencialDto
+                            {
+                                Id = el.TryGetProperty("id", out var idProp) && idProp.ValueKind == System.Text.Json.JsonValueKind.String ? Guid.Parse(idProp.GetString()!) : Guid.Empty,
+                                UsuarioId = el.TryGetProperty("usuario_id", out var uidProp) && uidProp.ValueKind == System.Text.Json.JsonValueKind.String ? Guid.Parse(uidProp.GetString()!) : Guid.Empty,
+                                ViviendaId = vId,
+                                Nombre = el.TryGetProperty("usuario_nombre", out var unProp) ? unProp.GetString() ?? "" : "",
+                                Email = el.TryGetProperty("usuario_email", out var ueProp) ? ueProp.GetString() ?? "" : "",
+                                Telefono = el.TryGetProperty("usuario_telefono", out var utProp) && utProp.ValueKind != System.Text.Json.JsonValueKind.Null ? utProp.GetString() : null,
+                                Parentesco = el.TryGetProperty("parentesco", out var pProp) ? pProp.GetString() ?? "" : "",
+                                Activo = !el.TryGetProperty("activo", out var aProp) || aProp.GetBoolean()
+                            };
+                            if (!subDict.TryGetValue(vId, out var list))
+                            {
+                                list = new List<SubusuarioResidencialDto>();
+                                subDict[vId] = list;
+                            }
+                            list.Add(sub);
+                        }
+
+                        foreach (var item in items)
+                        {
+                            if (subDict.TryGetValue(item.Id, out var subList))
+                            {
+                                item.Subusuarios = subList;
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error al consultar subusuarios para viviendas con residentes.");
                 }
             }
 
