@@ -7,12 +7,6 @@ import { environment } from '../../../environments/environment';
 
 export const PING_TIMEOUT = 7000;
 
-export interface PingResponse {
-  message?: string;
-  timestamp?: string;
-  dbVersion?: string;
-}
-
 @Injectable({
   providedIn: 'root'
 })
@@ -54,7 +48,7 @@ export class PingService {
       width: '100%'
     });
 
-    this.http.get<PingResponse>(pingUrl).pipe(
+    this.http.get(pingUrl).pipe(
       timeout(PING_TIMEOUT),
       catchError(error => {
         console.warn('Backend ping error details:', error);
@@ -64,7 +58,7 @@ export class PingService {
           if (this.retryCount === 1) {
             Toast.fire({
               icon: 'info',
-              title: 'Despertando servidor en Render...',
+              title: 'Conectando con el servidor. Puede tardar unos segundos...',
               background: '#fef3c7',
               color: '#92400e',
               timer: 3000
@@ -74,38 +68,16 @@ export class PingService {
           return of(null);
         }
 
-        let errorMsg = 'El backend no respondió a tiempo. Operando en modo seguro.';
-        if (error.status === 0) {
-          errorMsg = 'Servidor en Render iniciando o bloqueo de CORS.';
-        }
-
         Toast.fire({
           icon: 'warning',
-          title: errorMsg,
+          title: 'No pudimos conectar con el servidor. Revisa tu conexión o intenta de nuevo en unos minutos.',
           background: '#fee2e2',
           color: '#991b1b',
           timer: 3500
         });
         return of(null);
       })
-    ).subscribe(response => {
-      if (response !== null) {
-        const titleMsg = response.message || 'Backend conectado correctamente.';
-        const dbVersionText = response.dbVersion ? response.dbVersion : 'No disponible';
-
-        Toast.fire({
-          html: `
-            <div style="display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 2px 0;">
-              <span style="font-weight: 600; font-size: 0.95rem; line-height: 1.25;">${titleMsg}</span>
-              <span style="font-size: 0.85rem; font-weight: 500; opacity: 0.9; line-height: 1.25;">Versión BD: <strong>${dbVersionText}</strong></span>
-            </div>
-          `,
-          background: '#dcfce7',
-          color: '#166534',
-          timer: 4000
-        });
-      }
-    });
+    ).subscribe();
   }
 }
 
