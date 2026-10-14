@@ -28,8 +28,8 @@ const MAX_MOTIVO = 500;
 
         <div class="mt-3.5 space-y-3">
           <div class="rounded-md border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-900 leading-relaxed">
-            Mientras dure el bloqueo nadie podrá reservar el área. <strong>Las reservas pendientes o aprobadas que caigan en ese horario se cancelan</strong>
-            y se avisa a sus titulares con el motivo. <strong>Un bloqueo no se puede quitar después.</strong>
+            Mientras dure el bloqueo nadie podrá reservar el área. <strong>Las reservas pendientes o aprobadas que caigan en ese horario se cierran</strong>:
+            se rechazan las pendientes y se cancelan las aprobadas, y se avisa a sus titulares con el motivo. <strong>Un bloqueo no se puede quitar después.</strong>
           </div>
 
           <div class="grid grid-cols-2 gap-3">
@@ -142,7 +142,7 @@ export class BloqueoFormComponent implements AfterViewInit {
 
     const confirmacion = await Swal.fire({
       title: '¿Bloquear esta área?',
-      text: `${this.area.nombre} quedará bloqueada ${rangoLegible(t.inicio, t.fin, this.area.zonaHoraria)}. Las reservas de ese horario se cancelarán y el bloqueo no se podrá quitar.`,
+      text: `${this.area.nombre} quedará bloqueada ${rangoLegible(t.inicio, t.fin, this.area.zonaHoraria)}. Las reservas de ese horario se rechazarán o cancelarán y el bloqueo no se podrá quitar.`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#1E293B',
@@ -159,9 +159,11 @@ export class BloqueoFormComponent implements AfterViewInit {
       Swal.fire({
         icon: 'success',
         title: 'Área bloqueada',
-        text: resultado.reservasAfectadas > 0
-          ? `Se cancelaron ${resultado.reservasAfectadas} ${resultado.reservasAfectadas === 1 ? 'reserva' : 'reservas'} que caían en ese horario.`
-          : 'No había reservas en ese horario.',
+        text: resultado.reservasAfectadas === 0
+          ? 'No había reservas en ese horario.'
+          : resultado.reservasAfectadas === 1
+            ? 'Una reserva que caía en ese horario quedó rechazada o cancelada.'
+            : `${resultado.reservasAfectadas} reservas que caían en ese horario quedaron rechazadas o canceladas.`,
         confirmButtonColor: '#111C99'
       });
     } catch (err: any) {
