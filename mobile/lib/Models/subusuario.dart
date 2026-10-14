@@ -54,14 +54,19 @@ class SubusuarioItem {
     }
 
     final code = json['codigo']?.toString() ?? json['codigo_invitacion']?.toString();
+    final bool activo = json['activo'] == true || (json['estado']?.toString().toLowerCase() == 'activo');
+    final rawNombre = (json['nombre'] ?? json['usuario_nombre'])?.toString().trim();
+    final nombre = (rawNombre != null && rawNombre.isNotEmpty)
+        ? rawNombre
+        : (activo ? 'Subusuario' : 'Pendiente');
 
     return SubusuarioItem(
       id: json['id']?.toString() ?? '',
-      nombre: json['nombre']?.toString() ?? 'Pendiente',
-      email: json['email']?.toString() ?? '',
-      telefono: json['telefono']?.toString() ?? '',
+      nombre: nombre,
+      email: (json['email'] ?? json['usuario_email'])?.toString() ?? '',
+      telefono: (json['telefono'] ?? json['usuario_telefono'])?.toString() ?? '',
       parentesco: json['parentesco']?.toString() ?? 'Familiar',
-      estado: json['estado']?.toString() ?? 'Pendiente',
+      estado: activo ? 'Activo' : (json['estado']?.toString() ?? 'Pendiente'),
       creadoEn: parsedCreado,
       codigo: (code != null && code.isNotEmpty) ? code : null,
     );

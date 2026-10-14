@@ -6,6 +6,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../Services/app_controller.dart';
 import '../Services/viviendas_service.dart';
+import '../Services/subusuarios_service.dart';
+import '../Models/subusuario.dart';
 import '../Utils/error_handler.dart';
 import '../Utils/codigo_helper.dart';
 import '../Widgets/qr_dialog.dart';
@@ -32,6 +34,9 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
   bool _isGeneratingCode = false;
   Map<String, dynamic>? _habitanteAsignado;
   bool _isActionHabitanteLoading = false;
+  List<SubusuarioItem> _subusuarios = [];
+  bool _isLoadingSubusuarios = false;
+  bool _errorSubusuarios = false;
 
   @override
   void initState() {
@@ -43,6 +48,50 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
       _habitanteAsignado = Map<String, dynamic>.from(_vivienda['habitante']);
     }
     _loadResidenteIfNeeded();
+    _loadSubusuarios();
+  }
+
+  Future<void> _loadSubusuarios() async {
+    final subsRaw = _vivienda['subusuarios'];
+    if (subsRaw is List && subsRaw.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          _subusuarios = subsRaw
+              .whereType<Map>()
+              .map((s) => SubusuarioItem.fromJson(Map<String, dynamic>.from(s)))
+              .toList();
+        });
+      }
+      return;
+    }
+
+    final vId = _vivienda['id'];
+    if (vId is num && vId > 0) {
+      setState(() {
+        _isLoadingSubusuarios = true;
+        _errorSubusuarios = false;
+      });
+      try {
+        final list = await SubusuariosService(widget.controller).getSubusuarios(vId.toInt());
+        if (mounted) {
+          setState(() {
+            _subusuarios = list;
+          });
+        }
+      } catch (_) {
+        if (mounted) {
+          setState(() {
+            _errorSubusuarios = true;
+          });
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoadingSubusuarios = false;
+          });
+        }
+      }
+    }
   }
 
   Future<void> _loadResidenteIfNeeded() async {
@@ -815,6 +864,189 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
     );
   }
 
+  Widget _buildSubusuariosSection() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x05000000),
+            blurRadius: 10,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Sub-usuarios',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              if (!_isLoadingSubusuarios && !_errorSubusuarios)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Text(
+                    '${_subusuarios.length} de ${SubusuariosService.maxSubusuarios}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF475569),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (_isLoadingSubusuarios)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF111C99)),
+                ),
+              ),
+            )
+          else if (_errorSubusuarios)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: const Text(
+                'No se pudieron cargar los sub-usuarios de esta vivienda.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF92400E)),
+              ),
+            )
+          else if (_subusuarios.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Text(
+                'Esta vivienda no tiene sub-usuarios registrados.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _subusuarios.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              itemBuilder: (context, index) {
+                final sub = _subusuarios[index];
+                final isActivo = sub.isActivo;
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isActivo ? const Color(0xFFF8FAFC) : const Color(0xFFFFFBEB),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isActivo ? const Color(0xFFE2E8F0) : const Color(0xFFFDE68A),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: isActivo ? const Color(0xFF111C99) : const Color(0xFFD97706),
+                        child: Text(
+                          sub.nombre.isNotEmpty ? sub.nombre[0].toUpperCase() : 'S',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              sub.nombre,
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              sub.email.isNotEmpty ? sub.email : (sub.telefono.isNotEmpty ? sub.telefono : 'Sin datos de contacto'),
+                              style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                            ),
+                            child: Text(
+                              sub.parentesco,
+                              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isActivo ? const Color(0xFFECFDF5) : const Color(0xFFFEF3C7),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: isActivo ? const Color(0xFFA7F3D0) : const Color(0xFFFDE68A),
+                              ),
+                            ),
+                            child: Text(
+                              isActivo ? 'Activo' : 'Invitación pendiente',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: isActivo ? const Color(0xFF047857) : const Color(0xFFB45309),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _deleteVivienda() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -1213,6 +1445,10 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
 
                       // Sección de Habitante Asignado o Estado Vacante
                       _buildHabitanteSection(),
+                      const SizedBox(height: 20),
+
+                      // Sección de Sub-usuarios
+                      _buildSubusuariosSection(),
                       const SizedBox(height: 24),
 
                       // Botones de acción inferiores

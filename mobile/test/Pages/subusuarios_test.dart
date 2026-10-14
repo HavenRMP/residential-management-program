@@ -62,6 +62,28 @@ void main() {
       final copy = item.copyWith(codigo: 'NEW123');
       expect(copy.codigo, 'NEW123');
     });
+
+    test('Deserializa correctamente payload de subusuarios proveniente de con-residentes', () {
+      final json = {
+        'id': 'sub-guid-1',
+        'usuarioId': 'usr-guid-1',
+        'viviendaId': 33,
+        'nombre': 'Rosa García',
+        'email': 'rosa@example.com',
+        'telefono': '5511223344',
+        'parentesco': 'Hermana',
+        'activo': true,
+      };
+
+      final item = SubusuarioItem.fromJson(json);
+      expect(item.id, 'sub-guid-1');
+      expect(item.nombre, 'Rosa García');
+      expect(item.email, 'rosa@example.com');
+      expect(item.telefono, '5511223344');
+      expect(item.parentesco, 'Hermana');
+      expect(item.isActivo, isTrue);
+      expect(item.isPendiente, isFalse);
+    });
   });
 
   group('InvitacionSubusuario Model Tests (Panel Invitado)', () {
