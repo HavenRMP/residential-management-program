@@ -17,6 +17,7 @@ describe('ViviendasDetalleComponent: sub-usuarios', () => {
   let fixture: ComponentFixture<ViviendasDetalleComponent>;
   let component: ViviendasDetalleComponent;
   let subusuarios: { MAX_SUBUSUARIOS: number; listarPorVivienda: jasmine.Spy };
+  let viviendas: { obtenerResidentesVivienda: jasmine.Spy };
 
   const texto = () => (fixture.nativeElement.textContent as string).replace(/\s+/g, ' ');
 
@@ -30,11 +31,12 @@ describe('ViviendasDetalleComponent: sub-usuarios', () => {
   }
 
   beforeEach(() => {
+    viviendas = { obtenerResidentesVivienda: jasmine.createSpy('obtenerResidentesVivienda').and.resolveTo([]) };
     subusuarios = { MAX_SUBUSUARIOS: 2, listarPorVivienda: jasmine.createSpy('listarPorVivienda').and.resolveTo([]) };
     TestBed.configureTestingModule({
       imports: [ViviendasDetalleComponent],
       providers: [
-        { provide: ViviendasService, useValue: { obtenerResidentesVivienda: jasmine.createSpy().and.resolveTo([]) } },
+        { provide: ViviendasService, useValue: viviendas },
         { provide: ResidentesService, useValue: { listar: jasmine.createSpy().and.resolveTo([]) } },
         { provide: SubusuariosService, useValue: subusuarios }
       ]
@@ -118,5 +120,68 @@ describe('ViviendasDetalleComponent: sub-usuarios', () => {
     expect(texto()).toContain('Marta Nueva');
     expect(texto()).not.toContain('Rosa Vieja');
     expect(component.cargandoSubusuarios).toBeFalse();
+  });
+});
+
+describe('ViviendasDetalleComponent: residente asignado', () => {
+  let fixture: ComponentFixture<ViviendasDetalleComponent>;
+  let component: ViviendasDetalleComponent;
+  let viviendas: { obtenerResidentesVivienda: jasmine.Spy };
+
+  const texto = () => (fixture.nativeElement.textContent as string).replace(/\s+/g, ' ');
+  const boton = (t: string) =>
+    Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>).find(b => b.textContent!.trim() === t);
+
+  async function abrir(): Promise<void> {
+    const vivienda = casa(33, 'PRUEBA-01');
+    component.vivienda = vivienda;
+    component.isOpen = true;
+    component.ngOnChanges({ vivienda: new SimpleChange(null, vivienda, false) });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+  }
+
+  beforeEach(() => {
+    viviendas = { obtenerResidentesVivienda: jasmine.createSpy('obtenerResidentesVivienda').and.resolveTo([]) };
+    TestBed.configureTestingModule({
+      imports: [ViviendasDetalleComponent],
+      providers: [
+        { provide: ViviendasService, useValue: viviendas },
+        { provide: ResidentesService, useValue: { listar: jasmine.createSpy().and.resolveTo([]) } },
+        { provide: SubusuariosService, useValue: { MAX_SUBUSUARIOS: 2, listarPorVivienda: jasmine.createSpy().and.resolveTo([]) } }
+      ]
+    });
+    fixture = TestBed.createComponent(ViviendasDetalleComponent);
+    component = fixture.componentInstance;
+  });
+
+  it('una vivienda sin residente lo dice y ofrece vincular', async () => {
+    await abrir();
+
+    expect(texto()).toContain('Sin habitante registrado');
+    expect(boton('Vincular')).toBeDefined();
+  });
+
+  it('si no se pudo consultar no dice que la casa está vacía ni ofrece vincular, y deja reintentar', async () => {
+    spyOn(console, 'error');
+    viviendas.obtenerResidentesVivienda.and.rejectWith({ status: 500 });
+
+    await abrir();
+
+    expect(texto()).toContain('No se pudo consultar el residente de esta vivienda.');
+    expect(texto()).toContain('No disponible');
+    expect(texto()).not.toContain('Sin habitante registrado');
+    expect(boton('Vincular')).toBeUndefined();
+    expect(boton('Vincular Residente Ahora')).toBeUndefined();
+
+    viviendas.obtenerResidentesVivienda.and.resolveTo([{ id: 'r1', nombre: 'Ana', apellidos: 'Pérez', email: 'ana@example.com', telefono: '5512345678', rol: 'Residente' }]);
+    boton('Reintentar')!.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(texto()).toContain('Ana Pérez');
+    expect(texto()).not.toContain('No se pudo consultar el residente');
   });
 });
