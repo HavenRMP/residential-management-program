@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import { ReservasService } from '../../../core/services/reservas.service';
 import { AreaComun, REGLAS_RESERVA, Reserva, ReservaCalendario, ocupaHorario } from '../../../core/models/reserva.model';
 import {
+  diaLegible,
   diasReservables,
   fechaEnZona,
   horaEnZona,
@@ -75,7 +76,7 @@ function diaSiguiente(fecha: string): string {
               [max]="dias().max"
               class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
             />
-            <p class="mt-1 text-[11px] text-slate-500">Del {{ dias().min }} al {{ dias().max }}.</p>
+            <p class="mt-1 text-[11px] text-slate-500">Del {{ diaCorto(dias().min) }} al {{ diaCorto(dias().max) }}.</p>
           </div>
         </section>
 
@@ -284,6 +285,12 @@ export class ReservaFormComponent {
       ? 'Línea de tiempo del día: libre en todo el horario'
       : `Línea de tiempo del día con ${segs.length} horario(s) ocupado(s): ${segs.map(s => s.etiqueta).join(', ')}`;
   });
+
+  /** "mar 20 oct 2026" para un día yyyy-MM-dd en la zona del área */
+  diaCorto(fecha: string): string {
+    const zona = this.area()?.zonaHoraria ?? 'America/Mexico_City';
+    return diaLegible(instanteEnZona(fecha, '12:00', zona), zona);
+  }
 
   hora(valor: string): string {
     return recortarHora(valor);
