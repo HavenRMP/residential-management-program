@@ -128,11 +128,121 @@ void main() {
       expect(find.text('Aprobar'), findsOneWidget);
       expect(find.text('Rechazar'), findsOneWidget);
     });
+
+    testWidgets('Renders common areas tab, hides inactive areas behind button, and shows Edit button', (tester) async {
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/api/areas') {
+          final data = {
+            'items': [
+              {
+                'id': 'area-activa-1',
+                'nombre': 'Alberca Familiar',
+                'horaApertura': '08:00:00',
+                'horaCierre': '22:00:00',
+                'activo': true,
+              },
+              {
+                'id': 'area-baja-1',
+                'nombre': 'Salón Antiguo',
+                'horaApertura': '09:00:00',
+                'horaCierre': '20:00:00',
+                'activo': false,
+              },
+            ],
+            'totalCount': 2,
+          };
+          return http.Response(jsonEncode(data), 200, headers: {'content-type': 'application/json'});
+        }
+        if (request.url.path.startsWith('/api/admin/reservas')) {
+          return http.Response(jsonEncode({'items': []}), 200, headers: {'content-type': 'application/json'});
+        }
+        return http.Response('Not found', 404);
+      });
+
+      final controller = AppController(null, client: mockClient);
+
+      await tester.pumpWidget(createTestWidget(ReservasAdminScreen(controller: controller)));
+      await tester.pumpAndSettle();
+
+      // Navegar a Tab 3: Áreas Comunes
+      await tester.tap(find.text('Áreas Comunes'));
+      await tester.pumpAndSettle();
+
+      // Área activa visible con botón Editar
+      expect(find.text('Alberca Familiar'), findsOneWidget);
+      expect(find.text('Editar'), findsOneWidget);
+
+      // Área dada de baja oculta al inicio
+      expect(find.text('Salón Antiguo'), findsNothing);
+      expect(find.text('Mostrar áreas dadas de baja (1)'), findsOneWidget);
+
+      // Al tocar el toggle, se muestra el área inactiva
+      await tester.tap(find.text('Mostrar áreas dadas de baja (1)'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Salón Antiguo'), findsOneWidget);
+      expect(find.text('Ocultar áreas dadas de baja (1)'), findsOneWidget);
+    });
+
+    testWidgets('Renders maintenance block modal with precise closing and cancellation warning', (tester) async {
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/api/areas') {
+          return http.Response(
+            jsonEncode({
+              'items': [
+                {
+                  'id': 'area-1',
+                  'nombre': 'Gimnasio',
+                  'horaApertura': '06:00:00',
+                  'horaCierre': '22:00:00',
+                  'activo': true,
+                }
+              ]
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        if (request.url.path.startsWith('/api/admin/reservas')) {
+          return http.Response(jsonEncode({'items': []}), 200, headers: {'content-type': 'application/json'});
+        }
+        return http.Response('Not found', 404);
+      });
+
+      final controller = AppController(null, client: mockClient);
+
+      await tester.pumpWidget(createTestWidget(ReservasAdminScreen(controller: controller)));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Áreas Comunes'));
+      await tester.pumpAndSettle();
+
+      // Abrir modal de bloqueo
+      await tester.tap(find.text('Bloqueo Mantenimiento'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bloqueo por Mantenimiento'), findsOneWidget);
+      expect(
+        find.textContaining('se rechazan las pendientes y se cancelan las aprobadas'),
+        findsOneWidget,
+      );
+    });
   });
 
   group('CalendarioReservasVigilanteModal Tests', () {
-    testWidgets('Renders restricted calendar view with events', (tester) async {
+    testWidgets('Renders restricted calendar view with events and fast ranges', (tester) async {
       final mockClient = MockClient((request) async {
+        if (request.url.path == '/api/areas') {
+          return http.Response(
+            jsonEncode({
+              'items': [
+                {'id': 'area-1', 'nombre': 'Salón Social', 'activo': true, 'horaApertura': '08:00:00', 'horaCierre': '22:00:00'}
+              ]
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
         if (request.url.path == '/api/reservas/calendario') {
           final data = {
             'items': [
@@ -144,6 +254,7 @@ void main() {
                 'tipo': 'reserva',
                 'inicio': '2026-11-15T15:00:00Z',
                 'fin': '2026-11-15T19:00:00Z',
+                'numeroCasa': '12',
               }
             ],
             'totalCount': 1,
@@ -159,8 +270,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Uso de Áreas Comunes'), findsOneWidget);
-      expect(find.text('Salón Social'), findsOneWidget);
+      expect(find.text('Salón Social'), findsWidgets);
       expect(find.textContaining('Horario ocupado:'), findsOneWidget);
+      expect(find.text('Hoy'), findsOneWidget);
+      expect(find.text('Mañana'), findsOneWidget);
+      expect(find.text('Próx. 3 días'), findsOneWidget);
+      expect(find.text('Esta semana'), findsOneWidget);
     });
   });
 
