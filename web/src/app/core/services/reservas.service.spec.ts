@@ -184,14 +184,25 @@ describe('ReservasService', () => {
   });
 
   describe('confirmar y cancelar', () => {
-    it('confirmar marca la reserva como confirmada', async () => {
+    it('confirmar registra la confirmación sin cambiar el estado, como lo hace el backend', async () => {
       service.mias.set([reserva('r1', 'APROBADA')]);
       api.post.and.returnValue(of(null));
 
       await service.confirmar('r1');
 
       expect(api.post).toHaveBeenCalledWith('/api/reservas/r1/confirmar', {}, undefined, 'reservas');
-      expect(service.mias()[0].estado).toBe('CONFIRMADA');
+      expect(service.mias()[0].estado).toBe('APROBADA');
+      expect(service.mias()[0].confirmadaEn).toBeTruthy();
+    });
+
+    it('una reserva ya confirmada deja de contar como acción pendiente', async () => {
+      service.mias.set([reserva('r1', 'APROBADA', Date.now() + 5 * 86_400_000)]);
+      expect(service.accionesPendientes()).toBe(1);
+      api.post.and.returnValue(of(null));
+
+      await service.confirmar('r1');
+
+      expect(service.accionesPendientes()).toBe(0);
     });
 
     it('cancelar manda el motivo sin espacios y marca la reserva como cancelada', async () => {
@@ -217,7 +228,7 @@ describe('ReservasService', () => {
       api.post.and.returnValue(throwError(() => ({ status: 409 })));
 
       await expectAsync(service.confirmar('r1')).toBeRejectedWith(jasmine.objectContaining({ status: 409 }));
-      expect(service.mias()[0].estado).toBe('APROBADA');
+      expect(service.mias()[0].confirmadaEn).toBeFalsy();
     });
   });
 
