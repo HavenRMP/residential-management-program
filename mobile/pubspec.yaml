@@ -22,6 +22,9 @@ dependencies:
   qr_flutter: ^4.1.0
   mobile_scanner: ^7.4.2
   share_plus: ^13.3.1
+  local_auth: ^3.0.2
+  screen_brightness: ^2.1.11
+  audioplayers: ^6.7.1
 
 dev_dependencies:
   flutter_test:
