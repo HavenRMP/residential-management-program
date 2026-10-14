@@ -6,6 +6,7 @@ import { AuthUser } from '../models/auth-user.model';
 import { environment } from '../../../environments/environment';
 import { firstValueFrom, timeout } from 'rxjs';
 import Swal from 'sweetalert2';
+import { mensajeAmigable } from '../utils/api-errors.util';
 
 @Injectable({
   providedIn: 'root'
@@ -329,7 +330,7 @@ export class AuthService implements OnDestroy {
       return { success: true };
     } catch (err: any) {
       const validationErrors = err?.error?.errors as Record<string, string[]> | undefined;
-      let message = err?.error?.error || err?.error?.title || err?.message || 'No se pudo actualizar el perfil.';
+      let message = mensajeAmigable(err, 'No se pudo actualizar el perfil.');
 
       if (validationErrors && typeof validationErrors === 'object') {
         const firstKey = Object.keys(validationErrors)[0];
