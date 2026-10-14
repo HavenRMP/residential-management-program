@@ -76,7 +76,8 @@ import { claseBadgePrioridad, etiquetaPrioridad, tiempoRestanteAviso } from '../
           </div>
     
           @if (tieneCondominio()) {
-            <div class="flex items-center gap-2 self-start sm:self-auto">
+            <!-- Con las cuatro secciones los botones no caben en una línea en un teléfono: pasan a la siguiente -->
+            <div class="flex flex-wrap items-center gap-2 self-start sm:self-auto" data-test="accesos-portal">
               <a
                 routerLink="/dashboard/residente/visitas"
                 class="h-8 px-3 inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition-colors shadow-2xs"
