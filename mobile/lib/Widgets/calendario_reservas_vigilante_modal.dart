@@ -9,10 +9,12 @@ enum RangoCaseta { hoy, manana, proximos3Dias, semana, personalizado }
 
 class CalendarioReservasVigilanteModal extends StatefulWidget {
   final AppController controller;
+  final bool isEmbedded;
 
   const CalendarioReservasVigilanteModal({
     super.key,
     required this.controller,
+    this.isEmbedded = false,
   });
 
   @override
@@ -156,11 +158,13 @@ class _CalendarioReservasVigilanteModalState
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: MediaQuery.of(context).size.height * 0.88,
-      padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        color: Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      height: widget.isEmbedded ? null : MediaQuery.of(context).size.height * 0.88,
+      padding: EdgeInsets.all(widget.isEmbedded ? 16 : 20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: widget.isEmbedded
+            ? BorderRadius.zero
+            : const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -178,10 +182,17 @@ class _CalendarioReservasVigilanteModalState
                   ),
                 ],
               ),
-              IconButton(
-                icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B)),
-                onPressed: () => Navigator.pop(context),
-              ),
+              if (widget.isEmbedded)
+                IconButton(
+                  icon: const Icon(Icons.refresh_rounded, color: Color(0xFFD97706)),
+                  tooltip: 'Actualizar agenda',
+                  onPressed: _cargarTodo,
+                )
+              else
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B)),
+                  onPressed: () => Navigator.pop(context),
+                ),
             ],
           ),
           const SizedBox(height: 10),
