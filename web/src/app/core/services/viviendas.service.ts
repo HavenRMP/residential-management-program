@@ -60,14 +60,11 @@ export class ViviendasService {
       if (cached) return cached;
     }
 
-    try {
-      const resp = await firstValueFrom(this.apiService.get<any>(`/api/viviendas/${viviendaId}/residentes`));
-      const items = extractPagedItems<Residente>(resp);
-      this.cacheService.set(cacheKey, items, 'viviendas');
-      return items;
-    } catch {
-      return [];
-    }
+    // Si la consulta falla el error se propaga: devolver [] haría pasar una falla por "vivienda vacía"
+    const resp = await firstValueFrom(this.apiService.get<any>(`/api/viviendas/${viviendaId}/residentes`));
+    const items = extractPagedItems<Residente>(resp);
+    this.cacheService.set(cacheKey, items, 'viviendas');
+    return items;
   }
 
   async vincularResidente(viviendaId: number, usuarioId: string): Promise<any> {
