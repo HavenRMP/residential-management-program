@@ -225,9 +225,9 @@ class AppController extends ChangeNotifier {
     try {
       unawaited(actualizarPendingCount());
       await _doBootstrap().timeout(
-        const Duration(seconds: 40),
+        const Duration(seconds: 60),
         onTimeout: () {
-          debugPrint('[AppController] bootstrap() timed out after 40 s');
+          debugPrint('[AppController] bootstrap() timed out after 60 s');
         },
       );
     } catch (e) {
@@ -316,7 +316,7 @@ class AppController extends ChangeNotifier {
               '${dotenv.env['API_BASE_URL_USUARIOS'] ?? 'https://usuarios-api-n1qi.onrender.com'}/api/Auth/ping',
             ),
           )
-          .timeout(const Duration(seconds: 45));
+          .timeout(const Duration(seconds: 60));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         String dbVersionText = 'No disponible';
@@ -807,7 +807,7 @@ class AppController extends ChangeNotifier {
     try {
       response = await httpClient
           .get(uri, headers: headers)
-          .timeout(const Duration(seconds: 35));
+          .timeout(const Duration(seconds: 60));
     } on http.ClientException catch (e) {
       debugPrint(
         '[AppController] Error de conexión transitorio en $endpoint ($e). Reintentando en 1s...',
@@ -816,7 +816,7 @@ class AppController extends ChangeNotifier {
       if (_isDisposed) rethrow;
       response = await httpClient
           .get(uri, headers: headers)
-          .timeout(const Duration(seconds: 35));
+          .timeout(const Duration(seconds: 60));
     } on SocketException catch (e) {
       debugPrint(
         '[AppController] Error de socket transitorio en $endpoint ($e). Reintentando en 1s...',
@@ -825,7 +825,7 @@ class AppController extends ChangeNotifier {
       if (_isDisposed) rethrow;
       response = await httpClient
           .get(uri, headers: headers)
-          .timeout(const Duration(seconds: 35));
+          .timeout(const Duration(seconds: 60));
     }
     if (response.statusCode == 401) {
       debugPrint(
@@ -842,7 +842,7 @@ class AppController extends ChangeNotifier {
           }
           response = await httpClient
               .get(uri, headers: headers)
-              .timeout(const Duration(seconds: 35));
+              .timeout(const Duration(seconds: 60));
         }
       } catch (e) {
         debugPrint('[AppController] Error al renovar sesión tras 401: $e');
