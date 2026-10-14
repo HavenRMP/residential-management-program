@@ -2,17 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../Services/app_controller.dart';
+import '../Services/biometric_service.dart';
 import '../Themes/app_theme.dart';
+import '../Utils/haptic_helper.dart';
 
 class PerfilScreen extends StatefulWidget {
   const PerfilScreen({
     super.key,
     required this.controller,
     this.isOnboarding = false,
+    this.biometricService,
   });
 
   final AppController controller;
   final bool isOnboarding;
+  final BiometricService? biometricService;
 
   @override
   State<PerfilScreen> createState() => _PerfilScreenState();
@@ -24,10 +28,15 @@ class _PerfilScreenState extends State<PerfilScreen> {
   late final TextEditingController _apellidosCtrl;
   late final TextEditingController _telefonoCtrl;
   late bool _isEditMode;
+  late final BiometricService _biometricService;
+  bool _isBiometricSupported = false;
+  bool _isBiometricEnabled = false;
+  bool _isLoadingBiometric = true;
 
   @override
   void initState() {
     super.initState();
+    _biometricService = widget.biometricService ?? BiometricService();
     _isEditMode = widget.isOnboarding || widget.controller.isProfileIncomplete;
     final user = widget.controller.currentUser;
 
@@ -39,6 +48,73 @@ class _PerfilScreenState extends State<PerfilScreen> {
     _nombreCtrl = TextEditingController(text: cleanNombre);
     _apellidosCtrl = TextEditingController(text: user?.apellidos ?? '');
     _telefonoCtrl = TextEditingController(text: user?.telefono ?? '');
+    _loadBiometricStatus();
+  }
+
+  Future<void> _loadBiometricStatus() async {
+    try {
+      final supported = await _biometricService.canCheckBiometrics();
+      final enabled = await _biometricService.isBiometricEnabled();
+      if (mounted) {
+        setState(() {
+          _isBiometricSupported = supported;
+          _isBiometricEnabled = enabled;
+          _isLoadingBiometric = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoadingBiometric = false);
+      }
+    }
+  }
+
+  Future<void> _toggleBiometrics(bool enable) async {
+    await HapticHelper.selection();
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+
+    if (enable) {
+      final success = await _biometricService.authenticate(
+        localizedReason: 'Confirma tus datos biométricos para habilitar el acceso rápido',
+      );
+      if (success) {
+        await _biometricService.setBiometricEnabled(true);
+        if (mounted) {
+          setState(() => _isBiometricEnabled = true);
+          await HapticHelper.success();
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('Acceso biométrico habilitado'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        await HapticHelper.error();
+        if (mounted) {
+          setState(() => _isBiometricEnabled = false);
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('No se pudo verificar tu identidad biométrica'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } else {
+      await _biometricService.setBiometricEnabled(false);
+      if (mounted) {
+        setState(() => _isBiometricEnabled = false);
+        await HapticHelper.light();
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Acceso biométrico deshabilitado'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -378,6 +454,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
             value: 'Residencial Haven',
             icon: Icons.business_outlined,
           ),
+          const SizedBox(height: 16),
+          _buildBiometricTile(),
           const SizedBox(height: 28),
           FilledButton.icon(
             onPressed: () {
@@ -400,6 +478,77 @@ class _PerfilScreenState extends State<PerfilScreen> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBiometricTile() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEEF2FF),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.fingerprint_rounded,
+              size: 22,
+              color: Color(0xFF111C99),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'ACCESO CON BIOMÉTRICOS',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF64748B),
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  _isBiometricSupported
+                      ? 'Desbloquear app con huella o rostro'
+                      : 'Biometría no configurada en el dispositivo',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _isBiometricSupported
+                        ? const Color(0xFF0F172A)
+                        : const Color(0xFF94A3B8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_isLoadingBiometric)
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            Switch.adaptive(
+              key: const Key('switch_biometria_perfil'),
+              value: _isBiometricEnabled && _isBiometricSupported,
+              onChanged: _isBiometricSupported ? _toggleBiometrics : null,
+              activeTrackColor: const Color(0xFF111C99),
+            ),
         ],
       ),
     );
