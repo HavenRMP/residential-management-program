@@ -256,3 +256,25 @@ export function nombreCompleto(nombre?: string | null, apellidos?: string | null
 export function normalizarReserva<T extends { estado: string; tipo?: string }>(r: T): T {
   return { ...r, estado: normalizarEstado(r.estado), tipo: String(r.tipo ?? 'RESERVA').trim().toUpperCase() };
 }
+
+/** El administrador solo aprueba lo que espera su decisión; un bloqueo no se aprueba */
+export function adminPuedeAprobar(r: Pick<Reserva, 'estado' | 'tipo'>): boolean {
+  return r.tipo !== 'BLOQUEO' && normalizarEstado(r.estado) === 'PENDIENTE_ADMIN';
+}
+
+/** Rechaza lo pendiente, también lo que aún espera al titular de la vivienda */
+export function adminPuedeRechazar(r: Pick<Reserva, 'estado' | 'tipo'>): boolean {
+  const e = normalizarEstado(r.estado);
+  return r.tipo !== 'BLOQUEO' && (e === 'PENDIENTE_ADMIN' || e === 'PENDIENTE_TITULAR');
+}
+
+/** Cancela una reserva ya aprobada que aún no empieza (lo pendiente se rechaza) */
+export function adminPuedeCancelar(r: Pick<Reserva, 'estado' | 'tipo' | 'inicio'>, ahora: number = Date.now()): boolean {
+  const e = normalizarEstado(r.estado);
+  return r.tipo !== 'BLOQUEO' && (e === 'APROBADA' || e === 'CONFIRMADA') && ms(r.inicio) > ahora;
+}
+
+/** Marca como no utilizada una reserva aprobada que ya terminó */
+export function adminPuedeMarcarNoUtilizada(r: Pick<Reserva, 'estado' | 'tipo' | 'fin'>, ahora: number = Date.now()): boolean {
+  return r.tipo !== 'BLOQUEO' && reservaEsMarcableNoUtilizada(r, ahora);
+}
