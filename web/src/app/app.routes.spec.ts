@@ -27,6 +27,13 @@ describe('rutas de redirección de notificaciones', () => {
     expect(reservas?.loadComponent).toBeDefined();
   });
 
+  it('la paquetería del administrador es una pantalla hija de su panel', () => {
+    const panel = routes.find(r => r.path === 'dashboard/admin');
+    const paqueteria = panel?.children?.find(r => r.path === 'paqueteria');
+
+    expect(paqueteria?.loadComponent).toBeDefined();
+  });
+
   it('la pantalla de reservas del residente exige sesión y rol', () => {
     const ruta = routes.find(r => r.path === 'dashboard/residente/reservas');
 

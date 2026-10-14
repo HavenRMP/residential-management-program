@@ -81,6 +81,12 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/reservas/admin/reservas-admin.component')
             .then(m => m.ReservasAdminComponent)
+      },
+      {
+        path: 'paqueteria',
+        loadComponent: () =>
+          import('./features/paqueteria/admin/paqueteria-admin.component')
+            .then(m => m.PaqueteriaAdminComponent)
       }
     ]
   },

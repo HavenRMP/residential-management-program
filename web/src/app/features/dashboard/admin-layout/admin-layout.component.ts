@@ -279,6 +279,31 @@ import { NotificacionesPopoverComponent } from '../../../core/components/notific
                 <span class="whitespace-nowrap font-medium fade-in-direct">Reservas</span>
               }
             </a>
+
+            <!-- Paquetería -->
+            <a
+              routerLink="/dashboard/admin/paqueteria"
+              [routerLinkActiveOptions]="{ exact: false }"
+              routerLinkActive="bg-[#111C99] text-white font-semibold shadow-xs"
+              class="flex items-center h-10 rounded-lg text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer group whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111C99]"
+              [class.px-3]="!sidebarCollapsed()"
+              [class.px-0]="sidebarCollapsed()"
+              [class.justify-center]="sidebarCollapsed()"
+              [title]="sidebarCollapsed() ? 'Paquetería' : ''"
+              aria-label="Paquetería"
+              (click)="mobileMenuOpen.set(false)"
+              >
+              <svg
+                class="w-5 h-5 shrink-0 transition-transform group-hover:scale-105"
+                [class.mr-3]="!sidebarCollapsed()"
+                fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+              @if (showText()) {
+                <span class="whitespace-nowrap font-medium fade-in-direct">Paquetería</span>
+              }
+            </a>
           </nav>
         </div>
     
