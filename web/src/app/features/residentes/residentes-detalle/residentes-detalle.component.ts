@@ -97,45 +97,94 @@ interface GrupoSubusuarios {
             </div>
           }
     
-          <!-- Lista de viviendas vinculadas -->
+          <!-- Una tarjeta por vivienda, con sus sub-usuarios adentro -->
           @if (!cargandoViviendas() && viviendasAsignadas().length > 0) {
-            <div class="space-y-2 pt-1 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
+            <div class="space-y-3 pt-1">
               @for (v of viviendasAsignadas(); track v.id) {
-                <div
-                  class="flex items-center justify-between p-3 rounded-lg bg-slate-50/80 border border-slate-200 hover:bg-slate-100/70 transition-colors"
+                @let grupo = grupoDe(v.id);
+                <section
+                  class="rounded-lg bg-slate-50/80 border border-slate-200 overflow-hidden"
+                  [attr.aria-label]="formatearNumeroCasa(v.numeroCasa) + ' y sus sub-usuarios'"
                   >
-                  <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-indigo-700 flex items-center justify-center font-bold text-xs shadow-2xs">
-                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                      </svg>
+                  <div class="flex items-center justify-between gap-3 p-3">
+                    <div class="flex items-center gap-3 min-w-0">
+                      <div class="w-8 h-8 shrink-0 rounded-lg bg-white border border-slate-200 text-indigo-700 flex items-center justify-center font-bold text-xs shadow-2xs">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                      </div>
+                      <div class="min-w-0">
+                        <p class="text-sm font-bold text-slate-900">{{ formatearNumeroCasa(v.numeroCasa) }}</p>
+                        <p class="text-[11px] text-slate-600 font-medium">Tipo: {{ v.tipo || 'Residencial' }}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p class="text-sm font-bold text-slate-900">{{ formatearNumeroCasa(v.numeroCasa) }}</p>
-                      <p class="text-[11px] text-slate-600 font-medium">Tipo: {{ v.tipo || 'Residencial' }}</p>
+                    <div class="flex items-center gap-2 shrink-0">
+                      <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        Asignada
+                      </span>
+                      <button
+                        type="button"
+                        (click)="confirmarDesvinculacion(v)"
+                        [disabled]="desvinculando() !== null"
+                        [attr.aria-label]="'Desvincular a ' + residente?.nombre + ' de ' + formatearNumeroCasa(v.numeroCasa)"
+                        title="Quitar la asignación de esta vivienda (la cuenta no se borra)"
+                        class="h-7 px-2.5 text-[11px] font-semibold rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-rose-300"
+                      >
+                        {{ desvinculando() === v.id ? 'Desvinculando...' : 'Desvincular' }}
+                      </button>
                     </div>
                   </div>
-                  <div class="flex items-center gap-2">
-                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                      Asignada
-                    </span>
-                    <button
-                      type="button"
-                      (click)="confirmarDesvinculacion(v)"
-                      [disabled]="desvinculando() !== null"
-                      [attr.aria-label]="'Desvincular a ' + residente?.nombre + ' de ' + formatearNumeroCasa(v.numeroCasa)"
-                      title="Quitar la asignación de esta vivienda (la cuenta no se borra)"
-                      class="h-7 px-2.5 text-[11px] font-semibold rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-rose-300"
-                    >
-                      {{ desvinculando() === v.id ? 'Desvinculando...' : 'Desvincular' }}
-                    </button>
+
+                  <!-- Sub-usuarios de esta casa -->
+                  <div class="border-t border-slate-200 bg-white px-3 py-2.5 space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                      <h4 class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Sub-usuarios</h4>
+                      @if (grupo && !grupo.cargando && !grupo.error) {
+                        <span class="text-[11px] font-medium text-slate-500">{{ grupo.items.length }} de {{ maxSubusuarios }}</span>
+                      }
+                    </div>
+                    @if (!grupo || grupo.cargando) {
+                      <div class="flex items-center gap-2 py-1 text-[11px] text-slate-500 font-medium" aria-busy="true">
+                        <div class="w-3.5 h-3.5 border-2 border-slate-200 border-t-indigo-700 rounded-full animate-spin"></div>
+                        <span>Consultando sub-usuarios...</span>
+                      </div>
+                    } @else if (grupo.error) {
+                      <p class="p-2.5 rounded-md bg-amber-50/70 border border-amber-200 text-[11px] text-amber-900">
+                        No se pudieron cargar los sub-usuarios de esta vivienda.
+                      </p>
+                    } @else if (grupo.items.length === 0) {
+                      <p class="text-[11px] text-slate-500">Esta vivienda no tiene sub-usuarios.</p>
+                    } @else {
+                      <ul class="space-y-1.5">
+                        @for (u of grupo.items; track u.id) {
+                          <li
+                            class="flex items-center justify-between gap-3 p-2.5 rounded-md border"
+                            [ngClass]="u.activo ? 'border-slate-200 bg-slate-50/80' : 'border-dashed border-amber-300 bg-amber-50/40'"
+                          >
+                            <div class="min-w-0">
+                              <p class="text-sm font-bold text-slate-900 truncate">{{ u.activo ? u.nombre : (u.email || 'Invitación sin correo') }}</p>
+                              <p class="text-[11px] text-slate-600 font-medium truncate">
+                                {{ u.activo ? (u.email || u.telefono || 'Sin contacto') : 'Aún no acepta la invitación' }}
+                              </p>
+                            </div>
+                            <div class="shrink-0 flex flex-col items-end gap-1">
+                              <span class="px-2 py-0.5 rounded text-[10px] font-medium border bg-slate-100 text-slate-600 border-slate-200">{{ u.parentesco }}</span>
+                              <span
+                                class="px-2 py-0.5 rounded text-[10px] font-medium border"
+                                [ngClass]="u.activo ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'"
+                              >{{ u.activo ? 'Activo' : 'Invitación pendiente' }}</span>
+                            </div>
+                          </li>
+                        }
+                      </ul>
+                    }
                   </div>
-                </div>
+                </section>
               }
             </div>
           }
-    
+
           <!-- Estado vacío: Sin vivienda -->
           @if (!cargandoViviendas() && viviendasAsignadas().length === 0 && subusuarioDe.length === 0) {
             <div class="p-3 rounded-lg bg-amber-50/70 border border-amber-200 text-xs text-amber-900 space-y-1">
@@ -176,62 +225,6 @@ interface GrupoSubusuarios {
           </div>
         }
 
-        <!-- Sub-usuarios de cada vivienda asignada -->
-        @if (!cargandoViviendas() && viviendasAsignadas().length > 0) {
-          <div class="bg-white border border-slate-200/80 rounded-xl p-4 sm:p-5 shadow-xs space-y-3" aria-labelledby="detalle-subusuarios-titulo">
-            <div class="flex items-center gap-2">
-              <div class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center border border-indigo-100">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </div>
-              <h3 id="detalle-subusuarios-titulo" class="text-xs font-bold text-slate-900 uppercase tracking-wider">Sub-usuarios de la vivienda</h3>
-            </div>
-            @for (g of gruposSubusuarios(); track g.viviendaId) {
-              <div class="space-y-2">
-                @if (gruposSubusuarios().length > 1) {
-                  <p class="text-[11px] font-semibold text-slate-500">{{ formatearNumeroCasa(g.numeroCasa) }}</p>
-                }
-                @if (g.cargando) {
-                  <div class="flex items-center gap-2 py-2 justify-center text-xs text-slate-500 font-medium" aria-busy="true">
-                    <div class="w-4 h-4 border-2 border-slate-200 border-t-indigo-700 rounded-full animate-spin"></div>
-                    <span>Consultando sub-usuarios...</span>
-                  </div>
-                }
-                @if (!g.cargando && g.error) {
-                  <p class="p-3 rounded-lg bg-amber-50/70 border border-amber-200 text-[11px] text-amber-900">
-                    No se pudieron cargar los sub-usuarios de esta vivienda.
-                  </p>
-                }
-                @if (!g.cargando && !g.error && g.items.length === 0) {
-                  <p class="p-3 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-600">
-                    Esta vivienda no tiene sub-usuarios.
-                  </p>
-                }
-                @if (!g.cargando && !g.error && g.items.length > 0) {
-                  <ul class="space-y-2">
-                    @for (u of g.items; track u.id) {
-                      <li class="flex items-center justify-between gap-3 p-3 rounded-lg bg-slate-50/80 border border-slate-200">
-                        <div class="min-w-0">
-                          <p class="text-sm font-bold text-slate-900 truncate">{{ u.activo ? u.nombre : 'Invitación pendiente' }}</p>
-                          <p class="text-[11px] text-slate-600 font-medium truncate">{{ u.email || u.telefono || 'Sin contacto' }}</p>
-                        </div>
-                        <div class="shrink-0 flex flex-col items-end gap-1">
-                          <span class="px-2 py-0.5 rounded text-[10px] font-medium border bg-slate-100 text-slate-600 border-slate-200">{{ u.parentesco }}</span>
-                          <span
-                            class="px-2 py-0.5 rounded text-[10px] font-medium border"
-                            [ngClass]="u.activo ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'"
-                          >{{ u.activo ? 'Activo' : 'Invitación enviada' }}</span>
-                        </div>
-                      </li>
-                    }
-                  </ul>
-                }
-              </div>
-            }
-          </div>
-        }
-    
         <!-- Información de Contacto -->
         <div class="bg-white border border-slate-200/80 rounded-xl p-4 sm:p-5 shadow-xs divide-y divide-slate-100">
           <!-- Correo Electrónico -->
@@ -300,6 +293,8 @@ export class ResidentesDetalleComponent implements OnChanges {
   readonly desvinculando = signal<number | null>(null);
   readonly viviendasAsignadas = signal<Vivienda[]>([]);
   readonly gruposSubusuarios = signal<GrupoSubusuarios[]>([]);
+  /** Cuántos sub-usuarios admite cada vivienda (activos más invitaciones pendientes) */
+  readonly maxSubusuarios = this.subusuariosService.MAX_SUBUSUARIOS;
   /** Evita que la respuesta lenta de un residente anterior pise la del que se abrió después */
   private consultaSubusuarios = 0;
   /** Viviendas (por id) de las que ya se pidieron sub-usuarios: el padre puede mandar una lista nueva con lo mismo en cada ciclo */
@@ -405,6 +400,11 @@ export class ResidentesDetalleComponent implements OnChanges {
       }
     }));
     if (consulta === this.consultaSubusuarios) this.gruposSubusuarios.set(grupos);
+  }
+
+  /** Sub-usuarios consultados de una vivienda; undefined mientras aún no se pide */
+  grupoDe(viviendaId: number): GrupoSubusuarios | undefined {
+    return this.gruposSubusuarios().find(g => g.viviendaId === viviendaId);
   }
 
   etiquetaViviendas(): string {
