@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { PaqueteriaService } from '../../../core/services/paqueteria.service';
-import { ActualizarPaqueteDto, CrearPaqueteDto, LIMITES_PAQUETE, Paquete, SERVICIO_OTRO, ServicioPaqueteria } from '../../../core/models/paquete.model';
+import { ActualizarPaqueteDto, CrearPaqueteDto, LIMITES_PAQUETE, Paquete, SERVICIO_OTRO, ServicioPaqueteria, empresasSeleccionables } from '../../../core/models/paquete.model';
 import { rangoFechasInvalido, rangoFechasIso } from '../../../core/models/visita.model';
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { mensajeAmigable } from '../../../core/utils/api-errors.util';
@@ -87,7 +87,7 @@ function isoAFechaInput(iso: string | null | undefined): string {
               <select id="paq-servicio" [(ngModel)]="form.servicio"
                 class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]">
                 <option [ngValue]="''">Selecciona una empresa</option>
-                @for (s of servicios; track s.id) {
+                @for (s of empresas(); track s.id) {
                   <option [ngValue]="s.id">{{ s.nombre }}</option>
                 }
                 <option [ngValue]="otro">Otra empresa</option>
@@ -258,7 +258,7 @@ export class PaqueteFormComponent implements OnInit, OnChanges, AfterViewInit {
     const p = this.paquete;
     if (!p || this.form.servicio !== this.servicioAutomatico) return;
     const nombre = (p.servicioNombre ?? '').trim().toLowerCase();
-    const delCatalogo = this.servicios.find(s => s.id === p.servicioId) ?? this.servicios.find(s => !!nombre && s.nombre.toLowerCase() === nombre);
+    const delCatalogo = this.empresas().find(s => s.id === p.servicioId) ?? this.empresas().find(s => !!nombre && s.nombre.toLowerCase() === nombre);
     const seleccion: FormularioPaquete['servicio'] = delCatalogo ? delCatalogo.id : p.servicioNombre ? SERVICIO_OTRO : '';
     this.form.servicio = seleccion;
     this.servicioAutomatico = seleccion;
@@ -273,9 +273,14 @@ export class PaqueteFormComponent implements OnInit, OnChanges, AfterViewInit {
     if (!this.isSaving()) this.cerrar();
   }
 
+  /** Empresas del catálogo que se ofrecen; "Otro" del catálogo se reemplaza por "Otra empresa" */
+  empresas(): ServicioPaqueteria[] {
+    return empresasSeleccionables(this.servicios);
+  }
+
   /** Si el catálogo no cargó solo se puede escribir la empresa */
   usaOtraEmpresa(): boolean {
-    return this.form.servicio === SERVICIO_OTRO || this.servicios.length === 0;
+    return this.form.servicio === SERVICIO_OTRO || this.empresas().length === 0;
   }
 
   elegirCuando(cuando: CuandoLlega): void {
