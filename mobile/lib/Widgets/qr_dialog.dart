@@ -3,9 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../Utils/share_helper.dart';
 import '../Utils/haptic_helper.dart';
+import '../Utils/brightness_helper.dart';
 import 'digital_pass_card.dart';
 
-class QrDialog extends StatelessWidget {
+class QrDialog extends StatefulWidget {
   const QrDialog({
     super.key,
     required this.codigo,
@@ -45,20 +46,42 @@ class QrDialog extends StatelessWidget {
     );
   }
 
+  @override
+  State<QrDialog> createState() => _QrDialogState();
+}
+
+class _QrDialogState extends State<QrDialog> {
+  @override
+  void initState() {
+    super.initState();
+    BrightnessHelper.setMaxBrightness();
+  }
+
+  @override
+  void dispose() {
+    BrightnessHelper.resetBrightness();
+    super.dispose();
+  }
+
   void _compartir(BuildContext context, String cleanCode) {
-    HapticHelper.light();
-    if (onCompartir != null) {
-      onCompartir!();
+    if (widget.onCompartir != null) {
+      HapticHelper.light();
+      widget.onCompartir!();
     } else {
-      ShareHelper.compartirCodigo(
-        context,
-        codigo: cleanCode,
-        titulo: titulo,
-        subtitulo: subtitulo,
-        tipoEtiqueta: tipoEtiqueta,
-        textoAdicional: textoAdicional,
-      );
+      _compartirPng(context, cleanCode);
     }
+  }
+
+  void _compartirTexto(BuildContext context, String cleanCode) {
+    HapticHelper.light();
+    ShareHelper.compartirCodigo(
+      context,
+      codigo: cleanCode,
+      titulo: widget.titulo,
+      subtitulo: widget.subtitulo,
+      tipoEtiqueta: widget.tipoEtiqueta,
+      textoAdicional: widget.textoAdicional,
+    );
   }
 
   void _compartirPng(BuildContext context, String cleanCode) {
@@ -66,15 +89,15 @@ class QrDialog extends StatelessWidget {
     DigitalPassPreviewDialog.show(
       context,
       codigo: cleanCode,
-      titulo: titulo,
-      subtitulo: subtitulo,
-      tipoEtiqueta: tipoEtiqueta,
+      titulo: widget.titulo,
+      subtitulo: widget.subtitulo,
+      tipoEtiqueta: widget.tipoEtiqueta,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final cleanCode = codigo.trim();
+    final cleanCode = widget.codigo.trim();
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -95,14 +118,14 @@ class QrDialog extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        titulo,
+                        widget.titulo,
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                           color: Color(0xFF0F172A),
                         ),
                       ),
-                      if (tipoEtiqueta != null) ...[
+                      if (widget.tipoEtiqueta != null) ...[
                         const SizedBox(height: 4),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -112,7 +135,7 @@ class QrDialog extends StatelessWidget {
                             border: Border.all(color: const Color(0xFFC7D2FE)),
                           ),
                           child: Text(
-                            tipoEtiqueta!,
+                            widget.tipoEtiqueta!,
                             style: const TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
@@ -217,7 +240,7 @@ class QrDialog extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   InkWell(
-                    onTap: () => _compartir(context, cleanCode),
+                    onTap: () => _compartirTexto(context, cleanCode),
                     borderRadius: BorderRadius.circular(6),
                     child: const Tooltip(
                       message: 'Compartir texto',
@@ -234,7 +257,7 @@ class QrDialog extends StatelessWidget {
 
             // Subtítulo explicativo
             Text(
-              subtitulo,
+              widget.subtitulo,
               style: const TextStyle(
                 fontSize: 12,
                 color: Color(0xFF64748B),
@@ -244,7 +267,7 @@ class QrDialog extends StatelessWidget {
             ),
             const SizedBox(height: 18),
 
-            // Botones de acción: Cerrar, Tarjeta PNG y Compartir
+            // Botones de acción: Cerrar, Compartir Texto y Compartir Imagen PNG
             Wrap(
               alignment: WrapAlignment.center,
               spacing: 8,
@@ -289,4 +312,3 @@ class QrDialog extends StatelessWidget {
     );
   }
 }
-
