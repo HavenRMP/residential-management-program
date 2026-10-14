@@ -35,7 +35,7 @@ describe('AreasAdminComponent', () => {
 
   beforeEach(() => {
     areas = [area('a1', 'Salón de usos múltiples', true, { descripcion: 'Para fiestas' }), area('a2', 'Alberca', false)];
-    api = jasmine.createSpyObj('ApiService', ['get', 'post', 'put']);
+    api = jasmine.createSpyObj('ApiService', ['get', 'post', 'patch']);
     api.get.and.callFake((() => of({ items: areas, totalCount: areas.length })) as any);
     api.post.and.returnValue(of(null));
     swal = spyOn(Swal, 'fire').and.resolveTo({ isConfirmed: true } as any);
