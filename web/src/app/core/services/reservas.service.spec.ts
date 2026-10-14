@@ -21,6 +21,22 @@ describe('ReservasService', () => {
     service = TestBed.inject(ReservasService);
   });
 
+  it('cuenta como acciones pendientes las solicitudes por aprobar y las reservas listas para confirmar', () => {
+    const enDias = (d: number) => Date.now() + d * 86_400_000;
+    service.mias.set([
+      reserva('lista', 'APROBADA', enDias(5)),
+      reserva('lejana', 'APROBADA', enDias(20)),
+      reserva('pendiente', 'PENDIENTE_ADMIN', enDias(5)),
+      reserva('confirmada', 'CONFIRMADA', enDias(5))
+    ]);
+    service.porAprobar.set([{ id: 'p1' } as any, { id: 'p2' } as any]);
+
+    expect(service.accionesPendientes()).toBe(3);
+
+    service.porAprobar.set([]);
+    expect(service.accionesPendientes()).toBe(1);
+  });
+
   describe('cargarAreas', () => {
     it('pide solo las activas al microservicio de reservas', async () => {
       api.get.and.returnValue(of({ items: [{ id: 'a1', nombre: 'Salón', horaApertura: '08:00:00', horaCierre: '22:00:00', zonaHoraria: 'America/Mexico_City', activo: true }] }));
