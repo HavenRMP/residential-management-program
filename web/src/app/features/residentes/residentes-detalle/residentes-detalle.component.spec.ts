@@ -37,7 +37,7 @@ describe('ResidentesDetalleComponent', () => {
     ]);
     mockViviendasService.desvincularResidente.and.resolveTo();
     mockViviendasService.obtenerViviendasDeResidente.and.resolveTo([mockVivienda]);
-    mockSubusuariosService = jasmine.createSpyObj('SubusuariosService', ['listarPorVivienda']);
+    mockSubusuariosService = jasmine.createSpyObj('SubusuariosService', ['listarPorVivienda'], { MAX_SUBUSUARIOS: 2 });
     mockSubusuariosService.listarPorVivienda.and.resolveTo([]);
 
     await TestBed.configureTestingModule({
@@ -248,13 +248,43 @@ describe('ResidentesDetalleComponent', () => {
       await abrir([mockVivienda]);
 
       expect(mockSubusuariosService.listarPorVivienda).toHaveBeenCalledWith(101);
-      expect(texto()).toContain('Sub-usuarios de la vivienda');
+      expect(texto()).toContain('Sub-usuarios');
+      expect(texto()).toContain('2 de 2');
       expect(texto()).toContain('Luis Prueba');
       expect(texto()).toContain('luis@example.com');
       expect(texto()).toContain('Activo');
-      expect(texto()).toContain('Invitación pendiente');
-      expect(texto()).toContain('Invitación enviada');
-      expect(texto()).not.toContain('Pendiente ');
+      expect(texto()).not.toContain('Invitación enviada');
+    });
+
+    it('una invitación pendiente se distingue de una persona: el correo es lo principal y no se llama "Pendiente"', async () => {
+      mockSubusuariosService.listarPorVivienda.and.resolveTo([pendiente]);
+
+      await abrir([mockVivienda]);
+
+      const fila = (fixture.nativeElement as HTMLElement).querySelector('section li') as HTMLElement;
+      expect(fila.textContent!.replace(/\s+/g, ' ')).toContain('ana@example.com');
+      expect(fila.textContent).toContain('Aún no acepta la invitación');
+      expect(fila.textContent).toContain('Invitación pendiente');
+      expect(fila.classList.contains('border-dashed')).toBeTrue();
+      expect(fila.querySelector('p')!.textContent).not.toContain('Pendiente');
+    });
+
+    it('cada casa lleva sus sub-usuarios dentro de su propia tarjeta, con su cupo', async () => {
+      const otra: Vivienda = { id: 202, numeroCasa: 'Casa 202', tipo: 'Casa', condominioId: 'cond-1' };
+      mockSubusuariosService.listarPorVivienda.and.callFake(async (id: number) => (id === 202 ? [] : [acceso, pendiente]));
+
+      await abrir([mockVivienda, otra]);
+
+      const tarjetas = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('section[aria-label$="y sus sub-usuarios"]')) as HTMLElement[];
+      expect(tarjetas.length).toBe(2);
+      const texto1 = tarjetas[0].textContent!.replace(/\s+/g, ' ');
+      const texto2 = tarjetas[1].textContent!.replace(/\s+/g, ' ');
+      expect(texto1).toContain('Luis Prueba');
+      expect(texto1).toContain('2 de 2');
+      expect(texto1).toContain('Desvincular');
+      expect(texto2).not.toContain('Luis Prueba');
+      expect(texto2).toContain('Esta vivienda no tiene sub-usuarios.');
+      expect(texto2).toContain('0 de 2');
     });
 
     it('avisa cuando la vivienda no tiene sub-usuarios', async () => {
@@ -311,7 +341,7 @@ describe('ResidentesDetalleComponent', () => {
     it('sin vivienda asignada no muestra la sección ni consulta nada', async () => {
       await abrir([]);
 
-      expect(texto()).not.toContain('Sub-usuarios de la vivienda');
+      expect(texto()).not.toContain('Esta vivienda no tiene sub-usuarios.');
       expect(mockSubusuariosService.listarPorVivienda).not.toHaveBeenCalled();
     });
   });
