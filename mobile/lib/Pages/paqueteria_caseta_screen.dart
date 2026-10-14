@@ -58,7 +58,11 @@ class _PaqueteriaCasetaScreenState extends State<PaqueteriaCasetaScreen>
       final service = PaqueteriaService(widget.controller);
       final resEsperados = await service.getPaquetesEsperadosCaseta(page: 1, pageSize: 50);
       final resInventario = await service.getInventarioCaseta(page: 1, pageSize: 50);
-      final resHistorico = await service.getHistoricoCaseta(page: 1, pageSize: 50);
+      final resHistorico = await service.getHistoricoCaseta(
+        page: 1,
+        pageSize: 50,
+        estados: ['entregado', 'cancelado', 'devuelto', 'vencido'],
+      );
 
       if (!mounted) return;
 
