@@ -22,15 +22,46 @@ describe('PingService', () => {
     http = TestBed.inject(HttpTestingController);
   });
 
-  it('despierta en silencio los demás microservicios', () => {
+  it('despierta en silencio los demás microservicios, incluidos visitas y reservas', () => {
     service.checkBackendConnection();
 
-    for (const base of [environment.services.viviendas, environment.services.condominios, environment.services.avisos]) {
+    const bases = [
+      environment.services.viviendas,
+      environment.services.condominios,
+      environment.services.avisos,
+      environment.services.visitas,
+      environment.services.reservas
+    ];
+    for (const base of bases) {
       expect(http.match(`${base}/swagger/v1/swagger.json`).length).toBe(1);
     }
     pingUsuarios().forEach(r => r.flush({ message: 'ok' }));
     expect(fire).not.toHaveBeenCalled();
   });
+
+  it('despierta cada servicio una sola vez aunque varios compartan dirección o haya uno nuevo', () => {
+    service.checkBackendConnection();
+
+    const swagger = http.match(r => r.url.endsWith('/swagger/v1/swagger.json'));
+    const urls = swagger.map(r => r.request.url);
+    expect(new Set(urls).size).toBe(urls.length);
+    // todos los de `environment.services` salvo `default` (repite viviendas) y `usuarios` (tiene su propio ping)
+    const esperados = Object.entries(environment.services).filter(([n]) => !['default', 'usuarios'].includes(n));
+    expect(urls.length).toBe(esperados.length);
+    pingUsuarios().forEach(r => r.flush({ message: 'ok' }));
+  });
+
+  it('el despertar de los demás servicios no se corta a los 7 s: reservas puede tardar casi un minuto', fakeAsync(() => {
+    service.checkBackendConnection();
+    pingUsuarios().forEach(r => r.flush({ message: 'ok' }));
+
+    tick(PING_TIMEOUT + 1000);
+
+    const pendientes = http.match(r => r.url.endsWith('/swagger/v1/swagger.json'));
+    expect(pendientes.every(r => !r.cancelled)).toBeTrue();
+    pendientes.forEach(r => r.flush('{}'));
+    discardPeriodicTasks();
+  }));
 
   it('si el servidor responde no muestra ningún aviso ni datos internos como la versión de la base de datos', () => {
     service.checkBackendConnection();

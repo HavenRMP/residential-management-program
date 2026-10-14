@@ -6,6 +6,13 @@ import Swal from 'sweetalert2';
 import { environment } from '../../../environments/environment';
 
 export const PING_TIMEOUT = 7000;
+/**
+ * Los servicios que solo se despiertan no bloquean nada: pueden tardar lo que tarde Render en arrancarlos
+ * (el de reservas llega a tardar cerca de un minuto), así que su petición no se corta a los 7 s.
+ */
+export const WAKE_TIMEOUT = 90000;
+/** `default` repite la URL de viviendas y `usuarios` tiene su propio ping más abajo */
+const SERVICIOS_QUE_NO_SE_DESPIERTAN_AQUI = ['default', 'usuarios'];
 
 @Injectable({
   providedIn: 'root'
@@ -16,25 +23,15 @@ export class PingService {
   private readonly maxRetries = 2;
 
   checkBackendConnection(): void {
-    // 1. Despertar los microservicios de apoyo en paralelo (Viviendas, Condominios, Avisos)
-    const pingViviendasUrl = `${environment.services.viviendas}/swagger/v1/swagger.json`;
-    const pingCondominiosUrl = `${environment.services.condominios}/swagger/v1/swagger.json`;
-    const pingAvisosUrl = `${environment.services.avisos}/swagger/v1/swagger.json`;
-
-    this.http.get(pingViviendasUrl, { responseType: 'text' }).pipe(
-      timeout(PING_TIMEOUT),
-      catchError(() => of(null))
-    ).subscribe();
-
-    this.http.get(pingCondominiosUrl, { responseType: 'text' }).pipe(
-      timeout(PING_TIMEOUT),
-      catchError(() => of(null))
-    ).subscribe();
-
-    this.http.get(pingAvisosUrl, { responseType: 'text' }).pipe(
-      timeout(PING_TIMEOUT),
-      catchError(() => of(null))
-    ).subscribe();
+    // 1. Despertar en paralelo todos los demás microservicios (Viviendas, Condominios, Avisos, Visitas, Reservas…).
+    //    Se recorre `environment.services`, así un servicio nuevo queda incluido sin tocar este código.
+    for (const [nombre, base] of Object.entries(environment.services)) {
+      if (SERVICIOS_QUE_NO_SE_DESPIERTAN_AQUI.includes(nombre)) continue;
+      this.http.get(`${base}/swagger/v1/swagger.json`, { responseType: 'text' }).pipe(
+        timeout(WAKE_TIMEOUT),
+        catchError(() => of(null))
+      ).subscribe();
+    }
 
     // 2. Despertar microservicio de Usuarios y validar conexion
     const pingUrl = `${environment.services.usuarios}/api/auth/ping`;
