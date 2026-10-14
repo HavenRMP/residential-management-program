@@ -69,6 +69,27 @@ void main() {
 
       expect(reserva.esConfirmable, isFalse);
     });
+
+    test('tipo BLOQUEO sets esBloqueo, special label and disables cancellation/approval', () {
+      final now = DateTime.now();
+      final bloqueo = ReservaModel(
+        id: 'bloq-10',
+        areaId: 'area-1',
+        areaNombre: 'Salón',
+        tipo: 'BLOQUEO',
+        estado: 'APROBADA',
+        inicio: now.add(const Duration(days: 2)),
+        fin: now.add(const Duration(days: 2, hours: 4)),
+        motivo: 'Mantenimiento preventivo',
+      );
+
+      expect(bloqueo.esBloqueo, isTrue);
+      expect(bloqueo.esAprobada, isFalse);
+      expect(bloqueo.esConfirmable, isFalse);
+      expect(bloqueo.esCancelable, isFalse);
+      expect(bloqueo.esMarcableNoShow, isFalse);
+      expect(bloqueo.estadoEtiqueta, 'Bloqueo');
+    });
   });
 
   group('BloqueoModel', () {
