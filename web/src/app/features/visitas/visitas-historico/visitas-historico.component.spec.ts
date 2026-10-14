@@ -61,3 +61,31 @@ describe('VisitasHistoricoComponent (viviendas del filtro)', () => {
     expect(componente.viviendas().length).toBe(5);
   });
 });
+
+describe('VisitasHistoricoComponent (filtros accesibles)', () => {
+  it('cada filtro está asociado a su etiqueta, para que un lector de pantalla lo anuncie', async () => {
+    TestBed.configureTestingModule({
+      imports: [VisitasHistoricoComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: VisitasHistoricoService,
+          useValue: {
+            PAGE_SIZE: 20, items: signal([]), totalCount: signal(0), page: signal(1),
+            isLoading: signal(false), errorMessage: signal(null), cargar: jasmine.createSpy('cargar')
+          }
+        },
+        { provide: ViviendasService, useValue: { listar: () => Promise.resolve([]) } }
+      ]
+    });
+    const fixture = TestBed.createComponent(VisitasHistoricoComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const etiquetas = Array.from(fixture.nativeElement.querySelectorAll('label[for]') as NodeListOf<HTMLLabelElement>);
+    const asociadas = etiquetas.map(l => [l.textContent!.trim(), !!fixture.nativeElement.querySelector('#' + l.htmlFor)]);
+
+    expect(asociadas).toEqual([['Desde', true], ['Hasta', true], ['Vivienda', true], ['Estado', true]]);
+  });
+});
