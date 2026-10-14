@@ -4,6 +4,7 @@ import { By } from '@angular/platform-browser';
 import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
 import Swal from 'sweetalert2';
+import { fechaEnZona, instanteEnZona } from '../../core/utils/reservas.util';
 import { ReservasComponent } from './reservas.component';
 import { ReservaFormComponent } from './reserva-form/reserva-form.component';
 import { ApiService } from '../../core/services/api.service';
@@ -12,16 +13,19 @@ import { ViviendasService } from '../../core/services/viviendas.service';
 import { PendienteTitular, Reserva } from '../../core/models/reserva.model';
 
 const DIA = 86_400_000;
+/** Mediodía en la zona del área, a tantos días de hoy: así el horario mostrado no depende de la hora a la que corre la prueba */
+const mediodia = (enDias: number) => instanteEnZona(fechaEnZona(Date.now() + enDias * DIA, 'America/Mexico_City'), '12:00', 'America/Mexico_City');
+const masHoras = (iso: string, horas: number) => new Date(new Date(iso).getTime() + horas * 3_600_000).toISOString();
 const area = { id: 'a1', nombre: 'Salón de usos múltiples', horaApertura: '08:00:00', horaCierre: '22:00:00', zonaHoraria: 'America/Mexico_City', activo: true };
 
 const reserva = (id: string, estado: string, inicioEnDias: number, extra: Partial<Reserva> = {}): Reserva => ({
   id, areaId: 'a1', areaNombre: 'Salón de usos múltiples', tipo: 'RESERVA', estado: estado as Reserva['estado'],
-  inicio: new Date(Date.now() + inicioEnDias * DIA).toISOString(), fin: new Date(Date.now() + inicioEnDias * DIA + 2 * 3_600_000).toISOString(),
+  inicio: mediodia(inicioEnDias), fin: masHoras(mediodia(inicioEnDias), 2),
   solicitanteId: 'u1', solicitanteNombre: 'Angel', solicitanteApellidos: 'Gómez', numeroCasa: 'A-12', ...extra
 });
 
 const pendiente: PendienteTitular = {
-  id: 'p1', areaId: 'a1', areaNombre: 'Salón de usos múltiples', inicio: new Date(Date.now() + 10 * DIA).toISOString(), fin: new Date(Date.now() + 10 * DIA + 7_200_000).toISOString(),
+  id: 'p1', areaId: 'a1', areaNombre: 'Salón de usos múltiples', inicio: mediodia(10), fin: masHoras(mediodia(10), 2),
   viviendaId: 1, numeroCasa: 'A-12', solicitanteId: 's1', solicitanteNombre: 'Luis', solicitanteApellidos: 'Prueba', solicitanteEmail: 'luis@example.com', parentesco: 'Familiar'
 };
 
