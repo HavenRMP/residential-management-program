@@ -38,6 +38,10 @@ public static class SupabaseUserContextClient
 
         if (!response.IsSuccessStatusCode)
         {
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                throw new SupabaseUnauthorizedException("El token de sesión es inválido o ha expirado.");
+            }
             return (null, null);
         }
 

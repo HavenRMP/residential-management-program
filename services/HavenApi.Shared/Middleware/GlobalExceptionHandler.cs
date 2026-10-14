@@ -23,8 +23,16 @@ public class GlobalExceptionHandler : IExceptionHandler
         var statusCode = StatusCodes.Status500InternalServerError;
         var title = "An unexpected error occurred.";
 
+        var exponerDetalle = false;
+
         switch (exception)
         {
+            case SupabaseUnauthorizedException:
+                statusCode = StatusCodes.Status401Unauthorized;
+                title = "Token expirado o inválido.";
+                exponerDetalle = true;
+                _logger.LogWarning("Supabase rejected the user's access token: {Message}", exception.Message);
+                break;
             case SupabaseUnavailableException:
                 statusCode = StatusCodes.Status503ServiceUnavailable;
                 title = "Service dependency unavailable.";
@@ -44,9 +52,14 @@ public class GlobalExceptionHandler : IExceptionHandler
         {
             Status = statusCode,
             Title = title,
-            Detail = _env.IsDevelopment() ? exception.Message : "Please contact support if the issue persists.",
+            Detail = _env.IsDevelopment() || exponerDetalle ? exception.Message : "Please contact support if the issue persists.",
             Instance = httpContext.Request.Path
         };
+
+        if (exponerDetalle)
+        {
+            problemDetails.Extensions["error"] = exception.Message;
+        }
 
         if (_env.IsDevelopment())
         {

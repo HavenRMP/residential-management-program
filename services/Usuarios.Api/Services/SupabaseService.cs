@@ -77,6 +77,10 @@ public class SupabaseService : ISupabaseService
 
         if (!response.IsSuccessStatusCode)
         {
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                throw new SupabaseUnauthorizedException("El token de sesión es inválido o ha expirado.");
+            }
             _logger.LogWarning("Failed to fetch user {UserId}. Status: {StatusCode}", userId, response.StatusCode);
             return null;
         }
