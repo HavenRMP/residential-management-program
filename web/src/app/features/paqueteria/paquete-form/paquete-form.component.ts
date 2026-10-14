@@ -17,10 +17,15 @@ interface FormularioPaquete {
   numeroGuia: string;
   descripcion: string;
   notas: string;
+  /** Cómo se avisa la llegada: sin fecha, un día específico o varios días */
+  cuando: CuandoLlega;
   /** Valores de inputs type="date" (yyyy-MM-dd, hora local) */
+  dia: string;
   desde: string;
   hasta: string;
 }
+
+export type CuandoLlega = 'sin' | 'dia' | 'rango';
 
 /** Fecha en formato yyyy-MM-dd de la hora local, el que usan los inputs de fecha */
 function aFechaInput(d: Date): string {
@@ -109,24 +114,47 @@ function isoAFechaInput(iso: string | null | undefined): string {
               class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <fieldset>
+            <legend class="block text-xs font-semibold text-slate-800 mb-1">¿Cuándo llega?</legend>
+            <div class="grid grid-cols-3 gap-1.5" role="radiogroup">
+              @for (op of opcionesCuando; track op.valor) {
+                <button type="button" role="radio" [attr.aria-checked]="form.cuando === op.valor" (click)="elegirCuando(op.valor)"
+                  class="h-9 px-2 text-xs font-medium rounded-lg border transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
+                  [ngClass]="form.cuando === op.valor ? 'border-[#111C99] bg-[#111C99] text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'">
+                  {{ op.texto }}
+                </button>
+              }
+            </div>
+          </fieldset>
+
+          @if (form.cuando === 'dia') {
             <div>
-              <label for="paq-desde" class="block text-xs font-semibold text-slate-800 mb-1">Llega a partir del</label>
-              <input id="paq-desde" type="date" [(ngModel)]="form.desde" [min]="hoy"
+              <label for="paq-dia" class="block text-xs font-semibold text-slate-800 mb-1">Día en que llega *</label>
+              <input id="paq-dia" type="date" [(ngModel)]="form.dia" [min]="hoy"
                 class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
             </div>
-            <div>
-              <label for="paq-hasta" class="block text-xs font-semibold text-slate-800 mb-1">A más tardar el</label>
-              <input id="paq-hasta" type="date" [(ngModel)]="form.hasta" [min]="hoy"
-                class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
+          } @else if (form.cuando === 'rango') {
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label for="paq-desde" class="block text-xs font-semibold text-slate-800 mb-1">Llega a partir del *</label>
+                <input id="paq-desde" type="date" [(ngModel)]="form.desde" [min]="hoy"
+                  class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
+              </div>
+              <div>
+                <label for="paq-hasta" class="block text-xs font-semibold text-slate-800 mb-1">A más tardar el *</label>
+                <input id="paq-hasta" type="date" [(ngModel)]="form.hasta" [min]="hoy"
+                  class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
+              </div>
             </div>
-          </div>
+          }
           @if (fechasInvertidas()) {
             <p class="text-[11px] text-red-600 font-medium" role="alert">La fecha de inicio no puede ser posterior a la última.</p>
           } @else if (hastaPasada()) {
-            <p class="text-[11px] text-red-600 font-medium" role="alert">La última fecha ya pasó. Elige hoy o un día posterior.</p>
+            <p class="text-[11px] text-red-600 font-medium" role="alert">La fecha ya pasó. Elige hoy o un día posterior.</p>
+          } @else if (form.cuando === 'sin') {
+            <p class="text-[11px] text-slate-500">Si no sabes cuándo llega, puedes avisar igual. Caseta lo registra cuando llegue.</p>
           } @else {
-            <p class="text-[11px] text-slate-500">Las fechas son opcionales. Después de la última fecha el aviso se marca como vencido.</p>
+            <p class="text-[11px] text-slate-500">Después de {{ form.cuando === 'dia' ? 'ese día' : 'la última fecha' }} el aviso se marca como vencido.</p>
           }
 
           <div>
@@ -174,6 +202,11 @@ export class PaqueteFormComponent implements OnInit, OnChanges, AfterViewInit {
   readonly limites = LIMITES_PAQUETE;
   readonly otro = SERVICIO_OTRO;
   readonly hoy = aFechaInput(new Date());
+  readonly opcionesCuando: { valor: CuandoLlega; texto: string }[] = [
+    { valor: 'sin', texto: 'No sé cuándo' },
+    { valor: 'dia', texto: 'Un día' },
+    { valor: 'rango', texto: 'Varios días' }
+  ];
   readonly isSaving = signal<boolean>(false);
 
   form: FormularioPaquete = {
@@ -184,6 +217,8 @@ export class PaqueteFormComponent implements OnInit, OnChanges, AfterViewInit {
     numeroGuia: '',
     descripcion: '',
     notas: '',
+    cuando: 'sin',
+    dia: '',
     desde: '',
     hasta: ''
   };
@@ -199,8 +234,17 @@ export class PaqueteFormComponent implements OnInit, OnChanges, AfterViewInit {
     this.form.numeroGuia = p.numeroGuia ?? '';
     this.form.descripcion = p.descripcion ?? '';
     this.form.notas = p.notas ?? '';
-    this.form.desde = isoAFechaInput(p.fechaEsperadaDesde);
-    this.form.hasta = isoAFechaInput(p.fechaEsperadaHasta);
+    const desde = isoAFechaInput(p.fechaEsperadaDesde);
+    const hasta = isoAFechaInput(p.fechaEsperadaHasta);
+    this.form.desde = desde;
+    this.form.hasta = hasta;
+    // Un aviso cuyo inicio y fin caen el mismo día se muestra como "un día"
+    if (desde && desde === hasta) {
+      this.form.cuando = 'dia';
+      this.form.dia = desde;
+    } else if (desde || hasta) {
+      this.form.cuando = 'rango';
+    }
     this.resolverServicio();
   }
 
@@ -234,13 +278,34 @@ export class PaqueteFormComponent implements OnInit, OnChanges, AfterViewInit {
     return this.form.servicio === SERVICIO_OTRO || this.servicios.length === 0;
   }
 
+  elegirCuando(cuando: CuandoLlega): void {
+    this.form.cuando = cuando;
+  }
+
+  /** Inicio de la ventana según lo elegido: con "un día" el inicio y el fin son el mismo día */
+  desdeElegido(): string {
+    return this.form.cuando === 'dia' ? this.form.dia : this.form.cuando === 'rango' ? this.form.desde : '';
+  }
+
+  hastaElegido(): string {
+    return this.form.cuando === 'dia' ? this.form.dia : this.form.cuando === 'rango' ? this.form.hasta : '';
+  }
+
   fechasInvertidas(): boolean {
-    return rangoFechasInvalido(this.form.desde, this.form.hasta);
+    return rangoFechasInvalido(this.desdeElegido(), this.hastaElegido());
   }
 
   /** El backend rechaza una fecha límite que ya pasó */
   hastaPasada(): boolean {
-    return !!this.form.hasta && this.form.hasta < this.hoy;
+    const hasta = this.hastaElegido();
+    return !!hasta && hasta < this.hoy;
+  }
+
+  /** "Un día" exige el día; "varios días" exige el inicio y el fin */
+  fechasCompletas(): boolean {
+    if (this.form.cuando === 'dia') return !!this.form.dia;
+    if (this.form.cuando === 'rango') return !!this.form.desde && !!this.form.hasta;
+    return true;
   }
 
   esFormularioValido(): boolean {
@@ -252,6 +317,7 @@ export class PaqueteFormComponent implements OnInit, OnChanges, AfterViewInit {
       destinatario.length > 0 &&
       destinatario.length <= LIMITES_PAQUETE.destinatario &&
       empresaValida &&
+      this.fechasCompletas() &&
       !this.fechasInvertidas() &&
       !this.hastaPasada()
     );
@@ -273,7 +339,7 @@ export class PaqueteFormComponent implements OnInit, OnChanges, AfterViewInit {
     if (f.numeroGuia.trim()) dto.numeroGuia = f.numeroGuia.trim();
     if (f.descripcion.trim()) dto.descripcion = f.descripcion.trim();
     if (f.notas.trim()) dto.notas = f.notas.trim();
-    const rango = rangoFechasIso(f.desde, f.hasta);
+    const rango = rangoFechasIso(this.desdeElegido(), this.hastaElegido());
     if (rango.desde) dto.fechaEsperadaDesde = rango.desde;
     if (rango.hasta) dto.fechaEsperadaHasta = rango.hasta;
     return dto;
@@ -295,9 +361,11 @@ export class PaqueteFormComponent implements OnInit, OnChanges, AfterViewInit {
     if (f.descripcion.trim() !== (o.descripcion ?? '')) cambios.descripcion = f.descripcion.trim();
     if (f.notas.trim() !== (o.notas ?? '')) cambios.notas = f.notas.trim();
     // Una fecha vacía no se envía: el backend entiende "sin dato" como "no cambiar"
-    const rango = rangoFechasIso(f.desde, f.hasta);
-    if (f.desde && f.desde !== isoAFechaInput(o.fechaEsperadaDesde)) cambios.fechaEsperadaDesde = rango.desde;
-    if (f.hasta && f.hasta !== isoAFechaInput(o.fechaEsperadaHasta)) cambios.fechaEsperadaHasta = rango.hasta;
+    const desde = this.desdeElegido();
+    const hasta = this.hastaElegido();
+    const rango = rangoFechasIso(desde, hasta);
+    if (desde && desde !== isoAFechaInput(o.fechaEsperadaDesde)) cambios.fechaEsperadaDesde = rango.desde;
+    if (hasta && hasta !== isoAFechaInput(o.fechaEsperadaHasta)) cambios.fechaEsperadaHasta = rango.hasta;
     return cambios;
   }
 
