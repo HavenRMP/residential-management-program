@@ -4,6 +4,7 @@ import { HttpParams } from '@angular/common/http';
 import { ApiService } from './api.service';
 import { extractPagedItems } from '../models/pagination.model';
 import { ActualizarVisitaDto, CrearVisitaDto, EstadoVisita, Visita } from '../models/visita.model';
+import { mensajeAmigable } from '../utils/api-errors.util';
 
 @Injectable({
   providedIn: 'root'
@@ -45,7 +46,7 @@ export class VisitasService {
     } catch (err: any) {
       if (peticion !== this.ultimaPeticion) return;
       console.error('[VisitasService] Error al cargar visitas:', err);
-      this.errorMessage.set(err?.error?.error || 'No se pudieron cargar las visitas.');
+      this.errorMessage.set(mensajeAmigable(err, 'No se pudieron cargar las visitas.'));
     } finally {
       if (peticion === this.ultimaPeticion) this.isLoading.set(false);
     }

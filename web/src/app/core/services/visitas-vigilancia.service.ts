@@ -4,6 +4,7 @@ import { HttpParams } from '@angular/common/http';
 import { ApiService } from './api.service';
 import { extractPagedItems } from '../models/pagination.model';
 import { EstadoVisita, fusionarSinVacios, ordenarVisitasRecientesPrimero, VisitaVigilancia } from '../models/visita.model';
+import { mensajeAmigable } from '../utils/api-errors.util';
 
 @Injectable({
   providedIn: 'root'
@@ -47,7 +48,7 @@ export class VisitasVigilanciaService {
     } catch (err: any) {
       if (peticion !== this.ultimaPeticion) return;
       console.error('[VisitasVigilanciaService] Error al cargar las visitas próximas:', err);
-      this.errorMessage.set(err?.error?.error || 'No se pudieron cargar las visitas próximas.');
+      this.errorMessage.set(mensajeAmigable(err, 'No se pudieron cargar las visitas próximas.'));
     } finally {
       if (peticion === this.ultimaPeticion) this.isLoading.set(false);
     }

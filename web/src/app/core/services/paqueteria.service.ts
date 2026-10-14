@@ -13,6 +13,7 @@ import {
   ordenarPaquetesRecientesPrimero,
   paqueteEsPendiente
 } from '../models/paquete.model';
+import { mensajeAmigable } from '../utils/api-errors.util';
 
 const POR_PAGINA = 50;
 /** Tope de seguridad: 10 páginas son 500 paquetes de una misma persona */
@@ -64,7 +65,7 @@ export class PaqueteriaService {
     } catch (err: any) {
       if (peticion !== this.ultimaPeticion) return;
       console.error('[PaqueteriaService] Error al cargar los paquetes:', err);
-      this.errorMessage.set(err?.error?.error || 'No se pudieron cargar tus paquetes.');
+      this.errorMessage.set(mensajeAmigable(err, 'No se pudieron cargar tus paquetes.'));
     } finally {
       if (peticion === this.ultimaPeticion) this.isLoading.set(false);
     }

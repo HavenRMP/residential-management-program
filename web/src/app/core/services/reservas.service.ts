@@ -15,6 +15,7 @@ import {
   reservaEsConfirmable,
   reservaEsProxima
 } from '../models/reserva.model';
+import { mensajeAmigable } from '../utils/api-errors.util';
 
 const POR_PAGINA = 50;
 /** Tope de seguridad: 10 páginas son 500 reservas de una misma persona */
@@ -61,7 +62,7 @@ export class ReservasService {
       this.areas.set(extractPagedItems<AreaComun>(response).filter(a => a.activo !== false));
     } catch (err: any) {
       console.error('[ReservasService] Error al cargar las áreas:', err);
-      this.errorAreas.set(err?.error?.error || 'No se pudieron cargar las áreas comunes.');
+      this.errorAreas.set(mensajeAmigable(err, 'No se pudieron cargar las áreas comunes.'));
     } finally {
       this.isLoadingAreas.set(false);
     }
@@ -88,7 +89,7 @@ export class ReservasService {
     } catch (err: any) {
       if (peticion !== this.ultimaPeticion) return;
       console.error('[ReservasService] Error al cargar las reservas:', err);
-      this.errorMessage.set(err?.error?.error || 'No se pudieron cargar tus reservas.');
+      this.errorMessage.set(mensajeAmigable(err, 'No se pudieron cargar tus reservas.'));
     } finally {
       if (peticion === this.ultimaPeticion) this.isLoading.set(false);
     }

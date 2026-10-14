@@ -5,6 +5,7 @@ import { ApiService } from './api.service';
 import { extractPagedItems } from '../models/pagination.model';
 import { ResidenteContacto, ViviendaConResidentes } from '../models/vivienda.model';
 import { normalizarBusqueda } from '../utils/directorio-casas.util';
+import { mensajeAmigable } from '../utils/api-errors.util';
 
 const POR_PAGINA = 100;
 const MAX_PAGINAS = 20;
@@ -69,7 +70,7 @@ export class DirectorioCasasService {
       this.cargado = true;
     } catch (err: any) {
       console.error('[DirectorioCasasService] Error al cargar el directorio:', err);
-      this.errorMessage.set(err?.error?.error || 'No se pudo cargar el directorio de casas.');
+      this.errorMessage.set(mensajeAmigable(err, 'No se pudo cargar el directorio de casas.'));
     } finally {
       this.isLoading.set(false);
     }

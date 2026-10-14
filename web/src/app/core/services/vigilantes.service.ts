@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from './api.service';
 import { extractPagedItems } from '../models/pagination.model';
 import { Vigilante, CrearVigilanteDto, VigilanteRegistradoApi } from '../models/vigilante.model';
+import { mensajeAmigable } from '../utils/api-errors.util';
 
 const POR_PAGINA = 100;
 const MAX_PAGINAS = 20;
@@ -49,7 +50,7 @@ export class VigilantesService {
       return todos;
     } catch (err: any) {
       console.error('[VigilantesService] Error al listar vigilantes:', err);
-      this.errorMessage.set(err?.error?.error || 'No se pudo cargar la lista de vigilantes.');
+      this.errorMessage.set(mensajeAmigable(err, 'No se pudo cargar la lista de vigilantes.'));
       return this.vigilantes();
     } finally {
       this.isLoading.set(false);

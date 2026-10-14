@@ -13,6 +13,7 @@ import {
   mapSubusuarioApiToItem,
   mapInvitacionApiToInvitacion
 } from '../models/subusuario.model';
+import { mensajeAmigable } from '../utils/api-errors.util';
 
 @Injectable({
   providedIn: 'root'
@@ -54,7 +55,7 @@ export class SubusuariosService {
       this.items.set((response || []).map(mapSubusuarioApiToItem));
     } catch (err: any) {
       console.error('[SubusuariosService] Error al cargar sub-usuarios:', err);
-      this.errorMessage.set(err?.error?.error || 'No se pudieron cargar los sub-usuarios.');
+      this.errorMessage.set(mensajeAmigable(err, 'No se pudieron cargar los sub-usuarios.'));
     } finally {
       this.isLoading.set(false);
     }
