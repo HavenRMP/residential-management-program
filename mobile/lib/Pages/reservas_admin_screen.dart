@@ -770,15 +770,15 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
                 ),
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFEF2F2),
+                    color: const Color(0xFFFFFBEB),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFFCA5A5)),
+                    border: Border.all(color: const Color(0xFFFDE68A)),
                   ),
                   child: const Text(
-                    'Aviso: Todas las reservas existentes que coincidan con este horario se cancelarán automáticamente.',
-                    style: TextStyle(fontSize: 11, color: Color(0xFF991B1B)),
+                    'Mientras dure el bloqueo nadie podrá reservar el área. Las reservas pendientes o aprobadas que caigan en ese horario se cierran: se rechazan las pendientes y se cancelan las aprobadas, y se avisa a sus titulares con el motivo. Un bloqueo no se puede quitar después.',
+                    style: TextStyle(fontSize: 11.5, color: Color(0xFF78350F), height: 1.35),
                   ),
                 ),
               ],
@@ -806,6 +806,26 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
       final inicioDt = DateTime(fecha.year, fecha.month, fecha.day, horaInicio.hour, horaInicio.minute);
       final finDt = DateTime(fecha.year, fecha.month, fecha.day, horaFin.hour, horaFin.minute);
 
+      final confirmar = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('¿Bloquear esta área?'),
+          content: Text(
+            '${selectedArea.nombre} quedará bloqueada ${_formatearFecha(fecha)} de ${_formatearHora(inicioDt)} a ${_formatearHora(finDt)}. Las reservas de ese horario se rechazarán o cancelarán y el bloqueo no se podrá quitar.',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+              child: const Text('Confirmar Bloqueo'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmar != true) return;
+
       try {
         final res = await _reservasService.crearBloqueo(
           areaId: selectedArea.id,
@@ -817,8 +837,13 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
         if (mounted) {
           if (res['success'] == true) {
             final afect = res['totalReservasAfectadas'] ?? 0;
+            final mensaje = afect == 0
+                ? 'Bloqueo registrado. No había reservas en ese horario.'
+                : afect == 1
+                    ? 'Bloqueo registrado. Una reserva que caía en ese horario quedó rechazada o cancelada.'
+                    : 'Bloqueo registrado. $afect reservas que caían en ese horario quedaron rechazadas o canceladas.';
             widget.controller.notifyToast(
-              'Bloqueo registrado. $afect reserva(s) afectada(s) canceladas.',
+              mensaje,
               success: true,
             );
             _cargarTodasReservas();
