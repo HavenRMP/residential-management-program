@@ -94,9 +94,9 @@ import { mensajeAmigable } from '../../../core/utils/api-errors.util';
                 <h4 class="text-sm font-bold text-slate-900 tracking-tight">Residente Asignado</h4>
                 <span
                   class="text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                  [ngClass]="residenteAsignado ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-slate-100 text-slate-600'"
+                  [ngClass]="residenteAsignado && !errorResidente ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-slate-100 text-slate-600'"
                   >
-                  {{ residenteAsignado ? 'Asignado' : 'Sin asignar' }}
+                  {{ errorResidente ? 'No disponible' : residenteAsignado ? 'Asignado' : 'Sin asignar' }}
                 </span>
               </div>
               <div class="flex items-center gap-2">
@@ -114,7 +114,7 @@ import { mensajeAmigable } from '../../../core/utils/api-errors.util';
                   <span>{{ isGeneratingCode ? 'Generando...' : 'Generar Código' }}</span>
                 </button>
                 <!-- Boton para abrir formulario si no esta asignado y no esta en modo form -->
-                @if (!residenteAsignado && !mostrarFormularioVinculacion) {
+                @if (!residenteAsignado && !mostrarFormularioVinculacion && !errorResidente && !cargandoResidente) {
                   <button
                     type="button"
                     (click)="abrirFormularioVinculacion()"
@@ -133,6 +133,19 @@ import { mensajeAmigable } from '../../../core/utils/api-errors.util';
               <div class="py-8 flex flex-col items-center justify-center text-slate-400 gap-2">
                 <div class="w-6 h-6 border-2 border-slate-300 border-t-blue-600 rounded-full animate-spin"></div>
                 <span class="text-xs">Consultando información de residentes...</span>
+              </div>
+            }
+            <!-- No se pudo consultar: no se dice que la casa está vacía, porque no se sabe -->
+            @if (!cargandoResidente && errorResidente) {
+              <div class="bg-amber-50/70 border border-amber-200 rounded-xl p-4 space-y-2" role="alert">
+                <p class="text-xs font-semibold text-amber-900">No se pudo consultar el residente de esta vivienda.</p>
+                <button
+                  type="button"
+                  (click)="cargarDetalleResidente()"
+                  class="text-xs font-semibold text-amber-900 bg-white hover:bg-amber-100 px-3 py-1.5 rounded-lg border border-amber-300 transition-colors cursor-pointer"
+                  >
+                  Reintentar
+                </button>
               </div>
             }
             <!-- CASO 1: TIENE RESIDENTE ASIGNADO -->
@@ -190,7 +203,7 @@ import { mensajeAmigable } from '../../../core/utils/api-errors.util';
               </div>
             }
             <!-- CASO 2: NO TIENE RESIDENTE ASIGNADO (Estado vacio amigable) -->
-            @if (!cargandoResidente && !residenteAsignado && !mostrarFormularioVinculacion) {
+            @if (!cargandoResidente && !errorResidente && !residenteAsignado && !mostrarFormularioVinculacion) {
               <div
                 class="bg-slate-50/70 border-2 border-dashed border-slate-200 rounded-xl p-6 text-center"
                 >
@@ -412,6 +425,7 @@ export class ViviendasDetalleComponent implements OnChanges {
 
   residenteAsignado: Residente | null = null;
   cargandoResidente = false;
+  errorResidente = false;
 
   // Estado del formulario de vinculacion (Issue #87)
   mostrarFormularioVinculacion = false;
@@ -526,12 +540,15 @@ export class ViviendasDetalleComponent implements OnChanges {
   async cargarDetalleResidente(): Promise<void> {
     if (!this.vivienda) return;
     this.cargandoResidente = true;
+    this.errorResidente = false;
 
     try {
       const residentes = await this.viviendasService.obtenerResidentesVivienda(this.vivienda.id);
       this.residenteAsignado = (residentes && residentes.length > 0) ? residentes[0] : null;
-    } catch {
+    } catch (err) {
+      console.error('[ViviendasDetalleComponent] Error al consultar el residente:', err);
       this.residenteAsignado = null;
+      this.errorResidente = true;
     } finally {
       this.cargandoResidente = false;
     }
