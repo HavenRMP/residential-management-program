@@ -11,6 +11,7 @@ import {
   mapAvisoApiToAviso
 } from '../models/aviso.model';
 import { extractPagedItems } from '../models/pagination.model';
+import { mensajeAmigable } from '../utils/api-errors.util';
 
 @Injectable({
   providedIn: 'root'
@@ -157,7 +158,7 @@ export class AvisosService {
       return nuevoAviso;
     } catch (err: any) {
       console.error('[AvisosService] Error al crear aviso en Avisos.Api:', err);
-      const msg = err?.error?.error || err?.error?.message || err?.message || 'Error al publicar aviso.';
+      const msg = mensajeAmigable(err, 'Error al publicar aviso.');
       this.errorMessage.set(msg);
       throw err;
     } finally {
@@ -206,7 +207,7 @@ export class AvisosService {
       return modificado;
     } catch (err: any) {
       console.error('[AvisosService] Error al actualizar aviso:', err);
-      const msg = err?.error?.error || err?.error?.message || err?.message || 'Error al actualizar aviso.';
+      const msg = mensajeAmigable(err, 'Error al actualizar aviso.');
       this.errorMessage.set(msg);
       throw err;
     } finally {
@@ -244,7 +245,7 @@ export class AvisosService {
       return true;
     } catch (err: any) {
       console.error('[AvisosService] Error al eliminar aviso:', err);
-      const msg = err?.error?.error || err?.error?.message || err?.message || 'Error al eliminar aviso.';
+      const msg = mensajeAmigable(err, 'Error al eliminar aviso.');
       this.errorMessage.set(msg);
       throw err;
     } finally {
