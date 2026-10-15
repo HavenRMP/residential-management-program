@@ -43,11 +43,14 @@ export class PaqueteriaService {
    * Todos los paquetes del residente. El backend solo filtra por un estado a la vez, así que se piden todas las
    * páginas y la pantalla los reparte entre pendientes e historial. (GET /api/paqueteria/mis-paquetes)
    */
-  async cargar(): Promise<void> {
+  async cargar(silencioso = false): Promise<void> {
     // Una respuesta lenta de una carga anterior no debe pisar la más reciente
     const peticion = ++this.ultimaPeticion;
-    this.isLoading.set(true);
-    this.errorMessage.set(null);
+    // En modo silencioso (actualización automática) no se muestra "cargando" y, si falla, la lista queda como estaba
+    if (!silencioso) {
+      this.isLoading.set(true);
+      this.errorMessage.set(null);
+    }
     try {
       const porId = new Map<string, Paquete>();
       for (let page = 1; page <= MAX_PAGINAS; page++) {
@@ -65,7 +68,7 @@ export class PaqueteriaService {
     } catch (err: any) {
       if (peticion !== this.ultimaPeticion) return;
       console.error('[PaqueteriaService] Error al cargar los paquetes:', err);
-      this.errorMessage.set(mensajeAmigable(err, 'No se pudieron cargar tus paquetes.'));
+      if (!silencioso) this.errorMessage.set(mensajeAmigable(err, 'No se pudieron cargar tus paquetes.'));
     } finally {
       if (peticion === this.ultimaPeticion) this.isLoading.set(false);
     }
