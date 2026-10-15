@@ -45,6 +45,17 @@ describe('ViviendasDetalleComponent: sub-usuarios', () => {
     component = fixture.componentInstance;
   });
 
+  it('en solo lectura no consulta al residente asignado ni ofrece acciones de administración', async () => {
+    component.soloLectura = true;
+
+    await abrir(casa(33, 'PRUEBA-01'));
+
+    expect(viviendas.obtenerResidentesVivienda).not.toHaveBeenCalled();
+    expect(subusuarios.listarPorVivienda).toHaveBeenCalledOnceWith(33);
+    expect(texto()).not.toContain('Residente Asignado');
+    expect(texto()).not.toContain('Generar Código');
+  });
+
   it('pide los sub-usuarios de la vivienda que se abre', async () => {
     await abrir(casa(33, 'PRUEBA-01'));
 

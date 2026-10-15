@@ -101,6 +101,7 @@ import { mensajeAmigable } from '../../../core/utils/api-errors.util';
               Registrada en sistema el {{ $safeNavigationMigration(vivienda?.creadoEn) | date:'dd/MM/yyyy' }}
             </p>
           </div>
+          @if (!soloLectura) {
           <!-- Seccion: Residente Asignado (Issue #50) -->
           <div class="space-y-3">
             <div class="flex items-center justify-between">
@@ -359,6 +360,7 @@ import { mensajeAmigable } from '../../../core/utils/api-errors.util';
                 </div>
               }
             </div>
+          }
             <!-- Sub-usuarios de la vivienda: personas que entran a la casa del titular -->
             <div class="space-y-3" aria-labelledby="detalle-vivienda-subusuarios">
               <div class="flex items-center justify-between gap-2">
@@ -435,6 +437,8 @@ export class ViviendasDetalleComponent implements OnChanges, AfterViewInit {
   @Input() textoAtras = 'Volver';
   /** Hay otro detalle encima de este: no reacciona a Escape para que solo se cierre el de arriba */
   @Input() inactivo = false;
+  /** Vista del residente: sin residente asignado ni acciones de administración (el backend las restringe al administrador) */
+  @Input() soloLectura = false;
   @Output() atras = new EventEmitter<void>();
   /** Se tocó al residente asignado: el padre abre su detalle */
   @Output() verResidente = new EventEmitter<Residente>();
@@ -552,7 +556,7 @@ export class ViviendasDetalleComponent implements OnChanges, AfterViewInit {
     if ((changes['vivienda'] || changes['isOpen']) && this.vivienda && this.isOpen) {
       this.mostrarFormularioVinculacion = false;
       this.residenteSeleccionadoId = null;
-      this.cargarDetalleResidente();
+      if (!this.soloLectura) this.cargarDetalleResidente();
       void this.cargarSubusuarios();
     }
   }
