@@ -1,5 +1,5 @@
 import Swal from 'sweetalert2';
-import { Component, Input, Output, EventEmitter, HostListener, inject, OnChanges, SimpleChanges, signal, ChangeDetectionStrategy } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, Input, Output, EventEmitter, HostListener, inject, OnChanges, SimpleChanges, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { Residente } from '../../../core/models/residente.model';
 import { Vivienda } from '../../../core/models/vivienda.model';
@@ -27,6 +27,20 @@ interface GrupoSubusuarios {
     <!-- Sticky Drawer Top Bar -->
     <div class="sticky top-0 z-10 bg-white/95 backdrop-blur-md px-6 py-4 border-b border-slate-100 flex items-center justify-between">
       <div class="flex items-center gap-2.5">
+        @if (conAtras) {
+          <button
+            type="button"
+            data-foco-inicial
+            (click)="atras.emit()"
+            [attr.aria-label]="textoAtras"
+            [title]="textoAtras + ' (Esc)'"
+            class="h-9 w-9 -ml-2 inline-flex items-center justify-center text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
+            >
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+          </button>
+        }
         <div class="w-8 h-8 rounded-lg bg-[#111C99] text-white flex items-center justify-center font-bold text-xs shadow-2xs">
           {{ getInitials(residente?.nombre, residente?.apellidos) }}
         </div>
@@ -107,17 +121,27 @@ interface GrupoSubusuarios {
                   [attr.aria-label]="formatearNumeroCasa(v.numeroCasa) + ' y sus sub-usuarios'"
                   >
                   <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 p-3">
-                    <div class="flex items-center gap-3">
+                    <button
+                      type="button"
+                      (click)="verVivienda.emit(v)"
+                      [attr.data-origen-detalle]="'vivienda-' + v.id"
+                      [attr.aria-label]="'Ver el detalle de ' + formatearNumeroCasa(v.numeroCasa)"
+                      title="Ver el detalle de la vivienda"
+                      class="group flex items-center gap-3 -m-1 p-1 rounded-lg text-left cursor-pointer hover:bg-white focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
+                    >
                       <div class="w-8 h-8 shrink-0 rounded-lg bg-white border border-slate-200 text-indigo-700 flex items-center justify-center font-bold text-xs shadow-2xs">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                         </svg>
                       </div>
                       <div class="min-w-0">
-                        <p class="text-sm font-bold text-slate-900">{{ formatearNumeroCasa(v.numeroCasa) }}</p>
+                        <p class="text-sm font-bold text-slate-900 group-hover:underline">{{ formatearNumeroCasa(v.numeroCasa) }}</p>
                         <p class="text-[11px] text-slate-600 font-medium">Tipo: {{ v.tipo || 'Residencial' }}</p>
                       </div>
-                    </div>
+                      <svg class="w-4 h-4 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
                     <div class="flex items-center gap-2 shrink-0">
                       <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
@@ -276,17 +300,27 @@ interface GrupoSubusuarios {
     </div>
     `
 })
-export class ResidentesDetalleComponent implements OnChanges {
+export class ResidentesDetalleComponent implements OnChanges, AfterViewInit {
   @Input() residente: Residente | null = null;
+  /** Se abrió desde el detalle de una vivienda: muestra la flecha para volver a ella */
+  @Input() conAtras = false;
+  @Input() textoAtras = 'Volver';
+  /** Hay otro detalle encima de este: no reacciona a Escape para que solo se cierre el de arriba */
+  @Input() inactivo = false;
   @Input() viviendas: Vivienda[] = [];
   /** Viviendas a las que esta persona entra como sub-usuario activo (no las tiene a su nombre) */
   @Input() subusuarioDe: Vivienda[] = [];
   @Output() cerrado = new EventEmitter<void>();
+  /** Flecha de regreso (solo con `conAtras`) */
+  @Output() atras = new EventEmitter<void>();
+  /** Se tocó una vivienda de la lista: el padre abre su detalle */
+  @Output() verVivienda = new EventEmitter<Vivienda>();
   /** Se quitó una vivienda a este residente: el padre debe refrescar su lista */
   @Output() desvinculado = new EventEmitter<void>();
 
   private readonly viviendasService = inject(ViviendasService);
   private readonly subusuariosService = inject(SubusuariosService);
+  private readonly elemento = inject(ElementRef<HTMLElement>);
 
   readonly cargandoViviendas = signal<boolean>(false);
   /** Id de la vivienda que se está desvinculando; bloquea los botones mientras tanto */
@@ -302,9 +336,22 @@ export class ResidentesDetalleComponent implements OnChanges {
   readonly getInitials = getInitials;
   readonly formatearNumeroCasa = formatearNumeroCasa;
 
-  @HostListener('window:keydown.escape')
-  handleEscape(): void {
-    this.cerrar();
+  /** Al abrirse sobre otro detalle, el foco pasa a la flecha de regreso para que el teclado no se quede en lo de abajo */
+  ngAfterViewInit(): void {
+    if (this.conAtras) (this.elemento.nativeElement as HTMLElement).querySelector<HTMLElement>('[data-foco-inicial]')?.focus();
+  }
+
+  @HostListener('window:keydown.escape', ['$event'])
+  handleEscape(evento?: Event): void {
+    // Otro detalle ya atendió esta pulsación (o hay uno encima): este no debe cerrarse también
+    if (this.inactivo || evento?.defaultPrevented) return;
+    // Escape hace lo mismo que la flecha: retrocede un paso en vez de cerrar todo
+    if (this.conAtras) {
+      evento?.preventDefault();
+      this.atras.emit();
+    } else {
+      this.cerrar();
+    }
   }
 
   async ngOnChanges(changes: SimpleChanges): Promise<void> {
