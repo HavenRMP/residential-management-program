@@ -104,7 +104,7 @@ const ESTADOS = Object.keys(ETIQUETAS_ESTADO_VISITA) as EstadoVisita[];
           }
     
           @if (!historicoService.isLoading() && !historicoService.errorMessage()) {
-            <div class="rounded-xl border border-slate-200 bg-white shadow-xs overflow-x-auto">
+            <div class="rounded-xl border border-slate-200 bg-white shadow-xs overflow-x-auto" tabindex="0" role="region" aria-label="Tabla desplazable">
               <table class="w-full text-left min-w-[720px]">
                 <thead class="bg-slate-50 border-b border-slate-200">
                   <tr>

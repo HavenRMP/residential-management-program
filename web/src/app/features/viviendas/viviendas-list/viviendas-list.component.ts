@@ -227,7 +227,7 @@ import { mensajeAmigable } from '../../../core/utils/api-errors.util';
           <div
             class="bg-white border border-slate-200/90 rounded-xl shadow-xs overflow-hidden"
             >
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto" tabindex="0" role="region" aria-label="Tabla desplazable">
               <table class="min-w-full divide-y divide-slate-200">
                 <thead>
                   <tr class="bg-slate-50 border-b border-slate-200">
