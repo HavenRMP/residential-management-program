@@ -34,6 +34,15 @@ void main() {
       expect(PushNotificationsService.isPaqueteEvent(null), isFalse);
     });
 
+    test('isReservaEvent reconoce eventos de reservas', () {
+      expect(PushNotificationsService.isReservaEvent('reserva_aprobada'), isTrue);
+      expect(PushNotificationsService.isReservaEvent('reserva_rechazada'), isTrue);
+      expect(PushNotificationsService.isReservaEvent('reserva_cancelada'), isTrue);
+      expect(PushNotificationsService.isReservaEvent('reserva'), isTrue);
+      expect(PushNotificationsService.isReservaEvent('paquete_llegada'), isFalse);
+      expect(PushNotificationsService.isReservaEvent(null), isFalse);
+    });
+
     test('initializeApp no arroja excepciones en entorno sin Firebase nativo', () async {
       expect(() async => await PushNotificationsService.initializeApp(), returnsNormally);
     });

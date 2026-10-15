@@ -190,6 +190,18 @@ class PushNotificationsService {
     return t == eventPaqueteLlegada || t == eventPaqueteEntregado || t == 'paquete';
   }
 
+  /// Tipos de eventos para reservas
+  static const String eventReservaAprobada = 'reserva_aprobada';
+  static const String eventReservaRechazada = 'reserva_rechazada';
+  static const String eventReservaCancelada = 'reserva_cancelada';
+
+  /// Valida si el tipo de evento pertenece al módulo de reservas
+  static bool isReservaEvent(String? tipo) {
+    if (tipo == null) return false;
+    final t = tipo.trim().toLowerCase();
+    return t.startsWith('reserva') || t == 'reserva';
+  }
+
   /// Muestra una notificación local en el sistema cuando un mensaje FCM llega en primer plano.
   static Future<void> _showForegroundNotification(RemoteMessage message) async {
     final notification = message.notification;
