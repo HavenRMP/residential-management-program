@@ -193,6 +193,44 @@ describe('ResidenteDashboardComponent', () => {
     });
   });
 
+  describe('Detalle de la vivienda', () => {
+    async function abrirPortalConCasa(): Promise<ComponentFixture<ResidenteDashboardComponent>> {
+      mockViviendasService.obtenerMisViviendas.and.resolveTo([{ id: 7, numeroCasa: '105', tipo: 'Mediana' }]);
+      const f = TestBed.createComponent(ResidenteDashboardComponent);
+      f.detectChanges();
+      await f.whenStable();
+      f.detectChanges();
+      return f;
+    }
+    const tarjeta = (f: ComponentFixture<ResidenteDashboardComponent>) =>
+      f.nativeElement.querySelector('button[aria-label^="Ver detalle de"]') as HTMLButtonElement;
+
+    it('al tocar la tarjeta de la casa abre su detalle en solo lectura', async () => {
+      const f = await abrirPortalConCasa();
+      expect(f.nativeElement.querySelector('app-viviendas-detalle')).toBeNull();
+
+      tarjeta(f).click();
+      f.detectChanges();
+
+      expect(f.nativeElement.querySelector('app-viviendas-detalle [role="dialog"]')).not.toBeNull();
+      expect(f.componentInstance.viviendaDetalle()?.id).toBe(7);
+    });
+
+    it('al cerrar el detalle el foco vuelve a la tarjeta de la casa', async () => {
+      const f = await abrirPortalConCasa();
+      document.body.appendChild(f.nativeElement);
+      tarjeta(f).click();
+      f.detectChanges();
+
+      f.componentInstance.cerrarDetalleVivienda();
+      f.detectChanges();
+
+      expect(f.nativeElement.querySelector('app-viviendas-detalle')).toBeNull();
+      expect(document.activeElement).toBe(tarjeta(f));
+      f.nativeElement.remove();
+    });
+  });
+
   describe('Integración en dashboard de inicio (#140)', () => {
     it('debe mostrar los avisos vigentes desde el servicio', () => {
       expect(component.avisosService.vigentes().length).toBe(1);
