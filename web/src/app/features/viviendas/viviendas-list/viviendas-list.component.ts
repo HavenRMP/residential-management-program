@@ -23,7 +23,7 @@ import { mensajeAmigable } from '../../../core/utils/api-errors.util';
     <div class="p-4 sm:p-5 lg:p-6 w-full space-y-4 selection:bg-[#111C99] selection:text-white">
     
       <!-- Breadcrumb & Top Navigation -->
-      <nav class="flex items-center gap-2 text-xs text-slate-600 font-medium">
+      <nav aria-label="Ruta de navegación" class="flex items-center gap-2 text-xs text-slate-600 font-medium">
         <a routerLink="/dashboard/admin" class="hover:text-slate-900 transition-colors">Panel Principal</a>
         <span>/</span>
         <span class="text-slate-900">Directorio de Viviendas</span>
@@ -433,9 +433,9 @@ import { mensajeAmigable } from '../../../core/utils/api-errors.util';
                     </svg>
                   </div>
                   <div>
-                    <h3 class="text-lg font-bold text-slate-900">
+                    <h2 class="text-lg font-bold text-slate-900">
                       {{ isEditing() ? 'Editar Vivienda' : 'Nueva Vivienda' }}
-                    </h3>
+                    </h2>
                     <p class="text-xs text-slate-500">
                       {{ isEditing() ? 'Actualiza los datos del inmueble' : 'Captura el número y tipo de vivienda' }}
                     </p>

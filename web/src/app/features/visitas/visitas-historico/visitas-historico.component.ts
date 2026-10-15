@@ -24,7 +24,7 @@ const ESTADOS = Object.keys(ETIQUETAS_ESTADO_VISITA) as EstadoVisita[];
   template: `
     <div class="p-4 sm:p-6 w-full space-y-4">
     
-      <nav class="flex items-center gap-2 text-xs text-slate-600 font-semibold">
+      <nav aria-label="Ruta de navegación" class="flex items-center gap-2 text-xs text-slate-600 font-semibold">
         <a routerLink="/dashboard/admin" class="hover:text-slate-900 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99] rounded">Panel</a>
         <span>/</span>
         <span class="text-slate-900">Visitas</span>

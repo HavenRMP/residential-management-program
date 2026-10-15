@@ -12,7 +12,7 @@ import Swal from 'sweetalert2';
   imports: [CommonModule, ReactiveFormsModule],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <div class="min-h-screen bg-[#F7F7F7] text-[#0f172a] font-sans antialiased p-4 sm:p-6 lg:p-10">
+    <main class="min-h-screen bg-[#F7F7F7] text-[#0f172a] font-sans antialiased p-4 sm:p-6 lg:p-10">
       <div class="max-w-2xl mx-auto">
     
         <!-- Botón volver al panel (Oculto en Onboarding para evitar saltos) -->
@@ -235,7 +235,7 @@ import Swal from 'sweetalert2';
     
               </div>
             </div>
-          </div>
+          </main>
     `
 })
 export class PerfilComponent implements OnInit {
