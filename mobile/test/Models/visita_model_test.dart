@@ -69,5 +69,71 @@ void main() {
       expect(modificado.isFinalizada, isTrue);
       expect(modificado.nombreCompletoVisitante, 'Mario Rossi');
     });
+
+    test('isPorAtender y llegaAntesDeTiempo clasifican correctamente según ventana de caseta', () {
+      final ahora = DateTime(2026, 10, 15, 10, 0);
+
+      // Visita dentro de la ventana de 24 horas (llega hoy en 4 horas)
+      final visitaHoy = VisitaModel(
+        id: 'v-hoy',
+        viviendaId: 1,
+        numeroCasa: '10',
+        nombreVisitante: 'Juan',
+        apellidosVisitante: 'Pérez',
+        motivo: 'personal',
+        numAcompanantes: 0,
+        fechaLlegadaEsperada: DateTime(2026, 10, 15, 14, 0),
+        vigenciaHasta: DateTime(2026, 10, 15, 20, 0),
+        estado: 'programada',
+      );
+      expect(visitaHoy.isPorAtender(ahora), isTrue);
+      expect(visitaHoy.llegaAntesDeTiempo(ahora), isFalse);
+
+      // Visita programada para dentro de 3 días (anticipada)
+      final visitaFutura = VisitaModel(
+        id: 'v-futura',
+        viviendaId: 1,
+        numeroCasa: '10',
+        nombreVisitante: 'Ana',
+        apellidosVisitante: 'López',
+        motivo: 'personal',
+        numAcompanantes: 0,
+        fechaLlegadaEsperada: DateTime(2026, 10, 18, 10, 0),
+        vigenciaHasta: DateTime(2026, 10, 18, 18, 0),
+        estado: 'programada',
+      );
+      expect(visitaFutura.isPorAtender(ahora), isFalse);
+      expect(visitaFutura.llegaAntesDeTiempo(ahora), isTrue);
+      expect(visitaFutura.motivoNoAtendible(ahora), contains('24 horas'));
+
+      // Visita en curso siempre se atiende
+      final visitaEnCurso = visitaHoy.copyWith(estado: 'en_curso');
+      expect(visitaEnCurso.isPorAtender(ahora), isTrue);
+      expect(visitaEnCurso.llegaAntesDeTiempo(ahora), isFalse);
+
+      // Visita vencida
+      final visitaVencida = VisitaModel(
+        id: 'v-vencida',
+        viviendaId: 1,
+        numeroCasa: '10',
+        nombreVisitante: 'Pedro',
+        apellidosVisitante: 'Sánchez',
+        motivo: 'personal',
+        numAcompanantes: 0,
+        fechaLlegadaEsperada: DateTime(2026, 10, 14, 10, 0),
+        vigenciaHasta: DateTime(2026, 10, 14, 18, 0),
+        estado: 'programada',
+      );
+      expect(visitaVencida.isVencida(ahora), isTrue);
+      expect(visitaVencida.isPorAtender(ahora), isFalse);
+      expect(visitaVencida.llegaAntesDeTiempo(ahora), isFalse);
+      expect(visitaVencida.motivoNoAtendible(ahora), contains('vigencia ya terminó'));
+
+      // Visita cancelada o finalizada
+      final cancelada = visitaHoy.copyWith(estado: 'cancelada');
+      expect(cancelada.motivoNoAtendible(ahora), contains('fue cancelada'));
+      final finalizada = visitaHoy.copyWith(estado: 'finalizada');
+      expect(finalizada.motivoNoAtendible(ahora), contains('ya terminó'));
+    });
   });
 }
