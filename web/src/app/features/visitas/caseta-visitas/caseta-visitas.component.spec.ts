@@ -16,8 +16,9 @@ const visita: VisitaVigilancia = {
   apellidosVisitante: 'Pérez',
   motivo: 'personal',
   numAcompanantes: 0,
-  fechaLlegadaEsperada: '2026-10-01T15:00:00Z',
-  vigenciaHasta: '2026-10-02T15:00:00Z',
+  // Fechas relativas a hoy: la caseta solo atiende lo que llega en las próximas 24 horas y sigue vigente
+  fechaLlegadaEsperada: new Date(Date.now() - 10 * 60_000).toISOString(),
+  vigenciaHasta: new Date(Date.now() + 2 * 3_600_000).toISOString(),
   estado: 'programada'
 };
 
@@ -448,6 +449,50 @@ describe('CasetaVisitasComponent', () => {
       expect(servicio.registrarEntrada).not.toHaveBeenCalled();
       expect(component.visitaValidada()).toBeNull();
       expect(component.errorCodigo()).toContain('Juan Pérez: el código es válido, pero la visita no está por atender');
+    });
+
+    it('una visita programada para dentro de varios días NO se deja entrar aunque el backend la acepte: dice cuándo llega', async () => {
+      const dentroDeTresDias = new Date(Date.now() + 3 * 86_400_000).toISOString();
+      servicio.validarCodigo.and.callFake(async () => ({ ...visita, estado: 'programada', fechaLlegadaEsperada: dentroDeTresDias, vigenciaHasta: new Date(Date.now() + 3 * 86_400_000 + 7_200_000).toISOString() }));
+      component.codigo = 'ab12cd';
+
+      await component.validarCodigo();
+
+      expect(servicio.registrarEntrada).not.toHaveBeenCalled();
+      expect(component.visitaValidada()).toBeNull();
+      expect(component.errorCodigo()).toMatch(/^Juan Pérez: el código es válido, pero llega el .+, faltan más de 24 horas\.$/);
+    });
+
+    it('una visita programada cuya vigencia ya terminó no se deja entrar', async () => {
+      servicio.validarCodigo.and.callFake(async () => ({ ...visita, estado: 'programada', fechaLlegadaEsperada: new Date(Date.now() - 6 * 3_600_000).toISOString(), vigenciaHasta: new Date(Date.now() - 4 * 3_600_000).toISOString() }));
+      component.codigo = 'ab12cd';
+
+      await component.validarCodigo();
+
+      expect(servicio.registrarEntrada).not.toHaveBeenCalled();
+      expect(component.errorCodigo()).toContain('su vigencia ya terminó');
+    });
+
+    it('con el estado real, una visita finalizada, cancelada o expirada se explica con ese estado', async () => {
+      const casos: [string, string][] = [['finalizada', 'la visita ya terminó.'], ['cancelada', 'la visita fue cancelada.'], ['expirada', 'la visita expiró.']];
+      for (const [estado, texto] of casos) {
+        servicio.validarCodigo.and.callFake(async () => ({ ...visita, estado }));
+        component.codigo = 'ab12cd';
+
+        await component.validarCodigo();
+
+        expect(component.errorCodigo()).toBe(`Juan Pérez: el código es válido, pero ${texto}`);
+      }
+      expect(servicio.registrarEntrada).not.toHaveBeenCalled();
+    });
+
+    it('con la vigencia vacía del backend, una visita que llega ahora sí se deja entrar', async () => {
+      servicio.validarCodigo.and.callFake(async () => ({ ...visita, vigenciaHasta: '0001-01-01T00:00:00+00:00' }));
+      component.codigo = 'ab12cd';
+
+      await component.validarCodigo();
+
+      expect(servicio.registrarEntrada).toHaveBeenCalledTimes(1);
     });
 
     it('con un código inválido muestra el error y no registra entrada', async () => {
