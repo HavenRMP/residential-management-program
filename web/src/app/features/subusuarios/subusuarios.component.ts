@@ -298,8 +298,7 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
               <button
                 type="button"
                 (click)="cerrarModalInvitacion()"
-                class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer"
-                >
+                class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer" aria-label="Cerrar">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -307,8 +306,8 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
             </div>
             <form (ngSubmit)="generarInvitacion()" class="mt-3.5 space-y-3">
               <div>
-                <label class="block text-xs font-medium text-slate-700 mb-1">Correo *</label>
-                <input
+                <label for="subusuario-1" class="block text-xs font-medium text-slate-700 mb-1">Correo *</label>
+                <input id="subusuario-1"
                   type="email"
                   [(ngModel)]="nuevoSub.email"
                   name="email"
@@ -324,8 +323,8 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
                 }
               </div>
               <div>
-                <label class="block text-xs font-medium text-slate-700 mb-1">Parentesco *</label>
-                <select
+                <label for="subusuario-2" class="block text-xs font-medium text-slate-700 mb-1">Parentesco *</label>
+                <select id="subusuario-2"
                   [(ngModel)]="nuevoSub.parentesco"
                   name="parentesco"
                   required
