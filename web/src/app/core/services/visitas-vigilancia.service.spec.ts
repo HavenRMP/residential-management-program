@@ -3,7 +3,7 @@ import { HttpParams } from '@angular/common/http';
 import { of, Subject, throwError } from 'rxjs';
 import { VisitasVigilanciaService } from './visitas-vigilancia.service';
 import { ApiService } from './api.service';
-import { VisitaVigilancia } from '../models/visita.model';
+import { VisitaVigilancia, formatearFechaVisita } from '../models/visita.model';
 
 const visitaBase: VisitaVigilancia = {
   id: 'v-1',
@@ -84,23 +84,42 @@ describe('VisitasVigilanciaService', () => {
     expect(mockApiService.get.calls.mostRecent().args[0]).toBe('/api/visitas/codigo/AB%2F12');
   });
 
-  it('completa el estado vacío de la validación con la visita de la lista de próximas', async () => {
-    mockApiService.get.and.returnValue(of({ items: [{ ...visitaBase, estado: 'programada', vehiculoPlacas: 'ABC-123' }], totalCount: 1 }));
-    await service.cargarProximas();
-    mockApiService.get.and.returnValue(of({ ...visitaBase, estado: '', vigenciaHasta: '0001-01-01T00:00:00+00:00' }));
+  it('usa el estado real que devuelve el backend, aunque la visita no esté en la lista de próximas', async () => {
+    mockApiService.get.and.returnValue(of({ ...visitaBase, estado: 'programada' }));
 
     const validada = await service.validarCodigo('AB12');
 
     expect(validada.estado).toBe('programada');
-    expect(validada.vehiculoPlacas).toBe('ABC-123');
   });
 
-  it('si la visita no está en la lista de próximas deja el estado vacío', async () => {
-    mockApiService.get.and.returnValue(of({ ...visitaBase, estado: '' }));
+  it('el estado real de la validación manda sobre el de la lista', async () => {
+    mockApiService.get.and.returnValue(of({ items: [{ ...visitaBase, estado: 'programada' }], totalCount: 1 }));
+    await service.cargarProximas();
+    mockApiService.get.and.returnValue(of({ ...visitaBase, estado: 'en_curso' }));
 
     const validada = await service.validarCodigo('AB12');
 
-    expect(validada.estado).toBe('');
+    expect(validada.estado).toBe('en_curso');
+  });
+
+  it('completa con la lista de próximas lo que el backend deja en blanco, sin pisar la vigencia con su valor vacío', async () => {
+    mockApiService.get.and.returnValue(of({ items: [{ ...visitaBase, vehiculoPlacas: 'ABC-123' }], totalCount: 1 }));
+    await service.cargarProximas();
+    mockApiService.get.and.returnValue(of({ ...visitaBase, vehiculoPlacas: '', vigenciaHasta: '0001-01-01T00:00:00+00:00' }));
+
+    const validada = await service.validarCodigo('AB12');
+
+    expect(validada.vehiculoPlacas).toBe('ABC-123');
+    expect(validada.vigenciaHasta).toBe(visitaBase.vigenciaHasta);
+  });
+
+  it('si la visita no está en la lista, la vigencia vacía del backend se devuelve tal cual y no se muestra', async () => {
+    mockApiService.get.and.returnValue(of({ ...visitaBase, vigenciaHasta: '0001-01-01T00:00:00+00:00' }));
+
+    const validada = await service.validarCodigo('AB12');
+
+    expect(validada.vigenciaHasta).toBe('0001-01-01T00:00:00+00:00');
+    expect(formatearFechaVisita(validada.vigenciaHasta)).toBe('');
   });
 
   it('actualiza la visita en la lista al registrar entrada y salida', async () => {
