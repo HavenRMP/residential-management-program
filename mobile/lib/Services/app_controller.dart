@@ -1168,21 +1168,16 @@ class AppController extends ChangeNotifier {
       if (_supabaseClient != null) {
         try {
           final sbData = await _supabaseClient.from('vw_mis_viviendas').select();
-          if (sbData is List && sbData.isNotEmpty) {
-            final result = List<Map<String, dynamic>>.from(
-              sbData.map((item) {
-                if (item is Map) {
-                  return {
-                    'id': item['vivienda_id'] ?? item['viviendaId'] ?? item['id'],
-                    'numeroCasa': item['numero_casa']?.toString() ?? item['numeroCasa']?.toString() ?? '',
-                    'tipo': item['tipo']?.toString(),
-                    'activo': item['activo'] ?? true,
-                    'creadoEn': item['creado_en'] ?? item['creadoEn'],
-                  };
-                }
-                return <String, dynamic>{};
-              }),
-            );
+          if (sbData.isNotEmpty) {
+            final result = sbData.map((item) {
+              return <String, dynamic>{
+                'id': item['vivienda_id'] ?? item['viviendaId'] ?? item['id'],
+                'numeroCasa': item['numero_casa']?.toString() ?? item['numeroCasa']?.toString() ?? '',
+                'tipo': item['tipo']?.toString(),
+                'activo': item['activo'] ?? true,
+                'creadoEn': item['creado_en'] ?? item['creadoEn'],
+              };
+            }).toList();
             unawaited(OfflineSyncService.cacheMisViviendas(result));
             setOffline(false);
             return result;
@@ -1210,21 +1205,16 @@ class AppController extends ChangeNotifier {
       if (_supabaseClient != null) {
         try {
           final sbData = await _supabaseClient.from('vw_mis_viviendas').select();
-          if (sbData is List && sbData.isNotEmpty) {
-            final result = List<Map<String, dynamic>>.from(
-              sbData.map((item) {
-                if (item is Map) {
-                  return {
-                    'id': item['vivienda_id'] ?? item['viviendaId'] ?? item['id'],
-                    'numeroCasa': item['numero_casa']?.toString() ?? item['numeroCasa']?.toString() ?? '',
-                    'tipo': item['tipo']?.toString(),
-                    'activo': item['activo'] ?? true,
-                    'creadoEn': item['creado_en'] ?? item['creadoEn'],
-                  };
-                }
-                return <String, dynamic>{};
-              }),
-            );
+          if (sbData.isNotEmpty) {
+            final result = sbData.map((item) {
+              return <String, dynamic>{
+                'id': item['vivienda_id'] ?? item['viviendaId'] ?? item['id'],
+                'numeroCasa': item['numero_casa']?.toString() ?? item['numeroCasa']?.toString() ?? '',
+                'tipo': item['tipo']?.toString(),
+                'activo': item['activo'] ?? true,
+                'creadoEn': item['creado_en'] ?? item['creadoEn'],
+              };
+            }).toList();
             unawaited(OfflineSyncService.cacheMisViviendas(result));
             setOffline(false);
             return result;
