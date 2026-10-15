@@ -15,6 +15,8 @@ public class ReservasApiFactory : WebApplicationFactory<Program>
     {
         System.Environment.SetEnvironmentVariable("Supabase__Url", "http://localhost:54321");
         System.Environment.SetEnvironmentVariable("Supabase__AnonKey", "test-anon-key");
+        System.Environment.SetEnvironmentVariable("PushWorker__Enabled", "false");
+        System.Environment.SetEnvironmentVariable("NO_GCE_CHECK", "true");
     }
 
     public Mock<ISupabaseService> MockSupabaseService { get; } = new Mock<ISupabaseService>();
@@ -40,6 +42,7 @@ public class ReservasApiFactory : WebApplicationFactory<Program>
                 options =>
                 {
                     options.Authority = null;
+                    options.ConfigurationManager = new Microsoft.IdentityModel.Protocols.StaticConfigurationManager<Microsoft.IdentityModel.Protocols.OpenIdConnect.OpenIdConnectConfiguration>(new Microsoft.IdentityModel.Protocols.OpenIdConnect.OpenIdConnectConfiguration());
                     options.TokenValidationParameters.ValidateIssuer = false;
                     options.TokenValidationParameters.ValidateAudience = false;
                     options.TokenValidationParameters.ValidateLifetime = false;

@@ -926,6 +926,128 @@ public class AdminReservasYBloqueosControllerTests : IClassFixture<ReservasApiFa
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Fact]
+    public async Task ActualizarBloqueo_ViaHttpPut_Retorna200YDatosActualizados()
+    {
+        var userId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var bloqueoId = Guid.NewGuid();
+        var areaId = Guid.NewGuid();
+        var nuevoInicio = DateTimeOffset.UtcNow.AddDays(4);
+        var nuevoFin = nuevoInicio.AddHours(3);
+        const string nuevoMotivo = "Mantenimiento con PUT";
+
+        SetupUserContext(userId, "Administrador", condominioId);
+
+        _factory.MockSupabaseService
+            .Setup(s => s.GetReservaAdminByIdAsync(bloqueoId, condominioId))
+            .ReturnsAsync(new ReservaAdminDto
+            {
+                Id = bloqueoId,
+                AreaId = areaId,
+                Tipo = "BLOQUEO",
+                Inicio = DateTimeOffset.UtcNow.AddDays(3),
+                Fin = DateTimeOffset.UtcNow.AddDays(3).AddHours(2),
+                Motivo = "Motivo viejo"
+            });
+
+        _factory.MockSupabaseService
+            .Setup(s => s.ActualizarBloqueoAsync(userId, bloqueoId, nuevoInicio, nuevoFin, nuevoMotivo))
+            .ReturnsAsync(new BloqueoResultadoDto
+            {
+                BloqueoId = bloqueoId,
+                AreaId = areaId,
+                Inicio = nuevoInicio,
+                Fin = nuevoFin,
+                Motivo = nuevoMotivo
+            });
+
+        var client = CreateAuthenticatedClient(userId);
+
+        var dto = new ActualizarBloqueoRequestDto
+        {
+            Inicio = nuevoInicio,
+            Fin = nuevoFin,
+            Motivo = nuevoMotivo
+        };
+
+        var response = await client.PutAsJsonAsync($"/api/admin/bloqueos/{bloqueoId}", dto);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var content = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(content);
+        Assert.Equal(nuevoMotivo, doc.RootElement.GetProperty("motivo").GetString());
+    }
+
+    [Fact]
+    public async Task ActualizarBloqueo_ServicioDevuelveNull_Retorna400()
+    {
+        var userId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var bloqueoId = Guid.NewGuid();
+        var areaId = Guid.NewGuid();
+
+        SetupUserContext(userId, "Administrador", condominioId);
+
+        _factory.MockSupabaseService
+            .Setup(s => s.GetReservaAdminByIdAsync(bloqueoId, condominioId))
+            .ReturnsAsync(new ReservaAdminDto
+            {
+                Id = bloqueoId,
+                AreaId = areaId,
+                Tipo = "BLOQUEO",
+                Inicio = DateTimeOffset.UtcNow.AddDays(1),
+                Fin = DateTimeOffset.UtcNow.AddDays(1).AddHours(2)
+            });
+
+        _factory.MockSupabaseService
+            .Setup(s => s.ActualizarBloqueoAsync(userId, bloqueoId, It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<string?>()))
+            .ReturnsAsync((BloqueoResultadoDto?)null);
+
+        var client = CreateAuthenticatedClient(userId);
+
+        var dto = new ActualizarBloqueoRequestDto { Motivo = "Nuevo motivo" };
+        var response = await client.PatchAsJsonAsync($"/api/admin/bloqueos/{bloqueoId}", dto);
+
+        await AssertErrorResponseAsync(response, HttpStatusCode.BadRequest, "No se pudo actualizar el bloqueo");
+    }
+
+    [Fact]
+    public async Task ActualizarBloqueo_ErrorRpcRE009_Retorna409ConMensajeMapeado()
+    {
+        var userId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var bloqueoId = Guid.NewGuid();
+        var areaId = Guid.NewGuid();
+
+        SetupUserContext(userId, "Administrador", condominioId);
+
+        _factory.MockSupabaseService
+            .Setup(s => s.GetReservaAdminByIdAsync(bloqueoId, condominioId))
+            .ReturnsAsync(new ReservaAdminDto
+            {
+                Id = bloqueoId,
+                AreaId = areaId,
+                Tipo = "BLOQUEO",
+                Inicio = DateTimeOffset.UtcNow.AddDays(1),
+                Fin = DateTimeOffset.UtcNow.AddDays(1).AddHours(2)
+            });
+
+        _factory.MockSupabaseService
+            .Setup(s => s.ActualizarBloqueoAsync(userId, bloqueoId, It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<string?>()))
+            .ThrowsAsync(new SupabaseRpcException("RE009", "Choque con otra reserva"));
+
+        var client = CreateAuthenticatedClient(userId);
+
+        var dto = new ActualizarBloqueoRequestDto { Motivo = "Nuevo motivo" };
+        var response = await client.PatchAsJsonAsync($"/api/admin/bloqueos/{bloqueoId}", dto);
+
+        await AssertErrorResponseAsync(
+            response,
+            HttpStatusCode.Conflict,
+            "El horario choca con otra reserva aprobada o con un bloqueo del área.");
+    }
+
     #endregion
 
     #region 9. DELETE api/admin/bloqueos/{id} (EliminarBloqueo)
@@ -1045,6 +1167,65 @@ public class AdminReservasYBloqueosControllerTests : IClassFixture<ReservasApiFa
         var response = await client.DeleteAsync($"/api/admin/bloqueos/{bloqueoId}");
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task EliminarBloqueo_ServicioDevuelveFalse_Retorna400()
+    {
+        var userId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var bloqueoId = Guid.NewGuid();
+
+        SetupUserContext(userId, "Administrador", condominioId);
+
+        _factory.MockSupabaseService
+            .Setup(s => s.GetReservaAdminByIdAsync(bloqueoId, condominioId))
+            .ReturnsAsync(new ReservaAdminDto
+            {
+                Id = bloqueoId,
+                Tipo = "BLOQUEO"
+            });
+
+        _factory.MockSupabaseService
+            .Setup(s => s.EliminarBloqueoAsync(userId, bloqueoId))
+            .ReturnsAsync(false);
+
+        var client = CreateAuthenticatedClient(userId);
+
+        var response = await client.DeleteAsync($"/api/admin/bloqueos/{bloqueoId}");
+
+        await AssertErrorResponseAsync(response, HttpStatusCode.BadRequest, "No se pudo eliminar el bloqueo");
+    }
+
+    [Fact]
+    public async Task EliminarBloqueo_ErrorRpcRE004_Retorna409ConMensajeMapeado()
+    {
+        var userId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var bloqueoId = Guid.NewGuid();
+
+        SetupUserContext(userId, "Administrador", condominioId);
+
+        _factory.MockSupabaseService
+            .Setup(s => s.GetReservaAdminByIdAsync(bloqueoId, condominioId))
+            .ReturnsAsync(new ReservaAdminDto
+            {
+                Id = bloqueoId,
+                Tipo = "BLOQUEO"
+            });
+
+        _factory.MockSupabaseService
+            .Setup(s => s.EliminarBloqueoAsync(userId, bloqueoId))
+            .ThrowsAsync(new SupabaseRpcException("RE004", "El estado no permite"));
+
+        var client = CreateAuthenticatedClient(userId);
+
+        var response = await client.DeleteAsync($"/api/admin/bloqueos/{bloqueoId}");
+
+        await AssertErrorResponseAsync(
+            response,
+            HttpStatusCode.Conflict,
+            "El estado de la reserva no permite esta operación.");
     }
 
     #endregion

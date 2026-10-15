@@ -471,57 +471,29 @@ public class SupabaseService : ISupabaseService
 
     public async Task<BloqueoResultadoDto?> ActualizarBloqueoAsync(Guid actorId, Guid bloqueoId, DateTimeOffset? inicio, DateTimeOffset? fin, string? motivo)
     {
-        var payload = new Dictionary<string, object>();
-        if (inicio.HasValue) payload["inicio"] = inicio.Value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
-        if (fin.HasValue) payload["fin"] = fin.Value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
-        if (motivo != null) payload["motivo"] = motivo.Trim();
-        payload["actualizado_en"] = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
-
-        var requestUrl = $"{_supabaseUrl}/rest/v1/reservas?id=eq.{bloqueoId}&tipo=eq.BLOQUEO&select=id,area_id,inicio,fin,motivo";
-        var request = new HttpRequestMessage(HttpMethod.Patch, requestUrl);
-        request.Headers.Add("apikey", _serviceRoleKey);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
-        request.Headers.Add("x-actor-id", actorId.ToString());
-        request.Headers.Add("Prefer", "return=representation");
-        request.Content = JsonContent.Create(payload);
-
-        var response = await SendRequestAsync(request);
-        if (!response.IsSuccessStatusCode)
+        var payload = new Dictionary<string, object>
         {
-            _logger.LogWarning("Failed to update bloqueo {BloqueoId}. Status: {StatusCode}", bloqueoId, response.StatusCode);
-            return null;
-        }
-
-        var list = await ParseJsonAsync<List<ReservaUsuarioDto>>(response.Content);
-        var updated = list?.FirstOrDefault();
-        if (updated == null) return null;
-
-        return new BloqueoResultadoDto
-        {
-            BloqueoId = updated.Id,
-            AreaId = updated.AreaId,
-            Inicio = updated.Inicio,
-            Fin = updated.Fin,
-            Motivo = updated.Motivo ?? string.Empty,
-            ReservasAfectadas = 0
+            { "p_actor_id", actorId },
+            { "p_bloqueo_id", bloqueoId }
         };
+
+        if (inicio.HasValue) payload["p_inicio"] = inicio.Value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
+        if (fin.HasValue) payload["p_fin"] = fin.Value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
+        if (!string.IsNullOrWhiteSpace(motivo)) payload["p_motivo"] = motivo.Trim();
+
+        return await SupabaseRpcClient.PostRpcAsync<BloqueoResultadoDto>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, "actualizar_bloqueo_area", payload, actorId);
     }
 
     public async Task<bool> EliminarBloqueoAsync(Guid actorId, Guid bloqueoId)
     {
-        var requestUrl = $"{_supabaseUrl}/rest/v1/reservas?id=eq.{bloqueoId}&tipo=eq.BLOQUEO";
-        var request = new HttpRequestMessage(HttpMethod.Delete, requestUrl);
-        request.Headers.Add("apikey", _serviceRoleKey);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
-        request.Headers.Add("x-actor-id", actorId.ToString());
-
-        var response = await SendRequestAsync(request);
-        if (!response.IsSuccessStatusCode)
+        var payload = new Dictionary<string, object>
         {
-            _logger.LogWarning("Failed to delete bloqueo {BloqueoId}. Status: {StatusCode}", bloqueoId, response.StatusCode);
-            return false;
-        }
+            { "p_actor_id", actorId },
+            { "p_bloqueo_id", bloqueoId }
+        };
 
-        return true;
+        return await SupabaseRpcClient.PostRpcAsync<bool>(
+            _httpClient, _supabaseUrl, _serviceRoleKey, "eliminar_bloqueo_area", payload, actorId);
     }
 }
