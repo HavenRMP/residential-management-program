@@ -48,9 +48,11 @@ describe('ReservasAdminListaComponent', () => {
   beforeEach(() => {
     items = [];
     total = 0;
-    api = jasmine.createSpyObj('ApiService', ['get', 'post']);
+    api = jasmine.createSpyObj('ApiService', ['get', 'post', 'patch', 'delete']);
     api.get.and.callFake((() => of({ items, totalCount: total || items.length })) as any);
     api.post.and.returnValue(of(null));
+    api.patch.and.returnValue(of({ bloqueoId: 'b1', areaId: 'a1', inicio: 'i', fin: 'f', motivo: 'M', reservasAfectadas: 0 }));
+    api.delete.and.returnValue(of(undefined));
     swal = spyOn(Swal, 'fire').and.resolveTo({ isConfirmed: true, value: 'Motivo de prueba' } as any);
     TestBed.configureTestingModule({ imports: [ReservasAdminListaComponent], providers: [{ provide: ApiService, useValue: api }] });
   });
@@ -84,15 +86,23 @@ describe('ReservasAdminListaComponent', () => {
       expect(texto()).toContain('1 inasistencia(s)');
     });
 
-    it('un bloqueo se distingue, muestra su motivo y no ofrece acciones', async () => {
+    it('un bloqueo se distingue, muestra su motivo y no se aprueba ni se cancela como una reserva', async () => {
       items = [reserva('b1', 'APROBADA', 10, { tipo: 'BLOQUEO', motivo: 'Mantenimiento de la alberca', titularNombre: null, numeroCasa: null })];
       await abrir();
 
       expect(filas()[0].textContent).toContain('Bloqueo');
       expect(filas()[0].textContent).toContain('Mantenimiento de la alberca');
-      expect(filas()[0].textContent).toContain('Un bloqueo no se puede quitar desde aquí');
       expect(boton('Aprobar', filas()[0])).toBeUndefined();
       expect(boton('Cancelar', filas()[0])).toBeUndefined();
+    });
+
+    it('un bloqueo que ya pasó no ofrece acciones', async () => {
+      items = [reserva('b1', 'APROBADA', -10, { tipo: 'BLOQUEO', motivo: 'Mantenimiento', titularNombre: null, numeroCasa: null })];
+      await abrir();
+
+      expect(filas()[0].textContent).toContain('Sin acciones');
+      expect(boton('Editar', filas()[0])).toBeUndefined();
+      expect(boton('Quitar', filas()[0])).toBeUndefined();
     });
 
     it('una reserva aprobada y confirmada lo dice', async () => {
@@ -314,6 +324,100 @@ describe('ReservasAdminListaComponent', () => {
       await component.aprobar(items[0]);
 
       expect((swal.calls.mostRecent().args[0] as any).text).toBe('No fue posible completar la acción. Intenta de nuevo en unos segundos.');
+    });
+  });
+
+  describe('bloqueos', () => {
+    const bloqueo = (id = 'b1', extra: Partial<Reserva> = {}) =>
+      reserva(id, 'APROBADA', 10, { tipo: 'BLOQUEO', motivo: 'Mantenimiento de la alberca', titularNombre: null, numeroCasa: null, ...extra });
+
+    it('un bloqueo por venir ofrece Editar y Quitar, con nombres accesibles que dicen cuál es', async () => {
+      items = [bloqueo()];
+      await abrir();
+
+      expect(boton('Editar', filas()[0])).toBeDefined();
+      expect(boton('Quitar', filas()[0])).toBeDefined();
+      expect(boton('Editar', filas()[0])!.getAttribute('aria-label')).toMatch(/^Editar el bloqueo de Salón de usos múltiples /);
+      expect(boton('Quitar', filas()[0])!.getAttribute('aria-label')).toMatch(/^Quitar el bloqueo de Salón de usos múltiples /);
+    });
+
+    it('Editar abre el formulario con los datos del bloqueo', async () => {
+      items = [bloqueo()];
+      await abrir();
+
+      boton('Editar', filas()[0])!.click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(texto()).toContain('Editar bloqueo · Salón de usos múltiples');
+      expect((fixture.nativeElement.querySelector('#blq-motivo') as HTMLTextAreaElement).value).toBe('Mantenimiento de la alberca');
+    });
+
+    it('al guardar o si el bloqueo ya no existe, se cierra el formulario y se vuelve a pedir la lista', async () => {
+      items = [bloqueo()];
+      await abrir();
+      component.editarBloqueo(items[0]);
+      api.get.calls.reset();
+
+      await component.alCambiarBloqueo();
+
+      expect(component.bloqueoEnEdicion()).toBeNull();
+      expect(api.get).toHaveBeenCalled();
+    });
+
+    it('Quitar pide confirmación, manda el DELETE del bloqueo y actualiza la lista', async () => {
+      items = [bloqueo()];
+      await abrir();
+      api.get.calls.reset();
+
+      await component.quitarBloqueo(items[0]);
+
+      const confirmacion = swal.calls.argsFor(0)[0] as any;
+      expect(confirmacion.title).toBe('¿Quitar este bloqueo?');
+      expect(confirmacion.text).toContain('volverá a estar disponible');
+      expect(api.delete).toHaveBeenCalledWith('/api/admin/bloqueos/b1', undefined, 'reservas');
+      expect((swal.calls.mostRecent().args[0] as any).title).toBe('Bloqueo quitado');
+      expect(api.get).toHaveBeenCalled();
+    });
+
+    it('si se arrepiente no se quita nada', async () => {
+      items = [bloqueo()];
+      await abrir();
+      swal.and.resolveTo({ isConfirmed: false } as any);
+
+      await component.quitarBloqueo(items[0]);
+
+      expect(api.delete).not.toHaveBeenCalled();
+    });
+
+    it('si el bloqueo ya no existe lo dice y actualiza la lista', async () => {
+      spyOn(console, 'error');
+      items = [bloqueo()];
+      await abrir();
+      api.delete.and.returnValue(throwError(() => ({ status: 404, error: { error: 'Bloqueo no encontrado' } })));
+      api.get.calls.reset();
+
+      await component.quitarBloqueo(items[0]);
+
+      expect((swal.calls.mostRecent().args[0] as any).title).toBe('Este bloqueo ya cambió');
+      expect(api.get).toHaveBeenCalled();
+    });
+
+    it('si el backend no puede quitarlo muestra su mensaje y no actualiza la lista', async () => {
+      spyOn(console, 'error');
+      items = [bloqueo()];
+      await abrir();
+      api.delete.and.returnValue(throwError(() => ({ status: 400, error: { error: 'No se pudo eliminar el bloqueo' } })));
+      api.get.calls.reset();
+
+      await component.quitarBloqueo(items[0]);
+
+      const aviso = swal.calls.mostRecent().args[0] as any;
+      expect(aviso.icon).toBe('error');
+      expect(aviso.title).toBe('No se pudo quitar el bloqueo');
+      expect(aviso.text).toBe('No se pudo eliminar el bloqueo');
+      expect(api.get).not.toHaveBeenCalled();
     });
   });
 });
