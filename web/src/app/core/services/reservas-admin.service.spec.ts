@@ -16,7 +16,7 @@ describe('ReservasAdminService', () => {
   let api: jasmine.SpyObj<ApiService>;
 
   beforeEach(() => {
-    api = jasmine.createSpyObj('ApiService', ['get', 'post', 'patch']);
+    api = jasmine.createSpyObj('ApiService', ['get', 'post', 'patch', 'delete']);
     TestBed.configureTestingModule({ providers: [ReservasAdminService, { provide: ApiService, useValue: api }] });
     service = TestBed.inject(ReservasAdminService);
   });
@@ -153,6 +153,39 @@ describe('ReservasAdminService', () => {
 
       expect(api.post).toHaveBeenCalledWith('/api/admin/bloqueos', { areaId: 'a1', inicio: 'i', fin: 'f', motivo: 'Mantenimiento' }, undefined, 'reservas');
       expect(resultado.reservasAfectadas).toBe(2);
+    });
+  });
+
+  describe('editar y quitar bloqueos', () => {
+    it('actualizar manda solo lo que cambió, con el motivo sin espacios, y devuelve cuántas reservas se cerraron', async () => {
+      api.patch.and.returnValue(of({ bloqueoId: 'b1', areaId: 'a1', inicio: 'i2', fin: 'f2', motivo: 'Nuevo', reservasAfectadas: 1 }));
+
+      const resultado = await service.actualizarBloqueo('b1', { motivo: '  Nuevo ', fin: 'f2' });
+
+      expect(api.patch).toHaveBeenCalledWith('/api/admin/bloqueos/b1', { motivo: 'Nuevo', fin: 'f2' }, undefined, 'reservas');
+      expect(resultado.reservasAfectadas).toBe(1);
+    });
+
+    it('actualizar sin motivo no lo manda', async () => {
+      api.patch.and.returnValue(of({ bloqueoId: 'b1', areaId: 'a1', inicio: 'i2', fin: 'f2', motivo: 'M', reservasAfectadas: 0 }));
+
+      await service.actualizarBloqueo('b1', { inicio: 'i2' });
+
+      expect((api.patch.calls.mostRecent().args[1] as any).motivo).toBeUndefined();
+    });
+
+    it('quitar pide el DELETE del bloqueo al microservicio de reservas', async () => {
+      api.delete.and.returnValue(of(undefined));
+
+      await service.quitarBloqueo('b1');
+
+      expect(api.delete).toHaveBeenCalledWith('/api/admin/bloqueos/b1', undefined, 'reservas');
+    });
+
+    it('si el backend rechaza el cambio, el error le llega a quien lo pidió', async () => {
+      api.patch.and.returnValue(throwError(() => ({ status: 400, error: { error: 'No se pudo actualizar el bloqueo' } })));
+
+      await expectAsync(service.actualizarBloqueo('b1', { motivo: 'X' })).toBeRejected();
     });
   });
 

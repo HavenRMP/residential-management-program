@@ -153,6 +153,13 @@ export interface CrearBloqueoDto {
   motivo: string;
 }
 
+/** Lo que se puede cambiar de un bloqueo: solo se manda lo que cambió */
+export interface ActualizarBloqueoDto {
+  inicio?: string;
+  fin?: string;
+  motivo?: string;
+}
+
 export interface ResultadoBloqueo {
   bloqueoId: string;
   areaId: string;
@@ -272,6 +279,11 @@ export function adminPuedeRechazar(r: Pick<Reserva, 'estado' | 'tipo'>): boolean
 export function adminPuedeCancelar(r: Pick<Reserva, 'estado' | 'tipo' | 'inicio'>, ahora: number = Date.now()): boolean {
   const e = normalizarEstado(r.estado);
   return r.tipo !== 'BLOQUEO' && (e === 'APROBADA' || e === 'CONFIRMADA') && ms(r.inicio) > ahora;
+}
+
+/** Un bloqueo que todavía no termina se puede editar o quitar; uno que ya pasó, o que ya se quitó, no */
+export function adminPuedeModificarBloqueo(r: Pick<Reserva, 'tipo' | 'estado' | 'fin'>, ahora: number = Date.now()): boolean {
+  return r.tipo === 'BLOQUEO' && normalizarEstado(r.estado) !== 'CANCELADA' && ms(r.fin) > ahora;
 }
 
 /** Marca como no utilizada una reserva aprobada que ya terminó */

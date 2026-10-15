@@ -5,6 +5,7 @@ import { ApiService } from './api.service';
 import { extractPagedItems } from '../models/pagination.model';
 import {
   AreaComun,
+  ActualizarBloqueoDto,
   CrearBloqueoDto,
   FiltrosReservasAdmin,
   GuardarAreaDto,
@@ -168,5 +169,20 @@ export class ReservasAdminService {
    */
   async crearBloqueo(dto: CrearBloqueoDto): Promise<ResultadoBloqueo> {
     return firstValueFrom(this.apiService.post<ResultadoBloqueo>('/api/admin/bloqueos', { ...dto, motivo: dto.motivo.trim() }, undefined, 'reservas'));
+  }
+
+  /**
+   * Cambia las fechas o el motivo de un bloqueo; solo se envía lo que cambió. Si el nuevo horario cubre reservas, se cierran
+   * y el resultado dice cuántas fueron. (PATCH /api/admin/bloqueos/{id})
+   */
+  async actualizarBloqueo(id: string, dto: ActualizarBloqueoDto): Promise<ResultadoBloqueo> {
+    const cuerpo: ActualizarBloqueoDto = { ...dto };
+    if (cuerpo.motivo !== undefined) cuerpo.motivo = cuerpo.motivo.trim();
+    return firstValueFrom(this.apiService.patch<ResultadoBloqueo>(`/api/admin/bloqueos/${id}`, cuerpo, undefined, 'reservas'));
+  }
+
+  /** Quita un bloqueo: el área vuelve a estar disponible en ese horario. (DELETE /api/admin/bloqueos/{id}) */
+  async quitarBloqueo(id: string): Promise<void> {
+    await firstValueFrom(this.apiService.delete<void>(`/api/admin/bloqueos/${id}`, undefined, 'reservas'));
   }
 }
