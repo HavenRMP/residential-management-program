@@ -514,13 +514,28 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
   }
 
   Future<void> _registrarEntrada(VisitaModel visita) async {
+    final bool esAnticipada = visita.llegaAntesDeTiempo();
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Registrar Entrada'),
+        title: Row(
+          children: [
+            if (esAnticipada) ...[
+              const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706)),
+              const SizedBox(width: 8),
+            ],
+            Flexible(
+              child: Text(
+                esAnticipada ? '¿Registrar entrada antes de tiempo?' : 'Registrar Entrada',
+              ),
+            ),
+          ],
+        ),
         content: Text(
-          '¿Confirmar ingreso de ${visita.nombreCompletoVisitante} para la casa #${visita.numeroCasa}?',
+          esAnticipada
+              ? '${visita.nombreCompletoVisitante} estaba programado para el ${_formatearFecha(visita.fechaLlegadaEsperada)}. Aún faltan más de 24 horas para su llegada.\n\n¿Deseas permitir y registrar la entrada ahora para la casa #${visita.numeroCasa}?'
+              : '¿Confirmar ingreso de ${visita.nombreCompletoVisitante} para la casa #${visita.numeroCasa}?',
         ),
         actions: [
           TextButton(
@@ -529,10 +544,10 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF059669),
+              backgroundColor: esAnticipada ? const Color(0xFFD97706) : const Color(0xFF059669),
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Registrar Entrada'),
+            child: Text(esAnticipada ? 'Sí, registrar entrada' : 'Registrar Entrada'),
           ),
         ],
       ),
@@ -902,6 +917,21 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
   }
 
   void _mostrarResultadoValidacion(VisitaModel v) {
+    final bool esAnticipada = v.llegaAntesDeTiempo();
+    final bool esAtendible = v.isPorAtender() || esAnticipada;
+    final String tituloBadge = !esAtendible
+        ? 'Pase No Atendible'
+        : (esAnticipada ? 'Pase Válido (Anticipado)' : 'Pase Válido y Vigente');
+    final Color badgeColor = !esAtendible
+        ? const Color(0xFFDC2626)
+        : (esAnticipada ? const Color(0xFFD97706) : const Color(0xFF047857));
+    final Color iconBg = !esAtendible
+        ? const Color(0xFFFEF2F2)
+        : (esAnticipada ? const Color(0xFFFEF3C7) : const Color(0xFFECFDF5));
+    final IconData iconHeader = !esAtendible
+        ? Icons.cancel_outlined
+        : (esAnticipada ? Icons.schedule_rounded : Icons.check_circle_rounded);
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -934,13 +964,13 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
                   children: [
                     Container(
                       padding: const EdgeInsets.all(10),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFECFDF5),
+                      decoration: BoxDecoration(
+                        color: iconBg,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
-                        Icons.check_circle_rounded,
-                        color: Color(0xFF059669),
+                      child: Icon(
+                        iconHeader,
+                        color: badgeColor,
                         size: 28,
                       ),
                     ),
@@ -949,12 +979,12 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Pase Válido y Vigente',
+                          Text(
+                            tituloBadge,
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF047857),
+                              color: badgeColor,
                             ),
                           ),
                           Text(
@@ -970,6 +1000,53 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
                     _buildEstadoBadge(v.estado),
                   ],
                 ),
+                if (esAnticipada) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFFBEB),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFFDE68A)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.info_outline, size: 18, color: Color(0xFFD97706)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Visita programada para el ${_formatearFecha(v.fechaLlegadaEsperada)}. Aún faltan más de 24 horas. Se pedirá confirmación para registrar la entrada.',
+                            style: const TextStyle(fontSize: 12, color: Color(0xFF92400E), height: 1.3),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else if (!esAtendible) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFFECACA)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.error_outline, size: 18, color: Color(0xFFDC2626)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'El código es válido, pero ${v.motivoNoAtendible()}',
+                            style: const TextStyle(fontSize: 12, color: Color(0xFF991B1B), height: 1.3),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 const Divider(),
                 const SizedBox(height: 12),
@@ -985,16 +1062,16 @@ class _VisitasHoyTabState extends State<_VisitasHoyTab> {
                   _buildInfoRow('Notas', v.notas!),
                 _buildInfoRow('Válido hasta', _formatearFecha(v.vigenciaHasta)),
                 const SizedBox(height: 24),
-                if (v.isProgramada) ...[
+                if (v.isProgramada && esAtendible) ...[
                   FilledButton.icon(
                     onPressed: () {
                       Navigator.pop(ctx);
                       _registrarEntrada(v);
                     },
                     icon: const Icon(Icons.login_rounded),
-                    label: const Text('Registrar Entrada Ahora'),
+                    label: Text(esAnticipada ? 'Confirmar Entrada Anticipada' : 'Registrar Entrada Ahora'),
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF059669),
+                      backgroundColor: esAnticipada ? const Color(0xFFD97706) : const Color(0xFF059669),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
