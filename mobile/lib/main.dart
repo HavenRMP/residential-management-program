@@ -13,6 +13,8 @@ import 'Pages/invitaciones_recibidas_screen.dart';
 import 'Pages/visitas_residente_screen.dart';
 import 'Pages/avisos_residente_screen.dart';
 import 'Pages/paqueteria_residente_screen.dart';
+import 'Pages/reservas_residente_screen.dart';
+import 'Pages/reservas_admin_screen.dart';
 import 'Widgets/offline_banner.dart';
 import 'Utils/error_handler.dart';
 
@@ -142,6 +144,26 @@ class _HavenAppState extends State<HavenApp> {
             ),
           ),
         );
+      } else if (PushNotificationsService.isReservaEvent(tipo)) {
+        if (controller.isAdmin) {
+          navigatorKey.currentState?.push(
+            HavenPageRoute.slideHorizontal(
+              builder: (_) => ReservasAdminScreen(
+                controller: controller,
+                isEmbedded: false,
+              ),
+            ),
+          );
+        } else {
+          navigatorKey.currentState?.push(
+            HavenPageRoute.slideHorizontal(
+              builder: (_) => ReservasResidenteScreen(
+                controller: controller,
+                isEmbedded: false,
+              ),
+            ),
+          );
+        }
       }
     };
   }
