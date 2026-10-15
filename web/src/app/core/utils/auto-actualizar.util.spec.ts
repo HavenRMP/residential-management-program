@@ -1,22 +1,24 @@
-import { DestroyRef } from '@angular/core';
+import { DestroyRef, Injector, NgZone } from '@angular/core';
 import { fakeAsync, tick } from '@angular/core/testing';
 import { autoActualizar } from './auto-actualizar.util';
 
 describe('autoActualizar', () => {
   let destruir: () => void;
-  let destroyRef: DestroyRef;
+  let injector: Injector;
   let visibilidad: 'visible' | 'hidden';
 
   beforeEach(() => {
     destruir = () => {};
-    destroyRef = { onDestroy: (fn: () => void) => { destruir = fn; return () => {}; } } as unknown as DestroyRef;
+    const destroyRef = { onDestroy: (fn: () => void) => { destruir = fn; return () => {}; } } as unknown as DestroyRef;
+    const zona = { run: (fn: () => void) => fn(), runOutsideAngular: (fn: () => void) => fn() } as unknown as NgZone;
+    injector = { get: (token: unknown) => (token === DestroyRef ? destroyRef : zona) } as unknown as Injector;
     visibilidad = 'visible';
     spyOnProperty(document, 'visibilityState', 'get').and.callFake(() => visibilidad);
   });
 
   it('pide los datos cada intervalo mientras la pestaña está a la vista', fakeAsync(() => {
     const accion = jasmine.createSpy('accion');
-    autoActualizar(destroyRef, accion, 1000);
+    autoActualizar(injector, accion, 1000);
     tick(3000);
     expect(accion).toHaveBeenCalledTimes(3);
     destruir();
@@ -24,7 +26,7 @@ describe('autoActualizar', () => {
 
   it('no pide nada con la pestaña en segundo plano', fakeAsync(() => {
     const accion = jasmine.createSpy('accion');
-    autoActualizar(destroyRef, accion, 1000);
+    autoActualizar(injector, accion, 1000);
     visibilidad = 'hidden';
     tick(5000);
     expect(accion).not.toHaveBeenCalled();
@@ -33,7 +35,7 @@ describe('autoActualizar', () => {
 
   it('al volver a la pestaña actualiza de inmediato si ya pasó el intervalo', fakeAsync(() => {
     const accion = jasmine.createSpy('accion');
-    autoActualizar(destroyRef, accion, 1000);
+    autoActualizar(injector, accion, 1000);
     visibilidad = 'hidden';
     tick(2500);
     visibilidad = 'visible';
@@ -44,7 +46,7 @@ describe('autoActualizar', () => {
 
   it('al volver a la pestaña no repite si acaba de actualizar', fakeAsync(() => {
     const accion = jasmine.createSpy('accion');
-    autoActualizar(destroyRef, accion, 1000);
+    autoActualizar(injector, accion, 1000);
     tick(1000);
     expect(accion).toHaveBeenCalledTimes(1);
     document.dispatchEvent(new Event('visibilitychange'));
@@ -54,7 +56,7 @@ describe('autoActualizar', () => {
 
   it('se detiene al destruirse el componente', fakeAsync(() => {
     const accion = jasmine.createSpy('accion');
-    autoActualizar(destroyRef, accion, 1000);
+    autoActualizar(injector, accion, 1000);
     tick(1000);
     destruir();
     tick(5000);
