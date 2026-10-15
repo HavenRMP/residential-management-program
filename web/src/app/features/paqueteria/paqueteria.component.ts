@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, Injector, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -17,6 +17,7 @@ import {
 } from '../../core/models/paquete.model';
 import { formatearFechaVisita } from '../../core/models/visita.model';
 import { mensajeAmigable } from '../../core/utils/api-errors.util';
+import { autoActualizar } from '../../core/utils/auto-actualizar.util';
 import { Vivienda } from '../../core/models/vivienda.model';
 import { UserMenuComponent } from '../../core/components/user-menu/user-menu.component';
 import { PaqueteFormComponent } from './paquete-form/paquete-form.component';
@@ -296,6 +297,7 @@ export class PaqueteriaComponent implements OnInit {
   private readonly authService = inject(AuthService);
   private readonly viviendasService = inject(ViviendasService);
   readonly paqueteriaService = inject(PaqueteriaService);
+  private readonly injector = inject(Injector);
 
   readonly currentUser = this.authService.currentUser;
 
@@ -330,6 +332,8 @@ export class PaqueteriaComponent implements OnInit {
         // El catálogo se pide en paralelo para que ya esté listo cuando se abra el formulario
         void this.paqueteriaService.cargarServicios();
         await this.paqueteriaService.cargar();
+        // Los paquetes que registra la caseta aparecen solos, sin tocar "Actualizar"
+        autoActualizar(this.injector, () => void this.paqueteriaService.cargar(true));
       }
     } finally {
       this.isLoadingVivienda.set(false);
