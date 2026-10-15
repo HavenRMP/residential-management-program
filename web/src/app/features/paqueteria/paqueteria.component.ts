@@ -58,7 +58,7 @@ type Pestana = 'pendientes' | 'historial';
 
       <main class="w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
-        <nav class="flex items-center gap-2 text-xs text-slate-500 font-medium">
+        <nav class="flex items-center gap-2 text-xs text-slate-600 font-medium">
           <a routerLink="/dashboard/residente" class="hover:text-slate-900 transition-colors">Portal</a>
           <span>/</span>
           <span class="text-slate-900">Paquetería</span>
@@ -185,7 +185,7 @@ type Pestana = 'pendientes' | 'historial';
                   <p>Ningún paquete coincide con «{{ busqueda().trim() }}».</p>
                 } @else if (pestana() === 'pendientes') {
                   <p>No tienes paquetes pendientes.</p>
-                  <p class="text-slate-400">Cuando esperes un envío, avisa a caseta para que lo reciban de inmediato.</p>
+                  <p class="text-slate-500">Cuando esperes un envío, avisa a caseta para que lo reciban de inmediato.</p>
                   <button type="button" (click)="abrirFormulario()" class="mt-2 h-8 px-3 inline-flex items-center rounded-md bg-[#111C99] hover:bg-[#0d1577] text-white text-xs font-medium transition-colors shadow-2xs cursor-pointer">
                     Avisar un paquete
                   </button>

@@ -392,7 +392,7 @@ import { mensajeAmigable } from '../../../core/utils/api-errors.util';
                             placeholder="1 - 365"
                             class="h-8 w-full text-xs rounded-lg border border-slate-300 bg-white px-2.5 pr-12 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
                             />
-                            <span class="absolute right-2.5 top-2 text-[11px] text-slate-400 pointer-events-none">días</span>
+                            <span class="absolute right-2.5 top-2 text-[11px] text-slate-500 pointer-events-none">días</span>
                           </div>
                         </div>
                       </div>

@@ -21,7 +21,7 @@ import Swal from 'sweetalert2';
             type="button"
             (click)="volverAlDashboard()"
             [disabled]="guardando()"
-            class="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors mb-6 cursor-pointer"
+            class="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors mb-6 cursor-pointer"
             >
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />

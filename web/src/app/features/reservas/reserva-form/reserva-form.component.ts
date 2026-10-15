@@ -55,7 +55,7 @@ function diaSiguiente(fecha: string): string {
               @if (a.descripcion) {
                 <p class="text-xs text-slate-600 mt-0.5">{{ a.descripcion }}</p>
               }
-              <p class="text-[11px] font-medium text-slate-500 mt-1.5">Abierta de {{ hora(a.horaApertura) }} a {{ hora(a.horaCierre) }}</p>
+              <p class="text-[11px] font-medium text-slate-600 mt-1.5">Abierta de {{ hora(a.horaApertura) }} a {{ hora(a.horaCierre) }}</p>
             </button>
           }
         </div>

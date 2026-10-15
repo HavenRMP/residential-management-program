@@ -62,7 +62,7 @@ const HORA_MS = 3_600_000;
 
       <main class="w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
-        <nav class="flex items-center gap-2 text-xs text-slate-500 font-medium">
+        <nav class="flex items-center gap-2 text-xs text-slate-600 font-medium">
           <a routerLink="/dashboard/residente" class="hover:text-slate-900 transition-colors">Portal</a>
           <span>/</span>
           <span class="text-slate-900">Reservas</span>
