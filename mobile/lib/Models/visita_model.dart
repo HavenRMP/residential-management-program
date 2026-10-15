@@ -51,6 +51,42 @@ class VisitaModel {
   bool get isCancelada => estado.toLowerCase() == 'cancelada';
   bool get isExpirada => estado.toLowerCase() == 'expirada';
 
+  static const int horasVentanaCaseta = 24;
+
+  bool isVencida([DateTime? ahora]) {
+    final now = ahora ?? DateTime.now();
+    if (!isProgramada) return false;
+    if (vigenciaHasta.year < 2000) return false;
+    return vigenciaHasta.isBefore(now);
+  }
+
+  bool llegaAntesDeTiempo([DateTime? ahora]) {
+    final now = ahora ?? DateTime.now();
+    if (!isProgramada || isVencida(now)) return false;
+    if (fechaLlegadaEsperada.year < 2000) return false;
+    return fechaLlegadaEsperada.isAfter(now.add(const Duration(hours: horasVentanaCaseta)));
+  }
+
+  bool isPorAtender([DateTime? ahora]) {
+    final now = ahora ?? DateTime.now();
+    if (isEnCurso) return true;
+    if (!isProgramada || isVencida(now)) return false;
+    if (fechaLlegadaEsperada.year < 2000) return true;
+    return !fechaLlegadaEsperada.isAfter(now.add(const Duration(hours: horasVentanaCaseta)));
+  }
+
+  String motivoNoAtendible([DateTime? ahora]) {
+    final now = ahora ?? DateTime.now();
+    if (isProgramada) {
+      if (isVencida(now)) return 'su vigencia ya terminó: el visitante no llegó a tiempo.';
+      return 'llega con más de $horasVentanaCaseta horas de anticipación.';
+    }
+    if (isFinalizada) return 'la visita ya terminó.';
+    if (isCancelada) return 'la visita fue cancelada.';
+    if (isExpirada) return 'la visita expiró.';
+    return 'la visita no está por atender.';
+  }
+
   factory VisitaModel.fromJson(Map<String, dynamic> json) {
     DateTime parseDate(dynamic val, [DateTime? fallback]) {
       if (val == null) return fallback ?? DateTime.now();
