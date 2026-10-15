@@ -698,4 +698,354 @@ public class AdminReservasYBloqueosControllerTests : IClassFixture<ReservasApiFa
     }
 
     #endregion
+
+    #region 7. GET api/admin/bloqueos/{id} (GetBloqueo)
+
+    [Fact]
+    public async Task GetBloqueo_AdminConBloqueoExistente_Retorna200YDatos()
+    {
+        var userId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var bloqueoId = Guid.NewGuid();
+        var areaId = Guid.NewGuid();
+
+        SetupUserContext(userId, "Administrador", condominioId);
+
+        _factory.MockSupabaseService
+            .Setup(s => s.GetReservaAdminByIdAsync(bloqueoId, condominioId))
+            .ReturnsAsync(new ReservaAdminDto
+            {
+                Id = bloqueoId,
+                AreaId = areaId,
+                AreaNombre = "Piscina",
+                Tipo = "BLOQUEO",
+                Inicio = DateTimeOffset.UtcNow.AddDays(2),
+                Fin = DateTimeOffset.UtcNow.AddDays(2).AddHours(4),
+                Motivo = "Limpieza profunda",
+                Estado = "APROBADA"
+            });
+
+        var client = CreateAuthenticatedClient(userId);
+
+        var response = await client.GetAsync($"/api/admin/bloqueos/{bloqueoId}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var content = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(content);
+        Assert.Equal(bloqueoId.ToString(), doc.RootElement.GetProperty("bloqueoId").GetString());
+        Assert.Equal("Limpieza profunda", doc.RootElement.GetProperty("motivo").GetString());
+    }
+
+    [Fact]
+    public async Task GetBloqueo_NoExiste_Retorna404()
+    {
+        var userId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var bloqueoId = Guid.NewGuid();
+
+        SetupUserContext(userId, "Administrador", condominioId);
+
+        _factory.MockSupabaseService
+            .Setup(s => s.GetReservaAdminByIdAsync(bloqueoId, condominioId))
+            .ReturnsAsync((ReservaAdminDto?)null);
+
+        var client = CreateAuthenticatedClient(userId);
+
+        var response = await client.GetAsync($"/api/admin/bloqueos/{bloqueoId}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetBloqueo_ExistePeroEsReserva_Retorna404()
+    {
+        var userId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var reservaId = Guid.NewGuid();
+
+        SetupUserContext(userId, "Administrador", condominioId);
+
+        _factory.MockSupabaseService
+            .Setup(s => s.GetReservaAdminByIdAsync(reservaId, condominioId))
+            .ReturnsAsync(new ReservaAdminDto
+            {
+                Id = reservaId,
+                Tipo = "RESERVA"
+            });
+
+        var client = CreateAuthenticatedClient(userId);
+
+        var response = await client.GetAsync($"/api/admin/bloqueos/{reservaId}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    #endregion
+
+    #region 8. PATCH / PUT api/admin/bloqueos/{id} (ActualizarBloqueo)
+
+    [Fact]
+    public async Task ActualizarBloqueo_AdminConDatosValidos_Retorna200YDatosActualizados()
+    {
+        var userId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var bloqueoId = Guid.NewGuid();
+        var areaId = Guid.NewGuid();
+        var nuevoInicio = DateTimeOffset.UtcNow.AddDays(3);
+        var nuevoFin = nuevoInicio.AddHours(5);
+        const string nuevoMotivo = "Mantenimiento extendido";
+
+        SetupUserContext(userId, "Administrador", condominioId);
+
+        _factory.MockSupabaseService
+            .Setup(s => s.GetReservaAdminByIdAsync(bloqueoId, condominioId))
+            .ReturnsAsync(new ReservaAdminDto
+            {
+                Id = bloqueoId,
+                AreaId = areaId,
+                Tipo = "BLOQUEO",
+                Inicio = DateTimeOffset.UtcNow.AddDays(2),
+                Fin = DateTimeOffset.UtcNow.AddDays(2).AddHours(2),
+                Motivo = "Mantenimiento previo"
+            });
+
+        _factory.MockSupabaseService
+            .Setup(s => s.ActualizarBloqueoAsync(userId, bloqueoId, nuevoInicio, nuevoFin, nuevoMotivo))
+            .ReturnsAsync(new BloqueoResultadoDto
+            {
+                BloqueoId = bloqueoId,
+                AreaId = areaId,
+                Inicio = nuevoInicio,
+                Fin = nuevoFin,
+                Motivo = nuevoMotivo
+            });
+
+        var client = CreateAuthenticatedClient(userId);
+
+        var dto = new ActualizarBloqueoRequestDto
+        {
+            Inicio = nuevoInicio,
+            Fin = nuevoFin,
+            Motivo = nuevoMotivo
+        };
+
+        var response = await client.PatchAsJsonAsync($"/api/admin/bloqueos/{bloqueoId}", dto);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var content = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(content);
+        Assert.Equal(nuevoMotivo, doc.RootElement.GetProperty("motivo").GetString());
+    }
+
+    [Fact]
+    public async Task ActualizarBloqueo_NoExiste_Retorna404()
+    {
+        var userId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var bloqueoId = Guid.NewGuid();
+
+        SetupUserContext(userId, "Administrador", condominioId);
+
+        _factory.MockSupabaseService
+            .Setup(s => s.GetReservaAdminByIdAsync(bloqueoId, condominioId))
+            .ReturnsAsync((ReservaAdminDto?)null);
+
+        var client = CreateAuthenticatedClient(userId);
+
+        var dto = new ActualizarBloqueoRequestDto { Motivo = "Cualquier motivo" };
+        var response = await client.PatchAsJsonAsync($"/api/admin/bloqueos/{bloqueoId}", dto);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ActualizarBloqueo_NoEsBloqueo_Retorna400()
+    {
+        var userId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var id = Guid.NewGuid();
+
+        SetupUserContext(userId, "Administrador", condominioId);
+
+        _factory.MockSupabaseService
+            .Setup(s => s.GetReservaAdminByIdAsync(id, condominioId))
+            .ReturnsAsync(new ReservaAdminDto
+            {
+                Id = id,
+                Tipo = "RESERVA"
+            });
+
+        var client = CreateAuthenticatedClient(userId);
+
+        var dto = new ActualizarBloqueoRequestDto { Motivo = "Cambio motivo" };
+        var response = await client.PatchAsJsonAsync($"/api/admin/bloqueos/{id}", dto);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ActualizarBloqueo_FinMenorAInicio_Retorna400()
+    {
+        var userId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var bloqueoId = Guid.NewGuid();
+
+        SetupUserContext(userId, "Administrador", condominioId);
+
+        var client = CreateAuthenticatedClient(userId);
+
+        var dto = new ActualizarBloqueoRequestDto
+        {
+            Inicio = DateTimeOffset.UtcNow.AddDays(3),
+            Fin = DateTimeOffset.UtcNow.AddDays(2)
+        };
+
+        var response = await client.PatchAsJsonAsync($"/api/admin/bloqueos/{bloqueoId}", dto);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ActualizarBloqueo_MotivoSoloEspacios_Retorna400()
+    {
+        var userId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var bloqueoId = Guid.NewGuid();
+
+        SetupUserContext(userId, "Administrador", condominioId);
+
+        var client = CreateAuthenticatedClient(userId);
+
+        var dto = new ActualizarBloqueoRequestDto
+        {
+            Motivo = "    "
+        };
+
+        var response = await client.PatchAsJsonAsync($"/api/admin/bloqueos/{bloqueoId}", dto);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    #endregion
+
+    #region 9. DELETE api/admin/bloqueos/{id} (EliminarBloqueo)
+
+    [Fact]
+    public async Task EliminarBloqueo_AdminConIdValido_Retorna204NoContent()
+    {
+        var userId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var bloqueoId = Guid.NewGuid();
+
+        SetupUserContext(userId, "Administrador", condominioId);
+
+        _factory.MockSupabaseService
+            .Setup(s => s.GetReservaAdminByIdAsync(bloqueoId, condominioId))
+            .ReturnsAsync(new ReservaAdminDto
+            {
+                Id = bloqueoId,
+                Tipo = "BLOQUEO"
+            });
+
+        _factory.MockSupabaseService
+            .Setup(s => s.EliminarBloqueoAsync(userId, bloqueoId))
+            .ReturnsAsync(true);
+
+        var client = CreateAuthenticatedClient(userId);
+
+        var response = await client.DeleteAsync($"/api/admin/bloqueos/{bloqueoId}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        _factory.MockSupabaseService.Verify(s => s.EliminarBloqueoAsync(userId, bloqueoId), Times.Once);
+    }
+
+    [Fact]
+    public async Task EliminarBloqueo_ViaPostCancelar_Retorna204NoContent()
+    {
+        var userId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var bloqueoId = Guid.NewGuid();
+
+        SetupUserContext(userId, "Administrador", condominioId);
+
+        _factory.MockSupabaseService
+            .Setup(s => s.GetReservaAdminByIdAsync(bloqueoId, condominioId))
+            .ReturnsAsync(new ReservaAdminDto
+            {
+                Id = bloqueoId,
+                Tipo = "BLOQUEO"
+            });
+
+        _factory.MockSupabaseService
+            .Setup(s => s.EliminarBloqueoAsync(userId, bloqueoId))
+            .ReturnsAsync(true);
+
+        var client = CreateAuthenticatedClient(userId);
+
+        var response = await client.PostAsync($"/api/admin/bloqueos/{bloqueoId}/cancelar", null);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        _factory.MockSupabaseService.Verify(s => s.EliminarBloqueoAsync(userId, bloqueoId), Times.Once);
+    }
+
+    [Fact]
+    public async Task EliminarBloqueo_NoExiste_Retorna404()
+    {
+        var userId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var bloqueoId = Guid.NewGuid();
+
+        SetupUserContext(userId, "Administrador", condominioId);
+
+        _factory.MockSupabaseService
+            .Setup(s => s.GetReservaAdminByIdAsync(bloqueoId, condominioId))
+            .ReturnsAsync((ReservaAdminDto?)null);
+
+        var client = CreateAuthenticatedClient(userId);
+
+        var response = await client.DeleteAsync($"/api/admin/bloqueos/{bloqueoId}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task EliminarBloqueo_NoEsBloqueo_Retorna400()
+    {
+        var userId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var id = Guid.NewGuid();
+
+        SetupUserContext(userId, "Administrador", condominioId);
+
+        _factory.MockSupabaseService
+            .Setup(s => s.GetReservaAdminByIdAsync(id, condominioId))
+            .ReturnsAsync(new ReservaAdminDto
+            {
+                Id = id,
+                Tipo = "RESERVA"
+            });
+
+        var client = CreateAuthenticatedClient(userId);
+
+        var response = await client.DeleteAsync($"/api/admin/bloqueos/{id}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task EliminarBloqueo_RolResidente_Retorna403()
+    {
+        var userId = Guid.NewGuid();
+        var bloqueoId = Guid.NewGuid();
+
+        SetupUserContext(userId, "Residente", Guid.NewGuid());
+
+        var client = CreateAuthenticatedClient(userId);
+
+        var response = await client.DeleteAsync($"/api/admin/bloqueos/{bloqueoId}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    #endregion
 }

@@ -190,3 +190,25 @@ Accept: application/json
   "fin": "2026-10-28T18:00:00Z",
   "motivo": "Mantenimiento preventivo general y pintura de alberca"
 }
+
+### GET /api/admin/bloqueos/{id} (Consultar detalle de un bloqueo, rol: Administrador)
+GET {{Reservas.Api_HostAddress}}/api/admin/bloqueos/{{BloqueoId}}
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+### PATCH /api/admin/bloqueos/{id} (Modificar fechas o motivo del bloqueo, rol: Administrador)
+PATCH {{Reservas.Api_HostAddress}}/api/admin/bloqueos/{{BloqueoId}}
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Content-Type: application/json
+Accept: application/json
+
+{
+  "inicio": "2026-10-28T09:00:00Z",
+  "fin": "2026-10-28T19:00:00Z",
+  "motivo": "Mantenimiento preventivo general y cambio de filtros"
+}
+
+### DELETE /api/admin/bloqueos/{id} (Quitar / cancelar bloqueo de área, rol: Administrador)
+DELETE {{Reservas.Api_HostAddress}}/api/admin/bloqueos/{{BloqueoId}}
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json

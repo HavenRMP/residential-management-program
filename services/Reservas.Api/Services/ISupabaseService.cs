@@ -36,4 +36,6 @@ public interface ISupabaseService
     Task<bool> MarcarNoUtilizadaAsync(Guid actorId, Guid reservaId);
 
     Task<BloqueoResultadoDto?> CrearBloqueoAsync(Guid actorId, Guid areaId, DateTimeOffset inicio, DateTimeOffset fin, string motivo);
+    Task<BloqueoResultadoDto?> ActualizarBloqueoAsync(Guid actorId, Guid bloqueoId, DateTimeOffset? inicio, DateTimeOffset? fin, string? motivo);
+    Task<bool> EliminarBloqueoAsync(Guid actorId, Guid bloqueoId);
 }
