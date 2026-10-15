@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal, computed, Injector, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import Swal from 'sweetalert2';
@@ -24,6 +24,7 @@ import {
   visitaPorAtender
 } from '../../../core/models/visita.model';
 import { mensajeAmigable } from '../../../core/utils/api-errors.util';
+import { autoActualizar } from '../../../core/utils/auto-actualizar.util';
 
 const BUSQUEDA_DEBOUNCE_MS = 350;
 
@@ -600,6 +601,7 @@ const BUSQUEDA_DEBOUNCE_MS = 350;
 })
 export class CasetaVisitasComponent implements OnInit, OnDestroy {
   readonly visitasService = inject(VisitasVigilanciaService);
+  private readonly injector = inject(Injector);
   readonly directorio = inject(DirectorioCasasService);
   readonly historico = inject(VisitasHistoricoService);
   readonly programadas = inject(VisitasProgramadasService);
@@ -715,6 +717,8 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
     this.visitasService.cargarProximas();
     // El directorio es compartido: se carga una sola vez aunque también lo use su propia tarjeta
     this.directorio.cargar();
+    // Las visitas que programan los residentes aparecen solas en la lista, sin tocar "Actualizar"
+    autoActualizar(this.injector, () => void this.visitasService.cargarProximas(this.busqueda, this.visitasService.page(), true));
   }
 
   ngOnDestroy(): void {
