@@ -62,4 +62,31 @@ describe('autoActualizar', () => {
     tick(5000);
     expect(accion).toHaveBeenCalledTimes(1);
   }));
+
+  it('al volver a la pestaña no espera el intervalo completo: basta con unos segundos', fakeAsync(() => {
+    const accion = jasmine.createSpy('accion');
+    autoActualizar(injector, accion, 30_000);
+    tick(6_000);
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(accion).toHaveBeenCalledTimes(1);
+    destruir();
+  }));
+
+  it('al volver a la pestaña no repite si apenas pasaron un par de segundos', fakeAsync(() => {
+    const accion = jasmine.createSpy('accion');
+    autoActualizar(injector, accion, 30_000);
+    tick(2_000);
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(accion).not.toHaveBeenCalled();
+    destruir();
+  }));
+
+  it('al enfocar de nuevo la ventana también actualiza', fakeAsync(() => {
+    const accion = jasmine.createSpy('accion');
+    autoActualizar(injector, accion, 30_000);
+    tick(6_000);
+    window.dispatchEvent(new Event('focus'));
+    expect(accion).toHaveBeenCalledTimes(1);
+    destruir();
+  }));
 });
