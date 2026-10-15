@@ -3,7 +3,7 @@ import { firstValueFrom } from 'rxjs';
 import { HttpParams } from '@angular/common/http';
 import { ApiService } from './api.service';
 import { extractPagedItems } from '../models/pagination.model';
-import { EstadoVisita, fusionarSinVacios, ordenarVisitasRecientesPrimero, VisitaVigilancia } from '../models/visita.model';
+import { EstadoVisita, fechaVisitaReal, fusionarSinVacios, ordenarVisitasRecientesPrimero, VisitaVigilancia } from '../models/visita.model';
 import { mensajeAmigable } from '../utils/api-errors.util';
 
 @Injectable({
@@ -58,16 +58,20 @@ export class VisitasVigilanciaService {
    * Valida un código de acceso escaneado o digitado por el guardia
    * (GET /api/visitas/codigo/{codigo})
    *
-   * El backend responde este endpoint con `estado` vacío y la vigencia en su valor por defecto, así que los datos
-   * que faltan se completan con la visita de la lista de próximas, que sí los trae. Si no está en la lista
-   * (llega en más de 24 horas, ya terminó o se canceló) el `estado` queda vacío.
+   * El backend ya devuelve el `estado` real, pero la vigencia (`vigenciaHasta`) sigue llegando en su valor vacío
+   * (año 1). Si la visita está en la lista de próximas, esa fecha y cualquier otro dato en blanco se completan con
+   * la de la lista; si no, la vigencia queda vacía y no se muestra.
    */
   async validarCodigo(codigo: string): Promise<VisitaVigilancia> {
     const validada = await firstValueFrom(
       this.apiService.get<VisitaVigilancia>(`/api/visitas/codigo/${encodeURIComponent(codigo.trim())}`, undefined, undefined, 'visitas')
     );
     const enLista = this.items().find(v => v.id === validada.id);
-    return enLista ? fusionarSinVacios(enLista, validada) : validada;
+    if (!enLista) return validada;
+    // El valor vacío del backend no es "vacío" para fusionarSinVacios (es un texto): se quita para que no pise la fecha buena de la lista
+    const recibida: Partial<VisitaVigilancia> = { ...validada };
+    if (fechaVisitaReal(validada.vigenciaHasta) === null) delete recibida.vigenciaHasta;
+    return fusionarSinVacios(enLista, recibida);
   }
 
   /**
