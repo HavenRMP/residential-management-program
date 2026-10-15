@@ -244,4 +244,29 @@ describe('PaqueteriaCasetaService', () => {
     expect(service.esperados.items().length).toBe(0);
     expect(service.enCaseta.items().length).toBe(0);
   });
+
+  describe('modo silencioso (actualización automática)', () => {
+    it('actualiza la lista sin encender "cargando"', async () => {
+      api.get.and.returnValue(of({ items: [paquete('p1')], totalCount: 1 }));
+
+      const promesa = service.cargarEsperados(true);
+
+      expect(service.esperados.cargando()).toBeFalse();
+      await promesa;
+      expect(service.esperados.items().length).toBe(1);
+    });
+
+    it('si falla, deja la lista como estaba y no muestra error', async () => {
+      spyOn(console, 'error');
+      api.get.and.returnValue(of({ items: [paquete('p1')], totalCount: 1 }));
+      await service.cargarEsperados();
+      api.get.and.returnValue(throwError(() => ({ status: 500, error: { error: 'Fallo del servidor' } })));
+
+      await service.cargarEsperados(true);
+
+      expect(service.esperados.items().length).toBe(1);
+      expect(service.esperados.error()).toBeNull();
+      expect(service.esperados.cargando()).toBeFalse();
+    });
+  });
 });
