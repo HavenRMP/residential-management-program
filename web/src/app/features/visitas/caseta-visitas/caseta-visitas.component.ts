@@ -16,9 +16,11 @@ import {
   formatearFechaVisita,
   fusionarSinVacios,
   MOTIVOS_VISITA,
+  motivoVisitaNoAtendible,
   rangoFechasInvalido,
   rangoFechasIso,
-  VisitaVigilancia
+  VisitaVigilancia,
+  visitaPorAtender
 } from '../../../core/models/visita.model';
 import { mensajeAmigable } from '../../../core/utils/api-errors.util';
 
@@ -777,14 +779,12 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
     let validada: VisitaVigilancia | null = null;
     try {
       validada = await this.visitasService.validarCodigo(codigo);
-      if (validada.estado) {
+      if (visitaPorAtender(validada)) {
         this.visitaValidada.set(validada);
       } else {
-        // Código válido pero la visita no está en las próximas 24 horas: no hay nada que atender ahora
-        this.errorCodigo.set(
-          `${validada.nombreVisitante} ${validada.apellidosVisitante}: el código es válido, pero la visita no está por atender ` +
-          '(llega en más de 24 horas, ya terminó o se canceló).'
-        );
+        // Código válido pero la visita no se atiende ahora (llega en más de 24 horas, ya terminó, se canceló o venció).
+        // El backend dejaría registrar su entrada de todos modos, por eso la web no la ofrece.
+        this.errorCodigo.set(`${validada.nombreVisitante} ${validada.apellidosVisitante}: el código es válido, pero ${motivoVisitaNoAtendible(validada)}`);
         validada = null;
       }
     } catch (err: any) {
