@@ -74,13 +74,74 @@ export function ordenarVisitasProximasPrimero<T extends { fechaLlegadaEsperada: 
 }
 
 /**
+ * La fecha como milisegundos, o null si falta o es el valor vacío del backend (año 1: `0001-01-01T00:00:00`),
+ * que no es una fecha real.
+ */
+export function fechaVisitaReal(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime();
+  return isNaN(ms) || new Date(ms).getFullYear() < 2000 ? null : ms;
+}
+
+/**
  * La visita sigue "programada" pero su vigencia ya terminó: el visitante no llegó a tiempo.
  * El backend la marca como expirada, pero puede tardar; mientras tanto no debe poder editarse ni usarse.
  */
 export function visitaVencida(v: { estado: string; vigenciaHasta?: string | null }, ahora: number = Date.now()): boolean {
-  if (v.estado !== 'programada' || !v.vigenciaHasta) return false;
-  const fin = new Date(v.vigenciaHasta).getTime();
-  return !isNaN(fin) && fin < ahora;
+  if (v.estado !== 'programada') return false;
+  const fin = fechaVisitaReal(v.vigenciaHasta);
+  return fin !== null && fin < ahora;
+}
+
+/** La caseta atiende las visitas que llegan dentro de este número de horas (las "próximas") */
+export const HORAS_VENTANA_CASETA = 24;
+
+/**
+ * La caseta puede atender esta visita ahora sin preguntar: ya está en curso, o está programada, sigue vigente y llega
+ * dentro de la ventana de la caseta. Una que llega más tarde se puede atender, pero pidiendo confirmación
+ * (`visitaLlegaAntesDeTiempo`).
+ */
+export function visitaPorAtender(
+  v: { estado: string; fechaLlegadaEsperada?: string | null; vigenciaHasta?: string | null },
+  ahora: number = Date.now()
+): boolean {
+  if (v.estado === 'en_curso') return true;
+  if (v.estado !== 'programada' || visitaVencida(v, ahora)) return false;
+  const llegada = fechaVisitaReal(v.fechaLlegadaEsperada);
+  return llegada === null || llegada <= ahora + HORAS_VENTANA_CASETA * 3_600_000;
+}
+
+/**
+ * Visita programada y vigente que llega en más de las horas de la ventana de caseta: puede presentarse antes de tiempo.
+ * No es un error (el visitante pudo adelantarse), así que la caseta no la bloquea: pide confirmar antes de darle la entrada.
+ */
+export function visitaLlegaAntesDeTiempo(
+  v: { estado: string; fechaLlegadaEsperada?: string | null; vigenciaHasta?: string | null },
+  ahora: number = Date.now()
+): boolean {
+  if (v.estado !== 'programada' || visitaVencida(v, ahora)) return false;
+  const llegada = fechaVisitaReal(v.fechaLlegadaEsperada);
+  return llegada !== null && llegada > ahora + HORAS_VENTANA_CASETA * 3_600_000;
+}
+
+/** Por qué una visita con código válido no se atiende ahora; completa la frase "el código es válido, pero …" */
+export function motivoVisitaNoAtendible(
+  v: { estado: string; fechaLlegadaEsperada?: string | null; vigenciaHasta?: string | null },
+  ahora: number = Date.now()
+): string {
+  switch (v.estado) {
+    case 'programada':
+      if (visitaVencida(v, ahora)) return 'su vigencia ya terminó: el visitante no llegó a tiempo.';
+      return `llega el ${formatearFechaVisita(v.fechaLlegadaEsperada)}, faltan más de ${HORAS_VENTANA_CASETA} horas.`;
+    case 'finalizada':
+      return 'la visita ya terminó.';
+    case 'cancelada':
+      return 'la visita fue cancelada.';
+    case 'expirada':
+      return 'la visita expiró.';
+    default:
+      return 'la visita no está por atender (llega en más de 24 horas, ya terminó o se canceló).';
+  }
 }
 
 export type MotivoVisita = 'personal' | 'familiar' | 'proveedor' | 'servicio' | 'paqueteria';

@@ -114,7 +114,7 @@ class _RegistroResidenteScreenState extends State<RegistroResidenteScreen> {
         nombre: _nombreController.text.trim(),
         apellidos: _apellidosController.text.trim(),
         telefono: _telefonoController.text.trim(),
-        email: _emailController.text.trim(),
+        email: _emailController.text.trim().toLowerCase(),
         password: _passwordController.text,
       );
 

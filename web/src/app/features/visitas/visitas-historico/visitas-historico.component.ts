@@ -24,7 +24,7 @@ const ESTADOS = Object.keys(ETIQUETAS_ESTADO_VISITA) as EstadoVisita[];
   template: `
     <div class="p-4 sm:p-6 w-full space-y-4">
     
-      <nav class="flex items-center gap-2 text-xs text-slate-600 font-semibold">
+      <nav aria-label="Ruta de navegación" class="flex items-center gap-2 text-xs text-slate-600 font-semibold">
         <a routerLink="/dashboard/admin" class="hover:text-slate-900 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99] rounded">Panel</a>
         <span>/</span>
         <span class="text-slate-900">Visitas</span>
@@ -39,18 +39,18 @@ const ESTADOS = Object.keys(ETIQUETAS_ESTADO_VISITA) as EstadoVisita[];
       <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
           <div>
-            <label class="block text-xs font-semibold text-slate-800 mb-1">Desde</label>
-            <input type="date" [(ngModel)]="desde"
+            <label for="hist-desde" class="block text-xs font-semibold text-slate-800 mb-1">Desde</label>
+            <input id="hist-desde" type="date" [(ngModel)]="desde"
               class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
             </div>
             <div>
-              <label class="block text-xs font-semibold text-slate-800 mb-1">Hasta</label>
-              <input type="date" [(ngModel)]="hasta"
+              <label for="hist-hasta" class="block text-xs font-semibold text-slate-800 mb-1">Hasta</label>
+              <input id="hist-hasta" type="date" [(ngModel)]="hasta"
                 class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-800 mb-1">Vivienda</label>
-                <select [(ngModel)]="viviendaId"
+                <label for="hist-vivienda" class="block text-xs font-semibold text-slate-800 mb-1">Vivienda</label>
+                <select id="hist-vivienda" [(ngModel)]="viviendaId"
                   class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]">
                   <option [ngValue]="null">Todas</option>
                   @for (v of viviendas(); track v.id) {
@@ -59,8 +59,8 @@ const ESTADOS = Object.keys(ETIQUETAS_ESTADO_VISITA) as EstadoVisita[];
                 </select>
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-800 mb-1">Estado</label>
-                <select [(ngModel)]="estado"
+                <label for="hist-estado" class="block text-xs font-semibold text-slate-800 mb-1">Estado</label>
+                <select id="hist-estado" [(ngModel)]="estado"
                   class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]">
                   <option [ngValue]="null">Todos</option>
                   @for (e of estados; track e) {
@@ -104,7 +104,7 @@ const ESTADOS = Object.keys(ETIQUETAS_ESTADO_VISITA) as EstadoVisita[];
           }
     
           @if (!historicoService.isLoading() && !historicoService.errorMessage()) {
-            <div class="rounded-xl border border-slate-200 bg-white shadow-xs overflow-x-auto">
+            <div class="rounded-xl border border-slate-200 bg-white shadow-xs overflow-x-auto" tabindex="0" role="region" aria-label="Tabla desplazable">
               <table class="w-full text-left min-w-[720px]">
                 <thead class="bg-slate-50 border-b border-slate-200">
                   <tr>
@@ -149,7 +149,7 @@ const ESTADOS = Object.keys(ETIQUETAS_ESTADO_VISITA) as EstadoVisita[];
                 class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer">
                 Anterior
               </button>
-              <span class="text-xs text-slate-500 font-medium">Página {{ historicoService.page() }} de {{ totalPaginas() }}</span>
+              <span class="text-xs text-slate-600 font-medium">Página {{ historicoService.page() }} de {{ totalPaginas() }}</span>
               <button type="button" (click)="irAPagina(historicoService.page() + 1)" [disabled]="historicoService.page() >= totalPaginas()"
                 class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer">
                 Siguiente

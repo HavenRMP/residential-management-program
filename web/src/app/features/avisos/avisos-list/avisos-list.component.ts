@@ -8,6 +8,7 @@ import { CondominiosService } from '../../../core/services/condominios.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { Aviso, AvisoPrioridad, CrearAvisoDto } from '../../../core/models/aviso.model';
 import { etiquetaPrioridad, tiempoRestanteAviso } from '../../../core/utils/aviso-prioridad.util';
+import { mensajeAmigable } from '../../../core/utils/api-errors.util';
 
 @Component({
   selector: 'app-avisos-list',
@@ -18,7 +19,7 @@ import { etiquetaPrioridad, tiempoRestanteAviso } from '../../../core/utils/avis
     <div class="p-4 sm:p-6 w-full space-y-4">
     
       <!-- Breadcrumb -->
-      <nav class="flex items-center gap-2 text-xs text-slate-600 font-semibold">
+      <nav aria-label="Ruta de navegación" class="flex items-center gap-2 text-xs text-slate-600 font-semibold">
         <a routerLink="/dashboard/admin" class="hover:text-slate-900 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99] rounded">Panel</a>
         <span>/</span>
         <span class="text-slate-900">Avisos</span>
@@ -228,9 +229,9 @@ import { etiquetaPrioridad, tiempoRestanteAviso } from '../../../core/utils/avis
           >
           <div class="bg-white rounded-xl max-w-md w-full p-5 shadow-lg border border-slate-200">
             <div class="flex items-center justify-between pb-3 border-b border-slate-200">
-              <h3 class="text-sm font-semibold text-slate-900">
+              <h2 class="text-sm font-semibold text-slate-900">
                 {{ modoEdicion() ? 'Editar aviso' : 'Publicar aviso' }}
-              </h3>
+              </h2>
               <button
                 type="button"
                 (click)="cerrarModal()"
@@ -391,7 +392,7 @@ import { etiquetaPrioridad, tiempoRestanteAviso } from '../../../core/utils/avis
                             placeholder="1 - 365"
                             class="h-8 w-full text-xs rounded-lg border border-slate-300 bg-white px-2.5 pr-12 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"
                             />
-                            <span class="absolute right-2.5 top-2 text-[11px] text-slate-400 pointer-events-none">días</span>
+                            <span class="absolute right-2.5 top-2 text-[11px] text-slate-500 pointer-events-none">días</span>
                           </div>
                         </div>
                       </div>
@@ -683,7 +684,7 @@ export class AvisosListComponent implements OnInit {
       this.cerrarModal();
       await this.recargar();
     } catch (err: any) {
-      const msg = err?.error?.error || err?.error?.message || err?.message || 'No fue posible guardar el aviso.';
+      const msg = mensajeAmigable(err, 'No fue posible guardar el aviso.');
       Swal.fire({
         icon: 'error',
         title: 'Error al guardar',
@@ -719,7 +720,7 @@ export class AvisosListComponent implements OnInit {
         });
         await this.recargar();
       } catch (err: any) {
-        const msg = err?.error?.error || err?.error?.message || err?.message || 'No se pudo eliminar el aviso.';
+        const msg = mensajeAmigable(err, 'No se pudo eliminar el aviso.');
         Swal.fire({
           icon: 'error',
           title: 'Error al eliminar',

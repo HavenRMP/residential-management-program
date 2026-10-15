@@ -292,6 +292,13 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
   }
 
   Future<void> _cancelarReservaAdmin(ReservaModel reserva) async {
+    if (reserva.esBloqueo) {
+      widget.controller.notifyToast(
+        'No se puede cancelar un bloqueo a través de este endpoint.',
+        success: false,
+      );
+      return;
+    }
     final motivoCtrl = TextEditingController();
     final confirm = await showDialog<bool>(
       context: context,
@@ -347,6 +354,176 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
         }
       } catch (e, s) {
         ErrorHandler.trackError(e, s, 'ReservasAdminScreen._cancelarReservaAdmin');
+        if (mounted) {
+          widget.controller.notifyToast(ErrorHandler.parseException(e), success: false);
+        }
+      }
+    }
+  }
+
+  Future<void> _eliminarBloqueoAdmin(ReservaModel reserva) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Quitar este bloqueo?'),
+        content: Text(
+          '${reserva.areaNombre} volverá a estar disponible para reservaciones en el horario de '
+          '${_formatearFecha(reserva.inicio)} de ${_formatearHora(reserva.inicio)} a ${_formatearHora(reserva.fin)}.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+            child: const Text('Quitar Bloqueo'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        final res = await _reservasService.eliminarBloqueo(reserva.id);
+        if (mounted) {
+          if (res['success'] == true) {
+            widget.controller.notifyToast('Bloqueo eliminado. El área vuelve a estar disponible.', success: true);
+            _cargarTodasReservas();
+          } else {
+            widget.controller.notifyToast(res['error'] ?? 'No se pudo eliminar el bloqueo.', success: false);
+          }
+        }
+      } catch (e, s) {
+        ErrorHandler.trackError(e, s, 'ReservasAdminScreen._eliminarBloqueoAdmin');
+        if (mounted) {
+          widget.controller.notifyToast(ErrorHandler.parseException(e), success: false);
+        }
+      }
+    }
+  }
+
+  Future<void> _editarBloqueoAdmin(ReservaModel reserva) async {
+    DateTime fecha = DateTime(reserva.inicio.year, reserva.inicio.month, reserva.inicio.day);
+    TimeOfDay horaInicio = TimeOfDay.fromDateTime(reserva.inicio);
+    TimeOfDay horaFin = TimeOfDay.fromDateTime(reserva.fin);
+    final motivoCtrl = TextEditingController(text: reserva.motivo ?? '');
+
+    final resultado = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => AlertDialog(
+          title: const Text('Editar Bloqueo de Área'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Área: ${reserva.areaNombre}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E293B)),
+                ),
+                const SizedBox(height: 12),
+                const Text('Fecha del bloqueo:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 6),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final d = await showDatePicker(
+                      context: ctx,
+                      initialDate: fecha,
+                      firstDate: DateTime.now().subtract(const Duration(days: 1)),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (d != null) setModalState(() => fecha = d);
+                  },
+                  icon: const Icon(Icons.calendar_today_rounded, size: 16),
+                  label: Text(_formatearFecha(fecha)),
+                ),
+                const SizedBox(height: 12),
+                const Text('Horario:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () async {
+                          final p = await showTimePicker(context: ctx, initialTime: horaInicio);
+                          if (p != null) setModalState(() => horaInicio = p);
+                        },
+                        child: Text('Inicio: ${horaInicio.hour.toString().padLeft(2, '0')}:${horaInicio.minute.toString().padLeft(2, '0')}'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () async {
+                          final p = await showTimePicker(context: ctx, initialTime: horaFin);
+                          if (p != null) setModalState(() => horaFin = p);
+                        },
+                        child: Text('Fin: ${horaFin.hour.toString().padLeft(2, '0')}:${horaFin.minute.toString().padLeft(2, '0')}'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: motivoCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Motivo del bloqueo / reparación *',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+            FilledButton(
+              onPressed: () {
+                if (motivoCtrl.text.trim().isEmpty) {
+                  widget.controller.notifyToast('El motivo es obligatorio.', success: false);
+                  return;
+                }
+                Navigator.pop(ctx, true);
+              },
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF1E40AF)),
+              child: const Text('Guardar Cambios'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (resultado == true) {
+      if (!mounted) return;
+      final inicioDt = DateTime(fecha.year, fecha.month, fecha.day, horaInicio.hour, horaInicio.minute);
+      final finDt = DateTime(fecha.year, fecha.month, fecha.day, horaFin.hour, horaFin.minute);
+
+      if (!finDt.isAfter(inicioDt)) {
+        widget.controller.notifyToast('La hora de fin debe ser posterior a la de inicio.', success: false);
+        return;
+      }
+
+      try {
+        final res = await _reservasService.actualizarBloqueo(
+          reserva.id,
+          inicio: inicioDt,
+          fin: finDt,
+          motivo: motivoCtrl.text.trim(),
+        );
+
+        if (mounted) {
+          if (res['success'] == true) {
+            widget.controller.notifyToast('Bloqueo actualizado correctamente.', success: true);
+            _cargarTodasReservas();
+          } else {
+            widget.controller.notifyToast(res['error'] ?? 'Error al actualizar bloqueo.', success: false);
+          }
+        }
+      } catch (e, s) {
+        ErrorHandler.trackError(e, s, 'ReservasAdminScreen._editarBloqueoAdmin');
         if (mounted) {
           widget.controller.notifyToast(ErrorHandler.parseException(e), success: false);
         }
@@ -778,7 +955,7 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
                     border: Border.all(color: const Color(0xFFFDE68A)),
                   ),
                   child: const Text(
-                    'Mientras dure el bloqueo nadie podrá reservar el área. Las reservas pendientes o aprobadas que caigan en ese horario se cierran: se rechazan las pendientes y se cancelan las aprobadas, y se avisa a sus titulares con el motivo. Un bloqueo no se puede quitar después.',
+                    'Mientras dure el bloqueo nadie podrá reservar el área. Las reservas pendientes o aprobadas en ese horario se rechazan o cancelan. Puedes editarlo o quitarlo antes de que concluya el horario programado.',
                     style: TextStyle(fontSize: 11.5, color: Color(0xFF78350F), height: 1.35),
                   ),
                 ),
@@ -804,6 +981,7 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
     );
 
     if (resultado == true) {
+      if (!mounted) return;
       final inicioDt = DateTime(fecha.year, fecha.month, fecha.day, horaInicio.hour, horaInicio.minute);
       final finDt = DateTime(fecha.year, fecha.month, fecha.day, horaFin.hour, horaFin.minute);
 
@@ -812,7 +990,7 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
         builder: (ctx) => AlertDialog(
           title: const Text('¿Bloquear esta área?'),
           content: Text(
-            '${selectedArea.nombre} quedará bloqueada ${_formatearFecha(fecha)} de ${_formatearHora(inicioDt)} a ${_formatearHora(finDt)}. Las reservas de ese horario se rechazarán o cancelarán y el bloqueo no se podrá quitar.',
+            '${selectedArea.nombre} quedará bloqueada ${_formatearFecha(fecha)} de ${_formatearHora(inicioDt)} a ${_formatearHora(finDt)}. Las reservas de ese horario se rechazarán o cancelarán.',
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
@@ -1190,7 +1368,11 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  '${item.solicitanteCompleto} (Casa #${item.numeroCasa ?? 'S/N'})',
+                                  item.esBloqueo
+                                      ? (item.motivo != null && item.motivo!.trim().isNotEmpty
+                                          ? 'Motivo: ${item.motivo}'
+                                          : 'Bloqueo administrativo del área')
+                                      : '${item.solicitanteCompleto} (Casa #${item.numeroCasa ?? 'S/N'})',
                                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
                                 ),
                                 const SizedBox(height: 4),
@@ -1198,7 +1380,38 @@ class _ReservasAdminScreenState extends State<ReservasAdminScreen>
                                   '${_formatearFecha(item.inicio)} de ${_formatearHora(item.inicio)} a ${_formatearHora(item.fin)}',
                                   style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
                                 ),
-                                if (item.esMarcableNoShow || item.esAprobada || item.esConfirmada) ...[
+                                if (item.esBloqueo) ...[
+                                  const SizedBox(height: 12),
+                                  const Divider(height: 1),
+                                  const SizedBox(height: 8),
+                                  if (item.esBloqueoActivo)
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        TextButton.icon(
+                                          key: Key('btn_editar_bloqueo_${item.id}'),
+                                          onPressed: () => _editarBloqueoAdmin(item),
+                                          icon: const Icon(Icons.edit_outlined, size: 15, color: Color(0xFF1E40AF)),
+                                          label: const Text('Editar', style: TextStyle(color: Color(0xFF1E40AF), fontSize: 12)),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        TextButton.icon(
+                                          key: Key('btn_quitar_bloqueo_${item.id}'),
+                                          onPressed: () => _eliminarBloqueoAdmin(item),
+                                          icon: const Icon(Icons.delete_outline_rounded, size: 15, color: Color(0xFFDC2626)),
+                                          label: const Text('Quitar', style: TextStyle(color: Color(0xFFDC2626), fontSize: 12)),
+                                        ),
+                                      ],
+                                    )
+                                  else
+                                    const Align(
+                                      alignment: Alignment.centerRight,
+                                      child: Text(
+                                        'Bloqueo finalizado (Sin acciones)',
+                                        style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Color(0xFF94A3B8)),
+                                      ),
+                                    ),
+                                ] else if (item.esMarcableNoShow || item.esAprobada || item.esConfirmada) ...[
                                   const SizedBox(height: 12),
                                   const Divider(height: 1),
                                   const SizedBox(height: 8),

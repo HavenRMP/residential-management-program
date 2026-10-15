@@ -1,12 +1,15 @@
-import { Component, Input, Output, EventEmitter, HostListener, inject, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, Input, Output, EventEmitter, HostListener, inject, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { Residente } from '../../../core/models/residente.model';
 import { ViviendasService } from '../../../core/services/viviendas.service';
 import { ResidentesService } from '../../../core/services/residentes.service';
+import { SubusuariosService } from '../../../core/services/subusuarios.service';
+import { SubUsuarioItem } from '../../../core/models/subusuario.model';
 import { getInitials } from '../../../core/utils/iniciales.util';
 import Swal from 'sweetalert2';
+import { mensajeAmigable } from '../../../core/utils/api-errors.util';
 
 @Component({
   selector: 'app-viviendas-detalle',
@@ -34,6 +37,20 @@ import Swal from 'sweetalert2';
         <!-- Top Sticky Bar -->
         <div class="sticky top-0 z-10 bg-white/95 backdrop-blur-md px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <div class="flex items-center gap-3">
+            @if (conAtras) {
+              <button
+                type="button"
+                data-foco-inicial
+                (click)="atras.emit()"
+                [attr.aria-label]="textoAtras"
+                [title]="textoAtras + ' (Esc)'"
+                class="h-9 w-9 -ml-2 inline-flex items-center justify-center text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-600"
+                >
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+              </button>
+            }
             <div class="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm border border-blue-100">
               <svg class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -51,6 +68,7 @@ import Swal from 'sweetalert2';
             type="button"
             (click)="cerrar()"
             class="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+            data-foco-cierre
             aria-label="Cerrar detalle de vivienda"
             title="Cerrar (Esc)"
             >
@@ -84,6 +102,7 @@ import Swal from 'sweetalert2';
               Registrada en sistema el {{ $safeNavigationMigration(vivienda?.creadoEn) | date:'dd/MM/yyyy' }}
             </p>
           </div>
+          @if (!soloLectura) {
           <!-- Seccion: Residente Asignado (Issue #50) -->
           <div class="space-y-3">
             <div class="flex items-center justify-between">
@@ -91,9 +110,9 @@ import Swal from 'sweetalert2';
                 <h4 class="text-sm font-bold text-slate-900 tracking-tight">Residente Asignado</h4>
                 <span
                   class="text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                  [ngClass]="residenteAsignado ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-slate-100 text-slate-600'"
+                  [ngClass]="residenteAsignado && !errorResidente ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-slate-100 text-slate-600'"
                   >
-                  {{ residenteAsignado ? 'Asignado' : 'Sin asignar' }}
+                  {{ errorResidente ? 'No disponible' : residenteAsignado ? 'Asignado' : 'Sin asignar' }}
                 </span>
               </div>
               <div class="flex items-center gap-2">
@@ -111,7 +130,7 @@ import Swal from 'sweetalert2';
                   <span>{{ isGeneratingCode ? 'Generando...' : 'Generar Código' }}</span>
                 </button>
                 <!-- Boton para abrir formulario si no esta asignado y no esta en modo form -->
-                @if (!residenteAsignado && !mostrarFormularioVinculacion) {
+                @if (!residenteAsignado && !mostrarFormularioVinculacion && !errorResidente && !cargandoResidente) {
                   <button
                     type="button"
                     (click)="abrirFormularioVinculacion()"
@@ -132,18 +151,38 @@ import Swal from 'sweetalert2';
                 <span class="text-xs">Consultando información de residentes...</span>
               </div>
             }
+            <!-- No se pudo consultar: no se dice que la casa está vacía, porque no se sabe -->
+            @if (!cargandoResidente && errorResidente) {
+              <div class="bg-amber-50/70 border border-amber-200 rounded-xl p-4 space-y-2" role="alert">
+                <p class="text-xs font-semibold text-amber-900">No se pudo consultar el residente de esta vivienda.</p>
+                <button
+                  type="button"
+                  (click)="cargarDetalleResidente()"
+                  class="text-xs font-semibold text-amber-900 bg-white hover:bg-amber-100 px-3 py-1.5 rounded-lg border border-amber-300 transition-colors cursor-pointer"
+                  >
+                  Reintentar
+                </button>
+              </div>
+            }
             <!-- CASO 1: TIENE RESIDENTE ASIGNADO -->
             @if (!cargandoResidente && residenteAsignado) {
               <div
                 class="bg-white border border-slate-200 rounded-xl p-5 shadow-xs relative overflow-hidden"
                 >
                 <div class="flex items-start justify-between gap-4">
-                  <div class="flex items-center gap-3.5">
+                  <button
+                    type="button"
+                    (click)="verResidente.emit(residenteAsignado)"
+                    data-origen-detalle="residente"
+                    [attr.aria-label]="'Ver el detalle de ' + residenteAsignado.nombre + ' ' + residenteAsignado.apellidos"
+                    title="Ver el detalle del residente"
+                    class="group flex items-center gap-3.5 -m-1 p-1 rounded-lg text-left w-full cursor-pointer hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-600"
+                  >
                     <div class="w-12 h-12 rounded-full bg-[#111C99] text-white font-bold text-base flex items-center justify-center shadow-xs shrink-0">
                       {{ getInitials(residenteAsignado.nombre, residenteAsignado.apellidos) }}
                     </div>
                     <div>
-                      <p class="text-base font-bold text-slate-900 leading-tight">
+                      <p class="text-base font-bold text-slate-900 leading-tight group-hover:underline">
                         {{ residenteAsignado.nombre }} {{ residenteAsignado.apellidos }}
                       </p>
                       <p class="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
@@ -161,7 +200,10 @@ import Swal from 'sweetalert2';
                         </p>
                       }
                     </div>
-                  </div>
+                    <svg class="w-4 h-4 text-slate-500 shrink-0 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
                 </div>
                 <!-- Accion de Desvincular -->
                 <div class="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between">
@@ -187,7 +229,7 @@ import Swal from 'sweetalert2';
               </div>
             }
             <!-- CASO 2: NO TIENE RESIDENTE ASIGNADO (Estado vacio amigable) -->
-            @if (!cargandoResidente && !residenteAsignado && !mostrarFormularioVinculacion) {
+            @if (!cargandoResidente && !errorResidente && !residenteAsignado && !mostrarFormularioVinculacion) {
               <div
                 class="bg-slate-50/70 border-2 border-dashed border-slate-200 rounded-xl p-6 text-center"
                 >
@@ -319,6 +361,55 @@ import Swal from 'sweetalert2';
                 </div>
               }
             </div>
+          }
+            <!-- Sub-usuarios de la vivienda: personas que entran a la casa del titular -->
+            <div class="space-y-3" aria-labelledby="detalle-vivienda-subusuarios">
+              <div class="flex items-center justify-between gap-2">
+                <h4 id="detalle-vivienda-subusuarios" class="text-sm font-bold text-slate-900 tracking-tight">Sub-usuarios</h4>
+                @if (!cargandoSubusuarios && !errorSubusuarios) {
+                  <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                    {{ subusuarios.length }} de {{ maxSubusuarios }}
+                  </span>
+                }
+              </div>
+              @if (cargandoSubusuarios) {
+                <div class="flex items-center gap-2 py-2 text-xs text-slate-500 font-medium" aria-busy="true">
+                  <div class="w-4 h-4 border-2 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+                  <span>Consultando sub-usuarios...</span>
+                </div>
+              } @else if (errorSubusuarios) {
+                <p class="p-3 rounded-xl bg-amber-50/70 border border-amber-200 text-xs text-amber-900" role="alert">
+                  No se pudieron cargar los sub-usuarios de esta vivienda.
+                </p>
+              } @else if (subusuarios.length === 0) {
+                <p class="p-4 rounded-xl bg-slate-50/70 border border-dashed border-slate-200 text-xs text-slate-500 text-center">
+                  Esta vivienda no tiene sub-usuarios.
+                </p>
+              } @else {
+                <ul class="space-y-2">
+                  @for (u of subusuarios; track u.id) {
+                    <li
+                      class="flex items-center justify-between gap-3 p-3 rounded-xl border"
+                      [ngClass]="u.activo ? 'border-slate-200 bg-white' : 'border-dashed border-amber-300 bg-amber-50/40'"
+                    >
+                      <div class="min-w-0">
+                        <p class="text-sm font-bold text-slate-900 truncate">{{ u.activo ? u.nombre : (u.email || 'Invitación sin correo') }}</p>
+                        <p class="text-xs text-slate-600 font-medium truncate">
+                          {{ u.activo ? (u.email || u.telefono || 'Sin contacto') : 'Aún no acepta la invitación' }}
+                        </p>
+                      </div>
+                      <div class="shrink-0 flex flex-col items-end gap-1">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-medium border bg-slate-100 text-slate-600 border-slate-200">{{ u.parentesco }}</span>
+                        <span
+                          class="px-2 py-0.5 rounded text-[10px] font-medium border"
+                          [ngClass]="u.activo ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'"
+                        >{{ u.activo ? 'Activo' : 'Invitación pendiente' }}</span>
+                      </div>
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
             <!-- Informacion Tecnica Adicional -->
             <div class="bg-white border border-slate-200/80 rounded-xl p-5 shadow-xs divide-y divide-slate-100 text-xs">
               <div class="py-2 flex items-center justify-between">
@@ -339,19 +430,40 @@ import Swal from 'sweetalert2';
       }
     `
 })
-export class ViviendasDetalleComponent implements OnChanges {
+export class ViviendasDetalleComponent implements OnChanges, AfterViewInit {
   @Input() vivienda: Vivienda | null = null;
   @Input() isOpen = false;
+  /** Se abrió desde el detalle de un residente: muestra la flecha para volver a él */
+  @Input() conAtras = false;
+  @Input() textoAtras = 'Volver';
+  /** Hay otro detalle encima de este: no reacciona a Escape para que solo se cierre el de arriba */
+  @Input() inactivo = false;
+  /** Vista del residente: sin residente asignado ni acciones de administración (el backend las restringe al administrador) */
+  @Input() soloLectura = false;
+  @Output() atras = new EventEmitter<void>();
+  /** Se tocó al residente asignado: el padre abre su detalle */
+  @Output() verResidente = new EventEmitter<Residente>();
   @Output() close = new EventEmitter<void>();
   @Output() viviendaUpdated = new EventEmitter<void>();
 
   private readonly viviendasService = inject(ViviendasService);
   private readonly residentesService = inject(ResidentesService);
+  private readonly subusuariosService = inject(SubusuariosService);
+  private readonly elemento = inject(ElementRef<HTMLElement>);
 
   readonly getInitials = getInitials;
+  readonly maxSubusuarios = this.subusuariosService.MAX_SUBUSUARIOS;
+
+  // Sub-usuarios de la vivienda abierta (activos e invitaciones pendientes), solo lectura
+  subusuarios: SubUsuarioItem[] = [];
+  cargandoSubusuarios = false;
+  errorSubusuarios = false;
+  /** Solo la respuesta de la última consulta se aplica: una lenta de otra vivienda no debe pisarla */
+  private consultaSubusuarios = 0;
 
   residenteAsignado: Residente | null = null;
   cargandoResidente = false;
+  errorResidente = false;
 
   // Estado del formulario de vinculacion (Issue #87)
   mostrarFormularioVinculacion = false;
@@ -411,7 +523,7 @@ export class ViviendasDetalleComponent implements OnChanges {
       await Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: err?.error?.error || 'Ocurrió un problema al solicitar el código.',
+        text: mensajeAmigable(err, 'Ocurrió un problema al solicitar el código.'),
         confirmButtonColor: '#111C99'
       });
     } finally {
@@ -419,11 +531,22 @@ export class ViviendasDetalleComponent implements OnChanges {
     }
   }
 
-  @HostListener('document:keydown.escape')
-  onEsc(): void {
+  /** Al abrirse, el foco pasa al detalle (flecha de regreso o botón de cerrar) para que el teclado no se quede en lo de abajo */
+  ngAfterViewInit(): void {
+    if (this.isOpen) (this.elemento.nativeElement as HTMLElement).querySelector<HTMLElement>('[data-foco-inicial], [data-foco-cierre]')?.focus();
+  }
+
+  @HostListener('document:keydown.escape', ['$event'])
+  onEsc(evento?: Event): void {
+    // Otro detalle ya atendió esta pulsación (o hay uno encima): este no debe cerrarse también
+    if (this.inactivo || evento?.defaultPrevented) return;
     if (this.isOpen && !this.procesandoVinculacion) {
       if (this.mostrarFormularioVinculacion) {
         this.cancelarFormularioVinculacion();
+      } else if (this.conAtras) {
+        // Escape hace lo mismo que la flecha: retrocede un paso en vez de cerrar todo
+        evento?.preventDefault();
+        this.atras.emit();
       } else {
         this.cerrar();
       }
@@ -434,7 +557,27 @@ export class ViviendasDetalleComponent implements OnChanges {
     if ((changes['vivienda'] || changes['isOpen']) && this.vivienda && this.isOpen) {
       this.mostrarFormularioVinculacion = false;
       this.residenteSeleccionadoId = null;
-      this.cargarDetalleResidente();
+      if (!this.soloLectura) this.cargarDetalleResidente();
+      void this.cargarSubusuarios();
+    }
+  }
+
+  async cargarSubusuarios(): Promise<void> {
+    if (!this.vivienda) return;
+    const consulta = ++this.consultaSubusuarios;
+    this.subusuarios = [];
+    this.errorSubusuarios = false;
+    this.cargandoSubusuarios = true;
+    try {
+      const lista = await this.subusuariosService.listarPorVivienda(this.vivienda.id);
+      if (consulta !== this.consultaSubusuarios) return;
+      this.subusuarios = lista;
+    } catch (err) {
+      if (consulta !== this.consultaSubusuarios) return;
+      console.error('[ViviendasDetalleComponent] Error al cargar sub-usuarios:', err);
+      this.errorSubusuarios = true;
+    } finally {
+      if (consulta === this.consultaSubusuarios) this.cargandoSubusuarios = false;
     }
   }
 
@@ -446,12 +589,15 @@ export class ViviendasDetalleComponent implements OnChanges {
   async cargarDetalleResidente(): Promise<void> {
     if (!this.vivienda) return;
     this.cargandoResidente = true;
+    this.errorResidente = false;
 
     try {
       const residentes = await this.viviendasService.obtenerResidentesVivienda(this.vivienda.id);
       this.residenteAsignado = (residentes && residentes.length > 0) ? residentes[0] : null;
-    } catch {
+    } catch (err) {
+      console.error('[ViviendasDetalleComponent] Error al consultar el residente:', err);
       this.residenteAsignado = null;
+      this.errorResidente = true;
     } finally {
       this.cargandoResidente = false;
     }
@@ -520,7 +666,7 @@ export class ViviendasDetalleComponent implements OnChanges {
       this.viviendaUpdated.emit();
     } catch (err: any) {
       console.error('Error al vincular residente:', err);
-      const errorMsg = err?.error?.error || err?.message || 'No fue posible vincular el residente a la vivienda.';
+      const errorMsg = mensajeAmigable(err, 'No fue posible vincular el residente a la vivienda.');
 
       if (errorMsg.includes('ya está asignado a esta vivienda') || err?.status === 409) {
         this.mostrarFormularioVinculacion = false;
@@ -589,7 +735,7 @@ export class ViviendasDetalleComponent implements OnChanges {
       this.viviendaUpdated.emit();
     } catch (err: any) {
       console.error('Error al desvincular residente:', err);
-      const errorMsg = err?.error?.error || err?.message || 'No fue posible desvincular al habitante.';
+      const errorMsg = mensajeAmigable(err, 'No fue posible desvincular al habitante.');
       Swal.fire({
         title: 'Error al Desvincular',
         text: errorMsg,

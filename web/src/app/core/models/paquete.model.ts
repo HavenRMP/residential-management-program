@@ -46,6 +46,14 @@ export interface ServicioPaqueteria {
   esSistema: boolean;
 }
 
+/**
+ * Empresas que se ofrecen al elegir. El catálogo del backend trae "Otro", pero los formularios ya tienen su propia
+ * opción "Otra empresa" que sí pide el nombre; con "Otro" el paquete quedaría sin saber de qué empresa es.
+ */
+export function empresasSeleccionables(servicios: ServicioPaqueteria[]): ServicioPaqueteria[] {
+  return servicios.filter(s => s.nombre.trim().toLowerCase() !== 'otro');
+}
+
 export interface Paquete {
   id: string;
   viviendaId: number;

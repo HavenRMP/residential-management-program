@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit, HostListener, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, HostListener, ChangeDetectionStrategy, Injector, afterNextRender } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -10,17 +10,20 @@ import { OcupacionCasa, ocupacionPorVivienda } from '../../../core/utils/directo
 import { CondominiosService } from '../../../core/services/condominios.service';
 import { Condominio } from '../../../core/models/condominio.model';
 import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detalle.component';
+import { ResidentesDetalleComponent } from '../../residentes/residentes-detalle/residentes-detalle.component';
+import { Residente } from '../../../core/models/residente.model';
+import { mensajeAmigable } from '../../../core/utils/api-errors.util';
 
 @Component({
   selector: 'app-viviendas-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, DatePipe, ViviendasDetalleComponent],
+  imports: [CommonModule, FormsModule, RouterLink, DatePipe, ViviendasDetalleComponent, ResidentesDetalleComponent],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="p-4 sm:p-5 lg:p-6 w-full space-y-4 selection:bg-[#111C99] selection:text-white">
     
       <!-- Breadcrumb & Top Navigation -->
-      <nav class="flex items-center gap-2 text-xs text-slate-500 font-medium">
+      <nav aria-label="Ruta de navegación" class="flex items-center gap-2 text-xs text-slate-600 font-medium">
         <a routerLink="/dashboard/admin" class="hover:text-slate-900 transition-colors">Panel Principal</a>
         <span>/</span>
         <span class="text-slate-900">Directorio de Viviendas</span>
@@ -118,6 +121,7 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
             <select
               [ngModel]="filtroTipo()"
               (ngModelChange)="onTipoChange($event)"
+              aria-label="Filtrar por tipo"
               class="h-8 px-2 text-xs bg-slate-50/70 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#111C99]/10 focus:border-[#111C99] transition-all cursor-pointer shrink-0"
               >
               <option value="todos">Todos los tipos</option>
@@ -223,7 +227,7 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
           <div
             class="bg-white border border-slate-200/90 rounded-xl shadow-xs overflow-hidden"
             >
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto" tabindex="0" role="region" aria-label="Tabla desplazable">
               <table class="min-w-full divide-y divide-slate-200">
                 <thead>
                   <tr class="bg-slate-50 border-b border-slate-200">
@@ -356,6 +360,7 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
                   <select
                     [ngModel]="elementosPorPagina()"
                     (ngModelChange)="cambiarElementosPorPagina($event)"
+                    aria-label="Viviendas por página"
                     class="h-7 px-2 text-xs bg-white border border-slate-300 rounded font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#111C99]/20 focus:border-[#111C99] cursor-pointer"
                     >
                     @for (opt of opcionesPaginacion; track opt) {
@@ -428,9 +433,9 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
                     </svg>
                   </div>
                   <div>
-                    <h3 class="text-lg font-bold text-slate-900">
+                    <h2 class="text-lg font-bold text-slate-900">
                       {{ isEditing() ? 'Editar Vivienda' : 'Nueva Vivienda' }}
-                    </h3>
+                    </h2>
                     <p class="text-xs text-slate-500">
                       {{ isEditing() ? 'Actualiza los datos del inmueble' : 'Captura el número y tipo de vivienda' }}
                     </p>
@@ -438,8 +443,7 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
                 </div>
                 <button
                   (click)="cerrarModal()"
-                  class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-                  >
+                  class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer" aria-label="Cerrar">
                   <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -550,9 +554,39 @@ import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detall
             <app-viviendas-detalle
               [vivienda]="viviendaSeleccionada()"
               [isOpen]="isDetalleOpen()"
+              [attr.inert]="residenteCruzado() ? '' : null"
+              [inactivo]="!!residenteCruzado()"
               (close)="cerrarDetalle()"
+              (verResidente)="abrirResidenteCruzado($event)"
               (viviendaUpdated)="cargarViviendas()"
               />
+
+            <!-- Detalle de un residente abierto desde el de la vivienda: queda encima y la flecha regresa a la vivienda -->
+            @if (residenteCruzado(); as cruzado) {
+              <div
+                (click)="cerrarDetalle()"
+                aria-hidden="true"
+                class="fixed inset-0 z-[65] !m-0 bg-slate-900/40 cursor-pointer"
+              ></div>
+              <aside
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="detalle-residente-title"
+                class="fixed inset-y-0 right-0 z-[70] !m-0 w-full sm:max-w-md md:max-w-lg lg:max-w-xl bg-white shadow-2xl flex flex-col border-l border-slate-200 overflow-y-auto"
+              >
+                <app-residentes-detalle
+                  [residente]="cruzado.residente"
+                  [viviendas]="cruzado.viviendas"
+                  [subusuarioDe]="[]"
+                  [conAtras]="true"
+                  textoAtras="Volver al detalle de la vivienda"
+                  (atras)="cerrarResidenteCruzado()"
+                  (cerrado)="cerrarDetalle()"
+                  (verVivienda)="cerrarResidenteCruzado()"
+                  (desvinculado)="alDesvincularDesdeResidente()"
+                />
+              </aside>
+            }
     
             </div>
     `
@@ -630,11 +664,13 @@ export class ViviendasListComponent implements OnInit {
     });
   });
 
-  @HostListener('document:keydown.escape')
-  onEscape(): void {
+  @HostListener('document:keydown.escape', ['$event'])
+  onEscape(evento?: Event): void {
+    if (evento?.defaultPrevented) return;
     if (this.showModal() && !this.isSaving()) {
       this.cerrarModal();
-    } else if (this.isDetalleOpen()) {
+    } else if (this.isDetalleOpen() && !this.residenteCruzado()) {
+      // Con un residente encima, Escape lo atiende ese detalle (vuelve a la vivienda) y este no se cierra
       this.cerrarDetalle();
     }
   }
@@ -752,8 +788,39 @@ export class ViviendasListComponent implements OnInit {
   }
 
   cerrarDetalle(): void {
+    this.residenteCruzado.set(null);
     this.isDetalleOpen.set(false);
     this.quitarParametroVivienda();
+  }
+
+  /** Residente abierto desde el detalle de la vivienda (queda encima de ella), con todas sus viviendas */
+  readonly residenteCruzado = signal<{ residente: Residente; viviendas: Vivienda[] } | null>(null);
+  private readonly injector = inject(Injector);
+
+  async abrirResidenteCruzado(residente: Residente): Promise<void> {
+    const actual = this.viviendaSeleccionada();
+    let viviendas: Vivienda[] = actual ? [actual] : [];
+    try {
+      viviendas = await this.viviendasService.obtenerViviendasDeResidente(residente.id);
+    } catch {
+      // Si no se pueden consultar todas, se muestra al menos la vivienda desde la que se llegó
+    }
+    this.residenteCruzado.set({ residente, viviendas });
+  }
+
+  /** Flecha de regreso: se quita el residente y el foco vuelve a su tarjeta dentro del detalle de la vivienda */
+  cerrarResidenteCruzado(): void {
+    this.residenteCruzado.set(null);
+    // El detalle de abajo sigue inerte hasta que se vuelva a renderizar: el foco se devuelve después
+    afterNextRender(() => document.querySelector<HTMLElement>('[data-origen-detalle="residente"]')?.focus(), { injector: this.injector });
+  }
+
+  /** Se le quitó una vivienda al residente abierto: se refresca la lista y el detalle de la vivienda de abajo */
+  async alDesvincularDesdeResidente(): Promise<void> {
+    this.residenteCruzado.set(null);
+    const actual = this.viviendaSeleccionada();
+    if (actual) this.viviendaSeleccionada.set({ ...actual });
+    await this.cargarViviendas();
   }
 
   abrirModalCrear(): void {
@@ -824,7 +891,7 @@ export class ViviendasListComponent implements OnInit {
       await this.cargarViviendas();
     } catch (err: any) {
       console.error('Error al guardar vivienda:', err);
-      const msg = err?.error?.error || err?.message || 'Ocurrió un error al procesar la solicitud.';
+      const msg = mensajeAmigable(err, 'Ocurrió un error al procesar la solicitud.');
       this.formError.set(msg);
     } finally {
       this.isSaving.set(false);
@@ -859,7 +926,7 @@ export class ViviendasListComponent implements OnInit {
         await this.cargarViviendas();
       } catch (err: any) {
         console.error('Error al eliminar vivienda:', err);
-        const msg = err?.error?.error || err?.message || 'No fue posible eliminar la vivienda.';
+        const msg = mensajeAmigable(err, 'No fue posible eliminar la vivienda.');
         Swal.fire({
           title: 'Error al eliminar',
           text: msg,

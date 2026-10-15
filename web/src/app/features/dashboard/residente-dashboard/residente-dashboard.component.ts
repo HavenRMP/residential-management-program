@@ -13,6 +13,7 @@ import { ReservasService } from '../../../core/services/reservas.service';
 import { CacheService } from '../../../core/services/cache.service';
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { Aviso, AvisoPrioridad } from '../../../core/models/aviso.model';
+import { ViviendasDetalleComponent } from '../../viviendas/viviendas-detalle/viviendas-detalle.component';
 import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.component';
 import { NotificacionesPopoverComponent } from '../../../core/components/notificaciones-popover/notificaciones-popover.component';
 import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
@@ -21,7 +22,7 @@ import { claseBadgePrioridad, etiquetaPrioridad, tiempoRestanteAviso } from '../
 @Component({
   selector: 'app-residente-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, UserMenuComponent, NotificacionesPopoverComponent],
+  imports: [CommonModule, FormsModule, RouterLink, UserMenuComponent, NotificacionesPopoverComponent, ViviendasDetalleComponent],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="min-h-screen bg-slate-100 text-slate-900 font-sans antialiased">
@@ -76,7 +77,8 @@ import { claseBadgePrioridad, etiquetaPrioridad, tiempoRestanteAviso } from '../
           </div>
     
           @if (tieneCondominio()) {
-            <div class="flex items-center gap-2 self-start sm:self-auto">
+            <!-- Con las cuatro secciones los botones no caben en una línea en un teléfono: pasan a la siguiente -->
+            <div class="flex flex-wrap items-center gap-2 self-start sm:self-auto" data-test="accesos-portal">
               <a
                 routerLink="/dashboard/residente/visitas"
                 class="h-8 px-3 inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition-colors shadow-2xs"
@@ -187,7 +189,7 @@ import { claseBadgePrioridad, etiquetaPrioridad, tiempoRestanteAviso } from '../
                     type="button"
                     (click)="toggleFormularioVinculacion()"
                     [attr.aria-expanded]="mostrarFormularioVinculacion()"
-                    class="min-h-[32px] sm:min-h-[28px] h-8 sm:h-7 px-3 sm:px-2.5 inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
+                    class="min-h-[44px] sm:min-h-[28px] h-8 sm:h-7 px-3 sm:px-2.5 inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
                     aria-label="Vincular otra vivienda"
                     >
                     <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -199,11 +201,16 @@ import { claseBadgePrioridad, etiquetaPrioridad, tiempoRestanteAviso } from '../
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 @for (v of misViviendas(); track v.id) {
-                  <div class="p-4 rounded-lg bg-slate-50 border border-slate-200">
+                  <button
+                    type="button"
+                    (click)="abrirDetalleVivienda(v, $event)"
+                    class="p-4 rounded-lg bg-slate-50 border border-slate-200 text-left hover:bg-white hover:border-slate-300 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111C99]"
+                    [attr.aria-label]="'Ver detalle de ' + formatearNumeroCasa(v.numeroCasa)"
+                  >
                     <span class="text-[11px] uppercase font-bold text-slate-600 tracking-wider block">Unidad</span>
                     <p class="text-xl font-bold text-slate-900 mt-0.5">{{ formatearNumeroCasa(v.numeroCasa) }}</p>
                     <p class="text-xs text-slate-600 mt-1">Tipo: <span class="font-semibold text-slate-800">{{ v.tipo || 'Residencial' }}</span></p>
-                  </div>
+                  </button>
                 }
               </div>
             </div>
@@ -348,6 +355,11 @@ import { claseBadgePrioridad, etiquetaPrioridad, tiempoRestanteAviso } from '../
           }
     
         </main>
+
+      <!-- Detalle de la vivienda (solo lectura) -->
+      @if (viviendaDetalle(); as vivienda) {
+        <app-viviendas-detalle [vivienda]="vivienda" [isOpen]="true" [soloLectura]="true" (close)="cerrarDetalleVivienda()" />
+      }
       </div>
     `
 })
@@ -369,6 +381,9 @@ export class ResidenteDashboardComponent implements OnInit {
 
   readonly currentUser = this.authService.currentUser;
   readonly misViviendas = signal<Vivienda[]>([]);
+  /** Vivienda cuyo detalle está abierto y el botón que lo abrió, para devolverle el foco al cerrar */
+  readonly viviendaDetalle = signal<Vivienda | null>(null);
+  private origenDetalle: HTMLElement | null = null;
   readonly isLoadingVivienda = signal<boolean>(true);
   readonly isRedeeming = signal<boolean>(false);
   readonly nombreCondominio = signal<string | null>(null);
@@ -547,6 +562,17 @@ export class ResidenteDashboardComponent implements OnInit {
         confirmButtonColor: '#111C99'
       });
     }
+  }
+
+  abrirDetalleVivienda(vivienda: Vivienda, evento: Event): void {
+    this.origenDetalle = evento.currentTarget as HTMLElement;
+    this.viviendaDetalle.set(vivienda);
+  }
+
+  cerrarDetalleVivienda(): void {
+    this.viviendaDetalle.set(null);
+    this.origenDetalle?.focus();
+    this.origenDetalle = null;
   }
 
   onLogout(): void {

@@ -151,6 +151,20 @@ describe('ResidenteDashboardComponent', () => {
     });
   });
 
+  describe('Accesos del portal en un teléfono', () => {
+    it('los botones de Visitas, Paquetes y Reservas pasan a otra línea en vez de salirse de la pantalla', async () => {
+      const f = TestBed.createComponent(ResidenteDashboardComponent);
+      f.detectChanges();
+      await f.whenStable();
+      f.detectChanges();
+
+      const fila = f.nativeElement.querySelector('[data-test="accesos-portal"]') as HTMLElement;
+
+      expect(fila.classList.contains('flex-wrap')).toBeTrue();
+      expect(fila.querySelectorAll('a').length).toBeGreaterThanOrEqual(3);
+    });
+  });
+
   describe('Acceso a paquetería', () => {
     const botonPaqueteria = (f: ComponentFixture<ResidenteDashboardComponent>) =>
       f.nativeElement.querySelector('a[href="/dashboard/residente/paquetes"]') as HTMLElement | null;
@@ -176,6 +190,44 @@ describe('ResidenteDashboardComponent', () => {
       const f = await abrirPortal();
 
       expect(botonPaqueteria(f)?.textContent?.replace(/\s+/g, ' ')).toContain('2 en caseta');
+    });
+  });
+
+  describe('Detalle de la vivienda', () => {
+    async function abrirPortalConCasa(): Promise<ComponentFixture<ResidenteDashboardComponent>> {
+      mockViviendasService.obtenerMisViviendas.and.resolveTo([{ id: 7, numeroCasa: '105', tipo: 'Mediana' }]);
+      const f = TestBed.createComponent(ResidenteDashboardComponent);
+      f.detectChanges();
+      await f.whenStable();
+      f.detectChanges();
+      return f;
+    }
+    const tarjeta = (f: ComponentFixture<ResidenteDashboardComponent>) =>
+      f.nativeElement.querySelector('button[aria-label^="Ver detalle de"]') as HTMLButtonElement;
+
+    it('al tocar la tarjeta de la casa abre su detalle en solo lectura', async () => {
+      const f = await abrirPortalConCasa();
+      expect(f.nativeElement.querySelector('app-viviendas-detalle')).toBeNull();
+
+      tarjeta(f).click();
+      f.detectChanges();
+
+      expect(f.nativeElement.querySelector('app-viviendas-detalle [role="dialog"]')).not.toBeNull();
+      expect(f.componentInstance.viviendaDetalle()?.id).toBe(7);
+    });
+
+    it('al cerrar el detalle el foco vuelve a la tarjeta de la casa', async () => {
+      const f = await abrirPortalConCasa();
+      document.body.appendChild(f.nativeElement);
+      tarjeta(f).click();
+      f.detectChanges();
+
+      f.componentInstance.cerrarDetalleVivienda();
+      f.detectChanges();
+
+      expect(f.nativeElement.querySelector('app-viviendas-detalle')).toBeNull();
+      expect(document.activeElement).toBe(tarjeta(f));
+      f.nativeElement.remove();
     });
   });
 

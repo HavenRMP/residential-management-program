@@ -1,5 +1,6 @@
 import {
   Paquete,
+  empresasSeleccionables,
   estadoEfectivoPaquete,
   fechaActividadPaquete,
   llegaHoy,
@@ -130,6 +131,22 @@ describe('paquete.model', () => {
     it('sin fechas válidas devuelve texto vacío', () => {
       expect(textoVentanaPaquete({})).toBe('');
       expect(textoVentanaPaquete({ fechaEsperadaDesde: '0001-01-01T00:00:00Z', fechaEsperadaHasta: 'basura' })).toBe('');
+    });
+  });
+
+  describe('empresasSeleccionables', () => {
+    const catalogo = [
+      { id: 1, nombre: 'Amazon', activo: true, esSistema: true },
+      { id: 9, nombre: ' OTRO ', activo: true, esSistema: true },
+      { id: 3, nombre: 'DHL', activo: true, esSistema: true }
+    ];
+
+    it('quita "Otro" del catálogo sin distinguir mayúsculas ni espacios y conserva el resto en orden', () => {
+      expect(empresasSeleccionables(catalogo).map(s => s.nombre)).toEqual(['Amazon', 'DHL']);
+    });
+
+    it('con un catálogo vacío devuelve una lista vacía', () => {
+      expect(empresasSeleccionables([])).toEqual([]);
     });
   });
 

@@ -246,12 +246,13 @@ void main() {
       expect((entRes['data'] as PaqueteModel).isEntregado, isTrue);
     });
 
-    test('getServicios obtiene lista de catálogo', () async {
+    test('getServicios obtiene lista de catálogo excluyendo servicio Otro', () async {
       final mockClient = MockClient((request) async {
         if (request.url.path == '/api/paqueteria/servicios' && request.method == 'GET') {
           return http.Response(
             jsonEncode([
               {'id': 1, 'nombre': 'Amazon', 'activo': true},
+              {'id': 9, 'nombre': 'Otro', 'activo': true, 'esSistema': true},
               {'id': 2, 'nombre': 'DHL', 'activo': true},
             ]),
             200,
@@ -266,8 +267,49 @@ void main() {
 
       final servicios = await service.getServicios();
       expect(servicios.length, 2);
-      expect(servicios[0].nombre, 'Amazon');
-      expect(servicios[1].nombre, 'DHL');
+      expect(servicios.map((s) => s.nombre).toList(), ['Amazon', 'DHL']);
+    });
+
+    test('getMisPaquetes soporta lista múltiple de estados en query param', () async {
+      String? capturedQuery;
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/api/paqueteria/mis-paquetes') {
+          capturedQuery = request.url.query;
+          return http.Response(
+            jsonEncode({'items': [], 'totalCount': 0}),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('Error', 500);
+      });
+
+      final controller = AppController(null, client: mockClient);
+      final service = PaqueteriaService(controller);
+
+      await service.getMisPaquetes(estados: ['esperado', 'recibido']);
+      expect(capturedQuery, contains('estado=esperado%2Crecibido'));
+    });
+
+    test('getHistoricoCaseta soporta lista múltiple de estados en query param', () async {
+      String? capturedQuery;
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/api/paqueteria/historico') {
+          capturedQuery = request.url.query;
+          return http.Response(
+            jsonEncode({'items': [], 'totalCount': 0}),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('Error', 500);
+      });
+
+      final controller = AppController(null, client: mockClient);
+      final service = PaqueteriaService(controller);
+
+      await service.getHistoricoCaseta(estados: ['entregado', 'cancelado', 'devuelto']);
+      expect(capturedQuery, contains('estado=entregado%2Ccancelado%2Cdevuelto'));
     });
 
     test('Maneja error del servidor con mensaje claro', () async {

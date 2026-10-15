@@ -90,3 +90,5 @@ GoogleService-Info.plist
 firebase_options.dart
 firebase.json
 /android/app/google-services.json
+.kotlin/
+**/.kotlin/

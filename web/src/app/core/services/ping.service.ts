@@ -6,12 +6,13 @@ import Swal from 'sweetalert2';
 import { environment } from '../../../environments/environment';
 
 export const PING_TIMEOUT = 7000;
-
-export interface PingResponse {
-  message?: string;
-  timestamp?: string;
-  dbVersion?: string;
-}
+/**
+ * Los servicios que solo se despiertan no bloquean nada: pueden tardar lo que tarde Render en arrancarlos
+ * (el de reservas llega a tardar cerca de un minuto), así que su petición no se corta a los 7 s.
+ */
+export const WAKE_TIMEOUT = 90000;
+/** `default` repite la URL de viviendas y `usuarios` tiene su propio ping más abajo */
+const SERVICIOS_QUE_NO_SE_DESPIERTAN_AQUI = ['default', 'usuarios'];
 
 @Injectable({
   providedIn: 'root'
@@ -22,25 +23,15 @@ export class PingService {
   private readonly maxRetries = 2;
 
   checkBackendConnection(): void {
-    // 1. Despertar los microservicios de apoyo en paralelo (Viviendas, Condominios, Avisos)
-    const pingViviendasUrl = `${environment.services.viviendas}/swagger/v1/swagger.json`;
-    const pingCondominiosUrl = `${environment.services.condominios}/swagger/v1/swagger.json`;
-    const pingAvisosUrl = `${environment.services.avisos}/swagger/v1/swagger.json`;
-
-    this.http.get(pingViviendasUrl, { responseType: 'text' }).pipe(
-      timeout(PING_TIMEOUT),
-      catchError(() => of(null))
-    ).subscribe();
-
-    this.http.get(pingCondominiosUrl, { responseType: 'text' }).pipe(
-      timeout(PING_TIMEOUT),
-      catchError(() => of(null))
-    ).subscribe();
-
-    this.http.get(pingAvisosUrl, { responseType: 'text' }).pipe(
-      timeout(PING_TIMEOUT),
-      catchError(() => of(null))
-    ).subscribe();
+    // 1. Despertar en paralelo todos los demás microservicios (Viviendas, Condominios, Avisos, Visitas, Reservas…).
+    //    Se recorre `environment.services`, así un servicio nuevo queda incluido sin tocar este código.
+    for (const [nombre, base] of Object.entries(environment.services)) {
+      if (SERVICIOS_QUE_NO_SE_DESPIERTAN_AQUI.includes(nombre)) continue;
+      this.http.get(`${base}/swagger/v1/swagger.json`, { responseType: 'text' }).pipe(
+        timeout(WAKE_TIMEOUT),
+        catchError(() => of(null))
+      ).subscribe();
+    }
 
     // 2. Despertar microservicio de Usuarios y validar conexion
     const pingUrl = `${environment.services.usuarios}/api/auth/ping`;
@@ -54,7 +45,7 @@ export class PingService {
       width: '100%'
     });
 
-    this.http.get<PingResponse>(pingUrl).pipe(
+    this.http.get(pingUrl).pipe(
       timeout(PING_TIMEOUT),
       catchError(error => {
         console.warn('Backend ping error details:', error);
@@ -64,7 +55,7 @@ export class PingService {
           if (this.retryCount === 1) {
             Toast.fire({
               icon: 'info',
-              title: 'Despertando servidor en Render...',
+              title: 'Conectando con el servidor. Puede tardar unos segundos...',
               background: '#fef3c7',
               color: '#92400e',
               timer: 3000
@@ -74,38 +65,16 @@ export class PingService {
           return of(null);
         }
 
-        let errorMsg = 'El backend no respondió a tiempo. Operando en modo seguro.';
-        if (error.status === 0) {
-          errorMsg = 'Servidor en Render iniciando o bloqueo de CORS.';
-        }
-
         Toast.fire({
           icon: 'warning',
-          title: errorMsg,
+          title: 'No pudimos conectar con el servidor. Revisa tu conexión o intenta de nuevo en unos minutos.',
           background: '#fee2e2',
           color: '#991b1b',
           timer: 3500
         });
         return of(null);
       })
-    ).subscribe(response => {
-      if (response !== null) {
-        const titleMsg = response.message || 'Backend conectado correctamente.';
-        const dbVersionText = response.dbVersion ? response.dbVersion : 'No disponible';
-
-        Toast.fire({
-          html: `
-            <div style="display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 2px 0;">
-              <span style="font-weight: 600; font-size: 0.95rem; line-height: 1.25;">${titleMsg}</span>
-              <span style="font-size: 0.85rem; font-weight: 500; opacity: 0.9; line-height: 1.25;">Versión BD: <strong>${dbVersionText}</strong></span>
-            </div>
-          `,
-          background: '#dcfce7',
-          color: '#166534',
-          timer: 4000
-        });
-      }
-    });
+    ).subscribe();
   }
 }
 

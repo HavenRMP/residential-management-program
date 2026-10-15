@@ -87,11 +87,12 @@ function isoAInputLocal(iso: string): string {
     
       <main class="w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
     
-        <nav class="flex items-center gap-2 text-xs text-slate-500 font-medium">
+        <nav aria-label="Ruta de navegación" class="flex items-center gap-2 text-xs text-slate-600 font-medium">
           <a routerLink="/dashboard/residente" class="hover:text-slate-900 transition-colors">Portal</a>
           <span>/</span>
           <span class="text-slate-900">Visitas</span>
         </nav>
+        <h1 class="sr-only">Visitas</h1>
     
         <!-- Sin vivienda asignada -->
         @if (!isLoadingVivienda() && !viviendaId()) {
@@ -292,7 +293,7 @@ function isoAInputLocal(iso: string): string {
         <div class="bg-white rounded-lg max-w-lg w-full p-5 shadow-lg border border-slate-200">
           <div class="flex items-center justify-between pb-3 border-b border-slate-100">
             <h3 class="text-sm font-semibold text-slate-900">{{ visitaEditandoId() ? 'Editar visita' : 'Programar visita' }}</h3>
-            <button type="button" (click)="cerrarModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer">
+            <button type="button" (click)="cerrarModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer" aria-label="Cerrar">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -301,8 +302,8 @@ function isoAInputLocal(iso: string): string {
           <div class="mt-3.5 space-y-3">
             @if (viviendas().length > 1 && !visitaEditandoId()) {
               <div>
-                <label class="block text-xs font-semibold text-slate-800 mb-1">Vivienda *</label>
-                <select [(ngModel)]="form.viviendaId"
+                <label for="visita-1" class="block text-xs font-semibold text-slate-800 mb-1">Vivienda *</label>
+                <select id="visita-1" [(ngModel)]="form.viviendaId"
                   class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]">
                   @for (viv of viviendas(); track viv.id) {
                     <option [ngValue]="viv.id">{{ viv.numeroCasa }}</option>
@@ -312,20 +313,20 @@ function isoAInputLocal(iso: string): string {
             }
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="block text-xs font-semibold text-slate-800 mb-1">Nombre *</label>
-                <input type="text" [(ngModel)]="form.nombreVisitante" maxlength="100" placeholder="Nombre"
+                <label for="visita-2" class="block text-xs font-semibold text-slate-800 mb-1">Nombre *</label>
+                <input id="visita-2" type="text" [(ngModel)]="form.nombreVisitante" maxlength="100" placeholder="Nombre"
                   class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
                 </div>
                 <div>
-                  <label class="block text-xs font-semibold text-slate-800 mb-1">Apellidos *</label>
-                  <input type="text" [(ngModel)]="form.apellidosVisitante" maxlength="100" placeholder="Apellidos"
+                  <label for="visita-3" class="block text-xs font-semibold text-slate-800 mb-1">Apellidos *</label>
+                  <input id="visita-3" type="text" [(ngModel)]="form.apellidosVisitante" maxlength="100" placeholder="Apellidos"
                     class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
                   </div>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                   <div>
-                    <label class="block text-xs font-semibold text-slate-800 mb-1">Motivo *</label>
-                    <select [(ngModel)]="form.motivo"
+                    <label for="visita-4" class="block text-xs font-semibold text-slate-800 mb-1">Motivo *</label>
+                    <select id="visita-4" [(ngModel)]="form.motivo"
                       class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]">
                       @for (m of motivos; track m.valor) {
                         <option [value]="m.valor">{{ m.etiqueta }}</option>
@@ -333,20 +334,20 @@ function isoAInputLocal(iso: string): string {
                     </select>
                   </div>
                   <div>
-                    <label class="block text-xs font-semibold text-slate-800 mb-1">Teléfono</label>
-                    <input type="tel" [(ngModel)]="form.telefonoVisitante" maxlength="20" placeholder="Opcional"
+                    <label for="visita-5" class="block text-xs font-semibold text-slate-800 mb-1">Teléfono</label>
+                    <input id="visita-5" type="tel" [(ngModel)]="form.telefonoVisitante" maxlength="20" placeholder="Opcional"
                       class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
                     </div>
                   </div>
                   <div class="grid grid-cols-2 gap-3">
                     <div>
-                      <label class="block text-xs font-semibold text-slate-800 mb-1">Llegada esperada *</label>
-                      <input type="datetime-local" [(ngModel)]="form.fechaLlegada"
+                      <label for="visita-6" class="block text-xs font-semibold text-slate-800 mb-1">Llegada esperada *</label>
+                      <input id="visita-6" type="datetime-local" [(ngModel)]="form.fechaLlegada"
                         class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
                       </div>
                       <div>
-                        <label class="block text-xs font-semibold text-slate-800 mb-1">Vigencia (horas) *</label>
-                        <input type="number" [(ngModel)]="form.horasVigencia" min="1" max="72"
+                        <label for="visita-7" class="block text-xs font-semibold text-slate-800 mb-1">Vigencia (horas) *</label>
+                        <input id="visita-7" type="number" [(ngModel)]="form.horasVigencia" min="1" max="72"
                           class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
                           <p class="mt-1 text-[11px] text-slate-500">Entre 1 y 72 horas.</p>
                         </div>
@@ -358,19 +359,19 @@ function isoAInputLocal(iso: string): string {
                       }
                       <div class="grid grid-cols-2 gap-3">
                         <div>
-                          <label class="block text-xs font-semibold text-slate-800 mb-1">Acompañantes</label>
-                          <input type="number" [(ngModel)]="form.numAcompanantes" min="0" max="20"
+                          <label for="visita-8" class="block text-xs font-semibold text-slate-800 mb-1">Acompañantes</label>
+                          <input id="visita-8" type="number" [(ngModel)]="form.numAcompanantes" min="0" max="20"
                             class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
                           </div>
                           <div>
-                            <label class="block text-xs font-semibold text-slate-800 mb-1">Placas del vehículo</label>
-                            <input type="text" [(ngModel)]="form.vehiculoPlacas" maxlength="15" placeholder="Opcional"
+                            <label for="visita-9" class="block text-xs font-semibold text-slate-800 mb-1">Placas del vehículo</label>
+                            <input id="visita-9" type="text" [(ngModel)]="form.vehiculoPlacas" maxlength="15" placeholder="Opcional"
                               class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
                             </div>
                           </div>
                           <div>
-                            <label class="block text-xs font-semibold text-slate-800 mb-1">Notas</label>
-                            <textarea [(ngModel)]="form.notas" maxlength="500" rows="2" placeholder="Opcional"
+                            <label for="visita-10" class="block text-xs font-semibold text-slate-800 mb-1">Notas</label>
+                            <textarea id="visita-10" [(ngModel)]="form.notas" maxlength="500" rows="2" placeholder="Opcional"
                             class="w-full text-xs rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]"></textarea>
                           </div>
                           <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">

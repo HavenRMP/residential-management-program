@@ -67,7 +67,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'beta'
+          channel: 'stable'
           cache: true
           cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
           cache-path: "${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:"
@@ -110,6 +110,11 @@ jobs:
           echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
           echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
           echo "storeFile=upload-keystore.jks" >> android/key.properties
+
+      - name: Clean partial Android SDK downloads
+        run: |
+          sudo rm -rf /usr/local/lib/android/sdk/.downloadIntermediates || true
+          sudo rm -rf /usr/local/lib/android/sdk/ndk/28* || true
 
       - name: Build Android AppBundle
         run: flutter build appbundle --release --android-skip-build-dependency-validation

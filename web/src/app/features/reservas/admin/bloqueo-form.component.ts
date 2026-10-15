@@ -1,24 +1,25 @@
-import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, EventEmitter, HostListener, Input, Output, inject, signal } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, EventEmitter, HostListener, Input, OnInit, Output, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { ReservasAdminService } from '../../../core/services/reservas-admin.service';
-import { AreaComun, ResultadoBloqueo } from '../../../core/models/reserva.model';
-import { fechaEnZona, instanteEnZona, rangoLegible } from '../../../core/utils/reservas.util';
+import { ActualizarBloqueoDto, AreaComun, Reserva, ResultadoBloqueo } from '../../../core/models/reserva.model';
+import { fechaEnZona, horaEnZona, instanteEnZona, rangoLegible } from '../../../core/utils/reservas.util';
 import { mensajeConValidacion } from '../../../core/utils/api-errors.util';
+import { RetornoFocoDirective } from '../../../core/directives/retorno-foco.directive';
 
 const MAX_MOTIVO = 500;
 
 @Component({
   selector: 'app-bloqueo-form',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RetornoFocoDirective],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="fixed inset-0 z-50 overflow-y-auto bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-      <div class="bg-white rounded-lg max-w-lg w-full p-5 shadow-lg border border-slate-200" role="dialog" aria-modal="true" aria-labelledby="bloqueo-form-titulo">
+      <div class="bg-white rounded-lg max-w-lg w-full p-5 shadow-lg border border-slate-200" appRetornoFoco role="dialog" aria-modal="true" aria-labelledby="bloqueo-form-titulo">
         <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-          <h3 id="bloqueo-form-titulo" class="text-sm font-semibold text-slate-900">Bloquear fechas · {{ area.nombre }}</h3>
+          <h3 id="bloqueo-form-titulo" class="text-sm font-semibold text-slate-900">{{ editando ? 'Editar bloqueo' : 'Bloquear fechas' }} · {{ area.nombre }}</h3>
           <button type="button" (click)="cerrar()" aria-label="Cerrar" class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -29,13 +30,18 @@ const MAX_MOTIVO = 500;
         <div class="mt-3.5 space-y-3">
           <div class="rounded-md border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-900 leading-relaxed">
             Mientras dure el bloqueo nadie podrá reservar el área. <strong>Las reservas pendientes o aprobadas que caigan en ese horario se cierran</strong>:
-            se rechazan las pendientes y se cancelan las aprobadas, y se avisa a sus titulares con el motivo. <strong>Un bloqueo no se puede quitar después.</strong>
+            se rechazan las pendientes y se cancelan las aprobadas, y se avisa a sus titulares con el motivo.
+            @if (editando) {
+              Esto también aplica si cambias el horario y el nuevo cubre otras reservas.
+            } @else {
+              <strong>Podrás editarlo o quitarlo después desde la lista de reservas.</strong>
+            }
           </div>
 
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label for="blq-fecha-inicio" class="block text-xs font-semibold text-slate-800 mb-1">Desde el día *</label>
-              <input id="blq-fecha-inicio" type="date" [(ngModel)]="form.fechaInicio" [min]="hoy"
+              <input id="blq-fecha-inicio" type="date" [(ngModel)]="form.fechaInicio" [attr.min]="editando ? null : hoy"
                 class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
             </div>
             <div>
@@ -45,7 +51,7 @@ const MAX_MOTIVO = 500;
             </div>
             <div>
               <label for="blq-fecha-fin" class="block text-xs font-semibold text-slate-800 mb-1">Hasta el día *</label>
-              <input id="blq-fecha-fin" type="date" [(ngModel)]="form.fechaFin" [min]="form.fechaInicio || hoy"
+              <input id="blq-fecha-fin" type="date" [(ngModel)]="form.fechaFin" [attr.min]="form.fechaInicio || (editando ? null : hoy)"
                 class="h-9 w-full text-xs rounded-lg border border-slate-300 bg-white px-3 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#111C99]" />
             </div>
             <div>
@@ -69,9 +75,9 @@ const MAX_MOTIVO = 500;
 
           <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
             <button type="button" (click)="cerrar()" class="h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer">Cancelar</button>
-            <button type="button" (click)="bloquear()" [disabled]="isSaving() || !esValido()"
+            <button type="button" (click)="editando ? actualizar() : bloquear()" [disabled]="isSaving() || !esValido()"
               class="h-8 px-3.5 bg-slate-800 hover:bg-slate-900 text-white rounded-md text-xs font-medium shadow-2xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-              {{ isSaving() ? 'Bloqueando...' : 'Bloquear área' }}
+              {{ editando ? (isSaving() ? 'Guardando...' : 'Guardar cambios') : (isSaving() ? 'Bloqueando...' : 'Bloquear área') }}
             </button>
           </div>
         </div>
@@ -79,22 +85,44 @@ const MAX_MOTIVO = 500;
     </div>
   `
 })
-export class BloqueoFormComponent implements AfterViewInit {
+export class BloqueoFormComponent implements OnInit, AfterViewInit {
   private readonly servicio = inject(ReservasAdminService);
   private readonly elemento = inject(ElementRef<HTMLElement>);
 
   @Input({ required: true }) area!: AreaComun;
+  /** Bloqueo que se corrige; sin él el formulario crea uno nuevo */
+  @Input() bloqueo: Reserva | null = null;
   @Output() cerrado = new EventEmitter<void>();
   @Output() creado = new EventEmitter<ResultadoBloqueo>();
+  @Output() actualizado = new EventEmitter<ResultadoBloqueo>();
+  /** El bloqueo ya cambió o no existe: quien abrió el formulario debe refrescar su lista */
+  @Output() obsoleto = new EventEmitter<void>();
 
   readonly maxMotivo = MAX_MOTIVO;
   readonly isSaving = signal<boolean>(false);
 
   form = { fechaInicio: '', horaInicio: '', fechaFin: '', horaFin: '', motivo: '' };
 
+  get editando(): boolean {
+    return !!this.bloqueo;
+  }
+
   /** Hoy en la zona del área, para que no se pueda empezar un bloqueo en el pasado */
   get hoy(): string {
     return fechaEnZona(Date.now(), this.area.zonaHoraria);
+  }
+
+  ngOnInit(): void {
+    const b = this.bloqueo;
+    if (!b) return;
+    const zona = this.area.zonaHoraria;
+    this.form = {
+      fechaInicio: fechaEnZona(b.inicio, zona),
+      horaInicio: horaEnZona(b.inicio, zona),
+      fechaFin: fechaEnZona(b.fin, zona),
+      horaFin: horaEnZona(b.fin, zona),
+      motivo: b.motivo ?? ''
+    };
   }
 
   ngAfterViewInit(): void {
@@ -133,7 +161,71 @@ export class BloqueoFormComponent implements AfterViewInit {
 
   esValido(): boolean {
     const motivo = this.form.motivo.trim();
-    return !!this.instantes() && !this.problema() && motivo.length > 0 && motivo.length <= MAX_MOTIVO;
+    return !!this.instantes() && !this.problema() && motivo.length > 0 && motivo.length <= MAX_MOTIVO && (!this.editando || this.cambios() !== null);
+  }
+
+  /** Solo lo que cambió respecto al bloqueo que se abrió; null si no cambió nada */
+  cambios(): ActualizarBloqueoDto | null {
+    const b = this.bloqueo;
+    const t = this.instantes();
+    if (!b || !t) return null;
+    const cambios: ActualizarBloqueoDto = {};
+    if (new Date(t.inicio).getTime() !== new Date(b.inicio).getTime()) cambios.inicio = t.inicio;
+    if (new Date(t.fin).getTime() !== new Date(b.fin).getTime()) cambios.fin = t.fin;
+    if (this.form.motivo.trim() !== (b.motivo ?? '').trim()) cambios.motivo = this.form.motivo.trim();
+    return Object.keys(cambios).length > 0 ? cambios : null;
+  }
+
+  async actualizar(): Promise<void> {
+    const b = this.bloqueo;
+    const cambios = this.cambios();
+    if (!b || !cambios || !this.esValido() || this.isSaving()) return;
+
+    // Cambiar el horario puede cerrar reservas; cambiar solo el motivo no
+    if (cambios.inicio || cambios.fin) {
+      const t = this.instantes()!;
+      const confirmacion = await Swal.fire({
+        title: '¿Cambiar el horario del bloqueo?',
+        text: `${this.area.nombre} quedará bloqueada ${rangoLegible(t.inicio, t.fin, this.area.zonaHoraria)}. Las reservas que caigan en el nuevo horario se rechazarán o cancelarán.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#1E293B',
+        cancelButtonColor: '#64748B',
+        confirmButtonText: 'Sí, cambiar',
+        cancelButtonText: 'Volver'
+      });
+      if (!confirmacion.isConfirmed) return;
+    }
+
+    this.isSaving.set(true);
+    try {
+      const resultado = await this.servicio.actualizarBloqueo(b.id, cambios);
+      this.actualizado.emit(resultado);
+      Swal.fire({
+        icon: 'success',
+        title: 'Bloqueo actualizado',
+        text: resultado.reservasAfectadas > 0
+          ? resultado.reservasAfectadas === 1
+            ? 'Una reserva que cae en el nuevo horario quedó rechazada o cancelada.'
+            : `${resultado.reservasAfectadas} reservas que caen en el nuevo horario quedaron rechazadas o canceladas.`
+          : undefined,
+        confirmButtonColor: '#111C99'
+      });
+    } catch (err: any) {
+      console.error('[BloqueoFormComponent] Error al actualizar el bloqueo:', err);
+      const yaCambio = err?.status === 404 || err?.status === 409;
+      Swal.fire({
+        icon: yaCambio ? 'info' : 'error',
+        title: yaCambio ? 'Este bloqueo ya cambió' : 'No se pudo guardar el bloqueo',
+        text: yaCambio
+          ? 'Ya no existe o alguien más lo modificó. Actualizamos la lista.'
+          : mensajeConValidacion(err, 'No fue posible guardar los cambios. Intenta de nuevo en unos segundos.'),
+        confirmButtonColor: '#111C99'
+      });
+      if (yaCambio) this.obsoleto.emit();
+    } finally {
+      this.isSaving.set(false);
+    }
   }
 
   async bloquear(): Promise<void> {
@@ -142,7 +234,7 @@ export class BloqueoFormComponent implements AfterViewInit {
 
     const confirmacion = await Swal.fire({
       title: '¿Bloquear esta área?',
-      text: `${this.area.nombre} quedará bloqueada ${rangoLegible(t.inicio, t.fin, this.area.zonaHoraria)}. Las reservas de ese horario se rechazarán o cancelarán y el bloqueo no se podrá quitar.`,
+      text: `${this.area.nombre} quedará bloqueada ${rangoLegible(t.inicio, t.fin, this.area.zonaHoraria)}. Las reservas de ese horario se rechazarán o cancelarán.`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#1E293B',

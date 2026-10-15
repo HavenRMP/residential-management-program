@@ -43,3 +43,39 @@
 .animate-slide-left {
   animation: slideLeft 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* Quien pide menos movimiento en su sistema no ve animaciones ni transiciones (los estados finales se conservan) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* En teléfonos los controles tocables miden al menos 44 x 44 px */
+@media (max-width: 639px) {
+  button,
+  select,
+  [role="tab"],
+  nav a,
+  a[class*="rounded"],
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) {
+    min-height: 44px;
+  }
+  button,
+  [role="tab"],
+  nav a,
+  a[class*="rounded"] {
+    min-width: 44px;
+  }
+  nav[aria-label="Ruta de navegación"] a,
+  button:has(> svg:only-child) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}

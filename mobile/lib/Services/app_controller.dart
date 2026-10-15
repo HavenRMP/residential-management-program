@@ -325,6 +325,7 @@ class AppController extends ChangeNotifier {
       return;
     }
     _pingShown = true;
+    _despertarServiciosSecundarios();
 
     try {
       final response = await httpClient
@@ -370,6 +371,28 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  /// Despierta en segundo plano los demás microservicios (Viviendas, Condominios, Avisos, Visitas, Reservas)
+  /// para amortiguar el arranque en frío (cold start) de Render, de forma análoga a la web.
+  void _despertarServiciosSecundarios() {
+    final servicios = [
+      dotenv.env['API_BASE_URL_VIVIENDAS'] ?? 'https://viviendas-api.onrender.com',
+      dotenv.env['API_BASE_URL_CONDOMINIOS'] ?? 'https://condominios-api.onrender.com',
+      dotenv.env['API_BASE_URL_AVISOS'] ?? 'https://avisos-api.onrender.com',
+      dotenv.env['API_BASE_URL_VISITAS'] ?? 'https://visitas-api-gtf6.onrender.com',
+      dotenv.env['API_BASE_URL_RESERVAS'] ?? 'https://reservas-api-hmos.onrender.com',
+    ];
+
+    for (final base in servicios) {
+      if (base.trim().isEmpty) continue;
+      final trimmed = base.trim().endsWith('/') ? base.trim().substring(0, base.trim().length - 1) : base.trim();
+      final url = Uri.parse('$trimmed/swagger/v1/swagger.json');
+      httpClient
+          .get(url)
+          .timeout(const Duration(seconds: 90))
+          .then((_) {}, onError: (_) {});
+    }
+  }
+
   Future<void> login(String email, String password) async {
     if (_isDisposed) return;
     if (_supabaseClient == null) {
@@ -382,9 +405,11 @@ class AppController extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
+    final cleanEmail = email.trim().toLowerCase();
+
     try {
       final response = await _supabaseClient.auth.signInWithPassword(
-        email: email,
+        email: cleanEmail,
         password: password,
       );
 
@@ -464,7 +489,7 @@ class AppController extends ChangeNotifier {
     notifyListeners();
     try {
       final response = await _supabaseClient.auth.signUp(
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password: password,
         data: {
           'nombre': nombre.trim(),
@@ -1063,24 +1088,41 @@ class AppController extends ChangeNotifier {
   }
 
   Future<List<Map<String, dynamic>>> obtenerMisViviendas() async {
-    final token = await getValidAccessToken();
-    if (token == null || token.isEmpty) return [];
-
     final baseUrl =
         dotenv.env['API_BASE_URL_VIVIENDAS'] ??
         'https://viviendas-api.onrender.com';
-    final url = '$baseUrl/api/Viviendas/mis-viviendas';
+    final url = '$baseUrl/api/Viviendas/mis-viviendas?pageSize=100';
 
     try {
-      final response = await httpClient.get(
-        Uri.parse(url),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
+      var token = await getValidAccessToken();
+      http.Response? response;
 
-      if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (token != null && token.isNotEmpty) {
+        response = await httpClient.get(
+          Uri.parse(url),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+        ).timeout(const Duration(seconds: 45));
+
+        if (response.statusCode == 401) {
+          debugPrint('[AppController] 401 en mis-viviendas. Intentando renovar sesión...');
+          await forceRefreshSession();
+          final newToken = await getValidAccessToken();
+          if (newToken != null && newToken.isNotEmpty) {
+            response = await httpClient.get(
+              Uri.parse(url),
+              headers: {
+                'Authorization': 'Bearer $newToken',
+                'Content-Type': 'application/json',
+              },
+            ).timeout(const Duration(seconds: 45));
+          }
+        }
+      }
+
+      if (response != null && response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
         List<dynamic> list = [];
         if (decoded is List) {
@@ -1092,7 +1134,7 @@ class AppController extends ChangeNotifier {
             list = decoded['data'];
           }
         }
-        
+
         final result = List<Map<String, dynamic>>.from(
           list.map((item) {
             if (item is Map) {
@@ -1111,17 +1153,83 @@ class AppController extends ChangeNotifier {
         setOffline(false);
         return result;
       }
+
+      // Fallback: consulta directa a Supabase si el microservicio falla o da error
+      if (_supabaseClient != null) {
+        try {
+          final sbData = await _supabaseClient.from('vw_mis_viviendas').select();
+          if (sbData is List && sbData.isNotEmpty) {
+            final result = List<Map<String, dynamic>>.from(
+              sbData.map((item) {
+                if (item is Map) {
+                  return {
+                    'id': item['vivienda_id'] ?? item['viviendaId'] ?? item['id'],
+                    'numeroCasa': item['numero_casa']?.toString() ?? item['numeroCasa']?.toString() ?? '',
+                    'tipo': item['tipo']?.toString(),
+                    'activo': item['activo'] ?? true,
+                    'creadoEn': item['creado_en'] ?? item['creadoEn'],
+                  };
+                }
+                return <String, dynamic>{};
+              }),
+            );
+            unawaited(OfflineSyncService.cacheMisViviendas(result));
+            setOffline(false);
+            return result;
+          }
+        } catch (sbErr) {
+          debugPrint('[AppController] Fallback direct Supabase vw_mis_viviendas error: $sbErr');
+        }
+      }
+
+      // Si el servidor devolvió error HTTP pero tenemos caché, devolver la caché
+      final cached = await OfflineSyncService.getCachedMisViviendas();
+      if (cached.isNotEmpty) {
+        return cached;
+      }
+
+      if (response != null && response.statusCode >= 400) {
+        throw HttpException('HTTP ${response.statusCode} al consultar mis-viviendas');
+      }
+
       return [];
     } catch (e) {
       debugPrint('[AppController] Error al obtener mis-viviendas: $e');
-      if (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline()) {
-        final cached = await OfflineSyncService.getCachedMisViviendas();
-        if (cached.isNotEmpty) {
-          setOffline(true);
-          return cached;
-        }
+
+      // Intentar fallback directo con Supabase
+      if (_supabaseClient != null) {
+        try {
+          final sbData = await _supabaseClient.from('vw_mis_viviendas').select();
+          if (sbData is List && sbData.isNotEmpty) {
+            final result = List<Map<String, dynamic>>.from(
+              sbData.map((item) {
+                if (item is Map) {
+                  return {
+                    'id': item['vivienda_id'] ?? item['viviendaId'] ?? item['id'],
+                    'numeroCasa': item['numero_casa']?.toString() ?? item['numeroCasa']?.toString() ?? '',
+                    'tipo': item['tipo']?.toString(),
+                    'activo': item['activo'] ?? true,
+                    'creadoEn': item['creado_en'] ?? item['creadoEn'],
+                  };
+                }
+                return <String, dynamic>{};
+              }),
+            );
+            unawaited(OfflineSyncService.cacheMisViviendas(result));
+            setOffline(false);
+            return result;
+          }
+        } catch (_) {}
       }
-      return [];
+
+      final cached = await OfflineSyncService.getCachedMisViviendas();
+      if (cached.isNotEmpty) {
+        if (OfflineSyncService.isStrictlyOfflineError(e) || await OfflineSyncService.isDeviceOffline()) {
+          setOffline(true);
+        }
+        return cached;
+      }
+      rethrow;
     }
   }
 

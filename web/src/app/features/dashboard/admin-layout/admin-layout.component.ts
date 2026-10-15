@@ -83,7 +83,7 @@ import { NotificacionesPopoverComponent } from '../../../core/components/notific
                       Admin
                     </span>
                   </div>
-                  <span class="text-[10px] text-slate-400 font-medium mt-0.5 block tracking-normal">Gestión Residencial</span>
+                  <span class="text-[10px] text-slate-500 font-medium mt-0.5 block tracking-normal">Gestión Residencial</span>
                 </div>
               }
             </div>
@@ -104,7 +104,7 @@ import { NotificacionesPopoverComponent } from '../../../core/components/notific
           </div>
     
           <!-- Navigation Links (Altura e inicio invariantes en colapsado y expandido) -->
-          <nav class="p-2 space-y-1 overflow-y-auto flex-1 custom-scrollbar w-full select-none">
+          <nav aria-label="Menú principal" class="p-2 space-y-1 overflow-y-auto flex-1 custom-scrollbar w-full select-none">
             <!-- Panel Principal -->
             <a
               routerLink="/dashboard/admin"

@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit, HostListener, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, HostListener, ChangeDetectionStrategy, Injector, afterNextRender } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink, ActivatedRoute, Router } from '@angular/router';
@@ -8,19 +8,20 @@ import { ViviendasService } from '../../../core/services/viviendas.service';
 import { SubusuariosService } from '../../../core/services/subusuarios.service';
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { ResidentesDetalleComponent } from '../residentes-detalle/residentes-detalle.component';
+import { ViviendasDetalleComponent } from '../../viviendas/viviendas-detalle/viviendas-detalle.component';
 import { getInitials } from '../../../core/utils/iniciales.util';
 import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
 
 @Component({
   selector: 'app-residentes-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, DatePipe, ResidentesDetalleComponent],
+  imports: [CommonModule, FormsModule, RouterLink, DatePipe, ResidentesDetalleComponent, ViviendasDetalleComponent],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="p-4 sm:p-5 lg:p-6 w-full space-y-4 selection:bg-[#111C99] selection:text-white">
     
       <!-- Breadcrumb & Top Navigation -->
-      <nav class="flex items-center gap-2 text-xs text-slate-500 font-medium">
+      <nav aria-label="Ruta de navegación" class="flex items-center gap-2 text-xs text-slate-600 font-medium">
         <a routerLink="/dashboard/admin" class="hover:text-slate-900 transition-colors">Panel Principal</a>
         <span>/</span>
         <span class="text-slate-900">Directorio de Residentes</span>
@@ -111,7 +112,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
           </button>
         </div>
     
-        <div class="text-xs text-slate-400 font-medium">
+        <div class="text-xs text-slate-600 font-medium">
           {{ tabActiva() === 'todos' ? 'Padrón general del condominio' : 'Subpágina: Residentes pendientes de vincular' }}
         </div>
       </div>
@@ -236,7 +237,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
           <div
             class="bg-white border border-slate-200/90 rounded-xl shadow-xs overflow-hidden"
             >
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto" tabindex="0" role="region" aria-label="Tabla desplazable">
               <table class="min-w-full divide-y divide-slate-200">
                 <thead>
                   <tr class="bg-slate-50 border-b border-slate-200">
@@ -275,7 +276,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
                             <div class="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
                               {{ r.nombre }} {{ r.apellidos }}
                             </div>
-                            <div class="text-xs text-slate-400">
+                            <div class="text-xs text-slate-600">
                               Residente Haven
                             </div>
                           </div>
@@ -358,10 +359,11 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
                   Mostrando <strong class="text-slate-800 font-semibold">{{ indiceInicio() }}</strong> a <strong class="text-slate-800 font-semibold">{{ indiceFin() }}</strong> de <strong class="text-slate-800 font-semibold">{{ totalFiltrados() }}</strong> residentes
                 </span>
                 <div class="flex items-center gap-1.5 pl-3 border-l border-slate-200">
-                  <span class="text-slate-400">Por página:</span>
+                  <span class="text-slate-600 font-medium">Por página:</span>
                   <select
                     [ngModel]="elementosPorPagina()"
                     (ngModelChange)="cambiarElementosPorPagina($event)"
+                    aria-label="Residentes por página"
                     class="h-7 px-1.5 text-xs bg-white border border-slate-200 rounded font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#111C99] cursor-pointer"
                     >
                     @for (opt of opcionesPaginacion; track opt) {
@@ -430,16 +432,33 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
             role="dialog"
             aria-modal="true"
             aria-labelledby="detalle-residente-title"
+            [attr.inert]="viviendaCruzada() ? '' : null"
             class="fixed inset-y-0 right-0 z-[60] !m-0 w-full sm:max-w-md md:max-w-lg lg:max-w-xl bg-white shadow-2xl flex flex-col border-l border-slate-200 overflow-y-auto transform transition-transform duration-300 ease-out animate-slide-left"
             >
             <app-residentes-detalle
               [residente]="residenteSeleccionado()"
               [viviendas]="residenteSeleccionado() ? obtenerViviendasDeResidente(residenteSeleccionado()!.id) : []"
           [subusuarioDe]="residenteSeleccionado() ? viviendasComoSubusuario(residenteSeleccionado()!.id) : []"
+              [inactivo]="!!viviendaCruzada()"
               (cerrado)="cerrarDetalle()"
+              (verVivienda)="abrirViviendaCruzada($event)"
           (desvinculado)="alDesvincular()"
             ></app-residentes-detalle>
           </aside>
+        }
+
+        <!-- Detalle de una vivienda abierto desde el del residente: queda encima y la flecha regresa al residente -->
+        @if (viviendaCruzada(); as vivienda) {
+          <app-viviendas-detalle
+            [vivienda]="vivienda"
+            [isOpen]="true"
+            [conAtras]="true"
+            textoAtras="Volver al detalle del residente"
+            (atras)="cerrarViviendaCruzada()"
+            (close)="cerrarDetalle()"
+            (verResidente)="alVerResidenteDesdeVivienda($event)"
+            (viviendaUpdated)="alDesvincular()"
+          />
         }
     
       </div>
@@ -492,9 +511,12 @@ export class ResidentesListComponent implements OnInit {
     });
   });
 
-  @HostListener('document:keydown.escape')
-  onEscape(): void {
-    if (this.isDetalleOpen()) {
+  @HostListener('document:keydown.escape', ['$event'])
+  onEscape(evento?: Event): void {
+    // Con una vivienda encima, Escape lo atiende ese detalle (vuelve al residente) y este no se cierra,
+    // sin importar cuál de los dos manejadores corre primero
+    if (evento?.defaultPrevented) return;
+    if (this.isDetalleOpen() && !this.viviendaCruzada()) {
       this.cerrarDetalle();
     }
   }
@@ -627,7 +649,33 @@ export class ResidentesListComponent implements OnInit {
   }
 
   cerrarDetalle(): void {
+    this.viviendaCruzada.set(null);
     this.isDetalleOpen.set(false);
+  }
+
+  /** Vivienda abierta desde el detalle del residente (queda encima de él) */
+  readonly viviendaCruzada = signal<Vivienda | null>(null);
+  private origenCruzado: number | null = null;
+  private readonly injector = inject(Injector);
+
+  abrirViviendaCruzada(vivienda: Vivienda): void {
+    this.origenCruzado = vivienda.id;
+    this.viviendaCruzada.set(vivienda);
+  }
+
+  /** Flecha de regreso: se quita la vivienda y el foco vuelve al botón de la casa que se había tocado */
+  cerrarViviendaCruzada(): void {
+    const origen = this.origenCruzado;
+    this.viviendaCruzada.set(null);
+    this.origenCruzado = null;
+    // El detalle de abajo sigue inerte hasta que se vuelva a renderizar: el foco se devuelve después
+    afterNextRender(() => document.querySelector<HTMLElement>(`[data-origen-detalle="vivienda-${origen}"]`)?.focus(), { injector: this.injector });
+  }
+
+  /** Desde la vivienda se tocó al residente: si es el mismo, es volver; si es otra persona, se abre su detalle */
+  alVerResidenteDesdeVivienda(residente: Residente): void {
+    if (residente.id !== this.residenteSeleccionado()?.id) this.residenteSeleccionado.set(residente);
+    this.cerrarViviendaCruzada();
   }
 
   /** Se le quitó una vivienda al residente abierto: se vuelve a consultar para que la fila y los contadores no queden viejos */

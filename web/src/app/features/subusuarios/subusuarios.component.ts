@@ -49,11 +49,12 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
       <main class="w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
     
         <!-- Breadcrumb -->
-        <nav class="flex items-center gap-2 text-xs text-slate-500 font-medium">
+        <nav aria-label="Ruta de navegación" class="flex items-center gap-2 text-xs text-slate-600 font-medium">
           <a routerLink="/dashboard/residente" class="hover:text-slate-900 transition-colors">Portal</a>
           <span>/</span>
           <span class="text-slate-900">Sub-usuarios</span>
         </nav>
+        <h1 class="sr-only">Sub-usuarios</h1>
     
         <!-- Invitaciones recibidas: visible sin importar si el usuario tiene vivienda propia -->
         @if (subusuariosService.isLoadingInvitaciones() || subusuariosService.invitacionesRecibidas().length > 0) {
@@ -228,7 +229,7 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                     </svg>
                     <span class="text-xs font-medium text-slate-700">Invitar sub-usuario</span>
-                    <span class="text-[11px] text-slate-400 mt-0.5">{{ subusuariosService.cuposDisponibles() }} cupo libre</span>
+                    <span class="text-[11px] text-slate-600 mt-0.5">{{ subusuariosService.cuposDisponibles() }} cupo libre</span>
                   </div>
                 }
                 @if (!subusuariosService.isLoading() && subusuariosService.items().length === 0) {
@@ -298,8 +299,7 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
               <button
                 type="button"
                 (click)="cerrarModalInvitacion()"
-                class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer"
-                >
+                class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer" aria-label="Cerrar">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -307,8 +307,8 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
             </div>
             <form (ngSubmit)="generarInvitacion()" class="mt-3.5 space-y-3">
               <div>
-                <label class="block text-xs font-medium text-slate-700 mb-1">Correo *</label>
-                <input
+                <label for="subusuario-1" class="block text-xs font-medium text-slate-700 mb-1">Correo *</label>
+                <input id="subusuario-1"
                   type="email"
                   [(ngModel)]="nuevoSub.email"
                   name="email"
@@ -320,12 +320,12 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
                   <p class="mt-1 text-[11px] text-red-600 font-medium">Correo no válido.</p>
                 }
                 @if (!nuevoSub.email.trim() || esCorreoValido()) {
-                  <p class="mt-1 text-[11px] text-slate-400">Debe ser una cuenta que ya exista en Haven.</p>
+                  <p class="mt-1 text-[11px] text-slate-600">Debe ser una cuenta que ya exista en Haven.</p>
                 }
               </div>
               <div>
-                <label class="block text-xs font-medium text-slate-700 mb-1">Parentesco *</label>
-                <select
+                <label for="subusuario-2" class="block text-xs font-medium text-slate-700 mb-1">Parentesco *</label>
+                <select id="subusuario-2"
                   [(ngModel)]="nuevoSub.parentesco"
                   name="parentesco"
                   required

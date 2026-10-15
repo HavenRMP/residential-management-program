@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { ViviendasService } from './viviendas.service';
 import { ApiService } from './api.service';
 import { CacheService } from './cache.service';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 
 describe('ViviendasService', () => {
   let service: ViviendasService;
@@ -26,6 +26,33 @@ describe('ViviendasService', () => {
 
   it('debería crearse correctamente', () => {
     expect(service).toBeTruthy();
+  });
+
+  describe('obtenerResidentesVivienda', () => {
+    it('si la consulta falla propaga el error en vez de hacerlo pasar por una vivienda vacía', async () => {
+      mockApiService.get.and.returnValue(throwError(() => ({ status: 500 })));
+
+      await expectAsync(service.obtenerResidentesVivienda(33)).toBeRejected();
+    });
+
+    it('guarda en caché el resultado y no vuelve a pedirlo', async () => {
+      mockApiService.get.and.returnValue(of({ items: [{ id: 'r1' }] }));
+
+      await service.obtenerResidentesVivienda(33);
+      const segundo = await service.obtenerResidentesVivienda(33);
+
+      expect(segundo.length).toBe(1);
+      expect(mockApiService.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('un fallo no se guarda en caché: la siguiente consulta vuelve a intentarlo', async () => {
+      mockApiService.get.and.returnValues(throwError(() => ({ status: 500 })), of({ items: [{ id: 'r1' }] }));
+
+      await expectAsync(service.obtenerResidentesVivienda(33)).toBeRejected();
+      const resultado = await service.obtenerResidentesVivienda(33);
+
+      expect(resultado.length).toBe(1);
+    });
   });
 
   it('debería construir el mapa de viviendas agrupadas por residente procesando en lotes', async () => {

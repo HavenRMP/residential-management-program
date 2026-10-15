@@ -6,6 +6,9 @@ class BloqueoModel {
   final String motivo;
   final int reservasAfectadas;
 
+  final String? areaNombre;
+  final String? estado;
+
   BloqueoModel({
     required this.bloqueoId,
     required this.areaId,
@@ -13,6 +16,8 @@ class BloqueoModel {
     required this.fin,
     required this.motivo,
     this.reservasAfectadas = 0,
+    this.areaNombre,
+    this.estado,
   });
 
   factory BloqueoModel.fromJson(Map<String, dynamic> json) {
@@ -30,11 +35,15 @@ class BloqueoModel {
       inicio: parseDate(json['inicio']),
       fin: parseDate(json['fin']),
       motivo: (json['motivo'] ?? '').toString(),
-      reservasAfectadas: json['totalReservasAfectadas'] is num
-          ? (json['totalReservasAfectadas'] as num).toInt()
-          : (json['reservas_afectadas'] is num
-              ? (json['reservas_afectadas'] as num).toInt()
-              : 0),
+      reservasAfectadas: json['reservasAfectadas'] is num
+          ? (json['reservasAfectadas'] as num).toInt()
+          : (json['totalReservasAfectadas'] is num
+              ? (json['totalReservasAfectadas'] as num).toInt()
+              : (json['reservas_afectadas'] is num
+                  ? (json['reservas_afectadas'] as num).toInt()
+                  : 0)),
+      areaNombre: json['areaNombre']?.toString() ?? json['area_nombre']?.toString(),
+      estado: json['estado']?.toString(),
     );
   }
 

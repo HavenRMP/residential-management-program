@@ -62,11 +62,12 @@ const HORA_MS = 3_600_000;
 
       <main class="w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
-        <nav class="flex items-center gap-2 text-xs text-slate-500 font-medium">
+        <nav aria-label="Ruta de navegación" class="flex items-center gap-2 text-xs text-slate-600 font-medium">
           <a routerLink="/dashboard/residente" class="hover:text-slate-900 transition-colors">Portal</a>
           <span>/</span>
           <span class="text-slate-900">Reservas</span>
         </nav>
+        <h1 class="sr-only">Reservas</h1>
 
         @if (!isLoadingVivienda() && viviendas().length === 0) {
           <div class="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-2xs space-y-2">

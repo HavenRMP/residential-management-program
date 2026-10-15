@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'app_controller.dart';
 import '../Models/area_comun_model.dart';
@@ -46,9 +47,18 @@ class ReservasService {
     try {
       final query = 'soloActivas=$soloActivas&page=$page&pageSize=$pageSize';
       final url = '$baseUrl/api/areas?$query';
-      final response = await controller.httpClient
-          .get(Uri.parse(url), headers: await _getHeaders())
+      var headers = await _getHeaders();
+      var response = await controller.httpClient
+          .get(Uri.parse(url), headers: headers)
           .timeout(requestTimeout);
+
+      if (response.statusCode == 401) {
+        await controller.forceRefreshSession();
+        headers = await _getHeaders();
+        response = await controller.httpClient
+            .get(Uri.parse(url), headers: headers)
+            .timeout(requestTimeout);
+      }
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -68,6 +78,13 @@ class ReservasService {
           };
         }
       }
+
+      // Direct Supabase fallback if backend returns error (such as 403 or 500)
+      final fallbackResult = await _getAreasSupabaseFallback(soloActivas);
+      if (fallbackResult != null) {
+        return fallbackResult;
+      }
+
       final error = ErrorHandler.extractErrorMessage(
         response.body,
         statusCode: response.statusCode,
@@ -78,6 +95,8 @@ class ReservasService {
       return {'success': false, 'error': error, 'items': <AreaComunModel>[]};
     } on TimeoutException catch (e, s) {
       ErrorHandler.trackError(e, s, 'ReservasService.getAreas');
+      final fallbackResult = await _getAreasSupabaseFallback(soloActivas);
+      if (fallbackResult != null) return fallbackResult;
       return {
         'success': false,
         'error': 'Tiempo de espera agotado al consultar áreas comunes.',
@@ -85,6 +104,8 @@ class ReservasService {
       };
     } on SocketException catch (e, s) {
       ErrorHandler.trackError(e, s, 'ReservasService.getAreas');
+      final fallbackResult = await _getAreasSupabaseFallback(soloActivas);
+      if (fallbackResult != null) return fallbackResult;
       return {
         'success': false,
         'error': 'Sin conexión a internet al consultar áreas comunes.',
@@ -92,6 +113,8 @@ class ReservasService {
       };
     } on http.ClientException catch (e, s) {
       ErrorHandler.trackError(e, s, 'ReservasService.getAreas');
+      final fallbackResult = await _getAreasSupabaseFallback(soloActivas);
+      if (fallbackResult != null) return fallbackResult;
       return {
         'success': false,
         'error': 'Error de comunicación al consultar áreas comunes.',
@@ -106,6 +129,8 @@ class ReservasService {
       };
     } catch (e, s) {
       ErrorHandler.trackError(e, s, 'ReservasService.getAreas');
+      final fallbackResult = await _getAreasSupabaseFallback(soloActivas);
+      if (fallbackResult != null) return fallbackResult;
       return {
         'success': false,
         'error': ErrorHandler.parseException(
@@ -116,6 +141,35 @@ class ReservasService {
         'items': <AreaComunModel>[],
       };
     }
+  }
+
+  Future<Map<String, dynamic>?> _getAreasSupabaseFallback(bool soloActivas) async {
+    final sb = controller.supabaseClient;
+    if (sb == null) return null;
+    try {
+      dynamic query = sb.from('vw_areas_comunes').select();
+      if (soloActivas) {
+        query = query.eq('activo', true);
+      }
+      final data = await query.order('nombre', ascending: true);
+      if (data is List && data.isNotEmpty) {
+        final areas = data
+            .map((j) => AreaComunModel.fromJson(j as Map<String, dynamic>))
+            .toList();
+        return {
+          'success': true,
+          'items': areas,
+          'page': 1,
+          'pageSize': areas.length,
+          'totalCount': areas.length,
+          'totalPages': 1,
+          'hasNextPage': false,
+        };
+      }
+    } catch (e) {
+      debugPrint('[ReservasService] Supabase fallback areas failed: $e');
+    }
+    return null;
   }
 
   /// GET /api/areas/{id}
@@ -456,9 +510,18 @@ class ReservasService {
       }
 
       final url = '$baseUrl/api/reservas/calendario?$query';
-      final response = await controller.httpClient
-          .get(Uri.parse(url), headers: await _getHeaders())
+      var headers = await _getHeaders();
+      var response = await controller.httpClient
+          .get(Uri.parse(url), headers: headers)
           .timeout(requestTimeout);
+
+      if (response.statusCode == 401) {
+        await controller.forceRefreshSession();
+        headers = await _getHeaders();
+        response = await controller.httpClient
+            .get(Uri.parse(url), headers: headers)
+            .timeout(requestTimeout);
+      }
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -539,9 +602,18 @@ class ReservasService {
       }
 
       final url = '$baseUrl/api/reservas/mias?$query';
-      final response = await controller.httpClient
-          .get(Uri.parse(url), headers: await _getHeaders())
+      var headers = await _getHeaders();
+      var response = await controller.httpClient
+          .get(Uri.parse(url), headers: headers)
           .timeout(requestTimeout);
+
+      if (response.statusCode == 401) {
+        await controller.forceRefreshSession();
+        headers = await _getHeaders();
+        response = await controller.httpClient
+            .get(Uri.parse(url), headers: headers)
+            .timeout(requestTimeout);
+      }
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
@@ -1492,6 +1564,163 @@ class ReservasService {
           e,
           defaultMessage: 'Error al registrar bloqueo.',
           context: 'ReservasService.crearBloqueo',
+        ),
+      };
+    }
+  }
+
+  /// GET /api/admin/bloqueos/{id}
+  Future<Map<String, dynamic>> obtenerBloqueo(String bloqueoId) async {
+    try {
+      final url = '$baseUrl/api/admin/bloqueos/$bloqueoId';
+      final response = await controller.httpClient
+          .get(Uri.parse(url), headers: await _getHeaders())
+          .timeout(requestTimeout);
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final decoded = jsonDecode(response.body);
+        return {
+          'success': true,
+          'bloqueo': BloqueoModel.fromJson(decoded as Map<String, dynamic>),
+        };
+      }
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudo consultar el bloqueo.',
+        context: 'ReservasService.obtenerBloqueo',
+      );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.obtenerBloqueo');
+      return {'success': false, 'error': error};
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.obtenerBloqueo');
+      return {'success': false, 'error': 'Tiempo de espera agotado al consultar bloqueo.'};
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.obtenerBloqueo');
+      return {'success': false, 'error': 'Sin conexión a internet al consultar bloqueo.'};
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.obtenerBloqueo');
+      return {'success': false, 'error': 'Error de comunicación de red al consultar bloqueo.'};
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.obtenerBloqueo');
+      return {'success': false, 'error': 'Respuesta con formato no válido al consultar bloqueo.'};
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.obtenerBloqueo');
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al consultar bloqueo.',
+          context: 'ReservasService.obtenerBloqueo',
+        ),
+      };
+    }
+  }
+
+  /// PATCH /api/admin/bloqueos/{id}
+  Future<Map<String, dynamic>> actualizarBloqueo(
+    String bloqueoId, {
+    DateTime? inicio,
+    DateTime? fin,
+    String? motivo,
+  }) async {
+    try {
+      final url = '$baseUrl/api/admin/bloqueos/$bloqueoId';
+      final Map<String, dynamic> bodyMap = {};
+      if (inicio != null) bodyMap['inicio'] = inicio.toUtc().toIso8601String();
+      if (fin != null) bodyMap['fin'] = fin.toUtc().toIso8601String();
+      if (motivo != null) bodyMap['motivo'] = motivo.trim();
+
+      final response = await controller.httpClient
+          .patch(
+            Uri.parse(url),
+            headers: await _getHeaders(),
+            body: jsonEncode(bodyMap),
+          )
+          .timeout(requestTimeout);
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final decoded = jsonDecode(response.body);
+        return {
+          'success': true,
+          'bloqueo': BloqueoModel.fromJson(decoded as Map<String, dynamic>),
+          'totalReservasAfectadas': decoded['reservasAfectadas'] ??
+              decoded['totalReservasAfectadas'] ??
+              0,
+        };
+      }
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudo actualizar el bloqueo.',
+        context: 'ReservasService.actualizarBloqueo',
+      );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.actualizarBloqueo');
+      return {'success': false, 'error': error};
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.actualizarBloqueo');
+      return {'success': false, 'error': 'Tiempo de espera agotado al actualizar bloqueo.'};
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.actualizarBloqueo');
+      return {'success': false, 'error': 'Sin conexión a internet al actualizar bloqueo.'};
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.actualizarBloqueo');
+      return {'success': false, 'error': 'Error de comunicación de red al actualizar bloqueo.'};
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.actualizarBloqueo');
+      return {'success': false, 'error': 'Respuesta con formato no válido al actualizar bloqueo.'};
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.actualizarBloqueo');
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al actualizar bloqueo.',
+          context: 'ReservasService.actualizarBloqueo',
+        ),
+      };
+    }
+  }
+
+  /// DELETE /api/admin/bloqueos/{id}
+  Future<Map<String, dynamic>> eliminarBloqueo(String bloqueoId) async {
+    try {
+      final url = '$baseUrl/api/admin/bloqueos/$bloqueoId';
+      final response = await controller.httpClient
+          .delete(Uri.parse(url), headers: await _getHeaders())
+          .timeout(requestTimeout);
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {'success': true};
+      }
+      final error = ErrorHandler.extractErrorMessage(
+        response.body,
+        statusCode: response.statusCode,
+        defaultMessage: 'No se pudo eliminar el bloqueo.',
+        context: 'ReservasService.eliminarBloqueo',
+      );
+      ErrorHandler.trackError('HTTP ${response.statusCode}: $error', null, 'ReservasService.eliminarBloqueo');
+      return {'success': false, 'error': error};
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.eliminarBloqueo');
+      return {'success': false, 'error': 'Tiempo de espera agotado al eliminar bloqueo.'};
+    } on SocketException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.eliminarBloqueo');
+      return {'success': false, 'error': 'Sin conexión a internet al eliminar bloqueo.'};
+    } on http.ClientException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.eliminarBloqueo');
+      return {'success': false, 'error': 'Error de comunicación de red al eliminar bloqueo.'};
+    } on FormatException catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.eliminarBloqueo');
+      return {'success': false, 'error': 'Respuesta con formato no válido al eliminar bloqueo.'};
+    } catch (e, s) {
+      ErrorHandler.trackError(e, s, 'ReservasService.eliminarBloqueo');
+      return {
+        'success': false,
+        'error': ErrorHandler.parseException(
+          e,
+          defaultMessage: 'Error al eliminar bloqueo.',
+          context: 'ReservasService.eliminarBloqueo',
         ),
       };
     }

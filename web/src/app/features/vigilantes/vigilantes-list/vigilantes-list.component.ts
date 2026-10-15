@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 import Swal from 'sweetalert2';
 import { VigilantesService } from '../../../core/services/vigilantes.service';
 import { Vigilante } from '../../../core/models/vigilante.model';
+import { mensajeAmigable } from '../../../core/utils/api-errors.util';
 
 @Component({
   selector: 'app-vigilantes-list',
@@ -15,7 +16,7 @@ import { Vigilante } from '../../../core/models/vigilante.model';
     <div class="p-4 sm:p-6 w-full space-y-4">
     
       <!-- Breadcrumb -->
-      <nav class="flex items-center gap-2 text-xs text-slate-600 font-semibold">
+      <nav aria-label="Ruta de navegación" class="flex items-center gap-2 text-xs text-slate-600 font-semibold">
         <a routerLink="/dashboard/admin" class="hover:text-slate-900 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99] rounded">Panel</a>
         <span>/</span>
         <span class="text-slate-900">Vigilantes</span>
@@ -161,12 +162,11 @@ import { Vigilante } from '../../../core/models/vigilante.model';
         >
         <div class="bg-white rounded-lg max-w-md w-full p-5 shadow-lg border border-slate-200">
           <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-            <h3 class="text-sm font-semibold text-slate-900">Nuevo vigilante</h3>
+            <h2 class="text-sm font-semibold text-slate-900">Nuevo vigilante</h2>
             <button
               type="button"
               (click)="cerrarModal()"
-              class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer"
-              >
+              class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer" aria-label="Cerrar">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -353,7 +353,7 @@ export class VigilantesListComponent implements OnInit {
       Swal.fire({
         icon: 'error',
         title: 'No se pudo registrar',
-        text: err?.error?.error || 'Ocurrió un error al registrar al vigilante. Intenta de nuevo.',
+        text: mensajeAmigable(err, 'Ocurrió un error al registrar al vigilante. Intenta de nuevo.'),
         confirmButtonColor: '#111C99'
       });
     } finally {
@@ -393,7 +393,7 @@ export class VigilantesListComponent implements OnInit {
       Swal.fire({
         icon: 'error',
         title: darDeBaja ? 'No se pudo dar de baja' : 'No se pudo reactivar',
-        text: err?.error?.error || 'Ocurrió un error inesperado. Intenta de nuevo.',
+        text: mensajeAmigable(err, 'Ocurrió un error inesperado. Intenta de nuevo.'),
         confirmButtonColor: '#111C99'
       });
     }

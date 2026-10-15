@@ -4,6 +4,7 @@ import { HttpParams } from '@angular/common/http';
 import { ApiService } from './api.service';
 import { extractPagedItems } from '../models/pagination.model';
 import { FiltrosHistoricoVisitas, VisitaVigilancia } from '../models/visita.model';
+import { mensajeAmigable } from '../utils/api-errors.util';
 
 @Injectable({
   providedIn: 'root'
@@ -50,7 +51,7 @@ export class VisitasHistoricoService {
       this.errorMessage.set(
         err?.status === 403
           ? 'Tu cuenta no tiene permiso para consultar el historial de visitas.'
-          : err?.error?.error || 'No se pudo cargar el histórico de visitas.'
+          : mensajeAmigable(err, 'No se pudo cargar el histórico de visitas.')
       );
     } finally {
       if (peticion === this.ultimaPeticion) this.isLoading.set(false);

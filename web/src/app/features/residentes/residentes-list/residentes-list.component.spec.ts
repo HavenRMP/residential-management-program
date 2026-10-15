@@ -18,7 +18,7 @@ describe('ResidentesListComponent (sub-usuarios)', () => {
   let fixture: ComponentFixture<ResidentesListComponent>;
   let component: ResidentesListComponent;
   let residentes: { listar: jasmine.Spy };
-  let viviendas: { obtenerMapaViviendasPorResidente: jasmine.Spy; listar: jasmine.Spy };
+  let viviendas: { obtenerMapaViviendasPorResidente: jasmine.Spy; listar: jasmine.Spy; obtenerResidentesVivienda: jasmine.Spy };
   let subusuarios: { mapaViviendasDeSubusuarios: jasmine.Spy; listarPorVivienda: jasmine.Spy };
 
   const filas = () => Array.from(fixture.nativeElement.querySelectorAll('tbody tr') as NodeListOf<HTMLElement>);
@@ -37,7 +37,8 @@ describe('ResidentesListComponent (sub-usuarios)', () => {
     residentes = { listar: jasmine.createSpy('listar').and.callFake(async (sinVivienda: boolean) => sinVivienda ? [subusuario, sinCasa] : [titular, subusuario, sinCasa]) };
     viviendas = {
       obtenerMapaViviendasPorResidente: jasmine.createSpy('mapa').and.resolveTo(new Map([['t1', [casa]]])),
-      listar: jasmine.createSpy('listar').and.resolveTo([casa])
+      listar: jasmine.createSpy('listar').and.resolveTo([casa]),
+      obtenerResidentesVivienda: jasmine.createSpy('obtenerResidentesVivienda').and.resolveTo([])
     };
     subusuarios = {
       mapaViviendasDeSubusuarios: jasmine.createSpy('mapaSubs').and.resolveTo(new Map([['s1', [casa]]])),
@@ -123,5 +124,93 @@ describe('ResidentesListComponent (sub-usuarios)', () => {
     detalle.desvinculado.emit();
 
     expect(component.alDesvincular).toHaveBeenCalled();
+  });
+
+  it('el selector de residentes por página tiene nombre accesible', async () => {
+    await crear();
+
+    const nombres = Array.from(fixture.nativeElement.querySelectorAll('select') as NodeListOf<HTMLSelectElement>).map(s => s.getAttribute('aria-label'));
+
+    expect(nombres).toContain('Residentes por página');
+  });
+
+  describe('abrir la vivienda desde el detalle del residente', () => {
+    const detalleDeVivienda = () => fixture.nativeElement.querySelector('app-viviendas-detalle') as HTMLElement | null;
+    const asideResidente = () => fixture.nativeElement.querySelector('aside[aria-labelledby="detalle-residente-title"]') as HTMLElement | null;
+
+    async function abrirResidente(): Promise<void> {
+      await crear();
+      component.verDetalle(titular);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+
+    it('al tocar la casa se abre su detalle encima y el del residente queda inerte debajo', async () => {
+      await abrirResidente();
+      expect(detalleDeVivienda()).toBeNull();
+      expect(asideResidente()!.hasAttribute('inert')).toBeFalse();
+
+      (fixture.nativeElement.querySelector('[data-origen-detalle="vivienda-33"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(detalleDeVivienda()).not.toBeNull();
+      expect(component.viviendaCruzada()?.id).toBe(33);
+      expect(asideResidente()!.hasAttribute('inert')).toBeTrue();
+    });
+
+    it('la flecha regresa al residente, quita la vivienda y devuelve el foco a la casa tocada', async () => {
+      await abrirResidente();
+      component.abrirViviendaCruzada(casa);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      (fixture.nativeElement.querySelector('app-viviendas-detalle [data-foco-inicial]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(component.viviendaCruzada()).toBeNull();
+      expect(component.isDetalleOpen()).toBeTrue();
+      expect(asideResidente()!.hasAttribute('inert')).toBeFalse();
+      expect(document.activeElement).toBe(fixture.nativeElement.querySelector('[data-origen-detalle="vivienda-33"]'));
+    });
+
+    it('Escape con la vivienda encima solo la quita: el detalle del residente sigue abierto', async () => {
+      await abrirResidente();
+      component.abrirViviendaCruzada(casa);
+      fixture.detectChanges();
+
+      component.onEscape();
+
+      expect(component.isDetalleOpen()).toBeTrue();
+    });
+
+    it('cerrar con la X cierra los dos detalles', async () => {
+      await abrirResidente();
+      component.abrirViviendaCruzada(casa);
+
+      component.cerrarDetalle();
+
+      expect(component.viviendaCruzada()).toBeNull();
+      expect(component.isDetalleOpen()).toBeFalse();
+    });
+
+    it('si desde la vivienda se toca al mismo residente solo se regresa; si es otra persona, se abre la suya', async () => {
+      await abrirResidente();
+      component.abrirViviendaCruzada(casa);
+
+      component.alVerResidenteDesdeVivienda(titular);
+      expect(component.residenteSeleccionado()?.id).toBe('t1');
+      expect(component.viviendaCruzada()).toBeNull();
+
+      component.abrirViviendaCruzada(casa);
+      component.alVerResidenteDesdeVivienda(subusuario);
+      expect(component.residenteSeleccionado()?.id).toBe('s1');
+      expect(component.viviendaCruzada()).toBeNull();
+    });
   });
 });

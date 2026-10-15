@@ -4,10 +4,11 @@ import { FormsModule } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { PaqueteriaCasetaService } from '../../../core/services/paqueteria-caseta.service';
 import { DirectorioCasasService } from '../../../core/services/directorio-casas.service';
-import { LIMITES_PAQUETE, Paquete, RecibirPaqueteDto, SERVICIO_OTRO, ServicioPaqueteria } from '../../../core/models/paquete.model';
+import { LIMITES_PAQUETE, Paquete, RecibirPaqueteDto, SERVICIO_OTRO, ServicioPaqueteria, empresasSeleccionables } from '../../../core/models/paquete.model';
 import { ViviendaConResidentes } from '../../../core/models/vivienda.model';
 import { normalizarBusqueda } from '../../../core/utils/directorio-casas.util';
 import { mensajeConValidacion } from '../../../core/utils/api-errors.util';
+import { RetornoFocoDirective } from '../../../core/directives/retorno-foco.directive';
 
 /** Cuántas casas se sugieren a la vez: más que eso ya no se lee de un vistazo */
 const MAX_SUGERENCIAS = 8;
@@ -19,13 +20,13 @@ const MAX_SUGERENCIAS = 8;
 @Component({
   selector: 'app-paquete-sin-aviso-form',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RetornoFocoDirective],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="fixed inset-0 z-50 overflow-y-auto bg-black/40 backdrop-blur-xs flex items-start sm:items-center justify-center p-4">
       <div
         class="bg-white rounded-xl max-w-xl w-full p-5 shadow-lg border border-slate-200"
-        role="dialog"
+        appRetornoFoco role="dialog"
         aria-modal="true"
         aria-labelledby="sin-aviso-titulo"
         >
@@ -233,7 +234,7 @@ export class PaqueteSinAvisoFormComponent implements AfterViewInit {
 
   /** "Otro" del catálogo se reemplaza por "Otra empresa", que sí pide el nombre */
   empresas(): ServicioPaqueteria[] {
-    return this.servicios.filter(s => s.nombre.trim().toLowerCase() !== 'otro');
+    return empresasSeleccionables(this.servicios);
   }
 
   ngAfterViewInit(): void {

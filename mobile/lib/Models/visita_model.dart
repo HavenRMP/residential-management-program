@@ -51,6 +51,42 @@ class VisitaModel {
   bool get isCancelada => estado.toLowerCase() == 'cancelada';
   bool get isExpirada => estado.toLowerCase() == 'expirada';
 
+  static const int horasVentanaCaseta = 24;
+
+  bool isVencida([DateTime? ahora]) {
+    final now = ahora ?? DateTime.now();
+    if (!isProgramada) return false;
+    if (vigenciaHasta.year < 2000) return false;
+    return vigenciaHasta.isBefore(now);
+  }
+
+  bool llegaAntesDeTiempo([DateTime? ahora]) {
+    final now = ahora ?? DateTime.now();
+    if (!isProgramada || isVencida(now)) return false;
+    if (fechaLlegadaEsperada.year < 2000) return false;
+    return fechaLlegadaEsperada.isAfter(now.add(const Duration(hours: horasVentanaCaseta)));
+  }
+
+  bool isPorAtender([DateTime? ahora]) {
+    final now = ahora ?? DateTime.now();
+    if (isEnCurso) return true;
+    if (!isProgramada || isVencida(now)) return false;
+    if (fechaLlegadaEsperada.year < 2000) return true;
+    return !fechaLlegadaEsperada.isAfter(now.add(const Duration(hours: horasVentanaCaseta)));
+  }
+
+  String motivoNoAtendible([DateTime? ahora]) {
+    final now = ahora ?? DateTime.now();
+    if (isProgramada) {
+      if (isVencida(now)) return 'su vigencia ya terminó: el visitante no llegó a tiempo.';
+      return 'llega con más de $horasVentanaCaseta horas de anticipación.';
+    }
+    if (isFinalizada) return 'la visita ya terminó.';
+    if (isCancelada) return 'la visita fue cancelada.';
+    if (isExpirada) return 'la visita expiró.';
+    return 'la visita no está por atender.';
+  }
+
   factory VisitaModel.fromJson(Map<String, dynamic> json) {
     DateTime parseDate(dynamic val, [DateTime? fallback]) {
       if (val == null) return fallback ?? DateTime.now();
@@ -72,23 +108,31 @@ class VisitaModel {
 
     return VisitaModel(
       id: (json['id'] ?? '').toString(),
-      viviendaId: (json['viviendaId'] ?? json['vivienda_id'] ?? 0) is num
-          ? (json['viviendaId'] ?? json['vivienda_id'] as num).toInt()
-          : int.tryParse((json['viviendaId'] ?? json['vivienda_id'])?.toString() ?? '') ?? 0,
+      viviendaId: (json['viviendaId'] is num)
+          ? (json['viviendaId'] as num).toInt()
+          : (json['vivienda_id'] is num)
+              ? (json['vivienda_id'] as num).toInt()
+              : int.tryParse((json['viviendaId'] ?? json['vivienda_id'])?.toString() ?? '') ?? 0,
       numeroCasa: (json['numeroCasa'] ?? json['numero_casa'] ?? '').toString(),
       condominioId: json['condominioId']?.toString() ?? json['condominio_id']?.toString(),
       nombreVisitante: (json['nombreVisitante'] ?? json['nombre_visitante'] ?? '').toString(),
       apellidosVisitante: (json['apellidosVisitante'] ?? json['apellidos_visitante'] ?? '').toString(),
       telefonoVisitante: json['telefonoVisitante']?.toString() ?? json['telefono_visitante']?.toString(),
       motivo: (json['motivo'] ?? 'personal').toString(),
-      numAcompanantes: (json['numAcompanantes'] ?? json['num_acompanantes'] ?? 0) is num
-          ? (json['numAcompanantes'] ?? json['num_acompanantes'] as num).toInt()
-          : int.tryParse((json['numAcompanantes'] ?? json['num_acompanantes'])?.toString() ?? '') ?? 0,
+      numAcompanantes: (json['numAcompanantes'] is num)
+          ? (json['numAcompanantes'] as num).toInt()
+          : (json['num_acompanantes'] is num)
+              ? (json['num_acompanantes'] as num).toInt()
+              : int.tryParse((json['numAcompanantes'] ?? json['num_acompanantes'])?.toString() ?? '') ?? 0,
       vehiculoPlacas: json['vehiculoPlacas']?.toString() ?? json['vehiculo_placas']?.toString(),
       notas: json['notas']?.toString(),
       fechaLlegadaEsperada: parseDate(json['fechaLlegadaEsperada'] ?? json['fecha_llegada_esperada']),
       vigenciaHasta: parseDate(json['vigenciaHasta'] ?? json['vigencia_hasta']),
-      estado: (json['estado'] ?? 'programada').toString(),
+      estado: (json['estado'] != null && json['estado'].toString().trim().isNotEmpty)
+          ? json['estado'].toString().trim()
+          : (json['estado_calculado'] != null && json['estado_calculado'].toString().trim().isNotEmpty)
+              ? json['estado_calculado'].toString().trim()
+              : 'programada',
       horaEntrada: parseNullableDate(json['horaEntrada'] ?? json['hora_entrada']),
       horaSalida: parseNullableDate(json['horaSalida'] ?? json['hora_salida']),
       codigo: json['codigo']?.toString(),

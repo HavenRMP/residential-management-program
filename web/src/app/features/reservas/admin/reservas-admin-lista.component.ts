@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { ReservasAdminService } from '../../../core/services/reservas-admin.service';
+import { BloqueoFormComponent } from './bloqueo-form.component';
 import {
   CLASES_ESTADO_RESERVA,
   ETIQUETAS_ESTADO_RESERVA,
@@ -11,7 +12,9 @@ import {
   adminPuedeAprobar,
   adminPuedeCancelar,
   adminPuedeMarcarNoUtilizada,
+  adminPuedeModificarBloqueo,
   adminPuedeRechazar,
+  AreaComun,
   estadoMostrado,
   nombreCompleto,
   reservaEstaConfirmada
@@ -34,7 +37,7 @@ const ESTADOS: { valor: EstadoReserva; etiqueta: string }[] = [
 @Component({
   selector: 'app-reservas-admin-lista',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, BloqueoFormComponent],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="space-y-4">
@@ -106,7 +109,7 @@ const ESTADOS: { valor: EstadoReserva; etiqueta: string }[] = [
       }
 
       @if (!servicio.isLoading() && !servicio.errorMessage()) {
-        <div class="rounded-xl border border-slate-200 bg-white shadow-xs overflow-x-auto">
+        <div class="rounded-xl border border-slate-200 bg-white shadow-xs overflow-x-auto" tabindex="0" role="region" aria-label="Tabla desplazable">
           <table class="w-full text-left min-w-[860px]">
             <thead class="bg-slate-50 border-b border-slate-200">
               <tr>
@@ -161,7 +164,7 @@ const ESTADOS: { valor: EstadoReserva; etiqueta: string }[] = [
                     }
                   </td>
                   <td class="px-4 py-3">
-                    @if (puedeAprobar(r) || puedeRechazar(r) || puedeCancelar(r) || puedeMarcar(r)) {
+                    @if (puedeAprobar(r) || puedeRechazar(r) || puedeCancelar(r) || puedeMarcar(r) || puedeModificarBloqueo(r)) {
                       <div class="flex flex-wrap items-center gap-1.5">
                         @if (puedeAprobar(r)) {
                           <button type="button" (click)="aprobar(r)" [disabled]="resolviendo() !== null"
@@ -184,6 +187,18 @@ const ESTADOS: { valor: EstadoReserva; etiqueta: string }[] = [
                             Cancelar
                           </button>
                         }
+                        @if (puedeModificarBloqueo(r)) {
+                          <button type="button" (click)="editarBloqueo(r)" [disabled]="resolviendo() !== null"
+                            [attr.aria-label]="'Editar el bloqueo de ' + r.areaNombre + ' ' + rango(r)"
+                            class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50">
+                            Editar
+                          </button>
+                          <button type="button" (click)="quitarBloqueo(r)" [disabled]="resolviendo() !== null"
+                            [attr.aria-label]="'Quitar el bloqueo de ' + r.areaNombre + ' ' + rango(r)"
+                            class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer disabled:opacity-50">
+                            {{ resolviendo() === r.id ? 'Quitando...' : 'Quitar' }}
+                          </button>
+                        }
                         @if (puedeMarcar(r)) {
                           <button type="button" (click)="marcarNoUtilizada(r)" [disabled]="resolviendo() !== null"
                             [attr.aria-label]="'Marcar como no utilizada la reserva de ' + r.areaNombre + ' de ' + (r.numeroCasa || '')"
@@ -193,7 +208,7 @@ const ESTADOS: { valor: EstadoReserva; etiqueta: string }[] = [
                         }
                       </div>
                     } @else {
-                      <span class="text-xs text-slate-400">{{ r.tipo === 'BLOQUEO' ? 'Un bloqueo no se puede quitar desde aquí' : 'Sin acciones' }}</span>
+                      <span class="text-xs text-slate-400">Sin acciones</span>
                     }
                   </td>
                 </tr>
@@ -215,6 +230,11 @@ const ESTADOS: { valor: EstadoReserva; etiqueta: string }[] = [
           </div>
         }
       }
+
+      @if (bloqueoEnEdicion(); as bloqueo) {
+        <app-bloqueo-form [area]="areaDe(bloqueo)" [bloqueo]="bloqueo" (cerrado)="bloqueoEnEdicion.set(null)"
+          (actualizado)="alCambiarBloqueo()" (obsoleto)="alCambiarBloqueo()" />
+      }
     </div>
   `
 })
@@ -230,6 +250,8 @@ export class ReservasAdminListaComponent implements OnInit {
 
   /** Id de la reserva que se está resolviendo; bloquea los botones mientras tanto */
   readonly resolviendo = signal<string | null>(null);
+  /** Bloqueo que se está corrigiendo en el formulario */
+  readonly bloqueoEnEdicion = signal<Reserva | null>(null);
   readonly totalPaginas = computed(() => Math.max(1, Math.ceil(this.servicio.total() / this.servicio.PAGE_SIZE)));
 
   /** Los filtros con los que se hizo la última búsqueda: paginar y refrescar no deben usar lo que se está escribiendo */
@@ -319,6 +341,42 @@ export class ReservasAdminListaComponent implements OnInit {
     return adminPuedeMarcarNoUtilizada(r);
   }
 
+  puedeModificarBloqueo(r: Reserva): boolean {
+    return adminPuedeModificarBloqueo(r);
+  }
+
+  /** Área del bloqueo (con su zona horaria); si no está en la lista se usa la zona del navegador */
+  areaDe(r: Reserva): AreaComun {
+    return this.servicio.areas().find(a => a.id === r.areaId) ?? {
+      id: r.areaId, nombre: r.areaNombre, horaApertura: '00:00:00', horaCierre: '23:59:00', zonaHoraria: this.zonaDe(r.areaId), activo: true
+    };
+  }
+
+  editarBloqueo(r: Reserva): void {
+    this.bloqueoEnEdicion.set(r);
+  }
+
+  /** Se guardó o ya no existía: se cierra el formulario y se vuelve a pedir la página */
+  async alCambiarBloqueo(): Promise<void> {
+    this.bloqueoEnEdicion.set(null);
+    await this.recargar();
+  }
+
+  async quitarBloqueo(r: Reserva): Promise<void> {
+    const respuesta = await Swal.fire({
+      title: '¿Quitar este bloqueo?',
+      text: `${r.areaNombre} volverá a estar disponible ${this.rango(r)}.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#EF4444',
+      cancelButtonColor: '#64748B',
+      confirmButtonText: 'Sí, quitar',
+      cancelButtonText: 'Volver'
+    });
+    if (!respuesta.isConfirmed) return;
+    await this.resolver(r.id, () => this.servicio.quitarBloqueo(r.id), 'Bloqueo quitado', 'No se pudo quitar el bloqueo', 'Este bloqueo ya cambió');
+  }
+
   async aprobar(r: Reserva): Promise<void> {
     const respuesta = await Swal.fire({
       title: '¿Aprobar esta reserva?',
@@ -384,7 +442,7 @@ export class ReservasAdminListaComponent implements OnInit {
    * Ejecuta una acción sobre una reserva y vuelve a pedir la página. Si otra persona ya la resolvió (404, 409, 410)
    * se explica con el mensaje del backend en vez de insistir; un 400 se muestra como error a corregir.
    */
-  private async resolver(id: string, accion: () => Promise<void>, exito: string, fallo: string): Promise<void> {
+  private async resolver(id: string, accion: () => Promise<void>, exito: string, fallo: string, yaCambioTitulo = 'Esta reserva ya cambió'): Promise<void> {
     if (this.resolviendo() !== null) return;
     this.resolviendo.set(id);
     try {
@@ -396,7 +454,7 @@ export class ReservasAdminListaComponent implements OnInit {
       const yaCambio = [404, 409, 410].includes(err?.status);
       Swal.fire({
         icon: yaCambio ? 'info' : 'error',
-        title: yaCambio ? 'Esta reserva ya cambió' : fallo,
+        title: yaCambio ? yaCambioTitulo : fallo,
         text: mensajeConValidacion(err, 'No fue posible completar la acción. Intenta de nuevo en unos segundos.'),
         confirmButtonColor: '#111C99'
       });

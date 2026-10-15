@@ -16,8 +16,9 @@ const visita: VisitaVigilancia = {
   apellidosVisitante: 'Pérez',
   motivo: 'personal',
   numAcompanantes: 0,
-  fechaLlegadaEsperada: '2026-10-01T15:00:00Z',
-  vigenciaHasta: '2026-10-02T15:00:00Z',
+  // Fechas relativas a hoy: la caseta solo atiende lo que llega en las próximas 24 horas y sigue vigente
+  fechaLlegadaEsperada: new Date(Date.now() - 10 * 60_000).toISOString(),
+  vigenciaHasta: new Date(Date.now() + 2 * 3_600_000).toISOString(),
   estado: 'programada'
 };
 
@@ -448,6 +449,85 @@ describe('CasetaVisitasComponent', () => {
       expect(servicio.registrarEntrada).not.toHaveBeenCalled();
       expect(component.visitaValidada()).toBeNull();
       expect(component.errorCodigo()).toContain('Juan Pérez: el código es válido, pero la visita no está por atender');
+    });
+
+    describe('visita que se presenta antes de su día', () => {
+      const dentroDeTresDias = () => ({
+        ...visita,
+        estado: 'programada' as const,
+        fechaLlegadaEsperada: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+        vigenciaHasta: new Date(Date.now() + 3 * 86_400_000 + 7_200_000).toISOString()
+      });
+
+      it('no se bloquea: muestra su tarjeta y pregunta si se registra la entrada, con la fecha en que estaba programada', async () => {
+        servicio.validarCodigo.and.callFake(async () => dentroDeTresDias());
+        (Swal.fire as jasmine.Spy).and.resolveTo({ isConfirmed: true } as any);
+        component.codigo = 'ab12cd';
+
+        await component.validarCodigo();
+
+        const pregunta = (Swal.fire as jasmine.Spy).calls.argsFor(0)[0] as any;
+        expect(pregunta.title).toBe('¿Registrar la entrada ahora?');
+        expect(pregunta.text).toContain('Juan Pérez estaba programado para el');
+        expect(pregunta.text).toContain('Aún faltan más de 24 horas.');
+        expect(component.errorCodigo()).toBeNull();
+        expect(servicio.registrarEntrada).toHaveBeenCalledTimes(1);
+      });
+
+      it('si el guardia dice que no, no se registra la entrada y la tarjeta queda para decidir después', async () => {
+        servicio.validarCodigo.and.callFake(async () => dentroDeTresDias());
+        (Swal.fire as jasmine.Spy).and.resolveTo({ isConfirmed: false } as any);
+        component.codigo = 'ab12cd';
+
+        await component.validarCodigo();
+
+        expect(servicio.registrarEntrada).not.toHaveBeenCalled();
+        expect(component.visitaValidada()?.id).toBe('v-1');
+        expect(component.errorCodigo()).toBeNull();
+      });
+
+      it('una visita que llega dentro de las 24 horas entra sin preguntar', async () => {
+        servicio.validarCodigo.and.callFake(async () => visita);
+        component.codigo = 'ab12cd';
+
+        await component.validarCodigo();
+
+        expect(servicio.registrarEntrada).toHaveBeenCalledTimes(1);
+        const preguntas = (Swal.fire as jasmine.Spy).calls.allArgs().filter(a => (a[0] as any).title === '¿Registrar la entrada ahora?');
+        expect(preguntas.length).toBe(0);
+      });
+    });
+
+    it('una visita programada cuya vigencia ya terminó no se deja entrar', async () => {
+      servicio.validarCodigo.and.callFake(async () => ({ ...visita, estado: 'programada', fechaLlegadaEsperada: new Date(Date.now() - 6 * 3_600_000).toISOString(), vigenciaHasta: new Date(Date.now() - 4 * 3_600_000).toISOString() }));
+      component.codigo = 'ab12cd';
+
+      await component.validarCodigo();
+
+      expect(servicio.registrarEntrada).not.toHaveBeenCalled();
+      expect(component.errorCodigo()).toContain('su vigencia ya terminó');
+    });
+
+    it('con el estado real, una visita finalizada, cancelada o expirada se explica con ese estado', async () => {
+      const casos: [string, string][] = [['finalizada', 'la visita ya terminó.'], ['cancelada', 'la visita fue cancelada.'], ['expirada', 'la visita expiró.']];
+      for (const [estado, texto] of casos) {
+        servicio.validarCodigo.and.callFake(async () => ({ ...visita, estado }));
+        component.codigo = 'ab12cd';
+
+        await component.validarCodigo();
+
+        expect(component.errorCodigo()).toBe(`Juan Pérez: el código es válido, pero ${texto}`);
+      }
+      expect(servicio.registrarEntrada).not.toHaveBeenCalled();
+    });
+
+    it('con la vigencia vacía del backend, una visita que llega ahora sí se deja entrar', async () => {
+      servicio.validarCodigo.and.callFake(async () => ({ ...visita, vigenciaHasta: '0001-01-01T00:00:00+00:00' }));
+      component.codigo = 'ab12cd';
+
+      await component.validarCodigo();
+
+      expect(servicio.registrarEntrada).toHaveBeenCalledTimes(1);
     });
 
     it('con un código inválido muestra el error y no registra entrada', async () => {

@@ -4,6 +4,7 @@ import { HttpParams } from '@angular/common/http';
 import { ApiService } from './api.service';
 import { extractPagedItems } from '../models/pagination.model';
 import { ordenarVisitasProximasPrimero, VisitaVigilancia } from '../models/visita.model';
+import { mensajeAmigable } from '../utils/api-errors.util';
 
 const POR_PAGINA = 50;
 /** El backend atiende en "próximas" lo que llega dentro de esta ventana; aquí solo va lo posterior */
@@ -52,7 +53,7 @@ export class VisitasProgramadasService {
     } catch (err: any) {
       if (peticion !== this.ultimaPeticion) return;
       console.error('[VisitasProgramadasService] Error al cargar las visitas programadas:', err);
-      this.errorMessage.set(err?.error?.error || 'No se pudieron cargar las visitas programadas.');
+      this.errorMessage.set(mensajeAmigable(err, 'No se pudieron cargar las visitas programadas.'));
     } finally {
       if (peticion === this.ultimaPeticion) this.isLoading.set(false);
     }

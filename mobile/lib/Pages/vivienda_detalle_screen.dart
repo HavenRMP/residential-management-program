@@ -6,6 +6,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../Services/app_controller.dart';
 import '../Services/viviendas_service.dart';
+import '../Services/subusuarios_service.dart';
+import '../Models/subusuario.dart';
 import '../Utils/error_handler.dart';
 import '../Utils/codigo_helper.dart';
 import '../Widgets/qr_dialog.dart';
@@ -32,6 +34,9 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
   bool _isGeneratingCode = false;
   Map<String, dynamic>? _habitanteAsignado;
   bool _isActionHabitanteLoading = false;
+  List<SubusuarioItem> _subusuarios = [];
+  bool _isLoadingSubusuarios = false;
+  bool _errorSubusuarios = false;
 
   @override
   void initState() {
@@ -43,6 +48,50 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
       _habitanteAsignado = Map<String, dynamic>.from(_vivienda['habitante']);
     }
     _loadResidenteIfNeeded();
+    _loadSubusuarios();
+  }
+
+  Future<void> _loadSubusuarios() async {
+    final subsRaw = _vivienda['subusuarios'];
+    if (subsRaw is List && subsRaw.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          _subusuarios = subsRaw
+              .whereType<Map>()
+              .map((s) => SubusuarioItem.fromJson(Map<String, dynamic>.from(s)))
+              .toList();
+        });
+      }
+      return;
+    }
+
+    final vId = _vivienda['id'];
+    if (vId is num && vId > 0) {
+      setState(() {
+        _isLoadingSubusuarios = true;
+        _errorSubusuarios = false;
+      });
+      try {
+        final list = await SubusuariosService(widget.controller).getSubusuarios(vId.toInt());
+        if (mounted) {
+          setState(() {
+            _subusuarios = list;
+          });
+        }
+      } catch (_) {
+        if (mounted) {
+          setState(() {
+            _errorSubusuarios = true;
+          });
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoadingSubusuarios = false;
+          });
+        }
+      }
+    }
   }
 
   Future<void> _loadResidenteIfNeeded() async {
@@ -637,27 +686,50 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
             const SizedBox(height: 16),
             const Divider(height: 1, color: Color(0xFFF1F5F9)),
             const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerRight,
-              child: OutlinedButton.icon(
-                onPressed: _desvincularResidente,
-                icon: const Icon(Icons.person_remove_outlined, size: 16),
-                label: const Text(
-                  'Desvincular Residente',
-                  style: TextStyle(fontSize: 13),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFFDC2626),
-                  side: const BorderSide(color: Color(0xFFFECACA)),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.end,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => _mostrarFichaResidenteModal(_habitanteAsignado!),
+                  icon: const Icon(Icons.badge_outlined, size: 16),
+                  label: const Text(
+                    'Ver Ficha',
+                    style: TextStyle(fontSize: 13),
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF111C99),
+                    side: const BorderSide(color: Color(0xFFC7D2FE)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                 ),
-              ),
+                OutlinedButton.icon(
+                  onPressed: _desvincularResidente,
+                  icon: const Icon(Icons.person_remove_outlined, size: 16),
+                  label: const Text(
+                    'Desvincular Residente',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFDC2626),
+                    side: const BorderSide(color: Color(0xFFFECACA)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -810,6 +882,401 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  void _mostrarFichaResidenteModal(Map<String, dynamic> r) {
+    final n = (r['nombre'] ?? '').toString();
+    final a = (r['apellidos'] ?? '').toString();
+    final email = (r['email'] ?? '—').toString();
+    final tel = (r['telefono'] ?? '—').toString();
+    final initial = '${n.isNotEmpty ? n[0] : ''}${a.isNotEmpty ? a[0] : ''}'.toUpperCase();
+    final numCasa = (_vivienda['numeroCasa'] ?? 'S/N').toString();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+            maxWidth: 520,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF111C99),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            initial.isEmpty ? 'R' : initial,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Text(
+                          'Ficha del Residente',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Color(0xFF94A3B8)),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      CircleAvatar(
+                        radius: 40,
+                        backgroundColor: const Color(0xFF111C99),
+                        child: Text(
+                          initial.isEmpty ? 'R' : initial,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        '$n $a'.trim().isNotEmpty ? '$n $a'.trim() : 'Sin Nombre',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F172A),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFFA7F3D0)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.circle, size: 6, color: Color(0xFF10B981)),
+                            SizedBox(width: 6),
+                            Text(
+                              'Titular Asignado',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF047857),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Column(
+                          children: [
+                            _buildFichaRow(
+                              label: 'CORREO ELECTRÓNICO',
+                              value: email,
+                              icon: Icons.email_outlined,
+                            ),
+                            const Divider(height: 24, color: Color(0xFFE2E8F0)),
+                            _buildFichaRow(
+                              label: 'TELÉFONO',
+                              value: tel,
+                              icon: Icons.phone_outlined,
+                            ),
+                            const Divider(height: 24, color: Color(0xFFE2E8F0)),
+                            _buildFichaRow(
+                              label: 'VIVIENDA ASIGNADA',
+                              value: 'Casa #$numCasa',
+                              icon: Icons.home_outlined,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      FilledButton.icon(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                        label: const Text('Volver a la Vivienda'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF111C99),
+                          minimumSize: const Size.fromHeight(46),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  static Widget _buildFichaRow({
+    required String label,
+    required String value,
+    required IconData icon,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Icon(icon, size: 20, color: const Color(0xFF111C99)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF94A3B8),
+                  letterSpacing: 0.8,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSubusuariosSection() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x05000000),
+            blurRadius: 10,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Sub-usuarios',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              if (!_isLoadingSubusuarios && !_errorSubusuarios)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Text(
+                    '${_subusuarios.length} de ${SubusuariosService.maxSubusuarios}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF475569),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (_isLoadingSubusuarios)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF111C99)),
+                ),
+              ),
+            )
+          else if (_errorSubusuarios)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: const Text(
+                'No se pudieron cargar los sub-usuarios de esta vivienda.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF92400E)),
+              ),
+            )
+          else if (_subusuarios.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Text(
+                'Esta vivienda no tiene sub-usuarios registrados.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _subusuarios.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 10),
+              itemBuilder: (context, index) {
+                final sub = _subusuarios[index];
+                final isActivo = sub.isActivo;
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isActivo ? const Color(0xFFF8FAFC) : const Color(0xFFFFFBEB),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isActivo ? const Color(0xFFE2E8F0) : const Color(0xFFFDE68A),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: isActivo ? const Color(0xFF111C99) : const Color(0xFFD97706),
+                        child: Text(
+                          sub.nombre.isNotEmpty ? sub.nombre[0].toUpperCase() : 'S',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              sub.nombre,
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              sub.email.isNotEmpty ? sub.email : (sub.telefono.isNotEmpty ? sub.telefono : 'Sin datos de contacto'),
+                              style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                            ),
+                            child: Text(
+                              sub.parentesco,
+                              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isActivo ? const Color(0xFFECFDF5) : const Color(0xFFFEF3C7),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: isActivo ? const Color(0xFFA7F3D0) : const Color(0xFFFDE68A),
+                              ),
+                            ),
+                            child: Text(
+                              isActivo ? 'Activo' : 'Invitación pendiente',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: isActivo ? const Color(0xFF047857) : const Color(0xFFB45309),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
         ],
       ),
     );
@@ -1213,6 +1680,10 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
 
                       // Sección de Habitante Asignado o Estado Vacante
                       _buildHabitanteSection(),
+                      const SizedBox(height: 20),
+
+                      // Sección de Sub-usuarios
+                      _buildSubusuariosSection(),
                       const SizedBox(height: 24),
 
                       // Botones de acción inferiores
