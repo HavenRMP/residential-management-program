@@ -1,5 +1,6 @@
 import java.util.Properties
 import java.io.FileInputStream
+import java.io.File
 
 plugins {
     id("com.android.application")
@@ -20,7 +21,18 @@ if (keyPropertiesFile.exists()) {
 android {
     namespace = "com.haven.uaq"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    
+    val sdkHome = System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT") ?: "/usr/local/lib/android/sdk"
+    val ndkParent = File(sdkHome, "ndk")
+    val preinstalledNdk = if (ndkParent.exists()) {
+        ndkParent.listFiles()
+            ?.filter { it.isDirectory && File(it, "source.properties").exists() }
+            ?.map { it.name }
+            ?.sortedDescending()
+            ?.firstOrNull()
+    } else null
+
+    ndkVersion = preinstalledNdk ?: flutter.ndkVersion
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
