@@ -56,19 +56,25 @@
   }
 }
 
-/* En teléfonos los controles tocables miden al menos 44 px (los de solo ícono también de ancho) */
+/* En teléfonos los controles tocables miden al menos 44 x 44 px */
 @media (max-width: 639px) {
   button,
   select,
   [role="tab"],
   nav a,
+  a[class*="rounded"],
   input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) {
     min-height: 44px;
+  }
+  button,
+  [role="tab"],
+  nav a,
+  a[class*="rounded"] {
+    min-width: 44px;
   }
   button:has(> svg:only-child) {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 44px;
   }
 }

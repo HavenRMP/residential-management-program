@@ -189,7 +189,7 @@ import { claseBadgePrioridad, etiquetaPrioridad, tiempoRestanteAviso } from '../
                     type="button"
                     (click)="toggleFormularioVinculacion()"
                     [attr.aria-expanded]="mostrarFormularioVinculacion()"
-                    class="min-h-[32px] sm:min-h-[28px] h-8 sm:h-7 px-3 sm:px-2.5 inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
+                    class="min-h-[44px] sm:min-h-[28px] h-8 sm:h-7 px-3 sm:px-2.5 inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
                     aria-label="Vincular otra vivienda"
                     >
                     <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
