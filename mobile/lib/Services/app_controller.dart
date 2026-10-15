@@ -325,6 +325,7 @@ class AppController extends ChangeNotifier {
       return;
     }
     _pingShown = true;
+    _despertarServiciosSecundarios();
 
     try {
       final response = await httpClient
@@ -367,6 +368,28 @@ class AppController extends ChangeNotifier {
       }
     } catch (_) {
       // Conexión fallida manejada silenciosamente
+    }
+  }
+
+  /// Despierta en segundo plano los demás microservicios (Viviendas, Condominios, Avisos, Visitas, Reservas)
+  /// para amortiguar el arranque en frío (cold start) de Render, de forma análoga a la web.
+  void _despertarServiciosSecundarios() {
+    final servicios = [
+      dotenv.env['API_BASE_URL_VIVIENDAS'] ?? 'https://viviendas-api.onrender.com',
+      dotenv.env['API_BASE_URL_CONDOMINIOS'] ?? 'https://condominios-api.onrender.com',
+      dotenv.env['API_BASE_URL_AVISOS'] ?? 'https://avisos-api.onrender.com',
+      dotenv.env['API_BASE_URL_VISITAS'] ?? 'https://visitas-api-gtf6.onrender.com',
+      dotenv.env['API_BASE_URL_RESERVAS'] ?? 'https://reservas-api-hmos.onrender.com',
+    ];
+
+    for (final base in servicios) {
+      if (base.trim().isEmpty) continue;
+      final trimmed = base.trim().endsWith('/') ? base.trim().substring(0, base.trim().length - 1) : base.trim();
+      final url = Uri.parse('$trimmed/swagger/v1/swagger.json');
+      httpClient
+          .get(url)
+          .timeout(const Duration(seconds: 90))
+          .then((_) {}, onError: (_) {});
     }
   }
 
