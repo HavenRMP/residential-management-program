@@ -183,4 +183,29 @@ describe('VisitasVigilanciaService', () => {
     expect(service.items().map(v => v.id)).toEqual(['v-2']);
     expect(service.isLoading()).toBeFalse();
   });
+
+  describe('modo silencioso (actualización automática)', () => {
+    it('actualiza la lista sin encender "cargando"', async () => {
+      mockApiService.get.and.returnValue(of({ items: [visitaBase], totalCount: 1, page: 1 }));
+
+      const promesa = service.cargarProximas('', 1, true);
+
+      expect(service.isLoading()).toBeFalse();
+      await promesa;
+      expect(service.items().length).toBe(1);
+    });
+
+    it('si falla, deja la lista como estaba y no muestra error', async () => {
+      spyOn(console, 'error');
+      mockApiService.get.and.returnValue(of({ items: [visitaBase], totalCount: 1, page: 1 }));
+      await service.cargarProximas();
+      mockApiService.get.and.returnValue(throwError(() => ({ status: 500, error: { error: 'Fallo del servidor' } })));
+
+      await service.cargarProximas('', 1, true);
+
+      expect(service.items().length).toBe(1);
+      expect(service.errorMessage()).toBeNull();
+      expect(service.isLoading()).toBeFalse();
+    });
+  });
 });

@@ -80,4 +80,29 @@ describe('VisitasService', () => {
     expect(service.items()[0].nombreVisitante).toBe('Carlos');
     expect(service.items()[0].codigo).toBe('ABC123');
   });
+
+  describe('modo silencioso (actualización automática)', () => {
+    it('actualiza la lista sin encender "cargando"', async () => {
+      mockApiService.get.and.returnValue(of({ items: [visitaBase], totalCount: 1, page: 1 }));
+
+      const promesa = service.cargar(null, 1, true);
+
+      expect(service.isLoading()).toBeFalse();
+      await promesa;
+      expect(service.items().length).toBe(1);
+    });
+
+    it('si falla, deja la lista como estaba y no muestra error', async () => {
+      spyOn(console, 'error');
+      mockApiService.get.and.returnValue(of({ items: [visitaBase], totalCount: 1, page: 1 }));
+      await service.cargar();
+      mockApiService.get.and.returnValue(throwError(() => ({ status: 500, error: { error: 'Fallo del servidor' } })));
+
+      await service.cargar(null, 1, true);
+
+      expect(service.items().length).toBe(1);
+      expect(service.errorMessage()).toBeNull();
+      expect(service.isLoading()).toBeFalse();
+    });
+  });
 });
