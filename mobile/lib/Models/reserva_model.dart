@@ -158,6 +158,9 @@ class ReservaModel {
 
   bool get esBloqueo => (tipo ?? '').toUpperCase() == 'BLOQUEO';
 
+  /// Indica si es un bloqueo de área que todavía no ha terminado (editable o eliminable)
+  bool get esBloqueoActivo => esBloqueo && DateTime.now().isBefore(fin);
+
   bool get esPendienteTitular => !esBloqueo && estado == 'PENDIENTE_TITULAR';
   bool get esPendienteAdmin => !esBloqueo && estado == 'PENDIENTE_ADMIN';
   bool get esAprobada => !esBloqueo && estado == 'APROBADA';
