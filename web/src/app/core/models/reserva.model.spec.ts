@@ -3,6 +3,7 @@ import {
   adminPuedeAprobar,
   adminPuedeCancelar,
   adminPuedeMarcarNoUtilizada,
+  adminPuedeModificarBloqueo,
   adminPuedeRechazar,
   ETIQUETAS_ESTADO_RESERVA,
   Reserva,
@@ -176,6 +177,16 @@ describe('reserva.model', () => {
       expect(adminPuedeCancelar(reserva('CONFIRMADA', 48), ahora)).toBeTrue();
       expect(adminPuedeCancelar(reserva('APROBADA', -1), ahora)).toBeFalse();
       expect(adminPuedeCancelar(reserva('PENDIENTE_ADMIN', 48), ahora)).toBeFalse();
+    });
+
+    it('un bloqueo que aún no termina se puede editar o quitar; uno que ya pasó, uno ya quitado o una reserva, no', () => {
+      const bloqueo = (estado: string, horasAlFin: number) => ({ tipo: 'BLOQUEO' as const, estado: estado as any, fin: new Date(ahora + horasAlFin * 3_600_000).toISOString() });
+
+      expect(adminPuedeModificarBloqueo(bloqueo('APROBADA', 48), ahora)).toBeTrue();
+      expect(adminPuedeModificarBloqueo(bloqueo('APROBADA', 1), ahora)).toBeTrue();
+      expect(adminPuedeModificarBloqueo(bloqueo('APROBADA', -1), ahora)).toBeFalse();
+      expect(adminPuedeModificarBloqueo(bloqueo('CANCELADA', 48), ahora)).toBeFalse();
+      expect(adminPuedeModificarBloqueo({ tipo: 'RESERVA', estado: 'APROBADA', fin: new Date(ahora + 3_600_000).toISOString() }, ahora)).toBeFalse();
     });
 
     it('marca como no utilizada una aprobada ya terminada', () => {
