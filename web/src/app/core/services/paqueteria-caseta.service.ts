@@ -54,13 +54,13 @@ export class PaqueteriaCasetaService {
   readonly historialOrdenado = computed(() => ordenarPaquetesRecientesPrimero(this.historial.items()));
 
   /** Avisos de los residentes que todavía no llegan (GET /api/paqueteria/esperados) */
-  cargarEsperados(): Promise<void> {
-    return this.cargarLista(this.esperados, '/api/paqueteria/esperados', new HttpParams(), 'No se pudieron cargar los paquetes esperados.');
+  cargarEsperados(silencioso = false): Promise<void> {
+    return this.cargarLista(this.esperados, '/api/paqueteria/esperados', new HttpParams(), 'No se pudieron cargar los paquetes esperados.', silencioso);
   }
 
   /** Paquetes ya recibidos que nadie ha recogido (GET /api/paqueteria/inventario) */
-  cargarEnCaseta(): Promise<void> {
-    return this.cargarLista(this.enCaseta, '/api/paqueteria/inventario', new HttpParams(), 'No se pudieron cargar los paquetes que están en caseta.');
+  cargarEnCaseta(silencioso = false): Promise<void> {
+    return this.cargarLista(this.enCaseta, '/api/paqueteria/inventario', new HttpParams(), 'No se pudieron cargar los paquetes que están en caseta.', silencioso);
   }
 
   /** Paquetes de un estado (y periodo) ya resueltos (GET /api/paqueteria/historico) */
@@ -97,11 +97,16 @@ export class PaqueteriaCasetaService {
     this.enCaseta.items.update(lista => lista.filter(p => p.id !== id));
   }
 
-  /** Recorre todas las páginas de una consulta y reemplaza la lista por lo recibido, sin repetir paquetes */
-  private async cargarLista(lista: ListaPaquetes, ruta: string, base: HttpParams, mensajeError: string): Promise<void> {
+  /**
+   * Recorre todas las páginas de una consulta y reemplaza la lista por lo recibido, sin repetir paquetes.
+   * En modo `silencioso` (actualización automática) no muestra "cargando" y, si falla, deja la lista como estaba.
+   */
+  private async cargarLista(lista: ListaPaquetes, ruta: string, base: HttpParams, mensajeError: string, silencioso = false): Promise<void> {
     const peticion = ++lista.ultimaPeticion;
-    lista.cargando.set(true);
-    lista.error.set(null);
+    if (!silencioso) {
+      lista.cargando.set(true);
+      lista.error.set(null);
+    }
     try {
       const porId = new Map<string, Paquete>();
       for (let pagina = 1; pagina <= MAX_PAGINAS; pagina++) {
@@ -117,7 +122,7 @@ export class PaqueteriaCasetaService {
     } catch (err: any) {
       if (peticion !== lista.ultimaPeticion) return;
       console.error(`[PaqueteriaCasetaService] Error al consultar ${ruta}:`, err);
-      lista.error.set(mensajeAmigable(err, mensajeError));
+      if (!silencioso) lista.error.set(mensajeAmigable(err, mensajeError));
     } finally {
       if (peticion === lista.ultimaPeticion) lista.cargando.set(false);
     }
