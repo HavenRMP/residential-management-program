@@ -451,16 +451,51 @@ describe('CasetaVisitasComponent', () => {
       expect(component.errorCodigo()).toContain('Juan Pérez: el código es válido, pero la visita no está por atender');
     });
 
-    it('una visita programada para dentro de varios días NO se deja entrar aunque el backend la acepte: dice cuándo llega', async () => {
-      const dentroDeTresDias = new Date(Date.now() + 3 * 86_400_000).toISOString();
-      servicio.validarCodigo.and.callFake(async () => ({ ...visita, estado: 'programada', fechaLlegadaEsperada: dentroDeTresDias, vigenciaHasta: new Date(Date.now() + 3 * 86_400_000 + 7_200_000).toISOString() }));
-      component.codigo = 'ab12cd';
+    describe('visita que se presenta antes de su día', () => {
+      const dentroDeTresDias = () => ({
+        ...visita,
+        estado: 'programada' as const,
+        fechaLlegadaEsperada: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+        vigenciaHasta: new Date(Date.now() + 3 * 86_400_000 + 7_200_000).toISOString()
+      });
 
-      await component.validarCodigo();
+      it('no se bloquea: muestra su tarjeta y pregunta si se registra la entrada, con la fecha en que estaba programada', async () => {
+        servicio.validarCodigo.and.callFake(async () => dentroDeTresDias());
+        (Swal.fire as jasmine.Spy).and.resolveTo({ isConfirmed: true } as any);
+        component.codigo = 'ab12cd';
 
-      expect(servicio.registrarEntrada).not.toHaveBeenCalled();
-      expect(component.visitaValidada()).toBeNull();
-      expect(component.errorCodigo()).toMatch(/^Juan Pérez: el código es válido, pero llega el .+, faltan más de 24 horas\.$/);
+        await component.validarCodigo();
+
+        const pregunta = (Swal.fire as jasmine.Spy).calls.argsFor(0)[0] as any;
+        expect(pregunta.title).toBe('¿Registrar la entrada ahora?');
+        expect(pregunta.text).toContain('Juan Pérez estaba programado para el');
+        expect(pregunta.text).toContain('Aún faltan más de 24 horas.');
+        expect(component.errorCodigo()).toBeNull();
+        expect(servicio.registrarEntrada).toHaveBeenCalledTimes(1);
+      });
+
+      it('si el guardia dice que no, no se registra la entrada y la tarjeta queda para decidir después', async () => {
+        servicio.validarCodigo.and.callFake(async () => dentroDeTresDias());
+        (Swal.fire as jasmine.Spy).and.resolveTo({ isConfirmed: false } as any);
+        component.codigo = 'ab12cd';
+
+        await component.validarCodigo();
+
+        expect(servicio.registrarEntrada).not.toHaveBeenCalled();
+        expect(component.visitaValidada()?.id).toBe('v-1');
+        expect(component.errorCodigo()).toBeNull();
+      });
+
+      it('una visita que llega dentro de las 24 horas entra sin preguntar', async () => {
+        servicio.validarCodigo.and.callFake(async () => visita);
+        component.codigo = 'ab12cd';
+
+        await component.validarCodigo();
+
+        expect(servicio.registrarEntrada).toHaveBeenCalledTimes(1);
+        const preguntas = (Swal.fire as jasmine.Spy).calls.allArgs().filter(a => (a[0] as any).title === '¿Registrar la entrada ahora?');
+        expect(preguntas.length).toBe(0);
+      });
     });
 
     it('una visita programada cuya vigencia ya terminó no se deja entrar', async () => {
