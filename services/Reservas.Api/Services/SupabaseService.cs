@@ -481,8 +481,10 @@ public class SupabaseService : ISupabaseService
         if (fin.HasValue) payload["p_fin"] = fin.Value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
         if (!string.IsNullOrWhiteSpace(motivo)) payload["p_motivo"] = motivo.Trim();
 
-        return await SupabaseRpcClient.PostRpcAsync<BloqueoResultadoDto>(
+        var list = await SupabaseRpcClient.PostRpcAsync<List<BloqueoResultadoDto>>(
             _httpClient, _supabaseUrl, _serviceRoleKey, "actualizar_bloqueo_area", payload, actorId);
+
+        return list?.FirstOrDefault();
     }
 
     public async Task<bool> EliminarBloqueoAsync(Guid actorId, Guid bloqueoId)
