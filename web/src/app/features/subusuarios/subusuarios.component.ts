@@ -49,11 +49,12 @@ const PARENTESCOS = ['Familiar', 'Empleado doméstico', 'Inquilino', 'Otro'];
       <main class="w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
     
         <!-- Breadcrumb -->
-        <nav class="flex items-center gap-2 text-xs text-slate-600 font-medium">
+        <nav aria-label="Ruta de navegación" class="flex items-center gap-2 text-xs text-slate-600 font-medium">
           <a routerLink="/dashboard/residente" class="hover:text-slate-900 transition-colors">Portal</a>
           <span>/</span>
           <span class="text-slate-900">Sub-usuarios</span>
         </nav>
+        <h1 class="sr-only">Sub-usuarios</h1>
     
         <!-- Invitaciones recibidas: visible sin importar si el usuario tiene vivienda propia -->
         @if (subusuariosService.isLoadingInvitaciones() || subusuariosService.invitacionesRecibidas().length > 0) {

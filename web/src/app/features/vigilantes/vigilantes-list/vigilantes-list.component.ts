@@ -16,7 +16,7 @@ import { mensajeAmigable } from '../../../core/utils/api-errors.util';
     <div class="p-4 sm:p-6 w-full space-y-4">
     
       <!-- Breadcrumb -->
-      <nav class="flex items-center gap-2 text-xs text-slate-600 font-semibold">
+      <nav aria-label="Ruta de navegación" class="flex items-center gap-2 text-xs text-slate-600 font-semibold">
         <a routerLink="/dashboard/admin" class="hover:text-slate-900 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99] rounded">Panel</a>
         <span>/</span>
         <span class="text-slate-900">Vigilantes</span>
@@ -162,7 +162,7 @@ import { mensajeAmigable } from '../../../core/utils/api-errors.util';
         >
         <div class="bg-white rounded-lg max-w-md w-full p-5 shadow-lg border border-slate-200">
           <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-            <h3 class="text-sm font-semibold text-slate-900">Nuevo vigilante</h3>
+            <h2 class="text-sm font-semibold text-slate-900">Nuevo vigilante</h2>
             <button
               type="button"
               (click)="cerrarModal()"
