@@ -20,6 +20,7 @@ import {
   rangoFechasInvalido,
   rangoFechasIso,
   VisitaVigilancia,
+  visitaLlegaAntesDeTiempo,
   visitaPorAtender
 } from '../../../core/models/visita.model';
 import { mensajeAmigable } from '../../../core/utils/api-errors.util';
@@ -779,11 +780,10 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
     let validada: VisitaVigilancia | null = null;
     try {
       validada = await this.visitasService.validarCodigo(codigo);
-      if (visitaPorAtender(validada)) {
+      if (visitaPorAtender(validada) || visitaLlegaAntesDeTiempo(validada)) {
         this.visitaValidada.set(validada);
       } else {
-        // Código válido pero la visita no se atiende ahora (llega en más de 24 horas, ya terminó, se canceló o venció).
-        // El backend dejaría registrar su entrada de todos modos, por eso la web no la ofrece.
+        // Código válido pero la visita ya no se puede atender (terminó, se canceló o venció)
         this.errorCodigo.set(`${validada.nombreVisitante} ${validada.apellidosVisitante}: el código es válido, pero ${motivoVisitaNoAtendible(validada)}`);
         validada = null;
       }
@@ -803,6 +803,20 @@ export class CasetaVisitasComponent implements OnInit, OnDestroy {
   }
 
   async registrarEntrada(v: VisitaVigilancia, vehiculoPlacas?: string): Promise<void> {
+    // Un visitante puede llegar antes de su día: no se le impide la entrada, pero el guardia lo confirma
+    if (visitaLlegaAntesDeTiempo(v)) {
+      const respuesta = await Swal.fire({
+        title: '¿Registrar la entrada ahora?',
+        text: `${v.nombreVisitante} ${v.apellidosVisitante} estaba programado para el ${formatearFechaVisita(v.fechaLlegadaEsperada)}. Aún faltan más de 24 horas.`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#059669',
+        cancelButtonColor: '#64748B',
+        confirmButtonText: 'Sí, registrar entrada',
+        cancelButtonText: 'No'
+      });
+      if (!respuesta.isConfirmed) return;
+    }
     await this.ejecutarAccion(v, () => this.visitasService.registrarEntrada(v.id, vehiculoPlacas), 'Entrada registrada', 'No se pudo registrar la entrada');
   }
 
