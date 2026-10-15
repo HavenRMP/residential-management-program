@@ -21,7 +21,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
     <div class="p-4 sm:p-5 lg:p-6 w-full space-y-4 selection:bg-[#111C99] selection:text-white">
     
       <!-- Breadcrumb & Top Navigation -->
-      <nav class="flex items-center gap-2 text-xs text-slate-500 font-medium">
+      <nav class="flex items-center gap-2 text-xs text-slate-600 font-medium">
         <a routerLink="/dashboard/admin" class="hover:text-slate-900 transition-colors">Panel Principal</a>
         <span>/</span>
         <span class="text-slate-900">Directorio de Residentes</span>
@@ -112,7 +112,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
           </button>
         </div>
     
-        <div class="text-xs text-slate-400 font-medium">
+        <div class="text-xs text-slate-600 font-medium">
           {{ tabActiva() === 'todos' ? 'Padrón general del condominio' : 'Subpágina: Residentes pendientes de vincular' }}
         </div>
       </div>
@@ -276,7 +276,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
                             <div class="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
                               {{ r.nombre }} {{ r.apellidos }}
                             </div>
-                            <div class="text-xs text-slate-400">
+                            <div class="text-xs text-slate-600">
                               Residente Haven
                             </div>
                           </div>
@@ -359,7 +359,7 @@ import { formatearNumeroCasa } from '../../../core/utils/vivienda.util';
                   Mostrando <strong class="text-slate-800 font-semibold">{{ indiceInicio() }}</strong> a <strong class="text-slate-800 font-semibold">{{ indiceFin() }}</strong> de <strong class="text-slate-800 font-semibold">{{ totalFiltrados() }}</strong> residentes
                 </span>
                 <div class="flex items-center gap-1.5 pl-3 border-l border-slate-200">
-                  <span class="text-slate-400">Por página:</span>
+                  <span class="text-slate-600 font-medium">Por página:</span>
                   <select
                     [ngModel]="elementosPorPagina()"
                     (ngModelChange)="cambiarElementosPorPagina($event)"

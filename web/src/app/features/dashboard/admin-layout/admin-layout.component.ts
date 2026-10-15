@@ -83,7 +83,7 @@ import { NotificacionesPopoverComponent } from '../../../core/components/notific
                       Admin
                     </span>
                   </div>
-                  <span class="text-[10px] text-slate-400 font-medium mt-0.5 block tracking-normal">Gestión Residencial</span>
+                  <span class="text-[10px] text-slate-500 font-medium mt-0.5 block tracking-normal">Gestión Residencial</span>
                 </div>
               }
             </div>

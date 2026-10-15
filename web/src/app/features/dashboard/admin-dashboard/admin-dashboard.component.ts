@@ -417,7 +417,7 @@ export class AdminDashboardComponent implements OnInit {
 
   colorTextoOcupacion(): string {
     const p = this.porcentajeOcupacion();
-    if (p >= 80) return 'text-emerald-600';
+    if (p >= 80) return 'text-emerald-700';
     if (p >= 50) return 'text-blue-600';
     if (p >= 25) return 'text-amber-600';
     return 'text-rose-600';
@@ -447,7 +447,7 @@ export class AdminDashboardComponent implements OnInit {
               <div class="p-3 bg-slate-100 rounded-md border border-slate-200 inline-block tracking-widest font-mono text-2xl font-bold text-slate-900">
                 ${res.codigo}
               </div>
-              <p class="text-[11px] text-slate-400">Vigencia: 24 horas.</p>
+              <p class="text-[11px] text-slate-600">Vigencia: 24 horas.</p>
             </div>
           `,
           icon: 'success',
