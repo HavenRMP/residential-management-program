@@ -40,7 +40,6 @@ class _ProgramarVisitaModalState extends State<ProgramarVisitaModal> {
     {'value': 'familiar', 'label': 'Familiar', 'icon': '👨‍👩‍👧‍👦'},
     {'value': 'proveedor', 'label': 'Proveedor', 'icon': '🛠️'},
     {'value': 'servicio', 'label': 'Servicio', 'icon': '🧹'},
-    {'value': 'paqueteria', 'label': 'Paquetería', 'icon': '📦'},
   ];
 
   @override
@@ -56,6 +55,9 @@ class _ProgramarVisitaModalState extends State<ProgramarVisitaModal> {
       _notasController.text = edit.notas ?? '';
       _numAcompanantes = edit.numAcompanantes;
       _motivo = edit.motivo.isNotEmpty ? edit.motivo : 'personal';
+      if (_motivo.toLowerCase() == 'paqueteria') {
+        _motivo = 'servicio';
+      }
       _fechaLlegadaEsperada = edit.fechaLlegadaEsperada;
       final diff = edit.vigenciaHasta.difference(edit.fechaLlegadaEsperada).inHours;
       _horasVigencia = diff > 0 ? diff : 24;
