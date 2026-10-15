@@ -212,6 +212,84 @@ void main() {
       expect(res['success'], isTrue);
       expect(res['totalReservasAfectadas'], 2);
     });
+
+    test('obtenerBloqueo exitoso retorna BloqueoModel', () async {
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/api/admin/bloqueos/bloq-1' && request.method == 'GET') {
+          final data = {
+            'bloqueoId': 'bloq-1',
+            'areaId': 'area-1',
+            'areaNombre': 'Piscina',
+            'inicio': '2026-11-20T08:00:00Z',
+            'fin': '2026-11-20T18:00:00Z',
+            'motivo': 'Limpieza',
+            'estado': 'APROBADA',
+          };
+          return http.Response(jsonEncode(data), 200, headers: {'content-type': 'application/json'});
+        }
+        return http.Response('{"error":"Bloqueo no encontrado"}', 404);
+      });
+
+      final controller = AppController(null, client: mockClient);
+      final service = ReservasService(controller);
+
+      final res = await service.obtenerBloqueo('bloq-1');
+      expect(res['success'], isTrue);
+      expect(res['bloqueo'].bloqueoId, 'bloq-1');
+      expect(res['bloqueo'].areaNombre, 'Piscina');
+
+      final res404 = await service.obtenerBloqueo('bloq-none');
+      expect(res404['success'], isFalse);
+      expect(res404['error'], contains('Bloqueo no encontrado'));
+    });
+
+    test('actualizarBloqueo exitoso retorna datos actualizados', () async {
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/api/admin/bloqueos/bloq-1' && request.method == 'PATCH') {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['motivo'], 'Nuevo motivo');
+          final data = {
+            'bloqueoId': 'bloq-1',
+            'areaId': 'area-1',
+            'inicio': '2026-11-20T09:00:00Z',
+            'fin': '2026-11-20T19:00:00Z',
+            'motivo': 'Nuevo motivo',
+            'reservasAfectadas': 0,
+          };
+          return http.Response(jsonEncode(data), 200, headers: {'content-type': 'application/json'});
+        }
+        return http.Response('{"error":"Error al actualizar"}', 400);
+      });
+
+      final controller = AppController(null, client: mockClient);
+      final service = ReservasService(controller);
+
+      final res = await service.actualizarBloqueo(
+        'bloq-1',
+        motivo: 'Nuevo motivo',
+      );
+      expect(res['success'], isTrue);
+      expect(res['bloqueo'].motivo, 'Nuevo motivo');
+    });
+
+    test('eliminarBloqueo exitoso retorna success true', () async {
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/api/admin/bloqueos/bloq-1' && request.method == 'DELETE') {
+          return http.Response('', 204);
+        }
+        return http.Response('{"error":"No se pudo eliminar el bloqueo"}', 400);
+      });
+
+      final controller = AppController(null, client: mockClient);
+      final service = ReservasService(controller);
+
+      final res = await service.eliminarBloqueo('bloq-1');
+      expect(res['success'], isTrue);
+
+      final resErr = await service.eliminarBloqueo('bloq-err');
+      expect(resErr['success'], isFalse);
+      expect(resErr['error'], contains('No se pudo eliminar'));
+    });
   });
 
   group('ReservasService - Manejo Descriptivo de Errores y Excepciones', () {
