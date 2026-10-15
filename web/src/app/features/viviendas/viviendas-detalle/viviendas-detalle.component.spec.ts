@@ -185,3 +185,104 @@ describe('ViviendasDetalleComponent: residente asignado', () => {
     expect(texto()).not.toContain('No se pudo consultar el residente');
   });
 });
+
+describe('ViviendasDetalleComponent: navegar al residente', () => {
+  let fixture: ComponentFixture<ViviendasDetalleComponent>;
+  let component: ViviendasDetalleComponent;
+
+  const titular = { id: 'r1', nombre: 'Aisha', apellidos: 'Sánchez', email: 'aisha@example.com', telefono: '4151110993', rol: 'Residente' };
+  const botonResidente = () => fixture.nativeElement.querySelector('[data-origen-detalle="residente"]') as HTMLButtonElement | null;
+  const flecha = () => fixture.nativeElement.querySelector('[data-foco-inicial]') as HTMLButtonElement | null;
+
+  async function abrir(): Promise<void> {
+    const vivienda = casa(26, '1098');
+    component.vivienda = vivienda;
+    component.isOpen = true;
+    component.ngOnChanges({ vivienda: new SimpleChange(null, vivienda, false), isOpen: new SimpleChange(false, true, false) });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+  }
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [ViviendasDetalleComponent],
+      providers: [
+        { provide: ViviendasService, useValue: { obtenerResidentesVivienda: () => Promise.resolve([titular]) } },
+        { provide: ResidentesService, useValue: { listar: () => Promise.resolve([]) } },
+        { provide: SubusuariosService, useValue: { MAX_SUBUSUARIOS: 2, listarPorVivienda: () => Promise.resolve([]) } }
+      ]
+    });
+    fixture = TestBed.createComponent(ViviendasDetalleComponent);
+    component = fixture.componentInstance;
+  });
+
+  it('el residente asignado es un botón con nombre accesible que pide su detalle', async () => {
+    await abrir();
+    const pedido = jasmine.createSpy('verResidente');
+    component.verResidente.subscribe(pedido);
+
+    expect(botonResidente()!.getAttribute('aria-label')).toBe('Ver el detalle de Aisha Sánchez');
+    botonResidente()!.click();
+
+    expect(pedido).toHaveBeenCalledOnceWith(titular);
+  });
+
+  it('abierto de forma normal no muestra la flecha de regreso', async () => {
+    await abrir();
+    expect(flecha()).toBeNull();
+  });
+
+  it('abierto sobre el detalle de un residente muestra la flecha, toma el foco y regresa al tocarla', async () => {
+    component.conAtras = true;
+    component.textoAtras = 'Volver al detalle del residente';
+    await abrir();
+    const regreso = jasmine.createSpy('atras');
+    component.atras.subscribe(regreso);
+
+    expect(flecha()!.getAttribute('aria-label')).toBe('Volver al detalle del residente');
+    expect(document.activeElement).toBe(flecha());
+    flecha()!.click();
+
+    expect(regreso).toHaveBeenCalledTimes(1);
+  });
+
+  it('con la flecha, Escape marca la pulsación como atendida; si ya estaba atendida, no hace nada', async () => {
+    component.conAtras = true;
+    await abrir();
+    const regreso = jasmine.createSpy('atras');
+    component.atras.subscribe(regreso);
+
+    const nueva = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+    document.dispatchEvent(nueva);
+    expect(nueva.defaultPrevented).toBeTrue();
+    expect(regreso).toHaveBeenCalledTimes(1);
+
+    const atendida = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+    atendida.preventDefault();
+    document.dispatchEvent(atendida);
+    expect(regreso).toHaveBeenCalledTimes(1);
+  });
+
+  it('Escape con la flecha retrocede un paso; sin ella cierra; con otro detalle encima no hace nada', async () => {
+    const regreso = jasmine.createSpy('atras');
+    const cierre = jasmine.createSpy('close');
+    component.atras.subscribe(regreso);
+    component.close.subscribe(cierre);
+
+    component.conAtras = true;
+    await abrir();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(regreso).toHaveBeenCalledTimes(1);
+    expect(cierre).not.toHaveBeenCalled();
+
+    component.conAtras = false;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(cierre).toHaveBeenCalledTimes(1);
+
+    component.inactivo = true;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(cierre).toHaveBeenCalledTimes(1);
+    expect(regreso).toHaveBeenCalledTimes(1);
+  });
+});

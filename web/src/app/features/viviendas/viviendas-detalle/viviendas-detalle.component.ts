@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, HostListener, inject, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, Input, Output, EventEmitter, HostListener, inject, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Vivienda } from '../../../core/models/vivienda.model';
@@ -37,6 +37,20 @@ import { mensajeAmigable } from '../../../core/utils/api-errors.util';
         <!-- Top Sticky Bar -->
         <div class="sticky top-0 z-10 bg-white/95 backdrop-blur-md px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <div class="flex items-center gap-3">
+            @if (conAtras) {
+              <button
+                type="button"
+                data-foco-inicial
+                (click)="atras.emit()"
+                [attr.aria-label]="textoAtras"
+                [title]="textoAtras + ' (Esc)'"
+                class="h-9 w-9 -ml-2 inline-flex items-center justify-center text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-600"
+                >
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+              </button>
+            }
             <div class="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm border border-blue-100">
               <svg class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -154,12 +168,19 @@ import { mensajeAmigable } from '../../../core/utils/api-errors.util';
                 class="bg-white border border-slate-200 rounded-xl p-5 shadow-xs relative overflow-hidden"
                 >
                 <div class="flex items-start justify-between gap-4">
-                  <div class="flex items-center gap-3.5">
+                  <button
+                    type="button"
+                    (click)="verResidente.emit(residenteAsignado)"
+                    data-origen-detalle="residente"
+                    [attr.aria-label]="'Ver el detalle de ' + residenteAsignado.nombre + ' ' + residenteAsignado.apellidos"
+                    title="Ver el detalle del residente"
+                    class="group flex items-center gap-3.5 -m-1 p-1 rounded-lg text-left w-full cursor-pointer hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-600"
+                  >
                     <div class="w-12 h-12 rounded-full bg-[#111C99] text-white font-bold text-base flex items-center justify-center shadow-xs shrink-0">
                       {{ getInitials(residenteAsignado.nombre, residenteAsignado.apellidos) }}
                     </div>
                     <div>
-                      <p class="text-base font-bold text-slate-900 leading-tight">
+                      <p class="text-base font-bold text-slate-900 leading-tight group-hover:underline">
                         {{ residenteAsignado.nombre }} {{ residenteAsignado.apellidos }}
                       </p>
                       <p class="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
@@ -177,7 +198,10 @@ import { mensajeAmigable } from '../../../core/utils/api-errors.util';
                         </p>
                       }
                     </div>
-                  </div>
+                    <svg class="w-4 h-4 text-slate-500 shrink-0 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
                 </div>
                 <!-- Accion de Desvincular -->
                 <div class="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between">
@@ -403,15 +427,24 @@ import { mensajeAmigable } from '../../../core/utils/api-errors.util';
       }
     `
 })
-export class ViviendasDetalleComponent implements OnChanges {
+export class ViviendasDetalleComponent implements OnChanges, AfterViewInit {
   @Input() vivienda: Vivienda | null = null;
   @Input() isOpen = false;
+  /** Se abrió desde el detalle de un residente: muestra la flecha para volver a él */
+  @Input() conAtras = false;
+  @Input() textoAtras = 'Volver';
+  /** Hay otro detalle encima de este: no reacciona a Escape para que solo se cierre el de arriba */
+  @Input() inactivo = false;
+  @Output() atras = new EventEmitter<void>();
+  /** Se tocó al residente asignado: el padre abre su detalle */
+  @Output() verResidente = new EventEmitter<Residente>();
   @Output() close = new EventEmitter<void>();
   @Output() viviendaUpdated = new EventEmitter<void>();
 
   private readonly viviendasService = inject(ViviendasService);
   private readonly residentesService = inject(ResidentesService);
   private readonly subusuariosService = inject(SubusuariosService);
+  private readonly elemento = inject(ElementRef<HTMLElement>);
 
   readonly getInitials = getInitials;
   readonly maxSubusuarios = this.subusuariosService.MAX_SUBUSUARIOS;
@@ -493,11 +526,22 @@ export class ViviendasDetalleComponent implements OnChanges {
     }
   }
 
-  @HostListener('document:keydown.escape')
-  onEsc(): void {
+  /** Al abrirse sobre otro detalle, el foco pasa a la flecha de regreso para que el teclado no se quede en lo de abajo */
+  ngAfterViewInit(): void {
+    if (this.isOpen && this.conAtras) (this.elemento.nativeElement as HTMLElement).querySelector<HTMLElement>('[data-foco-inicial]')?.focus();
+  }
+
+  @HostListener('document:keydown.escape', ['$event'])
+  onEsc(evento?: Event): void {
+    // Otro detalle ya atendió esta pulsación (o hay uno encima): este no debe cerrarse también
+    if (this.inactivo || evento?.defaultPrevented) return;
     if (this.isOpen && !this.procesandoVinculacion) {
       if (this.mostrarFormularioVinculacion) {
         this.cancelarFormularioVinculacion();
+      } else if (this.conAtras) {
+        // Escape hace lo mismo que la flecha: retrocede un paso en vez de cerrar todo
+        evento?.preventDefault();
+        this.atras.emit();
       } else {
         this.cerrar();
       }
