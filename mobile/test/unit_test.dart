@@ -145,5 +145,26 @@ void main() {
       final isProfileIncomplete = !nombreValido || !apellidosValidos || !telefonoValido;
       expect(isProfileIncomplete, isTrue);
     });
+
+    test('normalizeRole and role getters work correctly', () {
+      final controller = AppController(null);
+
+      expect(controller.isAdmin, isFalse);
+      expect(controller.isVigilante, isFalse);
+      expect(controller.isResidente, isTrue);
+
+      expect(controller.normalizeRole('administrador'), 'administrador');
+      expect(controller.normalizeRole('admin'), 'administrador');
+      expect(controller.normalizeRole('1'), 'administrador');
+
+      expect(controller.normalizeRole('vigilante'), 'vigilante');
+      expect(controller.normalizeRole('guardia'), 'vigilante');
+      expect(controller.normalizeRole('3'), 'vigilante');
+
+      expect(controller.normalizeRole('residente'), 'residente');
+      expect(controller.normalizeRole('resident'), 'residente');
+      expect(controller.normalizeRole('2'), 'residente');
+      expect(controller.normalizeRole(null), 'residente');
+    });
   });
 }
