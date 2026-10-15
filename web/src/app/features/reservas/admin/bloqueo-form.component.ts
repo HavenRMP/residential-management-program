@@ -6,17 +6,18 @@ import { ReservasAdminService } from '../../../core/services/reservas-admin.serv
 import { ActualizarBloqueoDto, AreaComun, Reserva, ResultadoBloqueo } from '../../../core/models/reserva.model';
 import { fechaEnZona, horaEnZona, instanteEnZona, rangoLegible } from '../../../core/utils/reservas.util';
 import { mensajeConValidacion } from '../../../core/utils/api-errors.util';
+import { RetornoFocoDirective } from '../../../core/directives/retorno-foco.directive';
 
 const MAX_MOTIVO = 500;
 
 @Component({
   selector: 'app-bloqueo-form',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RetornoFocoDirective],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="fixed inset-0 z-50 overflow-y-auto bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-      <div class="bg-white rounded-lg max-w-lg w-full p-5 shadow-lg border border-slate-200" role="dialog" aria-modal="true" aria-labelledby="bloqueo-form-titulo">
+      <div class="bg-white rounded-lg max-w-lg w-full p-5 shadow-lg border border-slate-200" appRetornoFoco role="dialog" aria-modal="true" aria-labelledby="bloqueo-form-titulo">
         <div class="flex items-center justify-between pb-3 border-b border-slate-100">
           <h3 id="bloqueo-form-titulo" class="text-sm font-semibold text-slate-900">{{ editando ? 'Editar bloqueo' : 'Bloquear fechas' }} · {{ area.nombre }}</h3>
           <button type="button" (click)="cerrar()" aria-label="Cerrar" class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer">

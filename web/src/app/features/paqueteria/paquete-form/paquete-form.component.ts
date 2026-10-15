@@ -7,6 +7,7 @@ import { ActualizarPaqueteDto, CrearPaqueteDto, LIMITES_PAQUETE, Paquete, SERVIC
 import { rangoFechasInvalido, rangoFechasIso } from '../../../core/models/visita.model';
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { mensajeAmigable } from '../../../core/utils/api-errors.util';
+import { RetornoFocoDirective } from '../../../core/directives/retorno-foco.directive';
 
 interface FormularioPaquete {
   viviendaId: number;
@@ -42,13 +43,13 @@ function isoAFechaInput(iso: string | null | undefined): string {
 @Component({
   selector: 'app-paquete-form',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RetornoFocoDirective],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="fixed inset-0 z-50 overflow-y-auto bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
       <div
         class="bg-white rounded-lg max-w-lg w-full p-5 shadow-lg border border-slate-200"
-        role="dialog"
+        appRetornoFoco role="dialog"
         aria-modal="true"
         aria-labelledby="paquete-form-titulo"
         >

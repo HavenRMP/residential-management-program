@@ -6,6 +6,7 @@ import { ReservasAdminService } from '../../../core/services/reservas-admin.serv
 import { AreaComun, GuardarAreaDto } from '../../../core/models/reserva.model';
 import { minutosDelDia, recortarHora } from '../../../core/utils/reservas.util';
 import { mensajeConValidacion } from '../../../core/utils/api-errors.util';
+import { RetornoFocoDirective } from '../../../core/directives/retorno-foco.directive';
 
 const MAX_NOMBRE = 100;
 const MAX_DESCRIPCION = 500;
@@ -18,11 +19,11 @@ function conSegundos(hora: string): string {
 @Component({
   selector: 'app-area-form',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RetornoFocoDirective],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="fixed inset-0 z-50 overflow-y-auto bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-      <div class="bg-white rounded-lg max-w-lg w-full p-5 shadow-lg border border-slate-200" role="dialog" aria-modal="true" aria-labelledby="area-form-titulo">
+      <div class="bg-white rounded-lg max-w-lg w-full p-5 shadow-lg border border-slate-200" appRetornoFoco role="dialog" aria-modal="true" aria-labelledby="area-form-titulo">
         <div class="flex items-center justify-between pb-3 border-b border-slate-100">
           <h3 id="area-form-titulo" class="text-sm font-semibold text-slate-900">{{ area ? 'Editar área' : 'Nueva área común' }}</h3>
           <button type="button" (click)="cerrar()" aria-label="Cerrar" class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer">
