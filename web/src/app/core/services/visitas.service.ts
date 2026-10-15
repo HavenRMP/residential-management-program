@@ -26,11 +26,14 @@ export class VisitasService {
    * Carga las visitas de la vivienda del residente, de la más reciente a la más antigua
    * (GET /api/visitas/mis-visitas)
    */
-  async cargar(estado?: EstadoVisita | null, page: number = 1): Promise<void> {
+  async cargar(estado?: EstadoVisita | null, page: number = 1, silencioso = false): Promise<void> {
     // Al cambiar de filtro rápido, una respuesta lenta de un filtro anterior no debe pisar la última
     const peticion = ++this.ultimaPeticion;
-    this.isLoading.set(true);
-    this.errorMessage.set(null);
+    // En modo silencioso (actualización automática) no se muestra "cargando" y, si falla, la lista queda como estaba
+    if (!silencioso) {
+      this.isLoading.set(true);
+      this.errorMessage.set(null);
+    }
     try {
       let params = new HttpParams().set('page', page.toString()).set('pageSize', this.PAGE_SIZE.toString());
       if (estado) {
@@ -46,7 +49,7 @@ export class VisitasService {
     } catch (err: any) {
       if (peticion !== this.ultimaPeticion) return;
       console.error('[VisitasService] Error al cargar visitas:', err);
-      this.errorMessage.set(mensajeAmigable(err, 'No se pudieron cargar las visitas.'));
+      if (!silencioso) this.errorMessage.set(mensajeAmigable(err, 'No se pudieron cargar las visitas.'));
     } finally {
       if (peticion === this.ultimaPeticion) this.isLoading.set(false);
     }
