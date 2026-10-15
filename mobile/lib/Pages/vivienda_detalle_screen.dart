@@ -736,6 +736,157 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
       );
     }
 
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x05000000),
+            blurRadius: 10,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Habitante Asignado',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 3,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
+                ),
+                child: const Text(
+                  'ESTADO VACANTE',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFB45309),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              children: [
+                const Icon(
+                  Icons.home_work_outlined,
+                  size: 36,
+                  color: Color(0xFF94A3B8),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Vivienda vacante / Sin habitante asignado',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF334155),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Esta unidad no tiene ningún residente vinculado actualmente. Puedes vincular a un habitante registrado del condominio.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: _openBuscarResidenteModal,
+                      icon: const Icon(Icons.person_add_alt_1, size: 18),
+                      label: const Text(
+                        'Vincular',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF111C99),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton.icon(
+                      onPressed: _isGeneratingCode ? null : () async {
+                        setState(() => _isGeneratingCode = true);
+                        final srv = ViviendasService(widget.controller);
+                        final res = await srv.generarCodigo(_vivienda['id'], minutosVigencia: 1440);
+                        
+                        if (mounted) {
+                          setState(() => _isGeneratingCode = false);
+                        }
+                        
+                        final codigo = CodigoHelper.extractCodigo(res);
+                        if (codigo != null && mounted) {
+                          QrDialog.show(
+                            context,
+                            codigo: codigo,
+                            titulo: 'Código de Vinculación',
+                            subtitulo: 'Comparte este código o código QR con el residente.\nExpira en 24 horas y es de un solo uso.',
+                            tipoEtiqueta: 'Vivienda ${_vivienda['numeroCasa'] ?? ''}',
+                          );
+                        } else if (mounted) {
+                          final errorMsg = res != null && res['error'] != null
+                              ? res['error'].toString()
+                              : 'No se pudo generar el código para la vivienda';
+                          widget.controller.notifyToast(errorMsg, success: false);
+                        }
+                      },
+                      icon: _isGeneratingCode 
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.qr_code_2_rounded, size: 18),
+                      label: Text(
+                        _isGeneratingCode ? 'Generando...' : 'Código',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF0F172A),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _mostrarFichaResidenteModal(Map<String, dynamic> r) {
     final n = (r['nombre'] ?? '').toString();
     final a = (r['apellidos'] ?? '').toString();
@@ -945,157 +1096,6 @@ class _ViviendaDetalleScreenState extends State<ViviendaDetalleScreen> {
           ),
         ),
       ],
-    );
-  }
-
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x05000000),
-            blurRadius: 10,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Habitante Asignado',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0F172A),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 3,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFFBEB),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFFDE68A)),
-                ),
-                child: const Text(
-                  'ESTADO VACANTE',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFFB45309),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Column(
-              children: [
-                const Icon(
-                  Icons.home_work_outlined,
-                  size: 36,
-                  color: Color(0xFF94A3B8),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Vivienda vacante / Sin habitante asignado',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF334155),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Esta unidad no tiene ningún residente vinculado actualmente. Puedes vincular a un habitante registrado del condominio.',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    FilledButton.icon(
-                      onPressed: _openBuscarResidenteModal,
-                      icon: const Icon(Icons.person_add_alt_1, size: 18),
-                      label: const Text(
-                        'Vincular',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                      ),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF111C99),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton.icon(
-                      onPressed: _isGeneratingCode ? null : () async {
-                        setState(() => _isGeneratingCode = true);
-                        final srv = ViviendasService(widget.controller);
-                        final res = await srv.generarCodigo(_vivienda['id'], minutosVigencia: 1440);
-                        
-                        if (mounted) {
-                          setState(() => _isGeneratingCode = false);
-                        }
-                        
-                        final codigo = CodigoHelper.extractCodigo(res);
-                        if (codigo != null && mounted) {
-                          QrDialog.show(
-                            context,
-                            codigo: codigo,
-                            titulo: 'Código de Vinculación',
-                            subtitulo: 'Comparte este código o código QR con el residente.\nExpira en 24 horas y es de un solo uso.',
-                            tipoEtiqueta: 'Vivienda ${_vivienda['numeroCasa'] ?? ''}',
-                          );
-                        } else if (mounted) {
-                          final errorMsg = res != null && res['error'] != null
-                              ? res['error'].toString()
-                              : 'No se pudo generar el código para la vivienda';
-                          widget.controller.notifyToast(errorMsg, success: false);
-                        }
-                      },
-                      icon: _isGeneratingCode 
-                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.qr_code_2_rounded, size: 18),
-                      label: Text(
-                        _isGeneratingCode ? 'Generando...' : 'Código',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                      ),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF0F172A),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 
