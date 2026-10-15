@@ -73,6 +73,16 @@ class AppController extends ChangeNotifier {
   bool _isBiometricLocked = false;
   bool get isBiometricLocked => _isBiometricLocked;
 
+  bool get isAdmin =>
+      normalizeRole(_currentUser?.rol ?? _currentUser?.role ?? _currentUser?.rolNombre) ==
+      'administrador';
+  bool get isVigilante =>
+      normalizeRole(_currentUser?.rol ?? _currentUser?.role ?? _currentUser?.rolNombre) ==
+      'vigilante';
+  bool get isResidente =>
+      normalizeRole(_currentUser?.rol ?? _currentUser?.role ?? _currentUser?.rolNombre) ==
+      'residente';
+
   void unlockBiometric() {
     _isBiometricLocked = false;
     notifyListeners();
