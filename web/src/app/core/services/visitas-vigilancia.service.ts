@@ -27,11 +27,14 @@ export class VisitasVigilanciaService {
    * Con `busqueda` filtra por casa, nombre, apellidos, placas o código
    * (GET /api/visitas/proximas)
    */
-  async cargarProximas(busqueda?: string, page: number = 1): Promise<void> {
+  async cargarProximas(busqueda?: string, page: number = 1, silencioso = false): Promise<void> {
     // Si el guardia sigue escribiendo, una respuesta lenta de una búsqueda anterior no debe pisar la última
     const peticion = ++this.ultimaPeticion;
-    this.isLoading.set(true);
-    this.errorMessage.set(null);
+    // En modo silencioso (actualización automática) no se muestra "cargando" y, si falla, la lista queda como estaba
+    if (!silencioso) {
+      this.isLoading.set(true);
+      this.errorMessage.set(null);
+    }
     try {
       let params = new HttpParams().set('page', page.toString()).set('pageSize', this.PAGE_SIZE.toString());
       if (busqueda?.trim()) {
@@ -48,7 +51,7 @@ export class VisitasVigilanciaService {
     } catch (err: any) {
       if (peticion !== this.ultimaPeticion) return;
       console.error('[VisitasVigilanciaService] Error al cargar las visitas próximas:', err);
-      this.errorMessage.set(mensajeAmigable(err, 'No se pudieron cargar las visitas próximas.'));
+      if (!silencioso) this.errorMessage.set(mensajeAmigable(err, 'No se pudieron cargar las visitas próximas.'));
     } finally {
       if (peticion === this.ultimaPeticion) this.isLoading.set(false);
     }
