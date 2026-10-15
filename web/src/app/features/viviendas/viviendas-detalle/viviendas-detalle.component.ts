@@ -68,6 +68,7 @@ import { mensajeAmigable } from '../../../core/utils/api-errors.util';
             type="button"
             (click)="cerrar()"
             class="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+            data-foco-cierre
             aria-label="Cerrar detalle de vivienda"
             title="Cerrar (Esc)"
             >
@@ -530,9 +531,9 @@ export class ViviendasDetalleComponent implements OnChanges, AfterViewInit {
     }
   }
 
-  /** Al abrirse sobre otro detalle, el foco pasa a la flecha de regreso para que el teclado no se quede en lo de abajo */
+  /** Al abrirse, el foco pasa al detalle (flecha de regreso o botón de cerrar) para que el teclado no se quede en lo de abajo */
   ngAfterViewInit(): void {
-    if (this.isOpen && this.conAtras) (this.elemento.nativeElement as HTMLElement).querySelector<HTMLElement>('[data-foco-inicial]')?.focus();
+    if (this.isOpen) (this.elemento.nativeElement as HTMLElement).querySelector<HTMLElement>('[data-foco-inicial], [data-foco-cierre]')?.focus();
   }
 
   @HostListener('document:keydown.escape', ['$event'])
