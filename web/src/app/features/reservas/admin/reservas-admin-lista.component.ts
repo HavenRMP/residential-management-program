@@ -109,7 +109,7 @@ const ESTADOS: { valor: EstadoReserva; etiqueta: string }[] = [
       }
 
       @if (!servicio.isLoading() && !servicio.errorMessage()) {
-        <div class="rounded-xl border border-slate-200 bg-white shadow-xs overflow-x-auto">
+        <div class="rounded-xl border border-slate-200 bg-white shadow-xs overflow-x-auto" tabindex="0" role="region" aria-label="Tabla desplazable">
           <table class="w-full text-left min-w-[860px]">
             <thead class="bg-slate-50 border-b border-slate-200">
               <tr>
