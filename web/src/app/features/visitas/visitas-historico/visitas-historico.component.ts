@@ -149,7 +149,7 @@ const ESTADOS = Object.keys(ETIQUETAS_ESTADO_VISITA) as EstadoVisita[];
                 class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer">
                 Anterior
               </button>
-              <span class="text-xs text-slate-500 font-medium">Página {{ historicoService.page() }} de {{ totalPaginas() }}</span>
+              <span class="text-xs text-slate-600 font-medium">Página {{ historicoService.page() }} de {{ totalPaginas() }}</span>
               <button type="button" (click)="irAPagina(historicoService.page() + 1)" [disabled]="historicoService.page() >= totalPaginas()"
                 class="h-7 px-2.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer">
                 Siguiente
