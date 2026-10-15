@@ -84,11 +84,25 @@ void main() {
       );
 
       expect(bloqueo.esBloqueo, isTrue);
+      expect(bloqueo.esBloqueoActivo, isTrue);
       expect(bloqueo.esAprobada, isFalse);
       expect(bloqueo.esConfirmable, isFalse);
       expect(bloqueo.esCancelable, isFalse);
       expect(bloqueo.esMarcableNoShow, isFalse);
       expect(bloqueo.estadoEtiqueta, 'Bloqueo');
+
+      final bloqueoPasado = ReservaModel(
+        id: 'bloq-past',
+        areaId: 'area-1',
+        areaNombre: 'Salón',
+        tipo: 'BLOQUEO',
+        estado: 'APROBADA',
+        inicio: now.subtract(const Duration(hours: 4)),
+        fin: now.subtract(const Duration(hours: 1)),
+        motivo: 'Mantenimiento previo',
+      );
+      expect(bloqueoPasado.esBloqueo, isTrue);
+      expect(bloqueoPasado.esBloqueoActivo, isFalse);
     });
   });
 
@@ -107,6 +121,25 @@ void main() {
       expect(bloqueo.bloqueoId, 'bloq-1');
       expect(bloqueo.motivo, 'Pintura y mantenimiento');
       expect(bloqueo.reservasAfectadas, 3);
+    });
+
+    test('Deserializes with backend format and optional fields', () {
+      final json = {
+        'bloqueoId': 'bloq-2',
+        'areaId': 'area-3',
+        'areaNombre': 'Piscina',
+        'inicio': '2026-11-22T09:00:00Z',
+        'fin': '2026-11-22T19:00:00Z',
+        'motivo': 'Limpieza',
+        'reservasAfectadas': 1,
+        'estado': 'APROBADA',
+      };
+
+      final bloqueo = BloqueoModel.fromJson(json);
+      expect(bloqueo.bloqueoId, 'bloq-2');
+      expect(bloqueo.areaNombre, 'Piscina');
+      expect(bloqueo.estado, 'APROBADA');
+      expect(bloqueo.reservasAfectadas, 1);
     });
   });
 }
