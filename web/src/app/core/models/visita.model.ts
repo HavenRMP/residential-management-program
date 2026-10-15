@@ -97,9 +97,9 @@ export function visitaVencida(v: { estado: string; vigenciaHasta?: string | null
 export const HORAS_VENTANA_CASETA = 24;
 
 /**
- * La caseta puede atender esta visita ahora: ya está en curso, o está programada, sigue vigente y llega dentro de la
- * ventana de la caseta. El backend deja registrar la entrada de una visita programada para dentro de varios días, así
- * que esta regla la aplica la web antes de dar el ingreso por un código.
+ * La caseta puede atender esta visita ahora sin preguntar: ya está en curso, o está programada, sigue vigente y llega
+ * dentro de la ventana de la caseta. Una que llega más tarde se puede atender, pero pidiendo confirmación
+ * (`visitaLlegaAntesDeTiempo`).
  */
 export function visitaPorAtender(
   v: { estado: string; fechaLlegadaEsperada?: string | null; vigenciaHasta?: string | null },
@@ -109,6 +109,19 @@ export function visitaPorAtender(
   if (v.estado !== 'programada' || visitaVencida(v, ahora)) return false;
   const llegada = fechaVisitaReal(v.fechaLlegadaEsperada);
   return llegada === null || llegada <= ahora + HORAS_VENTANA_CASETA * 3_600_000;
+}
+
+/**
+ * Visita programada y vigente que llega en más de las horas de la ventana de caseta: puede presentarse antes de tiempo.
+ * No es un error (el visitante pudo adelantarse), así que la caseta no la bloquea: pide confirmar antes de darle la entrada.
+ */
+export function visitaLlegaAntesDeTiempo(
+  v: { estado: string; fechaLlegadaEsperada?: string | null; vigenciaHasta?: string | null },
+  ahora: number = Date.now()
+): boolean {
+  if (v.estado !== 'programada' || visitaVencida(v, ahora)) return false;
+  const llegada = fechaVisitaReal(v.fechaLlegadaEsperada);
+  return llegada !== null && llegada > ahora + HORAS_VENTANA_CASETA * 3_600_000;
 }
 
 /** Por qué una visita con código válido no se atiende ahora; completa la frase "el código es válido, pero …" */

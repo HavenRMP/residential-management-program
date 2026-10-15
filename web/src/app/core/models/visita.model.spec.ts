@@ -1,4 +1,4 @@
-import { fechaVisitaReal, formatearFechaVisita, fusionarSinVacios, motivoVisitaNoAtendible, ordenarVisitasProximasPrimero, ordenarVisitasRecientesPrimero, rangoFechasInvalido, rangoFechasIso, visitaPorAtender, visitaVencida } from './visita.model';
+import { fechaVisitaReal, formatearFechaVisita, fusionarSinVacios, motivoVisitaNoAtendible, visitaLlegaAntesDeTiempo, ordenarVisitasProximasPrimero, ordenarVisitasRecientesPrimero, rangoFechasInvalido, rangoFechasIso, visitaPorAtender, visitaVencida } from './visita.model';
 
 describe('visita.model', () => {
   describe('rangoFechasIso', () => {
@@ -147,6 +147,23 @@ describe('visita.model', () => {
       for (const estado of ['finalizada', 'cancelada', 'expirada', '']) {
         expect(visitaPorAtender({ estado, fechaLlegadaEsperada: horas(1), vigenciaHasta: horas(3) }, ahora)).toBeFalse();
       }
+    });
+  });
+
+  describe('visitaLlegaAntesDeTiempo', () => {
+    const ahora = new Date('2026-10-02T12:00:00Z').getTime();
+    const horas = (h: number) => new Date(ahora + h * 3_600_000).toISOString();
+
+    it('una programada y vigente que llega en más de 24 horas se puede atender, pidiendo confirmación', () => {
+      expect(visitaLlegaAntesDeTiempo({ estado: 'programada', fechaLlegadaEsperada: horas(30), vigenciaHasta: horas(32) }, ahora)).toBeTrue();
+      expect(visitaLlegaAntesDeTiempo({ estado: 'programada', fechaLlegadaEsperada: horas(72), vigenciaHasta: '0001-01-01T00:00:00+00:00' }, ahora)).toBeTrue();
+    });
+
+    it('una que llega dentro de las 24 horas, una vencida o con otro estado no es "antes de tiempo"', () => {
+      expect(visitaLlegaAntesDeTiempo({ estado: 'programada', fechaLlegadaEsperada: horas(2), vigenciaHasta: horas(4) }, ahora)).toBeFalse();
+      expect(visitaLlegaAntesDeTiempo({ estado: 'programada', fechaLlegadaEsperada: horas(-5), vigenciaHasta: horas(-3) }, ahora)).toBeFalse();
+      expect(visitaLlegaAntesDeTiempo({ estado: 'cancelada', fechaLlegadaEsperada: horas(72), vigenciaHasta: horas(74) }, ahora)).toBeFalse();
+      expect(visitaLlegaAntesDeTiempo({ estado: 'programada', fechaLlegadaEsperada: '', vigenciaHasta: horas(74) }, ahora)).toBeFalse();
     });
   });
 
