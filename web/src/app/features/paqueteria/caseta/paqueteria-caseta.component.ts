@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, Input, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Injector, Input, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import Swal from 'sweetalert2';
@@ -15,6 +15,7 @@ import {
 } from '../../../core/models/paquete.model';
 import { formatearFechaVisita } from '../../../core/models/visita.model';
 import { esRecursoYaNoDisponible, mensajeAmigable } from '../../../core/utils/api-errors.util';
+import { autoActualizar } from '../../../core/utils/auto-actualizar.util';
 import { telefonoParaLlamar } from '../../../core/utils/directorio-casas.util';
 import { tiempoRelativo } from '../../../core/utils/tiempo-relativo.util';
 import { PaqueteSinAvisoFormComponent } from './paquete-sin-aviso-form.component';
@@ -259,6 +260,7 @@ export class PaqueteriaCasetaComponent implements OnInit {
   readonly servicio = inject(PaqueteriaCasetaService);
   readonly paqueteria = inject(PaqueteriaService);
   private readonly directorio = inject(DirectorioCasasService);
+  private readonly injector = inject(Injector);
 
   /** Administración solo consulta: recibir y entregar es trabajo de la caseta */
   @Input() soloLectura = false;
@@ -309,6 +311,11 @@ export class PaqueteriaCasetaComponent implements OnInit {
     // Los teléfonos de cada casa salen del directorio; si no llega, la tarjeta solo omite esa línea
     this.directorio.cargar();
     if (!this.soloLectura) this.paqueteria.cargarServicios();
+    // Los avisos nuevos y los paquetes recibidos aparecen solos, sin tocar "Actualizar" (el historial no cambia solo)
+    autoActualizar(this.injector, () => {
+      void this.servicio.cargarEsperados(true);
+      void this.servicio.cargarEnCaseta(true);
+    });
   }
 
   cantidad(pestana: Pestana): number {
