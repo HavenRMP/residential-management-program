@@ -166,8 +166,7 @@ import { mensajeAmigable } from '../../../core/utils/api-errors.util';
             <button
               type="button"
               (click)="cerrarModal()"
-              class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer"
-              >
+              class="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer" aria-label="Cerrar">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
