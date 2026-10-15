@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit, HostListener, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, HostListener, ChangeDetectionStrategy, Injector, afterNextRender } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -10,12 +10,14 @@ import { OcupacionCasa, ocupacionPorVivienda } from '../../../core/utils/directo
 import { CondominiosService } from '../../../core/services/condominios.service';
 import { Condominio } from '../../../core/models/condominio.model';
 import { ViviendasDetalleComponent } from '../viviendas-detalle/viviendas-detalle.component';
+import { ResidentesDetalleComponent } from '../../residentes/residentes-detalle/residentes-detalle.component';
+import { Residente } from '../../../core/models/residente.model';
 import { mensajeAmigable } from '../../../core/utils/api-errors.util';
 
 @Component({
   selector: 'app-viviendas-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, DatePipe, ViviendasDetalleComponent],
+  imports: [CommonModule, FormsModule, RouterLink, DatePipe, ViviendasDetalleComponent, ResidentesDetalleComponent],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="p-4 sm:p-5 lg:p-6 w-full space-y-4 selection:bg-[#111C99] selection:text-white">
@@ -553,9 +555,39 @@ import { mensajeAmigable } from '../../../core/utils/api-errors.util';
             <app-viviendas-detalle
               [vivienda]="viviendaSeleccionada()"
               [isOpen]="isDetalleOpen()"
+              [attr.inert]="residenteCruzado() ? '' : null"
+              [inactivo]="!!residenteCruzado()"
               (close)="cerrarDetalle()"
+              (verResidente)="abrirResidenteCruzado($event)"
               (viviendaUpdated)="cargarViviendas()"
               />
+
+            <!-- Detalle de un residente abierto desde el de la vivienda: queda encima y la flecha regresa a la vivienda -->
+            @if (residenteCruzado(); as cruzado) {
+              <div
+                (click)="cerrarDetalle()"
+                aria-hidden="true"
+                class="fixed inset-0 z-[65] !m-0 bg-slate-900/40 cursor-pointer"
+              ></div>
+              <aside
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="detalle-residente-title"
+                class="fixed inset-y-0 right-0 z-[70] !m-0 w-full sm:max-w-md md:max-w-lg lg:max-w-xl bg-white shadow-2xl flex flex-col border-l border-slate-200 overflow-y-auto"
+              >
+                <app-residentes-detalle
+                  [residente]="cruzado.residente"
+                  [viviendas]="cruzado.viviendas"
+                  [subusuarioDe]="[]"
+                  [conAtras]="true"
+                  textoAtras="Volver al detalle de la vivienda"
+                  (atras)="cerrarResidenteCruzado()"
+                  (cerrado)="cerrarDetalle()"
+                  (verVivienda)="cerrarResidenteCruzado()"
+                  (desvinculado)="alDesvincularDesdeResidente()"
+                />
+              </aside>
+            }
     
             </div>
     `
@@ -633,11 +665,13 @@ export class ViviendasListComponent implements OnInit {
     });
   });
 
-  @HostListener('document:keydown.escape')
-  onEscape(): void {
+  @HostListener('document:keydown.escape', ['$event'])
+  onEscape(evento?: Event): void {
+    if (evento?.defaultPrevented) return;
     if (this.showModal() && !this.isSaving()) {
       this.cerrarModal();
-    } else if (this.isDetalleOpen()) {
+    } else if (this.isDetalleOpen() && !this.residenteCruzado()) {
+      // Con un residente encima, Escape lo atiende ese detalle (vuelve a la vivienda) y este no se cierra
       this.cerrarDetalle();
     }
   }
@@ -755,8 +789,39 @@ export class ViviendasListComponent implements OnInit {
   }
 
   cerrarDetalle(): void {
+    this.residenteCruzado.set(null);
     this.isDetalleOpen.set(false);
     this.quitarParametroVivienda();
+  }
+
+  /** Residente abierto desde el detalle de la vivienda (queda encima de ella), con todas sus viviendas */
+  readonly residenteCruzado = signal<{ residente: Residente; viviendas: Vivienda[] } | null>(null);
+  private readonly injector = inject(Injector);
+
+  async abrirResidenteCruzado(residente: Residente): Promise<void> {
+    const actual = this.viviendaSeleccionada();
+    let viviendas: Vivienda[] = actual ? [actual] : [];
+    try {
+      viviendas = await this.viviendasService.obtenerViviendasDeResidente(residente.id);
+    } catch {
+      // Si no se pueden consultar todas, se muestra al menos la vivienda desde la que se llegó
+    }
+    this.residenteCruzado.set({ residente, viviendas });
+  }
+
+  /** Flecha de regreso: se quita el residente y el foco vuelve a su tarjeta dentro del detalle de la vivienda */
+  cerrarResidenteCruzado(): void {
+    this.residenteCruzado.set(null);
+    // El detalle de abajo sigue inerte hasta que se vuelva a renderizar: el foco se devuelve después
+    afterNextRender(() => document.querySelector<HTMLElement>('[data-origen-detalle="residente"]')?.focus(), { injector: this.injector });
+  }
+
+  /** Se le quitó una vivienda al residente abierto: se refresca la lista y el detalle de la vivienda de abajo */
+  async alDesvincularDesdeResidente(): Promise<void> {
+    this.residenteCruzado.set(null);
+    const actual = this.viviendaSeleccionada();
+    if (actual) this.viviendaSeleccionada.set({ ...actual });
+    await this.cargarViviendas();
   }
 
   abrirModalCrear(): void {
