@@ -223,9 +223,51 @@ void main() {
 
       expect(find.text('Bloqueo por Mantenimiento'), findsOneWidget);
       expect(
-        find.textContaining('se rechazan las pendientes y se cancelan las aprobadas'),
+        find.textContaining('se rechazan o cancelan'),
         findsOneWidget,
       );
+    });
+
+    testWidgets('Renders active block with Editar and Quitar buttons', (tester) async {
+      final now = DateTime.now();
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/api/areas') {
+          return http.Response(jsonEncode({'items': []}), 200, headers: {'content-type': 'application/json'});
+        }
+        if (request.url.path.startsWith('/api/admin/reservas')) {
+          return http.Response(
+            jsonEncode({
+              'items': [
+                {
+                  'id': 'bloq-active',
+                  'areaId': 'area-1',
+                  'areaNombre': 'Piscina',
+                  'tipo': 'BLOQUEO',
+                  'estado': 'APROBADA',
+                  'inicio': now.add(const Duration(days: 1)).toUtc().toIso8601String(),
+                  'fin': now.add(const Duration(days: 1, hours: 4)).toUtc().toIso8601String(),
+                  'motivo': 'Reparación de bomba',
+                }
+              ]
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('Not found', 404);
+      });
+
+      final controller = AppController(null, client: mockClient);
+
+      await tester.pumpWidget(createTestWidget(ReservasAdminScreen(controller: controller)));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Todas'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Motivo: Reparación de bomba'), findsOneWidget);
+      expect(find.text('Editar'), findsOneWidget);
+      expect(find.text('Quitar'), findsOneWidget);
     });
   });
 
