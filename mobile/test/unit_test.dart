@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart' as http_testing;
 import 'package:haven/Models/auth_user.dart';
+import 'package:haven/Services/app_controller.dart';
 
 void main() {
   group('AuthUser Model & Role Mapping', () {
