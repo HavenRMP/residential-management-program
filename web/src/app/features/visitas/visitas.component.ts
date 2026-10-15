@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal, computed, Injector, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -20,6 +20,7 @@ import {
 } from '../../core/models/visita.model';
 import { Vivienda } from '../../core/models/vivienda.model';
 import { UserMenuComponent } from '../../core/components/user-menu/user-menu.component';
+import { autoActualizar } from '../../core/utils/auto-actualizar.util';
 import { generarQrDataUrl } from '../../core/utils/qr.util';
 
 const FILTROS: { valor: EstadoVisita | null; etiqueta: string }[] = [
@@ -394,6 +395,7 @@ export class VisitasComponent implements OnInit {
   private readonly authService = inject(AuthService);
   private readonly viviendasService = inject(ViviendasService);
   readonly visitasService = inject(VisitasService);
+  private readonly injector = inject(Injector);
 
   readonly currentUser = this.authService.currentUser;
   readonly filtros = FILTROS;
@@ -424,6 +426,8 @@ export class VisitasComponent implements OnInit {
       this.viviendaId.set(id);
       if (id) {
         await this.visitasService.cargar();
+        // Cuando la caseta registra una entrada o una salida, el estado de la visita cambia solo
+        autoActualizar(this.injector, () => void this.visitasService.cargar(this.filtroActivo(), this.visitasService.page(), true));
       }
     } finally {
       this.isLoadingVivienda.set(false);
