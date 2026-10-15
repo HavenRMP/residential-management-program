@@ -72,6 +72,7 @@
   a[class*="rounded"] {
     min-width: 44px;
   }
+  nav[aria-label="Ruta de navegación"] a,
   button:has(> svg:only-child) {
     display: inline-flex;
     align-items: center;
