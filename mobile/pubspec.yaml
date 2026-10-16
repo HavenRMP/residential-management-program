@@ -24,7 +24,7 @@ dependencies:
   share_plus: ^13.3.1
   local_auth: ^3.0.2
   screen_brightness: ^2.1.11
-  audioplayers: ^6.7.1
+  audioplayers: ^6.8.1
 
 dev_dependencies:
   flutter_test:
