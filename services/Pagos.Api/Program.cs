@@ -1,8 +1,11 @@
 using HavenApi.Shared.Extensions;
+using Pagos.Api.Clients;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddHavenExceptionHandler();
+
+builder.Services.AddHttpClient<ISupabaseRestClient, SupabaseRestClient>();
 
 builder.Services.AddControllers();
 
