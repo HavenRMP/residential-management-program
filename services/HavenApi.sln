@@ -31,6 +31,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Reservas.Api", "Reservas.Ap
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Reservas.Api.Tests", "Reservas.Api.Tests\Reservas.Api.Tests.csproj", "{AAC31FAE-514E-4175-B3D1-ED3B6CEC94E6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pagos.Api", "Pagos.Api\Pagos.Api.csproj", "{0B652D15-2CD8-40B8-A255-E1C20DC317EC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -197,6 +199,18 @@ Global
 		{AAC31FAE-514E-4175-B3D1-ED3B6CEC94E6}.Release|x64.Build.0 = Release|Any CPU
 		{AAC31FAE-514E-4175-B3D1-ED3B6CEC94E6}.Release|x86.ActiveCfg = Release|Any CPU
 		{AAC31FAE-514E-4175-B3D1-ED3B6CEC94E6}.Release|x86.Build.0 = Release|Any CPU
+		{0B652D15-2CD8-40B8-A255-E1C20DC317EC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0B652D15-2CD8-40B8-A255-E1C20DC317EC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0B652D15-2CD8-40B8-A255-E1C20DC317EC}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0B652D15-2CD8-40B8-A255-E1C20DC317EC}.Debug|x64.Build.0 = Debug|Any CPU
+		{0B652D15-2CD8-40B8-A255-E1C20DC317EC}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0B652D15-2CD8-40B8-A255-E1C20DC317EC}.Debug|x86.Build.0 = Debug|Any CPU
+		{0B652D15-2CD8-40B8-A255-E1C20DC317EC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0B652D15-2CD8-40B8-A255-E1C20DC317EC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0B652D15-2CD8-40B8-A255-E1C20DC317EC}.Release|x64.ActiveCfg = Release|Any CPU
+		{0B652D15-2CD8-40B8-A255-E1C20DC317EC}.Release|x64.Build.0 = Release|Any CPU
+		{0B652D15-2CD8-40B8-A255-E1C20DC317EC}.Release|x86.ActiveCfg = Release|Any CPU
+		{0B652D15-2CD8-40B8-A255-E1C20DC317EC}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
