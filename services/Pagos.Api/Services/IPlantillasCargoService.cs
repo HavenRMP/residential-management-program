@@ -31,4 +31,9 @@ public interface IPlantillasCargoService
     /// Activa una plantilla de cargo inactiva existente (exclusivo para Administrador).
     /// </summary>
     Task<PlantillaResponse> ActivarPlantillaAsync(Guid id);
+
+    /// <summary>
+    /// Genera de forma manual e idempotente un lote de cargos a partir de plantillas activas para un periodo determinado (exclusivo para Administrador).
+    /// </summary>
+    Task<GenerarCargosLoteResponse> GenerarCargosLoteAsync(GenerarCargosLoteRequest request);
 }

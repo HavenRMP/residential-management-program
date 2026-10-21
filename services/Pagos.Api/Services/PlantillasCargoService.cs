@@ -2,6 +2,7 @@ using Pagos.Api.Clients;
 using Pagos.Api.DTOs;
 using Pagos.Api.Enums;
 using Pagos.Api.Models;
+using Pagos.Api.Utils;
 
 namespace Pagos.Api.Services;
 
@@ -14,6 +15,7 @@ public class PlantillasCargoService : IPlantillasCargoService
     private readonly IUserContextService _userContextService;
     private readonly IViviendasLookupService _viviendasLookupService;
     private readonly TimeProvider _timeProvider;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<PlantillasCargoService> _logger;
 
     public PlantillasCargoService(
@@ -21,12 +23,14 @@ public class PlantillasCargoService : IPlantillasCargoService
         IUserContextService userContextService,
         IViviendasLookupService viviendasLookupService,
         TimeProvider timeProvider,
+        IConfiguration configuration,
         ILogger<PlantillasCargoService> logger)
     {
         _supabaseClient = supabaseClient;
         _userContextService = userContextService;
         _viviendasLookupService = viviendasLookupService;
         _timeProvider = timeProvider;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -515,5 +519,174 @@ public class PlantillasCargoService : IPlantillasCargoService
         }
 
         return actualizada.ToResponse();
+    }
+
+    public async Task<GenerarCargosLoteResponse> GenerarCargosLoteAsync(GenerarCargosLoteRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        // 1. Validaciones de periodo
+        if (string.IsNullOrWhiteSpace(request.Periodo))
+        {
+            throw new ArgumentException("El periodo es obligatorio.", nameof(request.Periodo));
+        }
+
+        if (!PeriodoHelper.TryParse(request.Periodo, out var periodoDate, out var errorPeriodo))
+        {
+            throw new ArgumentException(errorPeriodo, nameof(request.Periodo));
+        }
+
+        // Regla 5: Rechazar periodos con más de 3 meses de anticipación respecto a hoy en America/Mexico_City (límite configurable)
+        var maxAnticipacion = _configuration.GetValue<int?>("Plantillas:MaxMesesAnticipacion") ?? 3;
+        var tzMexico = ObtenerZonaHorariaMexico();
+        var ahoraUtc = _timeProvider.GetUtcNow();
+        var ahoraMexico = TimeZoneInfo.ConvertTimeFromUtc(ahoraUtc.UtcDateTime, tzMexico);
+        var primerDiaMesHoy = new DateOnly(ahoraMexico.Year, ahoraMexico.Month, 1);
+        var limiteFuturo = primerDiaMesHoy.AddMonths(maxAnticipacion);
+
+        if (periodoDate > limiteFuturo)
+        {
+            throw new ArgumentException(
+                $"El periodo {request.Periodo} excede el límite permitido de {maxAnticipacion} meses de anticipación respecto a la fecha actual.",
+                nameof(request.Periodo));
+        }
+
+        var condominioId = _userContextService.CondominioId;
+        if (condominioId == Guid.Empty)
+        {
+            throw new InvalidOperationException("El usuario administrador no cuenta con un condominio asociado.");
+        }
+
+        // 2. Regla 1: Leer las plantillas candidatas de vw_plantillas_cargo
+        List<VwPlantillaCargo> plantillasActivas;
+
+        if (request.PlantillaIds != null && request.PlantillaIds.Count > 0)
+        {
+            var idsFiltro = request.PlantillaIds.Distinct().ToList();
+            var idsQuery = string.Join(",", idsFiltro);
+
+            // Regla 6: Si el filtro trae plantilla_ids que no son del condominio => 404
+            var plantillasCondominio = await _supabaseClient.GetAsync<VwPlantillaCargo>(
+                "vw_plantillas_cargo",
+                $"condominio_id=eq.{condominioId}&id=in.({idsQuery})");
+
+            var encontradosIds = (plantillasCondominio ?? new List<VwPlantillaCargo>())
+                .Select(p => p.Id)
+                .ToHashSet();
+
+            var idsFaltantes = idsFiltro.Where(id => !encontradosIds.Contains(id)).ToList();
+            if (idsFaltantes.Count > 0)
+            {
+                var faltantesTexto = string.Join(", ", idsFaltantes);
+                _logger.LogWarning("Plantillas {Ids} no encontradas en condominio {CondominioId}", faltantesTexto, condominioId);
+                throw new KeyNotFoundException($"Las siguientes plantillas no pertenecen al condominio o no existen: {faltantesTexto}.");
+            }
+
+            plantillasActivas = plantillasCondominio!.Where(p => p.Activa).ToList();
+        }
+        else
+        {
+            var todasActivas = await _supabaseClient.GetAsync<VwPlantillaCargo>(
+                "vw_plantillas_cargo",
+                $"condominio_id=eq.{condominioId}&activa=eq.true");
+
+            plantillasActivas = todasActivas ?? new List<VwPlantillaCargo>();
+        }
+
+        // 3. Evaluar vigencia para el periodo
+        // Solo se consideran las cuya vigencia cubra el periodo (vigencia_inicio <= último día del periodo y vigencia_fin nula o >= primer día del periodo)
+        var anio = periodoDate.Year;
+        var mes = periodoDate.Month;
+        var primerDiaPeriodo = new DateOnly(anio, mes, 1);
+        var diasEnMes = DateTime.DaysInMonth(anio, mes);
+        var ultimoDiaPeriodo = new DateOnly(anio, mes, diasEnMes);
+
+        var candidatasVigentes = new List<VwPlantillaCargo>();
+        var omitidasPorVigencia = 0;
+
+        foreach (var p in plantillasActivas)
+        {
+            var cubrePeriodo = p.VigenciaInicio <= ultimoDiaPeriodo &&
+                               (!p.VigenciaFin.HasValue || p.VigenciaFin.Value >= primerDiaPeriodo);
+
+            if (cubrePeriodo)
+            {
+                candidatasVigentes.Add(p);
+            }
+            else
+            {
+                omitidasPorVigencia++;
+            }
+        }
+
+        // Regla 7: Si no hay ninguna candidata vigente, responde 200 con todos los conteos en cero y sin llamar al insert.
+        if (candidatasVigentes.Count == 0)
+        {
+            return new GenerarCargosLoteResponse
+            {
+                Creados = 0,
+                OmitidosPorYaExistir = 0,
+                OmitidosPorVigencia = omitidasPorVigencia,
+                Cargos = new List<CargoCreadoItemResponse>()
+            };
+        }
+
+        // 4. Reglas 2 y 3: Construcción de cargos a insertar
+        var cargosParaInsertar = candidatasVigentes.Select(p =>
+        {
+            var dia = Math.Min(p.DiaVencimiento, diasEnMes);
+            var fechaVencimiento = new DateOnly(anio, mes, dia);
+
+            return new CargoInsert
+            {
+                CondominioId = p.CondominioId,
+                ViviendaId = p.ViviendaId,
+                PlantillaId = p.Id,
+                Tipo = p.Tipo,
+                Concepto = p.Concepto,
+                Monto = p.Monto,
+                Periodo = primerDiaPeriodo,
+                FechaVencimiento = fechaVencimiento,
+                ResponsablePago = p.ResponsablePago,
+                CreadoPor = _userContextService.UserId
+            };
+        }).ToList();
+
+        // 5. Regla 4: Idempotencia con una sola inserción masiva on_conflict plantilla_id,periodo e ignorar duplicados
+        var insertados = await _supabaseClient.InsertManyIgnoreDuplicatesAsync<CargoCreadoItemResponse>(
+            "cargos",
+            cargosParaInsertar,
+            "plantilla_id,periodo",
+            actorId: _userContextService.UserId);
+
+        var creadosCount = insertados.Count;
+        var omitidosPorYaExistir = candidatasVigentes.Count - creadosCount;
+
+        return new GenerarCargosLoteResponse
+        {
+            Creados = creadosCount,
+            OmitidosPorYaExistir = omitidosPorYaExistir,
+            OmitidosPorVigencia = omitidasPorVigencia,
+            Cargos = insertados
+        };
+    }
+
+    private static TimeZoneInfo ObtenerZonaHorariaMexico()
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("America/Mexico_City");
+        }
+        catch
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById("Central Standard Time (Mexico)");
+            }
+            catch
+            {
+                return TimeZoneInfo.Local;
+            }
+        }
     }
 }
