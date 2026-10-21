@@ -455,4 +455,150 @@ public class CargosService : ICargosService
 
         return response;
     }
+
+    public async Task<AplicarSaldoFavorResponse> AplicarSaldoFavorAsync(Guid id, AplicarSaldoFavorRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (id == Guid.Empty)
+        {
+            throw new ArgumentException("El identificador del cargo es obligatorio.", nameof(id));
+        }
+
+        if (request.Monto <= 0)
+        {
+            throw new ArgumentException("El monto debe ser mayor a cero.", nameof(request.Monto));
+        }
+
+        if (decimal.Round(request.Monto, 2) != request.Monto)
+        {
+            throw new ArgumentException("El monto no puede tener más de dos decimales.", nameof(request.Monto));
+        }
+
+        // Regla 1: Solo Admin. Primero lee el cargo de vw_cargos por id y verifica que sea de su condominio; si no => 404.
+        if (!_userContextService.EsAdmin)
+        {
+            throw new UnauthorizedAccessException("Solo los administradores pueden aplicar saldo a favor a cargos.");
+        }
+
+        var condominioId = _userContextService.CondominioId;
+        if (condominioId == Guid.Empty)
+        {
+            throw new InvalidOperationException("El administrador no tiene un condominio asignado en su contexto.");
+        }
+
+        var cargoActual = await _supabaseClient.GetSingleOrDefaultAsync<VwCargo>(
+            "vw_cargos",
+            $"id=eq.{id}");
+
+        if (cargoActual == null || cargoActual.CondominioId != condominioId)
+        {
+            _logger.LogWarning("Cargo {CargoId} no encontrado o no pertenece al condominio {CondominioId}", id, condominioId);
+            throw new KeyNotFoundException("Cargo no encontrado.");
+        }
+
+        // Regla 2: Llama a rpc_aplicar_saldo_favor(p_cargo_id, p_monto, p_actor_id).
+        var payload = new Dictionary<string, object?>
+        {
+            { "p_cargo_id", id },
+            { "p_monto", request.Monto },
+            { "p_actor_id", _userContextService.UserId }
+        };
+
+        var rpcResult = await _supabaseClient.RpcAsync<JsonElement>(
+            "rpc_aplicar_saldo_favor",
+            payload,
+            actorId: _userContextService.UserId);
+
+        // Regla 5: Responde 200 con { movimiento, cargo, saldo_a_favor } tomados de la respuesta de la RPC;
+        // si el nodo cargo no trae los campos calculados, relee de vw_cargos.
+        MovimientoSaldoResponse? movimientoResponse = null;
+        if (rpcResult.ValueKind == JsonValueKind.Object &&
+            (rpcResult.TryGetProperty("movimiento", out var movElem) || rpcResult.TryGetProperty("movimiento_saldo", out movElem)) &&
+            movElem.ValueKind == JsonValueKind.Object)
+        {
+            try
+            {
+                var opt = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                movimientoResponse = JsonSerializer.Deserialize<MovimientoSaldoResponse>(movElem.GetRawText(), opt);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "No se pudo deserializar movimiento devuelto por rpc_aplicar_saldo_favor.");
+            }
+        }
+
+        if (movimientoResponse == null)
+        {
+            var mov = await _supabaseClient.GetSingleOrDefaultAsync<VwMovimientoSaldoFavor>(
+                "vw_movimientos_saldo_favor",
+                $"cargo_id=eq.{id}&order=creado_en.desc");
+            if (mov != null)
+            {
+                movimientoResponse = mov.ToResponse();
+            }
+        }
+
+        CargoResponse? cargoResponse = null;
+        if (rpcResult.ValueKind == JsonValueKind.Object && rpcResult.TryGetProperty("cargo", out var cargoElem) && cargoElem.ValueKind == JsonValueKind.Object)
+        {
+            try
+            {
+                var opt = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var vwCargo = JsonSerializer.Deserialize<VwCargo>(cargoElem.GetRawText(), opt);
+                if (vwCargo != null && !string.IsNullOrEmpty(vwCargo.NumeroCasa))
+                {
+                    cargoResponse = vwCargo.ToResponse();
+                }
+            }
+            catch
+            {
+                // Releeremos de vw_cargos
+            }
+        }
+
+        if (cargoResponse == null)
+        {
+            var vwCargo = await _supabaseClient.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{id}");
+            if (vwCargo != null)
+            {
+                cargoResponse = vwCargo.ToResponse();
+            }
+        }
+
+        if (cargoResponse == null)
+        {
+            throw new InvalidOperationException("No se pudo obtener la información del cargo actualizado.");
+        }
+
+        decimal saldoAFavor = 0m;
+        if (rpcResult.ValueKind == JsonValueKind.Object && rpcResult.TryGetProperty("saldo_a_favor", out var saldoElem))
+        {
+            if (saldoElem.ValueKind == JsonValueKind.Number)
+            {
+                saldoAFavor = saldoElem.GetDecimal();
+            }
+            else if (decimal.TryParse(saldoElem.GetString(), out var parsedSaldo))
+            {
+                saldoAFavor = parsedSaldo;
+            }
+        }
+        else
+        {
+            var saldoVivienda = await _supabaseClient.GetSingleOrDefaultAsync<VSaldoVivienda>(
+                "v_saldo_vivienda",
+                $"vivienda_id=eq.{cargoActual.ViviendaId}");
+            if (saldoVivienda != null)
+            {
+                saldoAFavor = saldoVivienda.SaldoAFavor;
+            }
+        }
+
+        return new AplicarSaldoFavorResponse
+        {
+            Movimiento = movimientoResponse!,
+            Cargo = cargoResponse,
+            SaldoAFavor = saldoAFavor
+        };
+    }
 }
