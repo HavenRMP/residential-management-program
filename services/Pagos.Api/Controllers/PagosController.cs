@@ -216,4 +216,36 @@ public class PagosController : ControllerBase
             return StatusCode(ex.StatusCode, new ErrorResponseDto(ex.MensajeUsuario));
         }
     }
+
+    /// <summary>
+    /// Consulta el listado de pagos con filtros opcionales y paginación (Admin e Inquilino).
+    /// </summary>
+    [HttpGet]
+    [ProducesResponseType(typeof(RespuestaPaginadaDto<PagoResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> ListarPagos([FromQuery] ConsultaPagosFiltrosDto filtros)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        try
+        {
+            var resultado = await _pagosService.ListarPagosAsync(filtros);
+            return Ok(resultado);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning("ListarPagos acceso denegado: {Message}", ex.Message);
+            return StatusCode(StatusCodes.Status403Forbidden, new ErrorResponseDto(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning("ListarPagos validación fallida: {Message}", ex.Message);
+            return BadRequest(new ErrorResponseDto(ex.Message));
+        }
+    }
 }

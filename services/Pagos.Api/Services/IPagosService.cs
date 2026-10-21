@@ -33,4 +33,9 @@ public interface IPagosService
     /// Anula un pago confirmado mediante un movimiento de reversa (exclusivo para Administrador).
     /// </summary>
     Task<AnularPagoResponse> AnularPagoAdminAsync(Guid id, AnularPagoRequest request);
+
+    /// <summary>
+    /// Consulta el listado de pagos con filtros opcionales y paginación (Admin e Inquilino).
+    /// </summary>
+    Task<RespuestaPaginadaDto<PagoResponse>> ListarPagosAsync(ConsultaPagosFiltrosDto filtros);
 }
