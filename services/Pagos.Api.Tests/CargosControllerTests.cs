@@ -1,0 +1,218 @@
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using Microsoft.Extensions.DependencyInjection;
+using Moq;
+using Pagos.Api.Clients;
+using Pagos.Api.DTOs;
+using Pagos.Api.Enums;
+using Pagos.Api.Models;
+using Pagos.Api.Services;
+using Xunit;
+
+namespace Pagos.Api.Tests;
+
+public class CargosControllerTests : IClassFixture<PagosApiFactory>
+{
+    private readonly PagosApiFactory _factory;
+
+    public CargosControllerTests(PagosApiFactory factory)
+    {
+        _factory = factory;
+    }
+
+    [Fact]
+    public async Task PostCargo_SinToken_Retorna401Unauthorized()
+    {
+        var client = _factory.CreateClient();
+        var request = new CrearCargoRequest
+        {
+            ViviendaId = 1,
+            Monto = 100m,
+            Concepto = "Cuota",
+            Tipo = TipoCargo.Otro,
+            FechaVencimiento = new DateOnly(2026, 12, 1)
+        };
+
+        var response = await client.PostAsJsonAsync("/api/cargos", request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PostCargo_ConRolInquilino_Retorna403Forbidden()
+    {
+        var client = _factory.CreateClient();
+        var token = TestTokenGenerator.GenerateInquilinoToken();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var request = new CrearCargoRequest
+        {
+            ViviendaId = 1,
+            Monto = 100m,
+            Concepto = "Cuota",
+            Tipo = TipoCargo.Otro,
+            FechaVencimiento = new DateOnly(2026, 12, 1)
+        };
+
+        var response = await client.PostAsJsonAsync("/api/cargos", request);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PostCargo_AdminViviendaNoPertenece_Retorna404NotFound()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var mockViviendas = new Mock<IViviendasLookupService>();
+        mockViviendas
+            .Setup(v => v.ExisteViviendaEnCondominioAsync(999, condominioId))
+            .ReturnsAsync(false);
+
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IViviendasLookupService));
+                if (descriptor != null) services.Remove(descriptor);
+                services.AddScoped(_ => mockViviendas.Object);
+            });
+        }).CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var request = new CrearCargoRequest
+        {
+            ViviendaId = 999,
+            Monto = 1000m,
+            Concepto = "Cuota de mantenimiento",
+            Tipo = TipoCargo.Mantenimiento,
+            Periodo = "2026-10",
+            FechaVencimiento = new DateOnly(2026, 10, 31)
+        };
+
+        var response = await client.PostAsJsonAsync("/api/cargos", request);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var err = await response.Content.ReadFromJsonAsync<ErrorResponseDto>();
+        Assert.NotNull(err);
+        Assert.Equal("Vivienda no encontrada.", err.Error);
+    }
+
+    [Fact]
+    public async Task PostCargo_AdminValidacionFallida_Retorna400BadRequest()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var request = new CrearCargoRequest
+        {
+            ViviendaId = 1,
+            Monto = -50m, // Monto inválido
+            Concepto = "Cuota",
+            Tipo = TipoCargo.Otro,
+            FechaVencimiento = new DateOnly(2026, 12, 1)
+        };
+
+        var response = await client.PostAsJsonAsync("/api/cargos", request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var err = await response.Content.ReadFromJsonAsync<ErrorResponseDto>();
+        Assert.NotNull(err);
+        Assert.Contains("monto", err.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PostCargo_AdminExitoso_Retorna201CreatedConCargoResponse()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var cargoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var mockViviendas = new Mock<IViviendasLookupService>();
+        mockViviendas
+            .Setup(v => v.ExisteViviendaEnCondominioAsync(5, condominioId))
+            .ReturnsAsync(true);
+
+        var mockRestClient = new Mock<ISupabaseRestClient>();
+        mockRestClient
+            .Setup(c => c.InsertSingleAsync<CargoIdResult>("cargos", It.IsAny<CargoInsert>(), adminId))
+            .ReturnsAsync(new CargoIdResult { Id = cargoId });
+
+        var vwCargo = new VwCargo
+        {
+            Id = cargoId,
+            CondominioId = condominioId,
+            CondominioNombre = "Haven Towers",
+            ViviendaId = 5,
+            NumeroCasa = "Depto 502",
+            PlantillaId = null,
+            Periodo = new DateOnly(2026, 10, 1),
+            Tipo = TipoCargo.Mantenimiento,
+            Concepto = "Mantenimiento Octubre",
+            Monto = 1200m,
+            MontoPagadoConfirmado = 0m,
+            SaldoPendiente = 1200m,
+            Estado = EstadoCargo.Pendiente,
+            FechaVencimiento = new DateOnly(2026, 10, 25),
+            EstaVencido = false,
+            ResponsablePago = ResponsablePago.Propietario,
+            CreadoPor = adminId,
+            CreadoEn = DateTimeOffset.UtcNow
+        };
+
+        mockRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(vwCargo);
+
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                var descriptorViviendas = services.SingleOrDefault(d => d.ServiceType == typeof(IViviendasLookupService));
+                if (descriptorViviendas != null) services.Remove(descriptorViviendas);
+                services.AddScoped(_ => mockViviendas.Object);
+
+                var descriptorRest = services.SingleOrDefault(d => d.ServiceType == typeof(ISupabaseRestClient));
+                if (descriptorRest != null) services.Remove(descriptorRest);
+                services.AddScoped(_ => mockRestClient.Object);
+            });
+        }).CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var request = new CrearCargoRequest
+        {
+            ViviendaId = 5,
+            Monto = 1200m,
+            Concepto = "Mantenimiento Octubre",
+            Tipo = TipoCargo.Mantenimiento,
+            Periodo = "2026-10",
+            FechaVencimiento = new DateOnly(2026, 10, 25),
+            ResponsablePago = ResponsablePago.Propietario
+        };
+
+        var response = await client.PostAsJsonAsync("/api/cargos", request);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var created = await response.Content.ReadFromJsonAsync<CargoResponse>();
+        Assert.NotNull(created);
+        Assert.Equal(cargoId, created.Id);
+        Assert.Equal(5, created.ViviendaId);
+        Assert.Equal("Depto 502", created.NumeroCasa);
+        Assert.Equal(1200m, created.Monto);
+        Assert.Equal(1200m, created.SaldoPendiente);
+        Assert.Equal("2026-10", created.Periodo);
+        Assert.Equal(TipoCargo.Mantenimiento, created.Tipo);
+        Assert.Equal(EstadoCargo.Pendiente, created.Estado);
+        Assert.Equal("Pendiente", created.EstadoEfectivo);
+    }
+}
