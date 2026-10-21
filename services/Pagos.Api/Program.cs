@@ -1,9 +1,33 @@
 using HavenApi.Shared.Extensions;
+using HavenApi.Shared.Roles;
+using Microsoft.AspNetCore.Authorization;
+using Pagos.Api.Authentication;
 using Pagos.Api.Clients;
+using Pagos.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddHavenJwtAuth(builder.Configuration);
+
 builder.Services.AddHavenExceptionHandler();
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IUserContextService, UserContextService>();
+
+builder.Services.AddSingleton<IAuthorizationHandler, RolCondominioHandler>();
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("Admin", policy =>
+        policy.Requirements.Add(new RolCondominioRequirement(RolesHaven.AdministradorNombre, "Admin")));
+
+    options.AddPolicy("Inquilino", policy =>
+        policy.Requirements.Add(new RolCondominioRequirement(RolesHaven.ResidenteNombre, "Inquilino")));
+
+    options.AddPolicy("AdminOInquilino", policy =>
+        policy.Requirements.Add(new RolCondominioRequirement(
+            RolesHaven.AdministradorNombre, "Admin", RolesHaven.ResidenteNombre, "Inquilino")));
+});
 
 builder.Services.AddHttpClient<ISupabaseRestClient, SupabaseRestClient>();
 
@@ -52,6 +76,9 @@ app.UseSwaggerUI(options =>
 });
 
 app.UseCors("AllowClients");
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 
