@@ -84,4 +84,32 @@ public class CargosController : ControllerBase
             return BadRequest(new ErrorResponseDto(ex.Message));
         }
     }
+
+    /// <summary>
+    /// Obtiene el detalle de un cargo específico incluyendo sus pagos asociados (Admin e Inquilino).
+    /// </summary>
+    [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(CargoDetalleResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ObtenerDetalleCargo(Guid id)
+    {
+        try
+        {
+            var cargo = await _cargosService.ObtenerDetalleCargoAsync(id);
+            return Ok(cargo);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            _logger.LogWarning("ObtenerDetalleCargo no encontrado: {Message}", ex.Message);
+            return NotFound(new ErrorResponseDto(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning("ObtenerDetalleCargo argumento inválido: {Message}", ex.Message);
+            return BadRequest(new ErrorResponseDto(ex.Message));
+        }
+    }
 }

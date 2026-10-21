@@ -20,4 +20,12 @@ public interface ICargosService
     /// <param name="filtros">Filtros y parámetros de paginación.</param>
     /// <returns>Página con los cargos proyectados en <see cref="CargoResponse"/>.</returns>
     Task<RespuestaPaginadaDto<CargoResponse>> ListarCargosAsync(ConsultaCargosFiltrosDto filtros);
+
+    /// <summary>
+    /// Obtiene el detalle de un cargo específico con la lista de sus pagos asociados.
+    /// Valida pertenencia de condominio (Admin) o titularidad de vivienda (Inquilino).
+    /// </summary>
+    /// <param name="id">ID único del cargo.</param>
+    /// <returns>Detalle del cargo proyectado en <see cref="CargoDetalleResponse"/>.</returns>
+    Task<CargoDetalleResponse> ObtenerDetalleCargoAsync(Guid id);
 }
