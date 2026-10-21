@@ -700,4 +700,234 @@ public class PagosService : IPagosService
             Pago = pagoResponse
         };
     }
+
+    public async Task<AnularPagoResponse> AnularPagoAdminAsync(Guid id, AnularPagoRequest request)
+    {
+        if (id == Guid.Empty)
+        {
+            throw new ArgumentException("El id del pago es obligatorio.", nameof(id));
+        }
+
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (string.IsNullOrWhiteSpace(request.Motivo))
+        {
+            throw new ArgumentException("El motivo de anulación es obligatorio.", nameof(request.Motivo));
+        }
+
+        var motivoLimpio = request.Motivo.Trim();
+        if (motivoLimpio.Length < 5 || motivoLimpio.Length > 300)
+        {
+            throw new ArgumentException("El motivo debe tener entre 5 y 300 caracteres.", nameof(request.Motivo));
+        }
+
+        // 1. Solo Admin. Primero lee el pago de vw_pagos por id y verifica que sea de su condominio; si no => 404.
+        var condominioId = _userContextService.CondominioId;
+        var pagoActual = await _supabaseClient.GetSingleOrDefaultAsync<VwPago>(
+            "vw_pagos",
+            $"id=eq.{id}");
+
+        if (pagoActual == null || pagoActual.CondominioId != condominioId)
+        {
+            _logger.LogWarning("Pago {PagoId} no encontrado o no pertenece al condominio {CondominioId}", id, condominioId);
+            throw new KeyNotFoundException("Pago no encontrado.");
+        }
+
+        // No permitir anular un registro que sea una reversa (es_reversa verdadero) => 409
+        if (pagoActual.EsReversa)
+        {
+            throw new PostgrestException(409, "PG009", "No se puede anular un registro que sea una reversa.");
+        }
+
+        // Pago no Confirmado => PG004 (409)
+        if (pagoActual.Estado != EstadoPago.Confirmado)
+        {
+            throw new PostgrestException(409, "PG004", "Solo se pueden anular pagos confirmados");
+        }
+
+        // 2. Llama a rpc_anular_pago(p_pago_id, p_motivo, p_actor_id).
+        var payload = new Dictionary<string, object?>
+        {
+            { "p_pago_id", id },
+            { "p_motivo", motivoLimpio },
+            { "p_actor_id", _userContextService.UserId }
+        };
+
+        JsonElement rpcResult;
+        try
+        {
+            rpcResult = await _supabaseClient.RpcAsync<JsonElement>(
+                "rpc_anular_pago",
+                payload,
+                actorId: _userContextService.UserId);
+        }
+        catch (PostgrestException ex) when (ex.Code == "PG007")
+        {
+            throw new PostgrestException(
+                409,
+                "PG007",
+                "Saldo a favor insuficiente para revertir el abono del pago. Primero deben revertirse las aplicaciones de saldo hechas a otros cargos.");
+        }
+
+        // 3. Responde 200 con { pago_anulado, pago_reversa, cargo, movimiento_saldo (o null), saldo_a_favor }
+        PagoResponse? pagoAnuladoResponse = null;
+        if (rpcResult.ValueKind == JsonValueKind.Object && rpcResult.TryGetProperty("pago_anulado", out var pagoAnuladoElem) && pagoAnuladoElem.ValueKind == JsonValueKind.Object)
+        {
+            try
+            {
+                var opt = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var vwPago = JsonSerializer.Deserialize<VwPago>(pagoAnuladoElem.GetRawText(), opt);
+                if (vwPago != null && !string.IsNullOrEmpty(vwPago.NumeroCasa))
+                {
+                    pagoAnuladoResponse = vwPago.ToResponse();
+                }
+            }
+            catch
+            {
+                // Releeremos de vw_pagos
+            }
+        }
+
+        if (pagoAnuladoResponse == null)
+        {
+            var vwPago = await _supabaseClient.GetSingleOrDefaultAsync<VwPago>("vw_pagos", $"id=eq.{id}");
+            if (vwPago != null)
+            {
+                pagoAnuladoResponse = vwPago.ToResponse();
+            }
+        }
+
+        if (pagoAnuladoResponse == null)
+        {
+            throw new InvalidOperationException("No se pudo obtener la información del pago anulado.");
+        }
+
+        // Pago reversa
+        PagoResponse? pagoReversaResponse = null;
+        Guid? reversaId = null;
+        if (rpcResult.ValueKind == JsonValueKind.Object && rpcResult.TryGetProperty("pago_reversa", out var pagoReversaElem) && pagoReversaElem.ValueKind == JsonValueKind.Object)
+        {
+            if (pagoReversaElem.TryGetProperty("id", out var revIdProp))
+            {
+                if (revIdProp.ValueKind == JsonValueKind.String && Guid.TryParse(revIdProp.GetString(), out var idParsed))
+                {
+                    reversaId = idParsed;
+                }
+                else if (revIdProp.TryGetGuid(out var idGuid))
+                {
+                    reversaId = idGuid;
+                }
+            }
+
+            try
+            {
+                var opt = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var vwPago = JsonSerializer.Deserialize<VwPago>(pagoReversaElem.GetRawText(), opt);
+                if (vwPago != null && !string.IsNullOrEmpty(vwPago.NumeroCasa))
+                {
+                    pagoReversaResponse = vwPago.ToResponse();
+                }
+            }
+            catch
+            {
+                // Releeremos de vw_pagos
+            }
+        }
+
+        if (pagoReversaResponse == null && reversaId.HasValue)
+        {
+            var vwPagoRev = await _supabaseClient.GetSingleOrDefaultAsync<VwPago>("vw_pagos", $"id=eq.{reversaId.Value}");
+            if (vwPagoRev != null)
+            {
+                pagoReversaResponse = vwPagoRev.ToResponse();
+            }
+        }
+
+        if (pagoReversaResponse == null)
+        {
+            var vwPagoRev = await _supabaseClient.GetSingleOrDefaultAsync<VwPago>("vw_pagos", $"pago_original_id=eq.{id}&es_reversa=eq.true");
+            if (vwPagoRev != null)
+            {
+                pagoReversaResponse = vwPagoRev.ToResponse();
+            }
+        }
+
+        if (pagoReversaResponse == null)
+        {
+            throw new InvalidOperationException("No se pudo obtener la información del pago de reversa.");
+        }
+
+        // Cargo
+        CargoResponse? cargoResponse = null;
+        if (rpcResult.ValueKind == JsonValueKind.Object && rpcResult.TryGetProperty("cargo", out var cargoElem) && cargoElem.ValueKind == JsonValueKind.Object)
+        {
+            try
+            {
+                var opt = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var vwCargo = JsonSerializer.Deserialize<VwCargo>(cargoElem.GetRawText(), opt);
+                if (vwCargo != null && !string.IsNullOrEmpty(vwCargo.NumeroCasa))
+                {
+                    cargoResponse = vwCargo.ToResponse();
+                }
+            }
+            catch
+            {
+                // Releeremos de vw_cargos
+            }
+        }
+
+        if (cargoResponse == null)
+        {
+            var vwCargo = await _supabaseClient.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{pagoActual.CargoId}");
+            if (vwCargo != null)
+            {
+                cargoResponse = vwCargo.ToResponse();
+            }
+        }
+
+        if (cargoResponse == null)
+        {
+            throw new InvalidOperationException("No se pudo obtener la información del cargo actualizado tras anulación.");
+        }
+
+        // Movimiento saldo (o null)
+        MovimientoSaldoResponse? movimientoSaldo = null;
+        if (rpcResult.ValueKind == JsonValueKind.Object && 
+            rpcResult.TryGetProperty("movimiento_saldo", out var movElem) && 
+            movElem.ValueKind == JsonValueKind.Object)
+        {
+            try
+            {
+                var opt = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                movimientoSaldo = JsonSerializer.Deserialize<MovimientoSaldoResponse>(movElem.GetRawText(), opt);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "No se pudo deserializar movimiento_saldo devuelto por rpc_anular_pago.");
+            }
+        }
+
+        // Saldo a favor
+        decimal saldoAFavor = 0m;
+        if (rpcResult.ValueKind == JsonValueKind.Object && rpcResult.TryGetProperty("saldo_a_favor", out var saldoElem))
+        {
+            if (saldoElem.ValueKind == JsonValueKind.Number)
+            {
+                saldoAFavor = saldoElem.GetDecimal();
+            }
+            else if (decimal.TryParse(saldoElem.GetString(), out var parsedSaldo))
+            {
+                saldoAFavor = parsedSaldo;
+            }
+        }
+
+        return new AnularPagoResponse
+        {
+            PagoAnulado = pagoAnuladoResponse,
+            PagoReversa = pagoReversaResponse,
+            Cargo = cargoResponse,
+            MovimientoSaldo = movimientoSaldo,
+            SaldoAFavor = saldoAFavor
+        };
+    }
 }
