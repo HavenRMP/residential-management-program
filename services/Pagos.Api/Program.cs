@@ -19,6 +19,7 @@ builder.Services.AddScoped<IViviendasLookupService, ViviendasLookupService>();
 builder.Services.AddScoped<ICargosService, CargosService>();
 builder.Services.AddScoped<IPagosService, PagosService>();
 builder.Services.AddScoped<IPlantillasCargoService, PlantillasCargoService>();
+builder.Services.AddScoped<ISaldosService, SaldosService>();
 
 builder.Services.Configure<ComprobanteOptions>(builder.Configuration.GetSection(ComprobanteOptions.SectionName));
 builder.Services.AddSingleton<IComprobanteProcessor, ComprobanteProcessor>();
