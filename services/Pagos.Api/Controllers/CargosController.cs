@@ -5,7 +5,7 @@ using Pagos.Api.Services;
 
 namespace Pagos.Api.Controllers;
 
-[Authorize(Policy = "Admin")]
+[Authorize(Policy = "AdminOInquilino")]
 [ApiController]
 [Route("api/[controller]")]
 public class CargosController : ControllerBase
@@ -22,6 +22,7 @@ public class CargosController : ControllerBase
     /// <summary>
     /// Crea un nuevo cargo manual para una vivienda del condominio (exclusivo para Administrador).
     /// </summary>
+    [Authorize(Policy = "Admin")]
     [HttpPost]
     [ProducesResponseType(typeof(CargoResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status400BadRequest)]
@@ -48,6 +49,38 @@ public class CargosController : ControllerBase
         catch (ArgumentException ex)
         {
             _logger.LogWarning("CrearCargo validación fallida: {Message}", ex.Message);
+            return BadRequest(new ErrorResponseDto(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Consulta el listado de cargos con filtros opcionales y paginación (Admin e Inquilino).
+    /// </summary>
+    [HttpGet]
+    [ProducesResponseType(typeof(RespuestaPaginadaDto<CargoResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> ListarCargos([FromQuery] ConsultaCargosFiltrosDto filtros)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        try
+        {
+            var resultado = await _cargosService.ListarCargosAsync(filtros);
+            return Ok(resultado);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning("ListarCargos acceso denegado: {Message}", ex.Message);
+            return StatusCode(StatusCodes.Status403Forbidden, new ErrorResponseDto(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning("ListarCargos validación fallida: {Message}", ex.Message);
             return BadRequest(new ErrorResponseDto(ex.Message));
         }
     }

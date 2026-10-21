@@ -215,4 +215,195 @@ public class CargosControllerTests : IClassFixture<PagosApiFactory>
         Assert.Equal(EstadoCargo.Pendiente, created.Estado);
         Assert.Equal("Pendiente", created.EstadoEfectivo);
     }
+
+    [Fact]
+    public async Task GetCargos_SinToken_Retorna401Unauthorized()
+    {
+        var client = _factory.CreateClient();
+        var response = await client.GetAsync("/api/cargos");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetCargos_ConRolSubusuario_Retorna403Forbidden()
+    {
+        var client = _factory.CreateClient();
+        var token = TestTokenGenerator.GenerateSubusuarioToken();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync("/api/cargos");
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetCargos_Admin_Retorna200OkConPaginacion()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var mockRestClient = new Mock<ISupabaseRestClient>();
+        var items = new List<VwCargo>
+        {
+            new()
+            {
+                Id = Guid.NewGuid(),
+                CondominioId = condominioId,
+                ViviendaId = 1,
+                NumeroCasa = "101",
+                Concepto = "Cuota Octubre",
+                Monto = 1000m,
+                Estado = EstadoCargo.Pendiente,
+                EstaVencido = true
+            }
+        };
+
+        mockRestClient
+            .Setup(c => c.GetPagedAsync<VwCargo>("vw_cargos", It.IsAny<HavenApi.Shared.Pagination.PaginationParams>(), It.IsAny<string?>()))
+            .ReturnsAsync((items, 1));
+
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                var descriptorRest = services.SingleOrDefault(d => d.ServiceType == typeof(ISupabaseRestClient));
+                if (descriptorRest != null) services.Remove(descriptorRest);
+                services.AddScoped(_ => mockRestClient.Object);
+            });
+        }).CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync("/api/cargos?pagina=1&tamanoPagina=10&vencido=true");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var page = await response.Content.ReadFromJsonAsync<RespuestaPaginadaDto<CargoResponse>>();
+        Assert.NotNull(page);
+        Assert.Single(page.Items);
+        Assert.Equal(1, page.Total);
+        Assert.Equal("Vencido", page.Items[0].EstadoEfectivo);
+    }
+
+    [Fact]
+    public async Task GetCargos_Inquilino_ConViviendaPropia_Retorna200Ok()
+    {
+        var inquilinoId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateInquilinoToken(inquilinoId, condominioId);
+
+        var mockViviendas = new Mock<IViviendasLookupService>();
+        mockViviendas
+            .Setup(v => v.GetViviendaIdsPorUsuarioTitularAsync(inquilinoId))
+            .ReturnsAsync(new List<int> { 12 });
+
+        var mockRestClient = new Mock<ISupabaseRestClient>();
+        mockRestClient
+            .Setup(c => c.GetPagedAsync<VwCargo>("vw_cargos", It.IsAny<HavenApi.Shared.Pagination.PaginationParams>(), It.IsAny<string?>()))
+            .ReturnsAsync((new List<VwCargo>
+            {
+                new()
+                {
+                    Id = Guid.NewGuid(),
+                    CondominioId = condominioId,
+                    ViviendaId = 12,
+                    NumeroCasa = "12",
+                    Concepto = "Renta Octubre",
+                    Monto = 5000m,
+                    Estado = EstadoCargo.Pagado,
+                    EstaVencido = false
+                }
+            }, 1));
+
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                var descriptorViviendas = services.SingleOrDefault(d => d.ServiceType == typeof(IViviendasLookupService));
+                if (descriptorViviendas != null) services.Remove(descriptorViviendas);
+                services.AddScoped(_ => mockViviendas.Object);
+
+                var descriptorRest = services.SingleOrDefault(d => d.ServiceType == typeof(ISupabaseRestClient));
+                if (descriptorRest != null) services.Remove(descriptorRest);
+                services.AddScoped(_ => mockRestClient.Object);
+            });
+        }).CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync("/api/cargos?vivienda_id=12");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var page = await response.Content.ReadFromJsonAsync<RespuestaPaginadaDto<CargoResponse>>();
+        Assert.NotNull(page);
+        Assert.Single(page.Items);
+        Assert.Equal("Pagado", page.Items[0].EstadoEfectivo);
+    }
+
+    [Fact]
+    public async Task GetCargos_Inquilino_ConViviendaAjena_Retorna403Forbidden()
+    {
+        var inquilinoId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateInquilinoToken(inquilinoId, condominioId);
+
+        var mockViviendas = new Mock<IViviendasLookupService>();
+        mockViviendas
+            .Setup(v => v.GetViviendaIdsPorUsuarioTitularAsync(inquilinoId))
+            .ReturnsAsync(new List<int> { 12 });
+
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                var descriptorViviendas = services.SingleOrDefault(d => d.ServiceType == typeof(IViviendasLookupService));
+                if (descriptorViviendas != null) services.Remove(descriptorViviendas);
+                services.AddScoped(_ => mockViviendas.Object);
+            });
+        }).CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync("/api/cargos?vivienda_id=99");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var err = await response.Content.ReadFromJsonAsync<ErrorResponseDto>();
+        Assert.NotNull(err);
+        Assert.Contains("no te pertenece", err.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetCargos_Inquilino_ConUsuarioIdAjeno_Retorna403Forbidden()
+    {
+        var inquilinoId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateInquilinoToken(inquilinoId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync($"/api/cargos?usuario_id={Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var err = await response.Content.ReadFromJsonAsync<ErrorResponseDto>();
+        Assert.NotNull(err);
+        Assert.Contains("inquilinos", err.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetCargos_FechasInvalidas_Retorna400BadRequest()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync("/api/cargos?vencimiento_desde=2026-12-01&vencimiento_hasta=2026-11-01");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var err = await response.Content.ReadFromJsonAsync<ErrorResponseDto>();
+        Assert.NotNull(err);
+        Assert.Contains("vencimiento", err.Error, StringComparison.OrdinalIgnoreCase);
+    }
 }

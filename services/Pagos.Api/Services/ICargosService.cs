@@ -13,4 +13,11 @@ public interface ICargosService
     /// <param name="request">Datos del cargo a crear.</param>
     /// <returns>El cargo creado con sus campos calculados proyectados en <see cref="CargoResponse"/>.</returns>
     Task<CargoResponse> CrearCargoAsync(CrearCargoRequest request);
+
+    /// <summary>
+    /// Consulta el listado de cargos aplicando filtros por rol, pertenencia de vivienda y paginación.
+    /// </summary>
+    /// <param name="filtros">Filtros y parámetros de paginación.</param>
+    /// <returns>Página con los cargos proyectados en <see cref="CargoResponse"/>.</returns>
+    Task<RespuestaPaginadaDto<CargoResponse>> ListarCargosAsync(ConsultaCargosFiltrosDto filtros);
 }
