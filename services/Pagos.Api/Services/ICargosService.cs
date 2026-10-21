@@ -28,4 +28,12 @@ public interface ICargosService
     /// <param name="id">ID único del cargo.</param>
     /// <returns>Detalle del cargo proyectado en <see cref="CargoDetalleResponse"/>.</returns>
     Task<CargoDetalleResponse> ObtenerDetalleCargoAsync(Guid id);
+
+    /// <summary>
+    /// Cancela un cargo existente mediante la RPC 'rpc_cancelar_cargo' (Solo administradores).
+    /// </summary>
+    /// <param name="id">ID único del cargo.</param>
+    /// <param name="request">Motivo de la cancelación.</param>
+    /// <returns>El cargo cancelado proyectado en <see cref="CargoResponse"/>.</returns>
+    Task<CargoResponse> CancelarCargoAsync(Guid id, CancelarCargoRequest request);
 }

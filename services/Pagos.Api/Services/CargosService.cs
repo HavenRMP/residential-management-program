@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Pagos.Api.Clients;
 using Pagos.Api.DTOs;
@@ -362,5 +363,96 @@ public class CargosService : ICargosService
             $"cargo_id=eq.{id}&order=fecha_pago.desc,creado_en.desc");
 
         return cargo.ToDetalleResponse(pagos);
+    }
+
+    public async Task<CargoResponse> CancelarCargoAsync(Guid id, CancelarCargoRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (id == Guid.Empty)
+        {
+            throw new ArgumentException("El id del cargo es obligatorio.", nameof(id));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Motivo))
+        {
+            throw new ArgumentException("El motivo de cancelación es obligatorio.", nameof(request.Motivo));
+        }
+
+        var motivoLimpio = request.Motivo.Trim();
+        if (motivoLimpio.Length < 5 || motivoLimpio.Length > 300)
+        {
+            throw new ArgumentException("El motivo de cancelación debe tener entre 5 y 300 caracteres.", nameof(request.Motivo));
+        }
+
+        // Regla 1: Solo Admin. Primero lee el cargo de vw_cargos por id y verifica que sea de su condominio; si no => 404.
+        if (!_userContextService.EsAdmin)
+        {
+            throw new UnauthorizedAccessException("Solo los administradores pueden cancelar cargos.");
+        }
+
+        var condominioId = _userContextService.CondominioId;
+        if (condominioId == Guid.Empty)
+        {
+            throw new InvalidOperationException("El administrador no tiene un condominio asignado en su contexto.");
+        }
+
+        var cargoActual = await _supabaseClient.GetSingleOrDefaultAsync<VwCargo>(
+            "vw_cargos",
+            $"id=eq.{id}");
+
+        if (cargoActual == null || cargoActual.CondominioId != condominioId)
+        {
+            _logger.LogWarning("Cargo {CargoId} no encontrado o no pertenece al condominio {CondominioId}", id, condominioId);
+            throw new KeyNotFoundException("Cargo no encontrado.");
+        }
+
+        // Regla 2: Llama a la RPC rpc_cancelar_cargo con el id del cargo, el motivo y p_actor_id (usuario del token).
+        var payload = new Dictionary<string, object>
+        {
+            { "p_cargo_id", id },
+            { "p_motivo", motivoLimpio },
+            { "p_actor_id", _userContextService.UserId }
+        };
+
+        var rpcResult = await _supabaseClient.RpcAsync<JsonElement>(
+            "rpc_cancelar_cargo",
+            payload,
+            actorId: _userContextService.UserId);
+
+        // Regla 5: Responde 200 con CargoResponse (del nodo cargo de la RPC; si no trae los campos calculados, relee de vw_cargos).
+        CargoResponse? response = null;
+        if (rpcResult.ValueKind == JsonValueKind.Object && rpcResult.TryGetProperty("cargo", out var cargoElem))
+        {
+            try
+            {
+                var opt = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var vwCargo = JsonSerializer.Deserialize<VwCargo>(cargoElem.GetRawText(), opt);
+                if (vwCargo != null && !string.IsNullOrEmpty(vwCargo.NumeroCasa) && vwCargo.Estado == EstadoCargo.Cancelado)
+                {
+                    response = vwCargo.ToResponse();
+                }
+            }
+            catch
+            {
+                // Si la deserialización falla o no tiene campos calculados, releeremos de vw_cargos
+            }
+        }
+
+        if (response == null)
+        {
+            var cargoCancelado = await _supabaseClient.GetSingleOrDefaultAsync<VwCargo>(
+                "vw_cargos",
+                $"id=eq.{id}");
+
+            if (cargoCancelado == null)
+            {
+                throw new InvalidOperationException("No se pudo recuperar el cargo cancelado desde 'vw_cargos'.");
+            }
+
+            response = cargoCancelado.ToResponse();
+        }
+
+        return response;
     }
 }

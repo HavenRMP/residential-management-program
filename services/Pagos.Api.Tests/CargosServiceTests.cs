@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Pagos.Api.Clients;
@@ -662,5 +663,160 @@ public class CargosServiceTests
         Assert.Equal(2, detalle.Pagos.Count);
         Assert.Contains(detalle.Pagos, p => p.Estado == EstadoPago.PendienteConfirmacion);
         Assert.Contains(detalle.Pagos, p => p.Estado == EstadoPago.Rechazado);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("1234")]
+    public async Task CancelarCargo_MotivoInvalido_LanzaArgumentException(string motivo)
+    {
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            _service.CancelarCargoAsync(Guid.NewGuid(), new CancelarCargoRequest { Motivo = motivo }));
+        Assert.Contains("motivo", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CancelarCargo_MotivoMayorA300_LanzaArgumentException()
+    {
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            _service.CancelarCargoAsync(Guid.NewGuid(), new CancelarCargoRequest { Motivo = new string('a', 301) }));
+        Assert.Contains("motivo", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CancelarCargo_NoExiste_LanzaKeyNotFoundException()
+    {
+        var cargoId = Guid.NewGuid();
+        _mockClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync((VwCargo?)null);
+
+        var ex = await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            _service.CancelarCargoAsync(cargoId, new CancelarCargoRequest { Motivo = "Error de captura" }));
+        Assert.Equal("Cargo no encontrado.", ex.Message);
+    }
+
+    [Fact]
+    public async Task CancelarCargo_CondominioDiferente_LanzaKeyNotFoundException()
+    {
+        var cargoId = Guid.NewGuid();
+        _mockClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(new VwCargo
+            {
+                Id = cargoId,
+                CondominioId = Guid.NewGuid()
+            });
+
+        var ex = await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            _service.CancelarCargoAsync(cargoId, new CancelarCargoRequest { Motivo = "Error de captura" }));
+        Assert.Equal("Cargo no encontrado.", ex.Message);
+    }
+
+    [Fact]
+    public async Task CancelarCargo_NoAdmin_LanzaUnauthorizedAccessException()
+    {
+        _mockUserContext.Setup(u => u.EsAdmin).Returns(false);
+
+        var ex = await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            _service.CancelarCargoAsync(Guid.NewGuid(), new CancelarCargoRequest { Motivo = "Error de captura" }));
+        Assert.Contains("administradores", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CancelarCargo_RpcLanzaPG005_PropagaPostgrestException()
+    {
+        var cargoId = Guid.NewGuid();
+        _mockClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(new VwCargo
+            {
+                Id = cargoId,
+                CondominioId = _condominioId
+            });
+
+        _mockClient
+            .Setup(c => c.RpcAsync<JsonElement>("rpc_cancelar_cargo", It.IsAny<object>(), _userId))
+            .ThrowsAsync(new PostgrestException(409, "PG005", "El cargo ya está cancelado"));
+
+        var ex = await Assert.ThrowsAsync<PostgrestException>(() =>
+            _service.CancelarCargoAsync(cargoId, new CancelarCargoRequest { Motivo = "Error de captura" }));
+
+        Assert.Equal(409, ex.StatusCode);
+        Assert.Equal("PG005", ex.Code);
+        Assert.Equal("El cargo ya está cancelado", ex.MensajeUsuario);
+    }
+
+    [Fact]
+    public async Task CancelarCargo_RpcLanzaPG006_PropagaPostgrestException()
+    {
+        var cargoId = Guid.NewGuid();
+        _mockClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(new VwCargo
+            {
+                Id = cargoId,
+                CondominioId = _condominioId
+            });
+
+        _mockClient
+            .Setup(c => c.RpcAsync<JsonElement>("rpc_cancelar_cargo", It.IsAny<object>(), _userId))
+            .ThrowsAsync(new PostgrestException(409, "PG006", "No se puede cancelar: el cargo tiene pagos o aplicaciones de saldo vigentes"));
+
+        var ex = await Assert.ThrowsAsync<PostgrestException>(() =>
+            _service.CancelarCargoAsync(cargoId, new CancelarCargoRequest { Motivo = "Error de captura" }));
+
+        Assert.Equal(409, ex.StatusCode);
+        Assert.Equal("PG006", ex.Code);
+        Assert.Equal("No se puede cancelar: el cargo tiene pagos o aplicaciones de saldo vigentes", ex.MensajeUsuario);
+    }
+
+    [Fact]
+    public async Task CancelarCargo_Exito_LlamaRpcYRetornaCargoCancelado()
+    {
+        var cargoId = Guid.NewGuid();
+        var vwCargo = new VwCargo
+        {
+            Id = cargoId,
+            CondominioId = _condominioId,
+            ViviendaId = 10,
+            NumeroCasa = "10",
+            Estado = EstadoCargo.Pendiente,
+            EstaVencido = false
+        };
+
+        var vwCargoCancelado = new VwCargo
+        {
+            Id = cargoId,
+            CondominioId = _condominioId,
+            ViviendaId = 10,
+            NumeroCasa = "10",
+            Estado = EstadoCargo.Cancelado,
+            EstaVencido = false,
+            MotivoCancelacion = "Error de captura administrativo"
+        };
+
+        _mockClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(vwCargo);
+
+        using var jsonDoc = JsonDocument.Parse("{}");
+        _mockClient
+            .Setup(c => c.RpcAsync<JsonElement>("rpc_cancelar_cargo", It.IsAny<object>(), _userId))
+            .ReturnsAsync(jsonDoc.RootElement);
+
+        _mockClient
+            .SetupSequence(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(vwCargo)
+            .ReturnsAsync(vwCargoCancelado);
+
+        var resultado = await _service.CancelarCargoAsync(cargoId, new CancelarCargoRequest { Motivo = "Error de captura administrativo" });
+
+        Assert.NotNull(resultado);
+        Assert.Equal(cargoId, resultado.Id);
+        Assert.Equal(EstadoCargo.Cancelado, resultado.Estado);
+        Assert.Equal("Cancelado", resultado.EstadoEfectivo);
+        Assert.Equal("Error de captura administrativo", resultado.MotivoCancelacion);
     }
 }
