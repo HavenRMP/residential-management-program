@@ -90,4 +90,41 @@ public class SaldosController : ControllerBase
             return BadRequest(new ErrorResponseDto(ex.Message));
         }
     }
+
+    /// <summary>
+    /// Consulta los movimientos de saldo a favor de una vivienda con filtros opcionales y paginación (Admin de su condominio o Residente titular).
+    /// </summary>
+    [Authorize(Policy = "AdminOInquilino")]
+    [HttpGet("viviendas/{viviendaId:int}/movimientos")]
+    [ProducesResponseType(typeof(RespuestaPaginadaDto<MovimientoSaldoResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ListarMovimientosSaldoPorVivienda(
+        int viviendaId,
+        [FromQuery] ConsultaMovimientosSaldoFiltrosDto filtros)
+    {
+        try
+        {
+            var resultado = await _saldosService.ListarMovimientosSaldoPorViviendaAsync(viviendaId, filtros);
+            return Ok(resultado);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            _logger.LogWarning("ListarMovimientosSaldoPorVivienda recurso no encontrado: {Message}", ex.Message);
+            return NotFound(new ErrorResponseDto(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning("ListarMovimientosSaldoPorVivienda argumento inválido: {Message}", ex.Message);
+            return BadRequest(new ErrorResponseDto(ex.Message));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning("ListarMovimientosSaldoPorVivienda acceso no autorizado: {Message}", ex.Message);
+            return StatusCode(StatusCodes.Status403Forbidden, new ErrorResponseDto(ex.Message));
+        }
+    }
 }
+

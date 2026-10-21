@@ -21,4 +21,13 @@ public interface ISaldosService
     /// Obtiene la suma de saldos y desglose para un usuario dado, limitado exclusivamente a viviendas del condominio del administrador.
     /// </summary>
     Task<SaldoUsuarioResponse> ObtenerSaldoPorUsuarioAsync(Guid usuarioId);
+
+    /// <summary>
+    /// Obtiene el listado paginado de movimientos de saldo a favor de una vivienda con filtros opcionales de tipo y fechas.
+    /// Valida que el Admin pertenezca al condominio de la vivienda o que el Inquilino sea residente titular.
+    /// </summary>
+    Task<RespuestaPaginadaDto<MovimientoSaldoResponse>> ListarMovimientosSaldoPorViviendaAsync(
+        int viviendaId,
+        ConsultaMovimientosSaldoFiltrosDto filtros);
 }
+

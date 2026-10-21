@@ -28,4 +28,31 @@ public static class SaldoMapper
         ArgumentNullException.ThrowIfNull(items);
         return items.Select(ToResponse).ToList();
     }
+
+    public static MovimientoSaldoResponse ToResponse(this VwMovimientoSaldoFavor m)
+    {
+        ArgumentNullException.ThrowIfNull(m);
+
+        return new MovimientoSaldoResponse
+        {
+            Id = m.Id,
+            CondominioId = m.CondominioId,
+            ViviendaId = m.ViviendaId,
+            Tipo = m.Tipo,
+            Monto = m.Monto,
+            MontoConSigno = m.MontoConSigno,
+            PagoId = m.PagoId,
+            CargoId = m.CargoId,
+            MovimientoOrigenId = m.MovimientoOrigenId,
+            Motivo = m.Motivo,
+            CreadoPor = m.CreadoPor,
+            CreadoEn = m.CreadoEn
+        };
+    }
+
+    public static List<MovimientoSaldoResponse> ToResponseList(this IEnumerable<VwMovimientoSaldoFavor> items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        return items.Select(ToResponse).ToList();
+    }
 }

@@ -4,7 +4,9 @@ using System.Net.Http.Json;
 using Moq;
 using Pagos.Api.Clients;
 using Pagos.Api.DTOs;
+using Pagos.Api.Enums;
 using Pagos.Api.Models;
+using HavenApi.Shared.Pagination;
 using Xunit;
 
 namespace Pagos.Api.Tests;
@@ -432,5 +434,339 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
                 "v_saldo_vivienda",
                 It.Is<string>(q => q.Contains($"condominio_id=eq.{condominioId}"))),
             Times.Once);
+    }
+
+    // =========================================================================
+    // 4. GET api/saldos/viviendas/{viviendaId}/movimientos (U2)
+    // =========================================================================
+
+    [Fact]
+    public async Task GetMovimientosSaldo_SinToken_Retorna401Unauthorized()
+    {
+        var client = _factory.CreateClient();
+        var response = await client.GetAsync("/api/saldos/viviendas/10/movimientos");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetMovimientosSaldo_Subusuario_Retorna403Forbidden()
+    {
+        var client = _factory.CreateClient();
+        var token = TestTokenGenerator.GenerateSubusuarioToken();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync("/api/saldos/viviendas/10/movimientos");
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetMovimientosSaldo_Admin_ViviendaDeOtroCondominio_Retorna404NotFound()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        // Lookup indica que NO existe en el condominio
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>(
+                "viviendas",
+                It.IsAny<string>()))
+            .ReturnsAsync((ViviendaItemDto?)null);
+
+        var response = await client.GetAsync("/api/saldos/viviendas/99/movimientos");
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        // Verifica que no se llamó a la vista
+        _factory.MockSupabaseRestClient.Verify(
+            c => c.GetPagedAsync<VwMovimientoSaldoFavor>(
+                "vw_movimientos_saldo_favor",
+                It.IsAny<PaginationParams>(),
+                It.IsAny<string>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task GetMovimientosSaldo_Inquilino_NoEsResidenteTitular_Retorna404NotFound()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var inquilinoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateInquilinoToken(inquilinoId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        // Lookup indica que no es residente titular
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaResidenteItemDto>(
+                "vivienda_residente",
+                It.IsAny<string>()))
+            .ReturnsAsync((ViviendaResidenteItemDto?)null);
+
+        var response = await client.GetAsync("/api/saldos/viviendas/10/movimientos");
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        _factory.MockSupabaseRestClient.Verify(
+            c => c.GetPagedAsync<VwMovimientoSaldoFavor>(
+                "vw_movimientos_saldo_favor",
+                It.IsAny<PaginationParams>(),
+                It.IsAny<string>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task GetMovimientosSaldo_Admin_ViviendaDeSuCondominio_Retorna200OkPaginado()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        // Pertenencia confirmada
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>(
+                "viviendas",
+                It.Is<string>(q => q.Contains("id=eq.10") && q.Contains($"condominio_id=eq.{condominioId}"))))
+            .ReturnsAsync(new ViviendaItemDto { Id = 10 });
+
+        var movId1 = Guid.NewGuid();
+        var movId2 = Guid.NewGuid();
+        var pagoId = Guid.NewGuid();
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetPagedAsync<VwMovimientoSaldoFavor>(
+                "vw_movimientos_saldo_favor",
+                It.IsAny<PaginationParams>(),
+                It.Is<string>(q => q.Contains("vivienda_id=eq.10") && q.Contains("order=creado_en.desc"))))
+            .ReturnsAsync((new List<VwMovimientoSaldoFavor>
+            {
+                new()
+                {
+                    Id = movId1,
+                    CondominioId = condominioId,
+                    ViviendaId = 10,
+                    Tipo = TipoMovimientoSaldo.Abono,
+                    Monto = 500m,
+                    MontoConSigno = 500m,
+                    PagoId = pagoId,
+                    CargoId = null,
+                    MovimientoOrigenId = null,
+                    Motivo = "Excedente de pago",
+                    CreadoPor = adminId,
+                    CreadoEn = DateTimeOffset.UtcNow
+                },
+                new()
+                {
+                    Id = movId2,
+                    CondominioId = condominioId,
+                    ViviendaId = 10,
+                    Tipo = TipoMovimientoSaldo.Aplicacion,
+                    Monto = 200m,
+                    MontoConSigno = -200m,
+                    PagoId = null,
+                    CargoId = Guid.NewGuid(),
+                    MovimientoOrigenId = null,
+                    Motivo = "Aplicación a cuota de mantenimiento",
+                    CreadoPor = adminId,
+                    CreadoEn = DateTimeOffset.UtcNow.AddMinutes(-10)
+                }
+            }, 2));
+
+        var response = await client.GetAsync("/api/saldos/viviendas/10/movimientos?pagina=1&tamanoPagina=20");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var resultado = await response.Content.ReadFromJsonAsync<RespuestaPaginadaDto<MovimientoSaldoResponse>>();
+        Assert.NotNull(resultado);
+        Assert.Equal(2, resultado.Total);
+        Assert.Equal(2, resultado.Items.Count);
+        Assert.Equal(TipoMovimientoSaldo.Abono, resultado.Items[0].Tipo);
+        Assert.Equal(500m, resultado.Items[0].Monto);
+        Assert.Equal(500m, resultado.Items[0].MontoConSigno);
+        Assert.Equal(TipoMovimientoSaldo.Aplicacion, resultado.Items[1].Tipo);
+        Assert.Equal(200m, resultado.Items[1].Monto);
+        Assert.Equal(-200m, resultado.Items[1].MontoConSigno);
+    }
+
+    [Fact]
+    public async Task GetMovimientosSaldo_Inquilino_ResidenteTitular_Retorna200Ok()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var inquilinoId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateInquilinoToken(inquilinoId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        // Titularidad confirmada
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaResidenteItemDto>(
+                "vivienda_residente",
+                It.Is<string>(q => q.Contains("vivienda_id=eq.15") && q.Contains($"usuario_id=eq.{inquilinoId}"))))
+            .ReturnsAsync(new ViviendaResidenteItemDto { ViviendaId = 15 });
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetPagedAsync<VwMovimientoSaldoFavor>(
+                "vw_movimientos_saldo_favor",
+                It.IsAny<PaginationParams>(),
+                It.Is<string>(q => q.Contains("vivienda_id=eq.15"))))
+            .ReturnsAsync((new List<VwMovimientoSaldoFavor>(), 0));
+
+        var response = await client.GetAsync("/api/saldos/viviendas/15/movimientos");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var resultado = await response.Content.ReadFromJsonAsync<RespuestaPaginadaDto<MovimientoSaldoResponse>>();
+        Assert.NotNull(resultado);
+        Assert.Equal(0, resultado.Total);
+        Assert.Empty(resultado.Items);
+    }
+
+    [Fact]
+    public async Task GetMovimientosSaldo_ConFiltroTipo_AplicaFiltroEnBase()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>(
+                "viviendas",
+                It.IsAny<string>()))
+            .ReturnsAsync(new ViviendaItemDto { Id = 10 });
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetPagedAsync<VwMovimientoSaldoFavor>(
+                "vw_movimientos_saldo_favor",
+                It.IsAny<PaginationParams>(),
+                It.Is<string>(q => q.Contains("vivienda_id=eq.10") && q.Contains("tipo=eq.Abono"))))
+            .ReturnsAsync((new List<VwMovimientoSaldoFavor>(), 0));
+
+        var response = await client.GetAsync("/api/saldos/viviendas/10/movimientos?tipo=Abono");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        _factory.MockSupabaseRestClient.Verify(
+            c => c.GetPagedAsync<VwMovimientoSaldoFavor>(
+                "vw_movimientos_saldo_favor",
+                It.IsAny<PaginationParams>(),
+                It.Is<string>(q => q.Contains("tipo=eq.Abono"))),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task GetMovimientosSaldo_ConFiltroFechas_AplicaFiltroEnBase()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>(
+                "viviendas",
+                It.IsAny<string>()))
+            .ReturnsAsync(new ViviendaItemDto { Id = 10 });
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetPagedAsync<VwMovimientoSaldoFavor>(
+                "vw_movimientos_saldo_favor",
+                It.IsAny<PaginationParams>(),
+                It.Is<string>(q => q.Contains("creado_en=gte.") && q.Contains("creado_en=lte."))))
+            .ReturnsAsync((new List<VwMovimientoSaldoFavor>(), 0));
+
+        var response = await client.GetAsync("/api/saldos/viviendas/10/movimientos?desde=2026-01-01T00:00:00Z&hasta=2026-01-31T23:59:59Z");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        _factory.MockSupabaseRestClient.Verify(
+            c => c.GetPagedAsync<VwMovimientoSaldoFavor>(
+                "vw_movimientos_saldo_favor",
+                It.IsAny<PaginationParams>(),
+                It.Is<string>(q => q.Contains("creado_en=gte.") && q.Contains("creado_en=lte."))),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task GetMovimientosSaldo_DesdeMayorQueHasta_Retorna400BadRequest()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync("/api/saldos/viviendas/10/movimientos?desde=2026-02-01T00:00:00Z&hasta=2026-01-01T00:00:00Z");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetMovimientosSaldo_Reversos_IdentificadosPorTipoYMovimientoOrigenId()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>(
+                "viviendas",
+                It.IsAny<string>()))
+            .ReturnsAsync(new ViviendaItemDto { Id = 10 });
+
+        var movimientoOrigenId = Guid.NewGuid();
+        var reversoId = Guid.NewGuid();
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetPagedAsync<VwMovimientoSaldoFavor>(
+                "vw_movimientos_saldo_favor",
+                It.IsAny<PaginationParams>(),
+                It.IsAny<string>()))
+            .ReturnsAsync((new List<VwMovimientoSaldoFavor>
+            {
+                new()
+                {
+                    Id = reversoId,
+                    CondominioId = condominioId,
+                    ViviendaId = 10,
+                    Tipo = TipoMovimientoSaldo.ReversoAbono,
+                    Monto = 500m,
+                    MontoConSigno = -500m,
+                    PagoId = null,
+                    CargoId = null,
+                    MovimientoOrigenId = movimientoOrigenId,
+                    Motivo = "Anulación de pago",
+                    CreadoPor = adminId,
+                    CreadoEn = DateTimeOffset.UtcNow
+                }
+            }, 1));
+
+        var response = await client.GetAsync("/api/saldos/viviendas/10/movimientos");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var resultado = await response.Content.ReadFromJsonAsync<RespuestaPaginadaDto<MovimientoSaldoResponse>>();
+        Assert.NotNull(resultado);
+        Assert.Single(resultado.Items);
+
+        var mov = resultado.Items[0];
+        Assert.Equal(TipoMovimientoSaldo.ReversoAbono, mov.Tipo);
+        Assert.Equal(movimientoOrigenId, mov.MovimientoOrigenId);
+        Assert.Equal(-500m, mov.MontoConSigno);
+        Assert.Equal(500m, mov.Monto);
     }
 }
