@@ -18,4 +18,14 @@ public interface IPagosService
     /// El pago nace en estado PendienteConfirmacion.
     /// </summary>
     Task<PagoResponse> ReportarPagoInquilinoAsync(ReportarPagoRequest request);
+
+    /// <summary>
+    /// Confirma un pago reportado (exclusivo para Administrador).
+    /// </summary>
+    Task<ConfirmarPagoResponse> ConfirmarPagoAdminAsync(Guid id);
+
+    /// <summary>
+    /// Rechaza un pago reportado especificando el motivo (exclusivo para Administrador).
+    /// </summary>
+    Task<RechazarPagoResponse> RechazarPagoAdminAsync(Guid id, RechazarPagoRequest request);
 }

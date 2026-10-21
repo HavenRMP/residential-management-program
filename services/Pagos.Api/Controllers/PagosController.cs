@@ -101,4 +101,79 @@ public class PagosController : ControllerBase
             return StatusCode(ex.StatusCode, new ErrorResponseDto(ex.MensajeUsuario));
         }
     }
+
+    /// <summary>
+    /// Confirma un pago reportado por un residente (exclusivo para Administrador).
+    /// </summary>
+    [Authorize(Policy = "Admin")]
+    [HttpPost("{id:guid}/confirmar")]
+    [ProducesResponseType(typeof(ConfirmarPagoResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ConfirmarPago(Guid id)
+    {
+        try
+        {
+            var resultado = await _pagosService.ConfirmarPagoAdminAsync(id);
+            return Ok(resultado);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            _logger.LogWarning("ConfirmarPago recurso no encontrado: {Message}", ex.Message);
+            return NotFound(new ErrorResponseDto(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning("ConfirmarPago validación fallida: {Message}", ex.Message);
+            return BadRequest(new ErrorResponseDto(ex.Message));
+        }
+        catch (PostgrestException ex)
+        {
+            _logger.LogWarning("ConfirmarPago falló en base de datos: {Code} - {Message}", ex.Code, ex.MensajeUsuario);
+            return StatusCode(ex.StatusCode, new ErrorResponseDto(ex.MensajeUsuario));
+        }
+    }
+
+    /// <summary>
+    /// Rechaza un pago reportado por un residente especificando el motivo (exclusivo para Administrador).
+    /// </summary>
+    [Authorize(Policy = "Admin")]
+    [HttpPost("{id:guid}/rechazar")]
+    [ProducesResponseType(typeof(RechazarPagoResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> RechazarPago(Guid id, [FromBody] RechazarPagoRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        try
+        {
+            var resultado = await _pagosService.RechazarPagoAdminAsync(id, request);
+            return Ok(resultado);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            _logger.LogWarning("RechazarPago recurso no encontrado: {Message}", ex.Message);
+            return NotFound(new ErrorResponseDto(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning("RechazarPago validación fallida: {Message}", ex.Message);
+            return BadRequest(new ErrorResponseDto(ex.Message));
+        }
+        catch (PostgrestException ex)
+        {
+            _logger.LogWarning("RechazarPago falló en base de datos: {Code} - {Message}", ex.Code, ex.MensajeUsuario);
+            return StatusCode(ex.StatusCode, new ErrorResponseDto(ex.MensajeUsuario));
+        }
+    }
 }
