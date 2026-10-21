@@ -20,6 +20,9 @@ builder.Services.AddScoped<ICargosService, CargosService>();
 builder.Services.Configure<ComprobanteOptions>(builder.Configuration.GetSection(ComprobanteOptions.SectionName));
 builder.Services.AddSingleton<IComprobanteProcessor, ComprobanteProcessor>();
 
+builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection(StorageOptions.SectionName));
+builder.Services.AddHttpClient<IComprobanteStorageService, ComprobanteStorageService>();
+
 builder.Services.AddSingleton<IAuthorizationHandler, RolCondominioHandler>();
 
 builder.Services.AddAuthorization(options =>
