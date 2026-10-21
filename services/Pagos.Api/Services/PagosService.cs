@@ -930,4 +930,154 @@ public class PagosService : IPagosService
             SaldoAFavor = saldoAFavor
         };
     }
+
+    public async Task<RespuestaPaginadaDto<PagoResponse>> ListarPagosAsync(ConsultaPagosFiltrosDto filtros)
+    {
+        ArgumentNullException.ThrowIfNull(filtros);
+
+        var condominioId = _userContextService.CondominioId;
+        if (condominioId == Guid.Empty)
+        {
+            throw new InvalidOperationException("El usuario no tiene un condominio asignado en su contexto.");
+        }
+
+        // Validación de rango de fechas de pago
+        if (filtros.FechaPagoDesde.HasValue && filtros.FechaPagoHasta.HasValue && filtros.FechaPagoDesde > filtros.FechaPagoHasta)
+        {
+            throw new ArgumentException("La fecha de pago inicial (desde) no puede ser mayor que la final (hasta).", nameof(filtros.FechaPagoDesde));
+        }
+
+        var esAdmin = _userContextService.EsAdmin;
+        List<int>? viviendasAFiltar = null;
+
+        if (esAdmin)
+        {
+            // Regla 1: Admin siempre filtra por su condominio_id.
+            // Si manda usuario_id, se resuelve con P6 (método 1) a una lista de viviendas y se filtra con "in".
+            if (filtros.UsuarioId.HasValue)
+            {
+                var viviendasUsuario = await _viviendasLookupService.GetViviendaIdsPorUsuarioTitularAsync(filtros.UsuarioId.Value);
+                if (viviendasUsuario == null || viviendasUsuario.Count == 0)
+                {
+                    // Regla 3: Si la lista de viviendas resulta vacía, responde página vacía sin consultar la vista.
+                    return RespuestaPaginadaDto<PagoResponse>.CrearVacia(filtros);
+                }
+
+                if (filtros.ViviendaId.HasValue)
+                {
+                    if (!viviendasUsuario.Contains(filtros.ViviendaId.Value))
+                    {
+                        return RespuestaPaginadaDto<PagoResponse>.CrearVacia(filtros);
+                    }
+                    viviendasAFiltar = new List<int> { filtros.ViviendaId.Value };
+                }
+                else
+                {
+                    viviendasAFiltar = viviendasUsuario;
+                }
+            }
+            else if (filtros.ViviendaId.HasValue)
+            {
+                viviendasAFiltar = new List<int> { filtros.ViviendaId.Value };
+            }
+        }
+        else
+        {
+            // Regla 2: Inquilino: solo pagos de sus viviendas (P6, método 1 y filtro "in");
+            // con usuario_id ajeno => 403; con vivienda_id ajena => 403.
+            if (filtros.UsuarioId.HasValue && filtros.UsuarioId.Value != _userContextService.UserId)
+            {
+                throw new UnauthorizedAccessException("Los inquilinos no tienen permiso para consultar pagos de otros usuarios.");
+            }
+
+            var misViviendas = await _viviendasLookupService.GetViviendaIdsPorUsuarioTitularAsync(_userContextService.UserId);
+            if (misViviendas == null || misViviendas.Count == 0)
+            {
+                // Regla 3: Si la lista de viviendas resulta vacía, responde página vacía sin consultar la vista.
+                return RespuestaPaginadaDto<PagoResponse>.CrearVacia(filtros);
+            }
+
+            if (filtros.ViviendaId.HasValue)
+            {
+                if (!misViviendas.Contains(filtros.ViviendaId.Value))
+                {
+                    throw new UnauthorizedAccessException("No tienes permiso para consultar pagos de una vivienda que no te pertenece.");
+                }
+                viviendasAFiltar = new List<int> { filtros.ViviendaId.Value };
+            }
+            else
+            {
+                viviendasAFiltar = misViviendas;
+            }
+        }
+
+        // Construcción de filtros PostgREST para vw_pagos
+        var queryParams = new List<string>
+        {
+            $"condominio_id=eq.{condominioId}"
+        };
+
+        if (viviendasAFiltar != null)
+        {
+            if (viviendasAFiltar.Count == 1)
+            {
+                queryParams.Add($"vivienda_id=eq.{viviendasAFiltar[0]}");
+            }
+            else
+            {
+                queryParams.Add($"vivienda_id=in.({string.Join(",", viviendasAFiltar)})");
+            }
+        }
+
+        if (filtros.CargoId.HasValue)
+        {
+            queryParams.Add($"cargo_id=eq.{filtros.CargoId.Value}");
+        }
+
+        if (filtros.Estado.HasValue)
+        {
+            queryParams.Add($"estado=eq.{filtros.Estado.Value}");
+        }
+
+        if (filtros.Metodo.HasValue)
+        {
+            queryParams.Add($"metodo=eq.{filtros.Metodo.Value}");
+        }
+
+        if (filtros.Origen.HasValue)
+        {
+            queryParams.Add($"origen=eq.{filtros.Origen.Value}");
+        }
+
+        if (filtros.EsReversa.HasValue)
+        {
+            queryParams.Add($"es_reversa=eq.{filtros.EsReversa.Value.ToString().ToLowerInvariant()}");
+        }
+
+        if (filtros.FechaPagoDesde.HasValue)
+        {
+            queryParams.Add($"fecha_pago=gte.{filtros.FechaPagoDesde.Value:yyyy-MM-dd}");
+        }
+
+        if (filtros.FechaPagoHasta.HasValue)
+        {
+            queryParams.Add($"fecha_pago=lte.{filtros.FechaPagoHasta.Value:yyyy-MM-dd}");
+        }
+
+        // Paginado, ordenado por fecha_pago descendente y luego creado_en descendente
+        queryParams.Add("order=fecha_pago.desc,creado_en.desc");
+
+        var queryString = string.Join("&", queryParams);
+
+        var (items, totalCount) = await _supabaseClient.GetPagedAsync<VwPago>(
+            "vw_pagos",
+            filtros.ToSharedParams(),
+            queryString);
+
+        // Regla 5: Cada ítem usa PagoResponse. Sin comprobante_ruta ni comprobante_hash. Los registros de reversa se distinguen por es_reversa y pago_original_id.
+        var responseItems = items.ToResponseList();
+        var total = totalCount ?? responseItems.Count;
+
+        return RespuestaPaginadaDto<PagoResponse>.Crear(responseItems, total, filtros);
+    }
 }
