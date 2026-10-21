@@ -12,4 +12,10 @@ public interface IPagosService
     /// El pago nace en estado Confirmado.
     /// </summary>
     Task<RegistrarPagoResponse> RegistrarPagoAdminAsync(RegistrarPagoAdminRequest request);
+
+    /// <summary>
+    /// Reporta un pago realizado por un inquilino con su comprobante para un cargo de su vivienda.
+    /// El pago nace en estado PendienteConfirmacion.
+    /// </summary>
+    Task<PagoResponse> ReportarPagoInquilinoAsync(ReportarPagoRequest request);
 }

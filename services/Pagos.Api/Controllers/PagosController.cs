@@ -60,4 +60,45 @@ public class PagosController : ControllerBase
             return StatusCode(ex.StatusCode, new ErrorResponseDto(ex.MensajeUsuario));
         }
     }
+
+    /// <summary>
+    /// Reporta un pago realizado por un inquilino para un cargo de su vivienda.
+    /// El pago nace en estado PendienteConfirmacion (exclusivo para Inquilino).
+    /// </summary>
+    [Authorize(Policy = "Inquilino")]
+    [HttpPost("reportar")]
+    [ProducesResponseType(typeof(PagoResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ReportarPago([FromBody] ReportarPagoRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        try
+        {
+            var pago = await _pagosService.ReportarPagoInquilinoAsync(request);
+            return StatusCode(StatusCodes.Status201Created, pago);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            _logger.LogWarning("ReportarPago recurso no encontrado: {Message}", ex.Message);
+            return NotFound(new ErrorResponseDto(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning("ReportarPago validación fallida: {Message}", ex.Message);
+            return BadRequest(new ErrorResponseDto(ex.Message));
+        }
+        catch (PostgrestException ex)
+        {
+            _logger.LogWarning("ReportarPago falló en base de datos: {Code} - {Message}", ex.Code, ex.MensajeUsuario);
+            return StatusCode(ex.StatusCode, new ErrorResponseDto(ex.MensajeUsuario));
+        }
+    }
 }
