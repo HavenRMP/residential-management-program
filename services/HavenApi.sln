@@ -33,6 +33,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Reservas.Api.Tests", "Reser
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pagos.Api", "Pagos.Api\Pagos.Api.csproj", "{0B652D15-2CD8-40B8-A255-E1C20DC317EC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pagos.Api.Tests", "Pagos.Api.Tests\Pagos.Api.Tests.csproj", "{75FCB567-C179-4229-99B8-9E9A8CC96285}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -211,6 +213,18 @@ Global
 		{0B652D15-2CD8-40B8-A255-E1C20DC317EC}.Release|x64.Build.0 = Release|Any CPU
 		{0B652D15-2CD8-40B8-A255-E1C20DC317EC}.Release|x86.ActiveCfg = Release|Any CPU
 		{0B652D15-2CD8-40B8-A255-E1C20DC317EC}.Release|x86.Build.0 = Release|Any CPU
+		{75FCB567-C179-4229-99B8-9E9A8CC96285}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{75FCB567-C179-4229-99B8-9E9A8CC96285}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{75FCB567-C179-4229-99B8-9E9A8CC96285}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{75FCB567-C179-4229-99B8-9E9A8CC96285}.Debug|x64.Build.0 = Debug|Any CPU
+		{75FCB567-C179-4229-99B8-9E9A8CC96285}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{75FCB567-C179-4229-99B8-9E9A8CC96285}.Debug|x86.Build.0 = Debug|Any CPU
+		{75FCB567-C179-4229-99B8-9E9A8CC96285}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{75FCB567-C179-4229-99B8-9E9A8CC96285}.Release|Any CPU.Build.0 = Release|Any CPU
+		{75FCB567-C179-4229-99B8-9E9A8CC96285}.Release|x64.ActiveCfg = Release|Any CPU
+		{75FCB567-C179-4229-99B8-9E9A8CC96285}.Release|x64.Build.0 = Release|Any CPU
+		{75FCB567-C179-4229-99B8-9E9A8CC96285}.Release|x86.ActiveCfg = Release|Any CPU
+		{75FCB567-C179-4229-99B8-9E9A8CC96285}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
