@@ -31,7 +31,11 @@ builder.Services.AddAuthorization(options =>
 
 builder.Services.AddHttpClient<ISupabaseRestClient, SupabaseRestClient>();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
 
 builder.Services.AddSwaggerGen(options =>
 {
