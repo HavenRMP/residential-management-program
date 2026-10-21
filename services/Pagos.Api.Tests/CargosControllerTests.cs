@@ -604,4 +604,219 @@ public class CargosControllerTests : IClassFixture<PagosApiFactory>
         Assert.Single(detalle.Pagos);
         Assert.Equal(EstadoPago.PendienteConfirmacion, detalle.Pagos[0].Estado);
     }
+
+    [Fact]
+    public async Task CancelarCargo_SinToken_Retorna401Unauthorized()
+    {
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync($"/api/cargos/{Guid.NewGuid()}/cancelar", new CancelarCargoRequest { Motivo = "Cancelación por error" });
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CancelarCargo_Inquilino_Retorna403Forbidden()
+    {
+        var client = _factory.CreateClient();
+        var token = TestTokenGenerator.GenerateInquilinoToken();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsJsonAsync($"/api/cargos/{Guid.NewGuid()}/cancelar", new CancelarCargoRequest { Motivo = "Cancelación por error" });
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CancelarCargo_MotivoInvalido_Retorna400BadRequest()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsJsonAsync($"/api/cargos/{Guid.NewGuid()}/cancelar", new CancelarCargoRequest { Motivo = "abc" });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var err = await response.Content.ReadFromJsonAsync<ErrorResponseDto>();
+        Assert.NotNull(err);
+        Assert.Contains("motivo", err.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CancelarCargo_CargoNoExiste_Retorna404NotFound()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var cargoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var mockRestClient = new Mock<ISupabaseRestClient>();
+        mockRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync((VwCargo?)null);
+
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                var descriptorRest = services.SingleOrDefault(d => d.ServiceType == typeof(ISupabaseRestClient));
+                if (descriptorRest != null) services.Remove(descriptorRest);
+                services.AddScoped(_ => mockRestClient.Object);
+            });
+        }).CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsJsonAsync($"/api/cargos/{cargoId}/cancelar", new CancelarCargoRequest { Motivo = "Cancelación por error de captura" });
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var err = await response.Content.ReadFromJsonAsync<ErrorResponseDto>();
+        Assert.NotNull(err);
+        Assert.Equal("Cargo no encontrado.", err.Error);
+    }
+
+    [Fact]
+    public async Task CancelarCargo_RpcPG005_Retorna409Conflict()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var cargoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var mockRestClient = new Mock<ISupabaseRestClient>();
+        mockRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(new VwCargo
+            {
+                Id = cargoId,
+                CondominioId = condominioId
+            });
+
+        mockRestClient
+            .Setup(c => c.RpcAsync<System.Text.Json.JsonElement>("rpc_cancelar_cargo", It.IsAny<object>(), adminId))
+            .ThrowsAsync(new PostgrestException(409, "PG005", "El cargo ya está cancelado"));
+
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                var descriptorRest = services.SingleOrDefault(d => d.ServiceType == typeof(ISupabaseRestClient));
+                if (descriptorRest != null) services.Remove(descriptorRest);
+                services.AddScoped(_ => mockRestClient.Object);
+            });
+        }).CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsJsonAsync($"/api/cargos/{cargoId}/cancelar", new CancelarCargoRequest { Motivo = "Cancelación por error" });
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var err = await response.Content.ReadFromJsonAsync<ErrorResponseDto>();
+        Assert.NotNull(err);
+        Assert.Equal("El cargo ya está cancelado", err.Error);
+    }
+
+    [Fact]
+    public async Task CancelarCargo_RpcPG006_Retorna409Conflict()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var cargoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var mockRestClient = new Mock<ISupabaseRestClient>();
+        mockRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(new VwCargo
+            {
+                Id = cargoId,
+                CondominioId = condominioId
+            });
+
+        mockRestClient
+            .Setup(c => c.RpcAsync<System.Text.Json.JsonElement>("rpc_cancelar_cargo", It.IsAny<object>(), adminId))
+            .ThrowsAsync(new PostgrestException(409, "PG006", "No se puede cancelar: el cargo tiene pagos o aplicaciones de saldo vigentes"));
+
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                var descriptorRest = services.SingleOrDefault(d => d.ServiceType == typeof(ISupabaseRestClient));
+                if (descriptorRest != null) services.Remove(descriptorRest);
+                services.AddScoped(_ => mockRestClient.Object);
+            });
+        }).CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsJsonAsync($"/api/cargos/{cargoId}/cancelar", new CancelarCargoRequest { Motivo = "Cancelación por error" });
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var err = await response.Content.ReadFromJsonAsync<ErrorResponseDto>();
+        Assert.NotNull(err);
+        Assert.Equal("No se puede cancelar: el cargo tiene pagos o aplicaciones de saldo vigentes", err.Error);
+    }
+
+    [Fact]
+    public async Task CancelarCargo_AdminExito_Retorna200OkConCargoResponse()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var cargoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var mockRestClient = new Mock<ISupabaseRestClient>();
+        var vwCargoActivo = new VwCargo
+        {
+            Id = cargoId,
+            CondominioId = condominioId,
+            ViviendaId = 1,
+            NumeroCasa = "101",
+            Estado = EstadoCargo.Pendiente,
+            EstaVencido = false
+        };
+
+        var vwCargoCancelado = new VwCargo
+        {
+            Id = cargoId,
+            CondominioId = condominioId,
+            ViviendaId = 1,
+            NumeroCasa = "101",
+            Estado = EstadoCargo.Cancelado,
+            EstaVencido = false,
+            MotivoCancelacion = "Cancelación autorizada por asamblea"
+        };
+
+        using var jsonDoc = System.Text.Json.JsonDocument.Parse("{}");
+
+        mockRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(vwCargoActivo);
+
+        mockRestClient
+            .Setup(c => c.RpcAsync<System.Text.Json.JsonElement>("rpc_cancelar_cargo", It.IsAny<object>(), adminId))
+            .ReturnsAsync(jsonDoc.RootElement);
+
+        mockRestClient
+            .SetupSequence(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(vwCargoActivo)
+            .ReturnsAsync(vwCargoCancelado);
+
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                var descriptorRest = services.SingleOrDefault(d => d.ServiceType == typeof(ISupabaseRestClient));
+                if (descriptorRest != null) services.Remove(descriptorRest);
+                services.AddScoped(_ => mockRestClient.Object);
+            });
+        }).CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsJsonAsync($"/api/cargos/{cargoId}/cancelar", new CancelarCargoRequest { Motivo = "Cancelación autorizada por asamblea" });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var res = await response.Content.ReadFromJsonAsync<CargoResponse>();
+        Assert.NotNull(res);
+        Assert.Equal(cargoId, res.Id);
+        Assert.Equal(EstadoCargo.Cancelado, res.Estado);
+        Assert.Equal("Cancelado", res.EstadoEfectivo);
+        Assert.Equal("Cancelación autorizada por asamblea", res.MotivoCancelacion);
+    }
 }

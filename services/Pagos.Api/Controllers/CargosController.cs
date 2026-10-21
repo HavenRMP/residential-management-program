@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Pagos.Api.Clients;
 using Pagos.Api.DTOs;
 using Pagos.Api.Services;
 
@@ -109,6 +110,46 @@ public class CargosController : ControllerBase
         catch (ArgumentException ex)
         {
             _logger.LogWarning("ObtenerDetalleCargo argumento inválido: {Message}", ex.Message);
+            return BadRequest(new ErrorResponseDto(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Cancela un cargo existente especificando el motivo (Solo administradores).
+    /// </summary>
+    [Authorize(Policy = "Admin")]
+    [HttpPost("{id:guid}/cancelar")]
+    [ProducesResponseType(typeof(CargoResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CancelarCargo(Guid id, [FromBody] CancelarCargoRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        try
+        {
+            var cargo = await _cargosService.CancelarCargoAsync(id, request);
+            return Ok(cargo);
+        }
+        catch (PostgrestException ex)
+        {
+            _logger.LogWarning("CancelarCargo falló en base de datos: {Code} - {Message}", ex.Code, ex.MensajeUsuario);
+            return StatusCode(ex.StatusCode, new ErrorResponseDto(ex.MensajeUsuario));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            _logger.LogWarning("CancelarCargo recurso no encontrado: {Message}", ex.Message);
+            return NotFound(new ErrorResponseDto(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning("CancelarCargo argumento inválido: {Message}", ex.Message);
             return BadRequest(new ErrorResponseDto(ex.Message));
         }
     }
