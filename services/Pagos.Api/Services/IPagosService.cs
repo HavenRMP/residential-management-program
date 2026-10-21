@@ -28,4 +28,9 @@ public interface IPagosService
     /// Rechaza un pago reportado especificando el motivo (exclusivo para Administrador).
     /// </summary>
     Task<RechazarPagoResponse> RechazarPagoAdminAsync(Guid id, RechazarPagoRequest request);
+
+    /// <summary>
+    /// Anula un pago confirmado mediante un movimiento de reversa (exclusivo para Administrador).
+    /// </summary>
+    Task<AnularPagoResponse> AnularPagoAdminAsync(Guid id, AnularPagoRequest request);
 }

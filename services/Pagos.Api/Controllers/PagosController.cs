@@ -176,4 +176,44 @@ public class PagosController : ControllerBase
             return StatusCode(ex.StatusCode, new ErrorResponseDto(ex.MensajeUsuario));
         }
     }
+
+    /// <summary>
+    /// Anula un pago confirmado generando una reversa (exclusivo para Administrador).
+    /// </summary>
+    [Authorize(Policy = "Admin")]
+    [HttpPost("{id:guid}/anular")]
+    [ProducesResponseType(typeof(AnularPagoResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> AnularPago(Guid id, [FromBody] AnularPagoRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        try
+        {
+            var resultado = await _pagosService.AnularPagoAdminAsync(id, request);
+            return Ok(resultado);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            _logger.LogWarning("AnularPago recurso no encontrado: {Message}", ex.Message);
+            return NotFound(new ErrorResponseDto(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning("AnularPago validación fallida: {Message}", ex.Message);
+            return BadRequest(new ErrorResponseDto(ex.Message));
+        }
+        catch (PostgrestException ex)
+        {
+            _logger.LogWarning("AnularPago falló en base de datos: {Code} - {Message}", ex.Code, ex.MensajeUsuario);
+            return StatusCode(ex.StatusCode, new ErrorResponseDto(ex.MensajeUsuario));
+        }
+    }
 }
