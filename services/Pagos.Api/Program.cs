@@ -13,9 +13,11 @@ builder.Services.AddHavenJwtAuth(builder.Configuration);
 builder.Services.AddHavenExceptionHandler();
 
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IUserContextService, UserContextService>();
 builder.Services.AddScoped<IViviendasLookupService, ViviendasLookupService>();
 builder.Services.AddScoped<ICargosService, CargosService>();
+builder.Services.AddScoped<IPagosService, PagosService>();
 
 builder.Services.Configure<ComprobanteOptions>(builder.Configuration.GetSection(ComprobanteOptions.SectionName));
 builder.Services.AddSingleton<IComprobanteProcessor, ComprobanteProcessor>();
