@@ -38,4 +38,16 @@ public interface IPagosService
     /// Consulta el listado de pagos con filtros opcionales y paginación (Admin e Inquilino).
     /// </summary>
     Task<RespuestaPaginadaDto<PagoResponse>> ListarPagosAsync(ConsultaPagosFiltrosDto filtros);
+
+    /// <summary>
+    /// Obtiene el detalle completo de un pago por su identificador único.
+    /// Admin: solo pagos de su condominio. Inquilino: solo pagos de sus viviendas (P6, método 3).
+    /// </summary>
+    Task<PagoResponse> ObtenerPagoPorIdAsync(Guid id);
+
+    /// <summary>
+    /// Genera una URL firmada de acceso temporal al comprobante de un pago.
+    /// Admin: solo pagos de su condominio. Inquilino: solo pagos de sus viviendas (P6, método 3).
+    /// </summary>
+    Task<ComprobanteUrlResponse> ObtenerComprobanteUrlAsync(Guid id, CancellationToken cancellationToken = default);
 }

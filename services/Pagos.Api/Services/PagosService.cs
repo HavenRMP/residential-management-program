@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.Options;
 using Pagos.Api.Clients;
 using Pagos.Api.DTOs;
 using Pagos.Api.Enums;
@@ -16,6 +17,8 @@ public class PagosService : IPagosService
     private readonly IUserContextService _userContextService;
     private readonly IViviendasLookupService _viviendasLookupService;
     private readonly ILogger<PagosService> _logger;
+    private readonly IComprobanteStorageService? _comprobanteStorageService;
+    private readonly StorageOptions _storageOptions;
     private readonly TimeProvider _timeProvider;
 
     private static readonly TimeZoneInfo MexicoCityTimeZone = ObtenerZonaHorariaMexico();
@@ -25,12 +28,16 @@ public class PagosService : IPagosService
         IUserContextService userContextService,
         IViviendasLookupService viviendasLookupService,
         ILogger<PagosService> logger,
+        IComprobanteStorageService? comprobanteStorageService = null,
+        IOptions<StorageOptions>? storageOptions = null,
         TimeProvider? timeProvider = null)
     {
         _supabaseClient = supabaseClient;
         _userContextService = userContextService;
         _viviendasLookupService = viviendasLookupService;
         _logger = logger;
+        _comprobanteStorageService = comprobanteStorageService;
+        _storageOptions = storageOptions?.Value ?? new StorageOptions();
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -1079,5 +1086,110 @@ public class PagosService : IPagosService
         var total = totalCount ?? responseItems.Count;
 
         return RespuestaPaginadaDto<PagoResponse>.Crear(responseItems, total, filtros);
+    }
+
+    /// <summary>
+    /// Valida los permisos de acceso y obtiene el pago desde vw_pagos.
+    /// Admin: solo pagos de su condominio. Inquilino: solo pagos de sus viviendas (P6, método 3).
+    /// Si no corresponde o no existe => 404 (KeyNotFoundException).
+    /// </summary>
+    private async Task<VwPago> ValidarYObtenerPagoAsync(Guid id)
+    {
+        if (id == Guid.Empty)
+        {
+            throw new KeyNotFoundException("Pago no encontrado.");
+        }
+
+        var pago = await _supabaseClient.GetSingleOrDefaultAsync<VwPago>(
+            "vw_pagos",
+            $"id=eq.{id}");
+
+        if (pago == null)
+        {
+            _logger.LogWarning("Pago {PagoId} no encontrado en vw_pagos.", id);
+            throw new KeyNotFoundException("Pago no encontrado.");
+        }
+
+        var condominioId = _userContextService.CondominioId;
+
+        if (_userContextService.EsAdmin)
+        {
+            if (pago.CondominioId != condominioId)
+            {
+                _logger.LogWarning("Admin {UserId} intentó acceder al pago {PagoId} perteneciente al condominio {PagoCondominioId} (condominio actual {CondominioId}).",
+                    _userContextService.UserId, id, pago.CondominioId, condominioId);
+                throw new KeyNotFoundException("Pago no encontrado.");
+            }
+        }
+        else
+        {
+            if (pago.CondominioId != condominioId)
+            {
+                _logger.LogWarning("Inquilino {UserId} intentó acceder al pago {PagoId} perteneciente al condominio {PagoCondominioId} (condominio actual {CondominioId}).",
+                    _userContextService.UserId, id, pago.CondominioId, condominioId);
+                throw new KeyNotFoundException("Pago no encontrado.");
+            }
+
+            var esTitular = await _viviendasLookupService.EsResidenteTitularAsync(pago.ViviendaId, _userContextService.UserId);
+            if (!esTitular)
+            {
+                _logger.LogWarning("Inquilino {UserId} intentó acceder al pago {PagoId} de la vivienda {ViviendaId} sin ser residente titular.",
+                    _userContextService.UserId, id, pago.ViviendaId);
+                throw new KeyNotFoundException("Pago no encontrado.");
+            }
+        }
+
+        return pago;
+    }
+
+    public async Task<PagoResponse> ObtenerPagoPorIdAsync(Guid id)
+    {
+        var pago = await ValidarYObtenerPagoAsync(id);
+        return pago.ToResponse();
+    }
+
+    public async Task<ComprobanteUrlResponse> ObtenerComprobanteUrlAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var pago = await ValidarYObtenerPagoAsync(id);
+
+        // Regla 2: si el pago no tiene comprobante (tiene_comprobante falso) => 404
+        if (!pago.TieneComprobante || string.IsNullOrWhiteSpace(pago.ComprobanteRuta))
+        {
+            _logger.LogWarning("El pago {PagoId} no cuenta con comprobante asociado.", id);
+            throw new KeyNotFoundException("El pago no tiene comprobante asociado.");
+        }
+
+        if (_comprobanteStorageService == null)
+        {
+            throw new InvalidOperationException("El servicio de almacenamiento de comprobantes no está configurado.");
+        }
+
+        int expiracionSegundos = _storageOptions.UrlExpiracionSegundos;
+        var ahoraUtc = _timeProvider.GetUtcNow();
+        var expiraEn = ahoraUtc.AddSeconds(expiracionSegundos);
+
+        string urlFirmada;
+        try
+        {
+            urlFirmada = await _comprobanteStorageService.CrearUrlFirmadaAsync(
+                pago.ComprobanteRuta,
+                expiracionSegundos,
+                cancellationToken);
+        }
+        catch (KeyNotFoundException)
+        {
+            // Regla 2: Si el objeto ya no existe en Storage => 404 con el mensaje "Comprobante depurado por política de retención".
+            _logger.LogWarning("Comprobante del pago {PagoId} en ruta {Ruta} no existe en Storage (depurado por política de retención).", id, pago.ComprobanteRuta);
+            throw new KeyNotFoundException("Comprobante depurado por política de retención");
+        }
+
+        // Regla 3: NUNCA loguear la URL firmada completa.
+        _logger.LogInformation("URL firmada de comprobante generada exitosamente para el pago {PagoId}.", id);
+
+        return new ComprobanteUrlResponse
+        {
+            Url = urlFirmada,
+            ExpiraEn = expiraEn
+        };
     }
 }

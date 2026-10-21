@@ -248,4 +248,60 @@ public class PagosController : ControllerBase
             return BadRequest(new ErrorResponseDto(ex.Message));
         }
     }
+
+    /// <summary>
+    /// Obtiene el detalle completo de un pago por su identificador único.
+    /// Exclusivo para Administrador (pagos de su condominio) e Inquilino (pagos de sus viviendas).
+    /// </summary>
+    [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(PagoResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ObtenerDetallePago(Guid id)
+    {
+        try
+        {
+            var resultado = await _pagosService.ObtenerPagoPorIdAsync(id);
+            return Ok(resultado);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            _logger.LogWarning("ObtenerDetallePago recurso no encontrado: {Message}", ex.Message);
+            return NotFound(new ErrorResponseDto(ex.Message));
+        }
+        catch (PostgrestException ex)
+        {
+            _logger.LogWarning("ObtenerDetallePago falló en base de datos: {Code} - {Message}", ex.Code, ex.MensajeUsuario);
+            return StatusCode(ex.StatusCode, new ErrorResponseDto(ex.MensajeUsuario));
+        }
+    }
+
+    /// <summary>
+    /// Genera una URL firmada de acceso temporal al comprobante de un pago.
+    /// Exclusivo para Administrador (pagos de su condominio) e Inquilino (pagos de sus viviendas).
+    /// </summary>
+    [HttpGet("{id:guid}/comprobante-url")]
+    [ProducesResponseType(typeof(ComprobanteUrlResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ObtenerComprobanteUrl(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var resultado = await _pagosService.ObtenerComprobanteUrlAsync(id, cancellationToken);
+            return Ok(resultado);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            _logger.LogWarning("ObtenerComprobanteUrl recurso no encontrado o depurado para el pago {PagoId}: {Message}", id, ex.Message);
+            return NotFound(new ErrorResponseDto(ex.Message));
+        }
+        catch (PostgrestException ex)
+        {
+            _logger.LogWarning("ObtenerComprobanteUrl falló en base de datos: {Code} - {Message}", ex.Code, ex.MensajeUsuario);
+            return StatusCode(ex.StatusCode, new ErrorResponseDto(ex.MensajeUsuario));
+        }
+    }
 }
