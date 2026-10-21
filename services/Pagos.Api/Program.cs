@@ -3,6 +3,7 @@ using HavenApi.Shared.Roles;
 using Microsoft.AspNetCore.Authorization;
 using Pagos.Api.Authentication;
 using Pagos.Api.Clients;
+using Pagos.Api.DTOs;
 using Pagos.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,6 +16,9 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IUserContextService, UserContextService>();
 builder.Services.AddScoped<IViviendasLookupService, ViviendasLookupService>();
 builder.Services.AddScoped<ICargosService, CargosService>();
+
+builder.Services.Configure<ComprobanteOptions>(builder.Configuration.GetSection(ComprobanteOptions.SectionName));
+builder.Services.AddSingleton<IComprobanteProcessor, ComprobanteProcessor>();
 
 builder.Services.AddSingleton<IAuthorizationHandler, RolCondominioHandler>();
 
