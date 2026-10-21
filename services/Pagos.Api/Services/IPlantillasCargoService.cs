@@ -16,4 +16,19 @@ public interface IPlantillasCargoService
     /// Consulta el listado paginado de plantillas filtrando por el condominio del administrador.
     /// </summary>
     Task<RespuestaPaginadaDto<PlantillaResponse>> ListarPlantillasAsync(ConsultaPlantillasCargoFiltrosDto filtros);
+
+    /// <summary>
+    /// Actualiza los campos editables de una plantilla de cargo recurrente existente (exclusivo para Administrador).
+    /// </summary>
+    Task<PlantillaResponse> ActualizarPlantillaAsync(Guid id, ActualizarPlantillaCargoRequest request);
+
+    /// <summary>
+    /// Desactiva una plantilla de cargo activa existente (exclusivo para Administrador).
+    /// </summary>
+    Task<PlantillaResponse> DesactivarPlantillaAsync(Guid id);
+
+    /// <summary>
+    /// Activa una plantilla de cargo inactiva existente (exclusivo para Administrador).
+    /// </summary>
+    Task<PlantillaResponse> ActivarPlantillaAsync(Guid id);
 }

@@ -87,4 +87,101 @@ public class PlantillasCargoController : ControllerBase
             return BadRequest(new ErrorResponseDto(ex.Message));
         }
     }
+
+    /// <summary>
+    /// Actualiza los campos editables de una plantilla de cargo recurrente (exclusivo para Administrador).
+    /// </summary>
+    [HttpPut("{id:guid}")]
+    [ProducesResponseType(typeof(PlantillaResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ActualizarPlantilla(Guid id, [FromBody] ActualizarPlantillaCargoRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        try
+        {
+            var plantilla = await _plantillasCargoService.ActualizarPlantillaAsync(id, request);
+            return Ok(plantilla);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            _logger.LogWarning("ActualizarPlantilla recurso no encontrado: {Message}", ex.Message);
+            return NotFound(new ErrorResponseDto(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning("ActualizarPlantilla validación fallida: {Message}", ex.Message);
+            return BadRequest(new ErrorResponseDto(ex.Message));
+        }
+        catch (PostgrestException ex)
+        {
+            _logger.LogWarning("ActualizarPlantilla conflicto o error en base de datos: {Code} - {Message}", ex.Code, ex.MensajeUsuario);
+            return StatusCode(ex.StatusCode, new ErrorResponseDto(ex.MensajeUsuario));
+        }
+    }
+
+    /// <summary>
+    /// Desactiva una plantilla de cargo activa existente (exclusivo para Administrador).
+    /// </summary>
+    [HttpPost("{id:guid}/desactivar")]
+    [ProducesResponseType(typeof(PlantillaResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> DesactivarPlantilla(Guid id)
+    {
+        try
+        {
+            var plantilla = await _plantillasCargoService.DesactivarPlantillaAsync(id);
+            return Ok(plantilla);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            _logger.LogWarning("DesactivarPlantilla recurso no encontrado: {Message}", ex.Message);
+            return NotFound(new ErrorResponseDto(ex.Message));
+        }
+        catch (PostgrestException ex)
+        {
+            _logger.LogWarning("DesactivarPlantilla conflicto o error en base de datos: {Code} - {Message}", ex.Code, ex.MensajeUsuario);
+            return StatusCode(ex.StatusCode, new ErrorResponseDto(ex.MensajeUsuario));
+        }
+    }
+
+    /// <summary>
+    /// Activa una plantilla de cargo inactiva existente (exclusivo para Administrador).
+    /// </summary>
+    [HttpPost("{id:guid}/activar")]
+    [ProducesResponseType(typeof(PlantillaResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ActivarPlantilla(Guid id)
+    {
+        try
+        {
+            var plantilla = await _plantillasCargoService.ActivarPlantillaAsync(id);
+            return Ok(plantilla);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            _logger.LogWarning("ActivarPlantilla recurso no encontrado: {Message}", ex.Message);
+            return NotFound(new ErrorResponseDto(ex.Message));
+        }
+        catch (PostgrestException ex)
+        {
+            _logger.LogWarning("ActivarPlantilla conflicto o error en base de datos: {Code} - {Message}", ex.Code, ex.MensajeUsuario);
+            return StatusCode(ex.StatusCode, new ErrorResponseDto(ex.MensajeUsuario));
+        }
+    }
 }
