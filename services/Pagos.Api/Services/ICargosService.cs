@@ -36,4 +36,13 @@ public interface ICargosService
     /// <param name="request">Motivo de la cancelación.</param>
     /// <returns>El cargo cancelado proyectado en <see cref="CargoResponse"/>.</returns>
     Task<CargoResponse> CancelarCargoAsync(Guid id, CancelarCargoRequest request);
+
+    /// <summary>
+    /// Aplica manualmente saldo a favor de una vivienda a un cargo pendiente mediante la RPC 'rpc_aplicar_saldo_favor' (Solo administradores).
+    /// </summary>
+    /// <param name="id">ID único del cargo.</param>
+    /// <param name="request">Monto de saldo a favor a aplicar.</param>
+    /// <returns>Resultado con el movimiento de saldo generado, el cargo actualizado y el saldo a favor remanente.</returns>
+    Task<AplicarSaldoFavorResponse> AplicarSaldoFavorAsync(Guid id, AplicarSaldoFavorRequest request);
 }
+

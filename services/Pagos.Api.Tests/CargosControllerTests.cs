@@ -1690,4 +1690,335 @@ public class CargosControllerTests : IClassFixture<PagosApiFactory>
     }
 
     #endregion
+
+    #region Aplicación manual de saldo a favor a cargos (Prompt U3)
+
+    // Caso 22: Admin aplica saldo a favor válido => 200 con movimiento, cargo y saldo_a_favor
+    [Fact]
+    public async Task Caso22_AplicarSaldoFavor_AdminValido_Retorna200OkConMovimientoCargoYSaldo()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var cargoId = Guid.NewGuid();
+        var movimientoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var mockRestClient = new Mock<ISupabaseRestClient>();
+
+        mockRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(new VwCargo
+            {
+                Id = cargoId,
+                CondominioId = condominioId,
+                ViviendaId = 10,
+                NumeroCasa = "101",
+                Monto = 1000m,
+                MontoPagadoConfirmado = 200m,
+                SaldoPendiente = 800m,
+                Estado = EstadoCargo.Pendiente
+            });
+
+        object? rpcPayloadCapturado = null;
+        Guid? actorRpcCapturado = null;
+
+        var jsonResponse = $@"{{
+            ""movimiento"": {{
+                ""id"": ""{movimientoId}"",
+                ""condominio_id"": ""{condominioId}"",
+                ""vivienda_id"": 10,
+                ""tipo"": ""Aplicacion"",
+                ""monto"": 300.50,
+                ""monto_con_signo"": -300.50,
+                ""cargo_id"": ""{cargoId}"",
+                ""creado_por"": ""{adminId}"",
+                ""creado_en"": ""2026-10-21T18:00:00Z""
+            }},
+            ""cargo"": {{
+                ""id"": ""{cargoId}"",
+                ""condominio_id"": ""{condominioId}"",
+                ""vivienda_id"": 10,
+                ""numero_casa"": ""101"",
+                ""monto"": 1000.0,
+                ""monto_pagado"": 500.50,
+                ""saldo_pendiente"": 499.50,
+                ""estado"": ""Pendiente"",
+                ""tipo"": ""Mantenimiento"",
+                ""concepto"": ""Cuota octubre"",
+                ""fecha_vencimiento"": ""2026-10-31""
+            }},
+            ""saldo_a_favor"": 199.50
+        }}";
+
+        using var jsonDoc = System.Text.Json.JsonDocument.Parse(jsonResponse);
+
+        mockRestClient
+            .Setup(c => c.RpcAsync<System.Text.Json.JsonElement>("rpc_aplicar_saldo_favor", It.IsAny<object>(), It.IsAny<Guid?>()))
+            .Callback<string, object, Guid?>((_, payload, actor) =>
+            {
+                rpcPayloadCapturado = payload;
+                actorRpcCapturado = actor;
+            })
+            .ReturnsAsync(jsonDoc.RootElement);
+
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                var descR = services.SingleOrDefault(d => d.ServiceType == typeof(ISupabaseRestClient));
+                if (descR != null) services.Remove(descR);
+                services.AddScoped(_ => mockRestClient.Object);
+            });
+        }).CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var request = new AplicarSaldoFavorRequest
+        {
+            Monto = 300.50m
+        };
+
+        var response = await client.PostAsJsonAsync($"/api/cargos/{cargoId}/aplicar-saldo", request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        Assert.NotNull(rpcPayloadCapturado);
+        Assert.Equal(adminId, actorRpcCapturado);
+
+        var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(rpcPayloadCapturado);
+        Assert.Equal(cargoId, dict["p_cargo_id"]);
+        Assert.Equal(300.50m, dict["p_monto"]);
+        Assert.Equal(adminId, dict["p_actor_id"]);
+
+        var resultado = await response.Content.ReadFromJsonAsync<AplicarSaldoFavorResponse>();
+        Assert.NotNull(resultado);
+        Assert.NotNull(resultado.Movimiento);
+        Assert.Equal(movimientoId, resultado.Movimiento.Id);
+        Assert.Equal(TipoMovimientoSaldo.Aplicacion, resultado.Movimiento.Tipo);
+        Assert.Equal(300.50m, resultado.Movimiento.Monto);
+        Assert.NotNull(resultado.Cargo);
+        Assert.Equal(cargoId, resultado.Cargo.Id);
+        Assert.Equal(499.50m, resultado.Cargo.SaldoPendiente);
+        Assert.Equal(199.50m, resultado.SaldoAFavor);
+    }
+
+    // Caso 23: Sin token => 401. Inquilino => 403.
+    [Fact]
+    public async Task Caso23_AplicarSaldoFavor_SinTokenRetorna401_InquilinoRetorna403()
+    {
+        var cargoId = Guid.NewGuid();
+        var client = _factory.CreateClient();
+
+        // 23.a Sin token
+        var resSinToken = await client.PostAsJsonAsync($"/api/cargos/{cargoId}/aplicar-saldo", new AplicarSaldoFavorRequest { Monto = 100m });
+        Assert.Equal(HttpStatusCode.Unauthorized, resSinToken.StatusCode);
+
+        // 23.b Inquilino => 403
+        var tokenInquilino = TestTokenGenerator.GenerateInquilinoToken();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokenInquilino);
+        var resInquilino = await client.PostAsJsonAsync($"/api/cargos/{cargoId}/aplicar-saldo", new AplicarSaldoFavorRequest { Monto = 100m });
+        Assert.Equal(HttpStatusCode.Forbidden, resInquilino.StatusCode);
+    }
+
+    // Caso 24: Cargo de otro condominio => 404 sin llamar a la RPC
+    [Fact]
+    public async Task Caso24_AplicarSaldoFavor_CargoOtroCondominio_Retorna404SinLlamarRpc()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var otroCondominioId = Guid.NewGuid();
+        var cargoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var mockRestClient = new Mock<ISupabaseRestClient>();
+        mockRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(new VwCargo
+            {
+                Id = cargoId,
+                CondominioId = otroCondominioId
+            });
+
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                var descR = services.SingleOrDefault(d => d.ServiceType == typeof(ISupabaseRestClient));
+                if (descR != null) services.Remove(descR);
+                services.AddScoped(_ => mockRestClient.Object);
+            });
+        }).CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsJsonAsync($"/api/cargos/{cargoId}/aplicar-saldo", new AplicarSaldoFavorRequest { Monto = 100m });
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        mockRestClient.Verify(c => c.RpcAsync<System.Text.Json.JsonElement>("rpc_aplicar_saldo_favor", It.IsAny<object>(), It.IsAny<Guid?>()), Times.Never());
+    }
+
+    // Caso 25: Monto inválido (cero, negativo o más de 2 decimales) => 400 sin llamar a la RPC
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-50)]
+    [InlineData(100.125)]
+    public async Task Caso25_AplicarSaldoFavor_MontoInvalido_Retorna400SinLlamarRpc(decimal montoInvalido)
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var cargoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var mockRestClient = new Mock<ISupabaseRestClient>();
+        mockRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(new VwCargo
+            {
+                Id = cargoId,
+                CondominioId = condominioId
+            });
+
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                var descR = services.SingleOrDefault(d => d.ServiceType == typeof(ISupabaseRestClient));
+                if (descR != null) services.Remove(descR);
+                services.AddScoped(_ => mockRestClient.Object);
+            });
+        }).CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsJsonAsync($"/api/cargos/{cargoId}/aplicar-saldo", new AplicarSaldoFavorRequest { Monto = montoInvalido });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        mockRestClient.Verify(c => c.RpcAsync<System.Text.Json.JsonElement>("rpc_aplicar_saldo_favor", It.IsAny<object>(), It.IsAny<Guid?>()), Times.Never());
+    }
+
+    // Caso 26: La RPC responde errores de negocio (PG007, PG008, PG010, PG001, PG005) => 409
+    [Theory]
+    [InlineData("PG007", 409, "Saldo a favor insuficiente")]
+    [InlineData("PG008", 409, "El monto es inválido o mayor al saldo pendiente del cargo")]
+    [InlineData("PG010", 409, "El cargo ya está pagado")]
+    [InlineData("PG001", 409, "El cargo está cancelado o el estado no permite la operación")]
+    [InlineData("PG005", 409, "El cargo ya está cancelado")]
+    public async Task Caso26_AplicarSaldoFavor_RpcRespondeErroresDeNegocio_Retorna409(string dbCode, int expectedStatusCode, string expectedMessage)
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var cargoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var mockRestClient = new Mock<ISupabaseRestClient>();
+        mockRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(new VwCargo
+            {
+                Id = cargoId,
+                CondominioId = condominioId
+            });
+
+        mockRestClient
+            .Setup(c => c.RpcAsync<System.Text.Json.JsonElement>("rpc_aplicar_saldo_favor", It.IsAny<object>(), adminId))
+            .ThrowsAsync(new PostgrestException(expectedStatusCode, dbCode, expectedMessage));
+
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                var descR = services.SingleOrDefault(d => d.ServiceType == typeof(ISupabaseRestClient));
+                if (descR != null) services.Remove(descR);
+                services.AddScoped(_ => mockRestClient.Object);
+            });
+        }).CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsJsonAsync($"/api/cargos/{cargoId}/aplicar-saldo", new AplicarSaldoFavorRequest { Monto = 500m });
+        Assert.Equal((HttpStatusCode)expectedStatusCode, response.StatusCode);
+
+        var err = await response.Content.ReadFromJsonAsync<ErrorResponseDto>();
+        Assert.NotNull(err);
+        Assert.Equal(expectedMessage, err.Error);
+    }
+
+    // Caso 27: Nodo cargo sin campos calculados en respuesta de RPC => relee de vw_cargos
+    [Fact]
+    public async Task Caso27_AplicarSaldoFavor_CargoSinCamposCalculadosEnRpc_ReleeDeVwCargos()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var cargoId = Guid.NewGuid();
+        var movimientoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var mockRestClient = new Mock<ISupabaseRestClient>();
+
+        // Lectura previa para verificar condominio
+        mockRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(new VwCargo
+            {
+                Id = cargoId,
+                CondominioId = condominioId,
+                ViviendaId = 20,
+                NumeroCasa = "202",
+                Monto = 1500m,
+                SaldoPendiente = 1500m,
+                Estado = EstadoCargo.Pendiente
+            });
+
+        // La RPC devuelve el nodo cargo pero sin campos calculados (numero_casa vacío)
+        var jsonResponse = $@"{{
+            ""movimiento"": {{
+                ""id"": ""{movimientoId}"",
+                ""condominio_id"": ""{condominioId}"",
+                ""vivienda_id"": 20,
+                ""tipo"": ""Aplicacion"",
+                ""monto"": 500.0,
+                ""monto_con_signo"": -500.0,
+                ""cargo_id"": ""{cargoId}"",
+                ""creado_por"": ""{adminId}"",
+                ""creado_en"": ""2026-10-21T18:00:00Z""
+            }},
+            ""cargo"": {{
+                ""id"": ""{cargoId}"",
+                ""monto"": 1500.0,
+                ""estado"": ""Pendiente""
+            }},
+            ""saldo_a_favor"": 0.0
+        }}";
+
+        using var jsonDoc = System.Text.Json.JsonDocument.Parse(jsonResponse);
+
+        mockRestClient
+            .Setup(c => c.RpcAsync<System.Text.Json.JsonElement>("rpc_aplicar_saldo_favor", It.IsAny<object>(), adminId))
+            .ReturnsAsync(jsonDoc.RootElement);
+
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                var descR = services.SingleOrDefault(d => d.ServiceType == typeof(ISupabaseRestClient));
+                if (descR != null) services.Remove(descR);
+                services.AddScoped(_ => mockRestClient.Object);
+            });
+        }).CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsJsonAsync($"/api/cargos/{cargoId}/aplicar-saldo", new AplicarSaldoFavorRequest { Monto = 500m });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var resultado = await response.Content.ReadFromJsonAsync<AplicarSaldoFavorResponse>();
+        Assert.NotNull(resultado);
+        Assert.Equal(cargoId, resultado.Cargo.Id);
+        Assert.Equal("202", resultado.Cargo.NumeroCasa);
+
+        // Se verificó que se consultó vw_cargos para releer
+        mockRestClient.Verify(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"), Times.AtLeast(2));
+    }
+
+    #endregion
 }
+

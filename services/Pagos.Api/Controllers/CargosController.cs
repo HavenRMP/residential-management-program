@@ -153,4 +153,50 @@ public class CargosController : ControllerBase
             return BadRequest(new ErrorResponseDto(ex.Message));
         }
     }
+
+    /// <summary>
+    /// Aplica manualmente saldo a favor a un cargo pendiente (Solo Administrador).
+    /// </summary>
+    [Authorize(Policy = "Admin")]
+    [HttpPost("{id:guid}/aplicar-saldo")]
+    [ProducesResponseType(typeof(AplicarSaldoFavorResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> AplicarSaldo(Guid id, [FromBody] AplicarSaldoFavorRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        try
+        {
+            var resultado = await _cargosService.AplicarSaldoFavorAsync(id, request);
+            return Ok(resultado);
+        }
+        catch (PostgrestException ex)
+        {
+            _logger.LogWarning("AplicarSaldo falló en base de datos: {Code} - {Message}", ex.Code, ex.MensajeUsuario);
+            return StatusCode(ex.StatusCode, new ErrorResponseDto(ex.MensajeUsuario));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            _logger.LogWarning("AplicarSaldo recurso no encontrado: {Message}", ex.Message);
+            return NotFound(new ErrorResponseDto(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning("AplicarSaldo argumento inválido: {Message}", ex.Message);
+            return BadRequest(new ErrorResponseDto(ex.Message));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning("AplicarSaldo acceso denegado: {Message}", ex.Message);
+            return StatusCode(StatusCodes.Status403Forbidden, new ErrorResponseDto(ex.Message));
+        }
+    }
 }
+
