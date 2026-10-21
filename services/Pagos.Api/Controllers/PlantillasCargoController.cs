@@ -184,4 +184,43 @@ public class PlantillasCargoController : ControllerBase
             return StatusCode(ex.StatusCode, new ErrorResponseDto(ex.MensajeUsuario));
         }
     }
+
+    /// <summary>
+    /// Genera manualmente un lote de cargos residenciales a partir de plantillas activas para un periodo (exclusivo para Administrador).
+    /// </summary>
+    [HttpPost("generar")]
+    [ProducesResponseType(typeof(GenerarCargosLoteResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> GenerarCargosLote([FromBody] GenerarCargosLoteRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        try
+        {
+            var resultado = await _plantillasCargoService.GenerarCargosLoteAsync(request);
+            return Ok(resultado);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            _logger.LogWarning("GenerarCargosLote recurso no encontrado: {Message}", ex.Message);
+            return NotFound(new ErrorResponseDto(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning("GenerarCargosLote validación fallida: {Message}", ex.Message);
+            return BadRequest(new ErrorResponseDto(ex.Message));
+        }
+        catch (PostgrestException ex)
+        {
+            _logger.LogWarning("GenerarCargosLote conflicto o error en base de datos: {Code} - {Message}", ex.Code, ex.MensajeUsuario);
+            return StatusCode(ex.StatusCode, new ErrorResponseDto(ex.MensajeUsuario));
+        }
+    }
 }

@@ -988,4 +988,328 @@ public class PlantillasCargoTests : IClassFixture<PagosApiFactory>
         Assert.NotNull(body);
         Assert.True(body.Activa);
     }
+
+    [Fact]
+    public async Task GenerarCargosLote_SinToken_Retorna401Unauthorized()
+    {
+        var client = _factory.CreateClient();
+        var request = new GenerarCargosLoteRequest { Periodo = "2026-11" };
+
+        var response = await client.PostAsJsonAsync("/api/plantillas-cargo/generar", request);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GenerarCargosLote_Inquilino_Retorna403Forbidden()
+    {
+        var client = _factory.CreateClient();
+        var token = TestTokenGenerator.GenerateInquilinoToken();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var request = new GenerarCargosLoteRequest { Periodo = "2026-11" };
+
+        var response = await client.PostAsJsonAsync("/api/plantillas-cargo/generar", request);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("2026")]
+    [InlineData("2026-13")]
+    [InlineData("2026-00")]
+    [InlineData("noviembre-2026")]
+    public async Task GenerarCargosLote_PeriodoInvalido_Retorna400BadRequest(string periodoInvalido)
+    {
+        var client = _factory.CreateClient();
+        var token = TestTokenGenerator.GenerateAdminToken();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var request = new GenerarCargosLoteRequest { Periodo = periodoInvalido };
+
+        var response = await client.PostAsJsonAsync("/api/plantillas-cargo/generar", request);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GenerarCargosLote_PeriodoMasDe3MesesAnticipacion_Retorna400BadRequest()
+    {
+        var client = _factory.CreateClient();
+        var token = TestTokenGenerator.GenerateAdminToken();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        // Si hoy es alrededor de 2026-10, 2027-04 o superior excede 3 meses de anticipación
+        var request = new GenerarCargosLoteRequest { Periodo = "2028-01" };
+
+        var response = await client.PostAsJsonAsync("/api/plantillas-cargo/generar", request);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var err = await response.Content.ReadFromJsonAsync<ErrorResponseDto>();
+        Assert.NotNull(err);
+        Assert.Contains("anticipación", err.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GenerarCargosLote_PeriodoPasado_SePermiteYNoDaErrorDeAnticipacion()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        // Sin plantillas activas
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetAsync<VwPlantillaCargo>(
+                "vw_plantillas_cargo",
+                It.Is<string>(q => q.Contains($"condominio_id=eq.{condominioId}"))))
+            .ReturnsAsync(new List<VwPlantillaCargo>());
+
+        var request = new GenerarCargosLoteRequest { Periodo = "2024-01" };
+
+        var response = await client.PostAsJsonAsync("/api/plantillas-cargo/generar", request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content.ReadFromJsonAsync<GenerarCargosLoteResponse>();
+        Assert.NotNull(result);
+        Assert.Equal(0, result.Creados);
+    }
+
+    [Fact]
+    public async Task GenerarCargosLote_FiltroPlantillaNoEsDeCondominio_Retorna404NotFound()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var id1 = Guid.NewGuid();
+        var id2 = Guid.NewGuid();
+
+        // Solo id1 pertenece al condominio, id2 no existe o es de otro
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetAsync<VwPlantillaCargo>(
+                "vw_plantillas_cargo",
+                It.Is<string>(q => q.Contains($"condominio_id=eq.{condominioId}"))))
+            .ReturnsAsync(new List<VwPlantillaCargo>
+            {
+                new() { Id = id1, CondominioId = condominioId, Activa = true }
+            });
+
+        var request = new GenerarCargosLoteRequest
+        {
+            Periodo = "2026-11",
+            PlantillaIds = new List<Guid> { id1, id2 }
+        };
+
+        var response = await client.PostAsJsonAsync("/api/plantillas-cargo/generar", request);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        var err = await response.Content.ReadFromJsonAsync<ErrorResponseDto>();
+        Assert.NotNull(err);
+        Assert.Contains(id2.ToString(), err.Error);
+    }
+
+    [Fact]
+    public async Task GenerarCargosLote_SinCandidatasVigentes_Retorna200ConConteosEnCeroSinInsert()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        // Plantilla cuya vigencia empieza después del periodo (ej. periodo 2026-05, inicio 2026-06-01)
+        var plantilla = new VwPlantillaCargo
+        {
+            Id = Guid.NewGuid(),
+            CondominioId = condominioId,
+            ViviendaId = 1,
+            Tipo = TipoCargo.Mantenimiento,
+            Concepto = "Cuota",
+            Monto = 1000m,
+            DiaVencimiento = 10,
+            VigenciaInicio = new DateOnly(2026, 6, 1),
+            Activa = true
+        };
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetAsync<VwPlantillaCargo>(
+                "vw_plantillas_cargo",
+                It.Is<string>(q => q.Contains($"condominio_id=eq.{condominioId}"))))
+            .ReturnsAsync(new List<VwPlantillaCargo> { plantilla });
+
+        var request = new GenerarCargosLoteRequest { Periodo = "2026-05" };
+
+        var response = await client.PostAsJsonAsync("/api/plantillas-cargo/generar", request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content.ReadFromJsonAsync<GenerarCargosLoteResponse>();
+        Assert.NotNull(result);
+        Assert.Equal(0, result.Creados);
+        Assert.Equal(0, result.OmitidosPorYaExistir);
+        Assert.Equal(1, result.OmitidosPorVigencia);
+        Assert.Empty(result.Cargos);
+
+        // Verifica que NUNCA se llamó a InsertManyIgnoreDuplicatesAsync
+        _factory.MockSupabaseRestClient.Verify(
+            c => c.InsertManyIgnoreDuplicatesAsync<CargoCreadoItemResponse>(
+                It.IsAny<string>(),
+                It.IsAny<IEnumerable<object>>(),
+                It.IsAny<string>(),
+                It.IsAny<Guid?>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task GenerarCargosLote_ExitosoIdempotente_CalculaVencimientoCorrectoEInserta()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        // Plantilla con día 31 en febrero => fecha_vencimiento debe ser 28 (en 2026 no bisiesto)
+        var plantilla1Id = Guid.NewGuid();
+        var plantilla2Id = Guid.NewGuid();
+
+        var plantillas = new List<VwPlantillaCargo>
+        {
+            new()
+            {
+                Id = plantilla1Id,
+                CondominioId = condominioId,
+                ViviendaId = 1,
+                Tipo = TipoCargo.Mantenimiento,
+                Concepto = "Cuota Febrero",
+                Monto = 1200m,
+                DiaVencimiento = 31, // Día 31
+                VigenciaInicio = new DateOnly(2026, 1, 1),
+                Activa = true
+            },
+            new()
+            {
+                Id = plantilla2Id,
+                CondominioId = condominioId,
+                ViviendaId = 2,
+                Tipo = TipoCargo.Servicio,
+                Concepto = "Consumo Agua",
+                Monto = 500m,
+                DiaVencimiento = 15,
+                VigenciaInicio = new DateOnly(2026, 1, 1),
+                Activa = true
+            }
+        };
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetAsync<VwPlantillaCargo>(
+                "vw_plantillas_cargo",
+                It.Is<string>(q => q.Contains($"condominio_id=eq.{condominioId}"))))
+            .ReturnsAsync(plantillas);
+
+        var cargo1Id = Guid.NewGuid();
+        var cargo2Id = Guid.NewGuid();
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.InsertManyIgnoreDuplicatesAsync<CargoCreadoItemResponse>(
+                "cargos",
+                It.Is<IEnumerable<object>>(data => data.Cast<CargoInsert>().Any(c => c.FechaVencimiento == new DateOnly(2026, 2, 28))),
+                "plantilla_id,periodo",
+                adminId))
+            .ReturnsAsync(new List<CargoCreadoItemResponse>
+            {
+                new() { Id = cargo1Id, ViviendaId = 1, Monto = 1200m, FechaVencimiento = new DateOnly(2026, 2, 28) },
+                new() { Id = cargo2Id, ViviendaId = 2, Monto = 500m, FechaVencimiento = new DateOnly(2026, 2, 15) }
+            });
+
+        var request = new GenerarCargosLoteRequest { Periodo = "2026-02" };
+
+        var response = await client.PostAsJsonAsync("/api/plantillas-cargo/generar", request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content.ReadFromJsonAsync<GenerarCargosLoteResponse>();
+        Assert.NotNull(result);
+        Assert.Equal(2, result.Creados);
+        Assert.Equal(0, result.OmitidosPorYaExistir);
+        Assert.Equal(0, result.OmitidosPorVigencia);
+        Assert.Equal(2, result.Cargos.Count);
+        Assert.Equal(new DateOnly(2026, 2, 28), result.Cargos[0].FechaVencimiento);
+    }
+
+    [Fact]
+    public async Task GenerarCargosLote_CorrerSegundaVez_OmitidosPorYaExistirReflejaDuplicados()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var plantillas = new List<VwPlantillaCargo>
+        {
+            new()
+            {
+                Id = Guid.NewGuid(),
+                CondominioId = condominioId,
+                ViviendaId = 1,
+                Tipo = TipoCargo.Mantenimiento,
+                Concepto = "Cuota",
+                Monto = 1000m,
+                DiaVencimiento = 5,
+                VigenciaInicio = new DateOnly(2026, 1, 1),
+                Activa = true
+            },
+            new()
+            {
+                Id = Guid.NewGuid(),
+                CondominioId = condominioId,
+                ViviendaId = 2,
+                Tipo = TipoCargo.Mantenimiento,
+                Concepto = "Cuota",
+                Monto = 1000m,
+                DiaVencimiento = 5,
+                VigenciaInicio = new DateOnly(2026, 1, 1),
+                Activa = true
+            }
+        };
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetAsync<VwPlantillaCargo>(
+                "vw_plantillas_cargo",
+                It.Is<string>(q => q.Contains($"condominio_id=eq.{condominioId}"))))
+            .ReturnsAsync(plantillas);
+
+        // En la segunda ejecución, la BD ignora duplicados y devuelve lista vacía (0 cargos nuevos insertados)
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.InsertManyIgnoreDuplicatesAsync<CargoCreadoItemResponse>(
+                "cargos",
+                It.IsAny<IEnumerable<object>>(),
+                "plantilla_id,periodo",
+                adminId))
+            .ReturnsAsync(new List<CargoCreadoItemResponse>());
+
+        var request = new GenerarCargosLoteRequest { Periodo = "2026-10" };
+
+        var response = await client.PostAsJsonAsync("/api/plantillas-cargo/generar", request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content.ReadFromJsonAsync<GenerarCargosLoteResponse>();
+        Assert.NotNull(result);
+        Assert.Equal(0, result.Creados);
+        Assert.Equal(2, result.OmitidosPorYaExistir); // 2 candidatas - 0 insertados = 2 omitidos por ya existir
+        Assert.Equal(0, result.OmitidosPorVigencia);
+        Assert.Empty(result.Cargos);
+    }
 }
