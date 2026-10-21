@@ -13,17 +13,20 @@ public class PlantillasCargoService : IPlantillasCargoService
     private readonly ISupabaseRestClient _supabaseClient;
     private readonly IUserContextService _userContextService;
     private readonly IViviendasLookupService _viviendasLookupService;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<PlantillasCargoService> _logger;
 
     public PlantillasCargoService(
         ISupabaseRestClient supabaseClient,
         IUserContextService userContextService,
         IViviendasLookupService viviendasLookupService,
+        TimeProvider timeProvider,
         ILogger<PlantillasCargoService> logger)
     {
         _supabaseClient = supabaseClient;
         _userContextService = userContextService;
         _viviendasLookupService = viviendasLookupService;
+        _timeProvider = timeProvider;
         _logger = logger;
     }
 
@@ -253,5 +256,264 @@ public class PlantillasCargoService : IPlantillasCargoService
         var total = totalCount ?? responseItems.Count;
 
         return RespuestaPaginadaDto<PlantillaResponse>.Crear(responseItems, total, filtros);
+    }
+
+    public async Task<PlantillaResponse> ActualizarPlantillaAsync(Guid id, ActualizarPlantillaCargoRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        // 1. Validaciones de campos editables
+        if (string.IsNullOrWhiteSpace(request.Concepto))
+        {
+            throw new ArgumentException("El concepto es obligatorio.", nameof(request.Concepto));
+        }
+
+        var conceptoLimpio = request.Concepto.Trim();
+        if (conceptoLimpio.Length < 1 || conceptoLimpio.Length > 200)
+        {
+            throw new ArgumentException("El concepto debe tener entre 1 y 200 caracteres.", nameof(request.Concepto));
+        }
+
+        if (request.Monto <= 0)
+        {
+            throw new ArgumentException("El monto debe ser mayor a cero.", nameof(request.Monto));
+        }
+
+        if (decimal.Round(request.Monto, 2) != request.Monto)
+        {
+            throw new ArgumentException("El monto no puede tener más de dos decimales.", nameof(request.Monto));
+        }
+
+        if (request.DiaVencimiento < 1 || request.DiaVencimiento > 31)
+        {
+            throw new ArgumentException("El día de vencimiento debe estar entre 1 y 31.", nameof(request.DiaVencimiento));
+        }
+
+        if (request.ResponsablePago.HasValue && !Enum.IsDefined(typeof(ResponsablePago), request.ResponsablePago.Value))
+        {
+            throw new ArgumentException("El responsable de pago especificado no es válido.", nameof(request.ResponsablePago));
+        }
+
+        var condominioId = _userContextService.CondominioId;
+        if (condominioId == Guid.Empty)
+        {
+            throw new InvalidOperationException("El usuario administrador no cuenta con un condominio asociado.");
+        }
+
+        // 2. Regla 1: Leer plantilla de vw_plantillas_cargo y verificar condominio
+        var plantilla = await _supabaseClient.GetSingleOrDefaultAsync<VwPlantillaCargo>(
+            "vw_plantillas_cargo",
+            $"id=eq.{id}");
+
+        if (plantilla == null || plantilla.CondominioId != condominioId)
+        {
+            _logger.LogWarning("Plantilla {Id} no encontrada o no pertenece al condominio {CondominioId}", id, condominioId);
+            throw new KeyNotFoundException($"La plantilla de cargo con id {id} no fue encontrada.");
+        }
+
+        // Validación de vigencia_fin contra vigencia_inicio de la plantilla
+        if (request.VigenciaFin.HasValue && request.VigenciaFin.Value < plantilla.VigenciaInicio)
+        {
+            throw new ArgumentException("La fecha de fin de vigencia no puede ser anterior a la fecha de inicio.", nameof(request.VigenciaFin));
+        }
+
+        // 3. Regla 4: Si la plantilla está activa y cambió el concepto, verificar anti-duplicado
+        if (plantilla.Activa && !string.Equals(plantilla.Concepto, conceptoLimpio, StringComparison.OrdinalIgnoreCase))
+        {
+            var queryDuplicado = $"condominio_id=eq.{condominioId}&vivienda_id=eq.{plantilla.ViviendaId}&activa=eq.true&tipo=eq.{plantilla.Tipo}&concepto=eq.{Uri.EscapeDataString(conceptoLimpio)}&id=neq.{id}";
+            var existentes = await _supabaseClient.GetAsync<VwPlantillaCargo>("vw_plantillas_cargo", queryDuplicado);
+            if (existentes != null && existentes.Count > 0)
+            {
+                throw new PostgrestException(
+                    StatusCodes.Status409Conflict,
+                    "23505",
+                    "Ya existe una plantilla activa del mismo tipo y concepto para esta vivienda.",
+                    motivoConflicto: MotivoConflicto.PlantillaActivaDuplicada,
+                    constraintName: "idx_plantillas_vivienda_tipo_concepto_activa");
+            }
+        }
+
+        // 4. Regla 6: PATCH directo sobre plantillas_cargo con header x-actor-id, modificado_por y modificado_en
+        var patchData = new
+        {
+            monto = request.Monto,
+            dia_vencimiento = request.DiaVencimiento,
+            vigencia_fin = request.VigenciaFin,
+            responsable_pago = request.ResponsablePago,
+            concepto = conceptoLimpio,
+            modificado_por = _userContextService.UserId,
+            modificado_en = _timeProvider.GetUtcNow()
+        };
+
+        try
+        {
+            await _supabaseClient.PatchAsync<PlantillaInsertResult>(
+                "plantillas_cargo",
+                $"id=eq.{id}",
+                patchData,
+                actorId: _userContextService.UserId);
+        }
+        catch (PostgrestException ex) when (ex.Code == "23505" || ex.StatusCode == 409)
+        {
+            _logger.LogWarning(ex, "Conflicto 23505 al actualizar plantilla de cargo {Id}", id);
+            throw new PostgrestException(
+                StatusCodes.Status409Conflict,
+                "23505",
+                "Ya existe una plantilla activa del mismo tipo y concepto para esta vivienda.",
+                ex.Details,
+                MotivoConflicto.PlantillaActivaDuplicada,
+                ex.ConstraintName);
+        }
+
+        // 5. Relectura desde vw_plantillas_cargo
+        var actualizada = await _supabaseClient.GetSingleOrDefaultAsync<VwPlantillaCargo>(
+            "vw_plantillas_cargo",
+            $"id=eq.{id}");
+
+        if (actualizada == null)
+        {
+            throw new InvalidOperationException($"No se pudo recuperar la plantilla de cargo {id} actualizada.");
+        }
+
+        return actualizada.ToResponse();
+    }
+
+    public async Task<PlantillaResponse> DesactivarPlantillaAsync(Guid id)
+    {
+        var condominioId = _userContextService.CondominioId;
+        if (condominioId == Guid.Empty)
+        {
+            throw new InvalidOperationException("El usuario administrador no cuenta con un condominio asociado.");
+        }
+
+        // 1. Regla 1: Leer plantilla y verificar condominio
+        var plantilla = await _supabaseClient.GetSingleOrDefaultAsync<VwPlantillaCargo>(
+            "vw_plantillas_cargo",
+            $"id=eq.{id}");
+
+        if (plantilla == null || plantilla.CondominioId != condominioId)
+        {
+            _logger.LogWarning("Plantilla {Id} no encontrada o no pertenece al condominio {CondominioId}", id, condominioId);
+            throw new KeyNotFoundException($"La plantilla de cargo con id {id} no fue encontrada.");
+        }
+
+        // 2. Regla 5: Desactivar una plantilla ya inactiva => 409
+        if (!plantilla.Activa)
+        {
+            _logger.LogWarning("Intento de desactivar plantilla {Id} que ya se encuentra desactivada.", id);
+            throw new PostgrestException(
+                StatusCodes.Status409Conflict,
+                "409",
+                "La plantilla de cargo ya se encuentra desactivada.");
+        }
+
+        // 3. Regla 6: PATCH directo sobre plantillas_cargo con x-actor-id, modificado_por y modificado_en
+        var patchData = new
+        {
+            activa = false,
+            modificado_por = _userContextService.UserId,
+            modificado_en = _timeProvider.GetUtcNow()
+        };
+
+        await _supabaseClient.PatchAsync<PlantillaInsertResult>(
+            "plantillas_cargo",
+            $"id=eq.{id}",
+            patchData,
+            actorId: _userContextService.UserId);
+
+        // 4. Relectura de vw_plantillas_cargo
+        var actualizada = await _supabaseClient.GetSingleOrDefaultAsync<VwPlantillaCargo>(
+            "vw_plantillas_cargo",
+            $"id=eq.{id}");
+
+        if (actualizada == null)
+        {
+            throw new InvalidOperationException($"No se pudo recuperar la plantilla de cargo {id} desactivada.");
+        }
+
+        return actualizada.ToResponse();
+    }
+
+    public async Task<PlantillaResponse> ActivarPlantillaAsync(Guid id)
+    {
+        var condominioId = _userContextService.CondominioId;
+        if (condominioId == Guid.Empty)
+        {
+            throw new InvalidOperationException("El usuario administrador no cuenta con un condominio asociado.");
+        }
+
+        // 1. Regla 1: Leer plantilla y verificar condominio
+        var plantilla = await _supabaseClient.GetSingleOrDefaultAsync<VwPlantillaCargo>(
+            "vw_plantillas_cargo",
+            $"id=eq.{id}");
+
+        if (plantilla == null || plantilla.CondominioId != condominioId)
+        {
+            _logger.LogWarning("Plantilla {Id} no encontrada o no pertenece al condominio {CondominioId}", id, condominioId);
+            throw new KeyNotFoundException($"La plantilla de cargo con id {id} no fue encontrada.");
+        }
+
+        // 2. Regla 5: Activar una plantilla ya activa => 409
+        if (plantilla.Activa)
+        {
+            _logger.LogWarning("Intento de activar plantilla {Id} que ya se encuentra activa.", id);
+            throw new PostgrestException(
+                StatusCodes.Status409Conflict,
+                "409",
+                "La plantilla de cargo ya se encuentra activa.");
+        }
+
+        // 3. Regla 4: Reactivar no debe chocar con otra plantilla activa del mismo tipo, concepto y vivienda
+        var queryDuplicado = $"condominio_id=eq.{condominioId}&vivienda_id=eq.{plantilla.ViviendaId}&activa=eq.true&tipo=eq.{plantilla.Tipo}&concepto=eq.{Uri.EscapeDataString(plantilla.Concepto)}&id=neq.{id}";
+        var existentes = await _supabaseClient.GetAsync<VwPlantillaCargo>("vw_plantillas_cargo", queryDuplicado);
+        if (existentes != null && existentes.Count > 0)
+        {
+            throw new PostgrestException(
+                StatusCodes.Status409Conflict,
+                "23505",
+                "Ya existe una plantilla activa del mismo tipo y concepto para esta vivienda.",
+                motivoConflicto: MotivoConflicto.PlantillaActivaDuplicada,
+                constraintName: "idx_plantillas_vivienda_tipo_concepto_activa");
+        }
+
+        // 4. Regla 6: PATCH directo sobre plantillas_cargo con x-actor-id, modificado_por y modificado_en
+        var patchData = new
+        {
+            activa = true,
+            modificado_por = _userContextService.UserId,
+            modificado_en = _timeProvider.GetUtcNow()
+        };
+
+        try
+        {
+            await _supabaseClient.PatchAsync<PlantillaInsertResult>(
+                "plantillas_cargo",
+                $"id=eq.{id}",
+                patchData,
+                actorId: _userContextService.UserId);
+        }
+        catch (PostgrestException ex) when (ex.Code == "23505" || ex.StatusCode == 409)
+        {
+            _logger.LogWarning(ex, "Conflicto 23505 al activar plantilla de cargo {Id}", id);
+            throw new PostgrestException(
+                StatusCodes.Status409Conflict,
+                "23505",
+                "Ya existe una plantilla activa del mismo tipo y concepto para esta vivienda.",
+                ex.Details,
+                MotivoConflicto.PlantillaActivaDuplicada,
+                ex.ConstraintName);
+        }
+
+        // 5. Relectura de vw_plantillas_cargo
+        var actualizada = await _supabaseClient.GetSingleOrDefaultAsync<VwPlantillaCargo>(
+            "vw_plantillas_cargo",
+            $"id=eq.{id}");
+
+        if (actualizada == null)
+        {
+            throw new InvalidOperationException($"No se pudo recuperar la plantilla de cargo {id} activada.");
+        }
+
+        return actualizada.ToResponse();
     }
 }

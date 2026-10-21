@@ -564,4 +564,428 @@ public class PlantillasCargoTests : IClassFixture<PagosApiFactory>
         Assert.Equal("101", page.Items[0].NumeroCasa);
         Assert.Equal("Cuota Normal", page.Items[0].Concepto);
     }
+
+    [Fact]
+    public async Task PutPlantilla_SinToken_Retorna401Unauthorized()
+    {
+        var client = _factory.CreateClient();
+        var id = Guid.NewGuid();
+        var request = new ActualizarPlantillaCargoRequest
+        {
+            Concepto = "Nuevo Concepto",
+            Monto = 1800m,
+            DiaVencimiento = 15
+        };
+
+        var response = await client.PutAsJsonAsync($"/api/plantillas-cargo/{id}", request);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PutPlantilla_Inquilino_Retorna403Forbidden()
+    {
+        var client = _factory.CreateClient();
+        var token = TestTokenGenerator.GenerateInquilinoToken();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var id = Guid.NewGuid();
+        var request = new ActualizarPlantillaCargoRequest
+        {
+            Concepto = "Nuevo Concepto",
+            Monto = 1800m,
+            DiaVencimiento = 15
+        };
+
+        var response = await client.PutAsJsonAsync($"/api/plantillas-cargo/{id}", request);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PutPlantilla_NoExisteOOtroCondominio_Retorna404NotFound()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var id = Guid.NewGuid();
+        // Devuelve null o plantilla de otro condominio
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwPlantillaCargo>(
+                "vw_plantillas_cargo",
+                $"id=eq.{id}"))
+            .ReturnsAsync((VwPlantillaCargo?)null);
+
+        var request = new ActualizarPlantillaCargoRequest
+        {
+            Concepto = "Nuevo Concepto",
+            Monto = 1800m,
+            DiaVencimiento = 15
+        };
+
+        var response = await client.PutAsJsonAsync($"/api/plantillas-cargo/{id}", request);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PutPlantilla_VigenciaFinAnteriorAInicio_Retorna400BadRequest()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var id = Guid.NewGuid();
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwPlantillaCargo>(
+                "vw_plantillas_cargo",
+                $"id=eq.{id}"))
+            .ReturnsAsync(new VwPlantillaCargo
+            {
+                Id = id,
+                CondominioId = condominioId,
+                VigenciaInicio = new DateOnly(2026, 6, 1)
+            });
+
+        var request = new ActualizarPlantillaCargoRequest
+        {
+            Concepto = "Nuevo Concepto",
+            Monto = 1800m,
+            DiaVencimiento = 15,
+            VigenciaFin = new DateOnly(2026, 5, 31) // Anterior a VigenciaInicio
+        };
+
+        var response = await client.PutAsJsonAsync($"/api/plantillas-cargo/{id}", request);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PutPlantilla_CambioConceptoDuplicado_Retorna409Conflict()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var id = Guid.NewGuid();
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwPlantillaCargo>(
+                "vw_plantillas_cargo",
+                $"id=eq.{id}"))
+            .ReturnsAsync(new VwPlantillaCargo
+            {
+                Id = id,
+                CondominioId = condominioId,
+                ViviendaId = 10,
+                Tipo = TipoCargo.Mantenimiento,
+                Concepto = "Concepto Anterior",
+                Activa = true,
+                VigenciaInicio = new DateOnly(2026, 1, 1)
+            });
+
+        // Ya existe otra plantilla activa con el nuevo concepto
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetAsync<VwPlantillaCargo>(
+                "vw_plantillas_cargo",
+                It.Is<string>(q => q.Contains("concepto=eq.Nuevo%20Concepto") && q.Contains("activa=eq.true"))))
+            .ReturnsAsync(new List<VwPlantillaCargo>
+            {
+                new() { Id = Guid.NewGuid(), ViviendaId = 10, Concepto = "Nuevo Concepto", Activa = true }
+            });
+
+        var request = new ActualizarPlantillaCargoRequest
+        {
+            Concepto = "Nuevo Concepto",
+            Monto = 1800m,
+            DiaVencimiento = 15
+        };
+
+        var response = await client.PutAsJsonAsync($"/api/plantillas-cargo/{id}", request);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PutPlantilla_Exitoso_ActualizaYRetorna200Ok()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var id = Guid.NewGuid();
+        var plantillaOriginal = new VwPlantillaCargo
+        {
+            Id = id,
+            CondominioId = condominioId,
+            CondominioNombre = "Residencial Las Palmas",
+            ViviendaId = 10,
+            NumeroCasa = "10A",
+            Tipo = TipoCargo.Mantenimiento,
+            Concepto = "Cuota Inicial",
+            Monto = 1500m,
+            DiaVencimiento = 5,
+            VigenciaInicio = new DateOnly(2026, 1, 1),
+            Activa = true,
+            CreadoPor = adminId,
+            CreadoEn = DateTimeOffset.UtcNow
+        };
+
+        var plantillaActualizada = new VwPlantillaCargo
+        {
+            Id = id,
+            CondominioId = condominioId,
+            CondominioNombre = "Residencial Las Palmas",
+            ViviendaId = 10,
+            NumeroCasa = "10A",
+            Tipo = TipoCargo.Mantenimiento,
+            Concepto = "Cuota Actualizada",
+            Monto = 1750m,
+            DiaVencimiento = 15,
+            VigenciaInicio = new DateOnly(2026, 1, 1),
+            VigenciaFin = new DateOnly(2026, 12, 31),
+            ResponsablePago = ResponsablePago.Propietario,
+            Activa = true,
+            CreadoPor = adminId,
+            CreadoEn = DateTimeOffset.UtcNow,
+            ModificadoPor = adminId,
+            ModificadoEn = DateTimeOffset.UtcNow
+        };
+
+        var calls = 0;
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwPlantillaCargo>(
+                "vw_plantillas_cargo",
+                $"id=eq.{id}"))
+            .ReturnsAsync(() => calls++ == 0 ? plantillaOriginal : plantillaActualizada);
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetAsync<VwPlantillaCargo>(
+                "vw_plantillas_cargo",
+                It.Is<string>(q => q.Contains("activa=eq.true") && q.Contains("concepto=eq."))))
+            .ReturnsAsync(new List<VwPlantillaCargo>());
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.PatchAsync<PlantillaInsertResult>(
+                "plantillas_cargo",
+                $"id=eq.{id}",
+                It.IsAny<object>(),
+                adminId))
+            .ReturnsAsync(new List<PlantillaInsertResult> { new() { Id = id } });
+
+        var request = new ActualizarPlantillaCargoRequest
+        {
+            Concepto = "Cuota Actualizada",
+            Monto = 1750m,
+            DiaVencimiento = 15,
+            VigenciaFin = new DateOnly(2026, 12, 31),
+            ResponsablePago = ResponsablePago.Propietario
+        };
+
+        var response = await client.PutAsJsonAsync($"/api/plantillas-cargo/{id}", request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var body = await response.Content.ReadFromJsonAsync<PlantillaResponse>();
+        Assert.NotNull(body);
+        Assert.Equal("Cuota Actualizada", body.Concepto);
+        Assert.Equal(1750m, body.Monto);
+        Assert.Equal(15, body.DiaVencimiento);
+        Assert.Equal(new DateOnly(2026, 12, 31), body.VigenciaFin);
+        Assert.Equal(ResponsablePago.Propietario, body.ResponsablePago);
+    }
+
+    [Fact]
+    public async Task DesactivarPlantilla_YaDesactivada_Retorna409Conflict()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var id = Guid.NewGuid();
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwPlantillaCargo>(
+                "vw_plantillas_cargo",
+                $"id=eq.{id}"))
+            .ReturnsAsync(new VwPlantillaCargo
+            {
+                Id = id,
+                CondominioId = condominioId,
+                Activa = false // Ya está inactiva
+            });
+
+        var response = await client.PostAsync($"/api/plantillas-cargo/{id}/desactivar", null);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DesactivarPlantilla_Exitoso_DesactivaYRetorna200Ok()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var id = Guid.NewGuid();
+        var calls = 0;
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwPlantillaCargo>(
+                "vw_plantillas_cargo",
+                $"id=eq.{id}"))
+            .ReturnsAsync(() => new VwPlantillaCargo
+            {
+                Id = id,
+                CondominioId = condominioId,
+                Activa = calls++ == 0, // Primero true, luego false
+                Concepto = "Cuota Mantenimiento"
+            });
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.PatchAsync<PlantillaInsertResult>(
+                "plantillas_cargo",
+                $"id=eq.{id}",
+                It.IsAny<object>(),
+                adminId))
+            .ReturnsAsync(new List<PlantillaInsertResult> { new() { Id = id } });
+
+        var response = await client.PostAsync($"/api/plantillas-cargo/{id}/desactivar", null);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var body = await response.Content.ReadFromJsonAsync<PlantillaResponse>();
+        Assert.NotNull(body);
+        Assert.False(body.Activa);
+    }
+
+    [Fact]
+    public async Task ActivarPlantilla_YaActiva_Retorna409Conflict()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var id = Guid.NewGuid();
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwPlantillaCargo>(
+                "vw_plantillas_cargo",
+                $"id=eq.{id}"))
+            .ReturnsAsync(new VwPlantillaCargo
+            {
+                Id = id,
+                CondominioId = condominioId,
+                Activa = true // Ya está activa
+            });
+
+        var response = await client.PostAsync($"/api/plantillas-cargo/{id}/activar", null);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ActivarPlantilla_ChoqueUnicidad23505_Retorna409Conflict()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var id = Guid.NewGuid();
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwPlantillaCargo>(
+                "vw_plantillas_cargo",
+                $"id=eq.{id}"))
+            .ReturnsAsync(new VwPlantillaCargo
+            {
+                Id = id,
+                CondominioId = condominioId,
+                ViviendaId = 5,
+                Tipo = TipoCargo.Mantenimiento,
+                Concepto = "Cuota",
+                Activa = false
+            });
+
+        // Simula otra plantilla activa existente
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetAsync<VwPlantillaCargo>(
+                "vw_plantillas_cargo",
+                It.Is<string>(q => q.Contains("activa=eq.true") && q.Contains("concepto=eq.Cuota"))))
+            .ReturnsAsync(new List<VwPlantillaCargo>
+            {
+                new() { Id = Guid.NewGuid(), ViviendaId = 5, Tipo = TipoCargo.Mantenimiento, Concepto = "Cuota", Activa = true }
+            });
+
+        var response = await client.PostAsync($"/api/plantillas-cargo/{id}/activar", null);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ActivarPlantilla_Exitoso_ActivaYRetorna200Ok()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var id = Guid.NewGuid();
+        var calls = 0;
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwPlantillaCargo>(
+                "vw_plantillas_cargo",
+                $"id=eq.{id}"))
+            .ReturnsAsync(() => new VwPlantillaCargo
+            {
+                Id = id,
+                CondominioId = condominioId,
+                ViviendaId = 5,
+                Tipo = TipoCargo.Mantenimiento,
+                Concepto = "Cuota",
+                Activa = calls++ != 0 // Primero false, luego true
+            });
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetAsync<VwPlantillaCargo>(
+                "vw_plantillas_cargo",
+                It.Is<string>(q => q.Contains("activa=eq.true") && q.Contains("concepto=eq.Cuota"))))
+            .ReturnsAsync(new List<VwPlantillaCargo>());
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.PatchAsync<PlantillaInsertResult>(
+                "plantillas_cargo",
+                $"id=eq.{id}",
+                It.IsAny<object>(),
+                adminId))
+            .ReturnsAsync(new List<PlantillaInsertResult> { new() { Id = id } });
+
+        var response = await client.PostAsync($"/api/plantillas-cargo/{id}/activar", null);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var body = await response.Content.ReadFromJsonAsync<PlantillaResponse>();
+        Assert.NotNull(body);
+        Assert.True(body.Activa);
+    }
 }
