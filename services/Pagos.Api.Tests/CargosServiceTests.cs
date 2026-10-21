@@ -318,4 +318,179 @@ public class CargosServiceTests
         Assert.Equal("Pendiente", result.EstadoEfectivo);
         Assert.Equal(ResponsablePago.Propietario, result.ResponsablePago);
     }
+
+    [Fact]
+    public async Task ListarCargos_FechasVencimientoInvalidas_LanzaArgumentException()
+    {
+        var filtros = new ConsultaCargosFiltrosDto
+        {
+            VencimientoDesde = new DateOnly(2026, 12, 1),
+            VencimientoHasta = new DateOnly(2026, 11, 1)
+        };
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => _service.ListarCargosAsync(filtros));
+        Assert.Contains("vencimiento", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ListarCargos_PeriodoInvalido_LanzaArgumentException()
+    {
+        var filtros = new ConsultaCargosFiltrosDto
+        {
+            Periodo = "año-invalido"
+        };
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => _service.ListarCargosAsync(filtros));
+        Assert.Contains("periodo", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ListarCargos_Admin_ConUsuarioSinViviendas_RetornaPaginaVaciaSinConsultarPostgrest()
+    {
+        var usuarioFiltro = Guid.NewGuid();
+        var filtros = new ConsultaCargosFiltrosDto
+        {
+            UsuarioId = usuarioFiltro
+        };
+
+        _mockViviendasLookup
+            .Setup(v => v.GetViviendaIdsPorUsuarioTitularAsync(usuarioFiltro))
+            .ReturnsAsync(new List<int>());
+
+        var resultado = await _service.ListarCargosAsync(filtros);
+
+        Assert.NotNull(resultado);
+        Assert.Empty(resultado.Items);
+        Assert.Equal(0, resultado.Total);
+        _mockClient.Verify(c => c.GetPagedAsync<VwCargo>(It.IsAny<string>(), It.IsAny<HavenApi.Shared.Pagination.PaginationParams>(), It.IsAny<string?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ListarCargos_Admin_ConFiltrosCompletos_ConstruyeQueryCorrecta()
+    {
+        var usuarioFiltro = Guid.NewGuid();
+        var filtros = new ConsultaCargosFiltrosDto
+        {
+            UsuarioId = usuarioFiltro,
+            Tipo = TipoCargo.Mantenimiento,
+            Estado = EstadoCargo.Pendiente,
+            Vencido = true,
+            Periodo = "2026-10",
+            VencimientoDesde = new DateOnly(2026, 10, 1),
+            VencimientoHasta = new DateOnly(2026, 10, 31)
+        };
+
+        _mockViviendasLookup
+            .Setup(v => v.GetViviendaIdsPorUsuarioTitularAsync(usuarioFiltro))
+            .ReturnsAsync(new List<int> { 101, 102 });
+
+        string? capturedQuery = null;
+        _mockClient
+            .Setup(c => c.GetPagedAsync<VwCargo>("vw_cargos", It.IsAny<HavenApi.Shared.Pagination.PaginationParams>(), It.IsAny<string?>()))
+            .Callback<string, HavenApi.Shared.Pagination.PaginationParams, string?>((_, _, q) => capturedQuery = q)
+            .ReturnsAsync((new List<VwCargo>(), 0));
+
+        var resultado = await _service.ListarCargosAsync(filtros);
+
+        Assert.NotNull(capturedQuery);
+        Assert.Contains($"condominio_id=eq.{_condominioId}", capturedQuery);
+        Assert.Contains("vivienda_id=in.(101,102)", capturedQuery);
+        Assert.Contains("tipo=eq.Mantenimiento", capturedQuery);
+        Assert.Contains("estado=eq.Pendiente", capturedQuery);
+        Assert.Contains("esta_vencido=eq.true", capturedQuery);
+        Assert.Contains("periodo=eq.2026-10-01", capturedQuery);
+        Assert.Contains("fecha_vencimiento=gte.2026-10-01", capturedQuery);
+        Assert.Contains("fecha_vencimiento=lte.2026-10-31", capturedQuery);
+        Assert.Contains("order=fecha_vencimiento.desc,id.desc", capturedQuery);
+    }
+
+    [Fact]
+    public async Task ListarCargos_Inquilino_ConUsuarioIdAjeno_LanzaUnauthorizedAccessException()
+    {
+        _mockUserContext.Setup(u => u.EsAdmin).Returns(false);
+        var ajenoId = Guid.NewGuid();
+
+        var filtros = new ConsultaCargosFiltrosDto
+        {
+            UsuarioId = ajenoId
+        };
+
+        var ex = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.ListarCargosAsync(filtros));
+        Assert.Contains("inquilinos", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ListarCargos_Inquilino_ConViviendaAjena_LanzaUnauthorizedAccessException()
+    {
+        _mockUserContext.Setup(u => u.EsAdmin).Returns(false);
+
+        _mockViviendasLookup
+            .Setup(v => v.GetViviendaIdsPorUsuarioTitularAsync(_userId))
+            .ReturnsAsync(new List<int> { 50, 51 });
+
+        var filtros = new ConsultaCargosFiltrosDto
+        {
+            ViviendaId = 99 // No le pertenece
+        };
+
+        var ex = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.ListarCargosAsync(filtros));
+        Assert.Contains("no te pertenece", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ListarCargos_Inquilino_SinViviendas_RetornaPaginaVaciaSinConsultarPostgrest()
+    {
+        _mockUserContext.Setup(u => u.EsAdmin).Returns(false);
+
+        _mockViviendasLookup
+            .Setup(v => v.GetViviendaIdsPorUsuarioTitularAsync(_userId))
+            .ReturnsAsync(new List<int>());
+
+        var filtros = new ConsultaCargosFiltrosDto();
+
+        var resultado = await _service.ListarCargosAsync(filtros);
+
+        Assert.NotNull(resultado);
+        Assert.Empty(resultado.Items);
+        Assert.Equal(0, resultado.Total);
+        _mockClient.Verify(c => c.GetPagedAsync<VwCargo>(It.IsAny<string>(), It.IsAny<HavenApi.Shared.Pagination.PaginationParams>(), It.IsAny<string?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ListarCargos_Inquilino_ConViviendaPropia_FiltraPorEsaVivienda()
+    {
+        _mockUserContext.Setup(u => u.EsAdmin).Returns(false);
+
+        _mockViviendasLookup
+            .Setup(v => v.GetViviendaIdsPorUsuarioTitularAsync(_userId))
+            .ReturnsAsync(new List<int> { 7, 8 });
+
+        var filtros = new ConsultaCargosFiltrosDto
+        {
+            ViviendaId = 7
+        };
+
+        string? capturedQuery = null;
+        _mockClient
+            .Setup(c => c.GetPagedAsync<VwCargo>("vw_cargos", It.IsAny<HavenApi.Shared.Pagination.PaginationParams>(), It.IsAny<string?>()))
+            .Callback<string, HavenApi.Shared.Pagination.PaginationParams, string?>((_, _, q) => capturedQuery = q)
+            .ReturnsAsync((new List<VwCargo>
+            {
+                new()
+                {
+                    Id = Guid.NewGuid(),
+                    CondominioId = _condominioId,
+                    ViviendaId = 7,
+                    EstaVencido = true,
+                    Estado = EstadoCargo.Pendiente
+                }
+            }, 1));
+
+        var resultado = await _service.ListarCargosAsync(filtros);
+
+        Assert.NotNull(capturedQuery);
+        Assert.Contains("vivienda_id=eq.7", capturedQuery);
+        Assert.Single(resultado.Items);
+        Assert.Equal("Vencido", resultado.Items[0].EstadoEfectivo);
+    }
 }

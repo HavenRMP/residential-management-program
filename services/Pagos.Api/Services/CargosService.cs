@@ -146,4 +146,162 @@ public class CargosService : ICargosService
 
         return cargoView.ToResponse();
     }
+
+    public async Task<RespuestaPaginadaDto<CargoResponse>> ListarCargosAsync(ConsultaCargosFiltrosDto filtros)
+    {
+        ArgumentNullException.ThrowIfNull(filtros);
+
+        var condominioId = _userContextService.CondominioId;
+        if (condominioId == Guid.Empty)
+        {
+            throw new InvalidOperationException("El usuario no tiene un condominio asignado en su contexto.");
+        }
+
+        // Validación de rango de fechas de vencimiento
+        if (filtros.VencimientoDesde.HasValue && filtros.VencimientoHasta.HasValue && filtros.VencimientoDesde > filtros.VencimientoHasta)
+        {
+            throw new ArgumentException("La fecha de vencimiento inicial (desde) no puede ser mayor que la final (hasta).", nameof(filtros.VencimientoDesde));
+        }
+
+        // Validación de periodo
+        DateOnly? periodoDate = null;
+        if (!string.IsNullOrWhiteSpace(filtros.Periodo))
+        {
+            if (!PeriodoHelper.TryParse(filtros.Periodo, out var parsed, out var errorPeriodo))
+            {
+                throw new ArgumentException(errorPeriodo, nameof(filtros.Periodo));
+            }
+            periodoDate = parsed;
+        }
+
+        var esAdmin = _userContextService.EsAdmin;
+        List<int>? viviendasAFiltar = null;
+
+        if (esAdmin)
+        {
+            // Regla 1: Admin siempre filtra por su condominio_id.
+            // Si manda usuario_id, se resuelve con P6 (método 1) a una lista de viviendas y se filtra con "in".
+            if (filtros.UsuarioId.HasValue)
+            {
+                var viviendasUsuario = await _viviendasLookupService.GetViviendaIdsPorUsuarioTitularAsync(filtros.UsuarioId.Value);
+                if (viviendasUsuario == null || viviendasUsuario.Count == 0)
+                {
+                    // Regla 3: Si la lista de viviendas resulta vacía, responde página vacía sin consultar con un "in" vacío.
+                    return RespuestaPaginadaDto<CargoResponse>.CrearVacia(filtros);
+                }
+
+                if (filtros.ViviendaId.HasValue)
+                {
+                    if (!viviendasUsuario.Contains(filtros.ViviendaId.Value))
+                    {
+                        return RespuestaPaginadaDto<CargoResponse>.CrearVacia(filtros);
+                    }
+                    viviendasAFiltar = new List<int> { filtros.ViviendaId.Value };
+                }
+                else
+                {
+                    viviendasAFiltar = viviendasUsuario;
+                }
+            }
+            else if (filtros.ViviendaId.HasValue)
+            {
+                viviendasAFiltar = new List<int> { filtros.ViviendaId.Value };
+            }
+        }
+        else
+        {
+            // Regla 2: Inquilino: se resuelven sus viviendas con P6 (método 1) y se filtra con "in"
+            // (restringido además por vivienda_id si lo manda y es suya; si manda una que no es suya, 403).
+            // Si manda usuario_id distinto al suyo, 403.
+            if (filtros.UsuarioId.HasValue && filtros.UsuarioId.Value != _userContextService.UserId)
+            {
+                throw new UnauthorizedAccessException("Los inquilinos no tienen permiso para consultar cargos de otros usuarios.");
+            }
+
+            var misViviendas = await _viviendasLookupService.GetViviendaIdsPorUsuarioTitularAsync(_userContextService.UserId);
+            if (misViviendas == null || misViviendas.Count == 0)
+            {
+                // Regla 3: Si la lista de viviendas resulta vacía, responde página vacía sin consultar con un "in" vacío.
+                return RespuestaPaginadaDto<CargoResponse>.CrearVacia(filtros);
+            }
+
+            if (filtros.ViviendaId.HasValue)
+            {
+                if (!misViviendas.Contains(filtros.ViviendaId.Value))
+                {
+                    throw new UnauthorizedAccessException("No tienes permiso para consultar cargos de una vivienda que no te pertenece.");
+                }
+                viviendasAFiltar = new List<int> { filtros.ViviendaId.Value };
+            }
+            else
+            {
+                viviendasAFiltar = misViviendas;
+            }
+        }
+
+        // Construcción de filtros PostgREST
+        var queryParams = new List<string>
+        {
+            $"condominio_id=eq.{condominioId}"
+        };
+
+        if (viviendasAFiltar != null)
+        {
+            if (viviendasAFiltar.Count == 1)
+            {
+                queryParams.Add($"vivienda_id=eq.{viviendasAFiltar[0]}");
+            }
+            else
+            {
+                queryParams.Add($"vivienda_id=in.({string.Join(",", viviendasAFiltar)})");
+            }
+        }
+
+        if (filtros.Tipo.HasValue)
+        {
+            queryParams.Add($"tipo=eq.{filtros.Tipo.Value}");
+        }
+
+        if (filtros.Estado.HasValue)
+        {
+            queryParams.Add($"estado=eq.{filtros.Estado.Value}");
+        }
+
+        // Regla 4: El filtro vencido se traduce al filtro esta_vencido de la vista. NO filtrar en memoria ni calcular fechas en C#.
+        if (filtros.Vencido.HasValue)
+        {
+            queryParams.Add($"esta_vencido=eq.{filtros.Vencido.Value.ToString().ToLowerInvariant()}");
+        }
+
+        if (periodoDate.HasValue)
+        {
+            queryParams.Add($"periodo=eq.{periodoDate.Value:yyyy-MM-dd}");
+        }
+
+        if (filtros.VencimientoDesde.HasValue)
+        {
+            queryParams.Add($"fecha_vencimiento=gte.{filtros.VencimientoDesde.Value:yyyy-MM-dd}");
+        }
+
+        if (filtros.VencimientoHasta.HasValue)
+        {
+            queryParams.Add($"fecha_vencimiento=lte.{filtros.VencimientoHasta.Value:yyyy-MM-dd}");
+        }
+
+        // Paginado y ordenado por fecha de vencimiento descendente
+        queryParams.Add("order=fecha_vencimiento.desc,id.desc");
+
+        var queryString = string.Join("&", queryParams);
+
+        var (items, totalCount) = await _supabaseClient.GetPagedAsync<VwCargo>(
+            "vw_cargos",
+            filtros.ToSharedParams(),
+            queryString);
+
+        // Regla 5: Cada ítem usa CargoResponse (con estado_efectivo)
+        var responseItems = items.ToResponseList();
+        var total = totalCount ?? responseItems.Count;
+
+        return RespuestaPaginadaDto<CargoResponse>.Crear(responseItems, total, filtros);
+    }
 }
