@@ -482,4 +482,222 @@ public class PagosService : IPagosService
 
         return pagoResponse;
     }
+
+    public async Task<ConfirmarPagoResponse> ConfirmarPagoAdminAsync(Guid id)
+    {
+        if (id == Guid.Empty)
+        {
+            throw new ArgumentException("El id del pago es obligatorio.", nameof(id));
+        }
+
+        // 1. Solo Admin. Primero lee el pago de vw_pagos por id y verifica que sea de su condominio; si no => 404.
+        var condominioId = _userContextService.CondominioId;
+        var pagoActual = await _supabaseClient.GetSingleOrDefaultAsync<VwPago>(
+            "vw_pagos",
+            $"id=eq.{id}");
+
+        if (pagoActual == null || pagoActual.CondominioId != condominioId)
+        {
+            _logger.LogWarning("Pago {PagoId} no encontrado o no pertenece al condominio {CondominioId}", id, condominioId);
+            throw new KeyNotFoundException("Pago no encontrado.");
+        }
+
+        // 2. Llama a rpc_confirmar_pago(p_pago_id, p_actor_id).
+        var payload = new Dictionary<string, object?>
+        {
+            { "p_pago_id", id },
+            { "p_actor_id", _userContextService.UserId }
+        };
+
+        var rpcResult = await _supabaseClient.RpcAsync<JsonElement>(
+            "rpc_confirmar_pago",
+            payload,
+            actorId: _userContextService.UserId);
+
+        // 3. Responde 200 con { pago, cargo, movimiento_saldo (o null), saldo_a_favor }
+        PagoResponse? pagoResponse = null;
+        if (rpcResult.ValueKind == JsonValueKind.Object && rpcResult.TryGetProperty("pago", out var pagoElem) && pagoElem.ValueKind == JsonValueKind.Object)
+        {
+            try
+            {
+                var opt = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var vwPago = JsonSerializer.Deserialize<VwPago>(pagoElem.GetRawText(), opt);
+                if (vwPago != null && !string.IsNullOrEmpty(vwPago.NumeroCasa))
+                {
+                    pagoResponse = vwPago.ToResponse();
+                }
+            }
+            catch
+            {
+                // Releeremos de vw_pagos
+            }
+        }
+
+        if (pagoResponse == null)
+        {
+            var vwPago = await _supabaseClient.GetSingleOrDefaultAsync<VwPago>("vw_pagos", $"id=eq.{id}");
+            if (vwPago != null)
+            {
+                pagoResponse = vwPago.ToResponse();
+            }
+        }
+
+        if (pagoResponse == null)
+        {
+            throw new InvalidOperationException("No se pudo obtener la información del pago confirmado.");
+        }
+
+        CargoResponse? cargoResponse = null;
+        if (rpcResult.ValueKind == JsonValueKind.Object && rpcResult.TryGetProperty("cargo", out var cargoElem) && cargoElem.ValueKind == JsonValueKind.Object)
+        {
+            try
+            {
+                var opt = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var vwCargo = JsonSerializer.Deserialize<VwCargo>(cargoElem.GetRawText(), opt);
+                if (vwCargo != null && !string.IsNullOrEmpty(vwCargo.NumeroCasa))
+                {
+                    cargoResponse = vwCargo.ToResponse();
+                }
+            }
+            catch
+            {
+                // Releeremos de vw_cargos
+            }
+        }
+
+        if (cargoResponse == null)
+        {
+            var vwCargo = await _supabaseClient.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{pagoActual.CargoId}");
+            if (vwCargo != null)
+            {
+                cargoResponse = vwCargo.ToResponse();
+            }
+        }
+
+        if (cargoResponse == null)
+        {
+            throw new InvalidOperationException("No se pudo obtener la información del cargo actualizado.");
+        }
+
+        MovimientoSaldoResponse? movimientoSaldo = null;
+        if (rpcResult.ValueKind == JsonValueKind.Object && 
+            rpcResult.TryGetProperty("movimiento_saldo", out var movElem) && 
+            movElem.ValueKind == JsonValueKind.Object)
+        {
+            try
+            {
+                var opt = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                movimientoSaldo = JsonSerializer.Deserialize<MovimientoSaldoResponse>(movElem.GetRawText(), opt);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "No se pudo deserializar movimiento_saldo devuelto por rpc_confirmar_pago.");
+            }
+        }
+
+        decimal saldoAFavor = 0m;
+        if (rpcResult.ValueKind == JsonValueKind.Object && rpcResult.TryGetProperty("saldo_a_favor", out var saldoElem))
+        {
+            if (saldoElem.ValueKind == JsonValueKind.Number)
+            {
+                saldoAFavor = saldoElem.GetDecimal();
+            }
+            else if (decimal.TryParse(saldoElem.GetString(), out var parsedSaldo))
+            {
+                saldoAFavor = parsedSaldo;
+            }
+        }
+
+        return new ConfirmarPagoResponse
+        {
+            Pago = pagoResponse,
+            Cargo = cargoResponse,
+            MovimientoSaldo = movimientoSaldo,
+            SaldoAFavor = saldoAFavor
+        };
+    }
+
+    public async Task<RechazarPagoResponse> RechazarPagoAdminAsync(Guid id, RechazarPagoRequest request)
+    {
+        if (id == Guid.Empty)
+        {
+            throw new ArgumentException("El id del pago es obligatorio.", nameof(id));
+        }
+
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (string.IsNullOrWhiteSpace(request.Motivo))
+        {
+            throw new ArgumentException("El motivo de rechazo es obligatorio.", nameof(request.Motivo));
+        }
+
+        var motivoLimpio = request.Motivo.Trim();
+        if (motivoLimpio.Length < 5 || motivoLimpio.Length > 300)
+        {
+            throw new ArgumentException("El motivo debe tener entre 5 y 300 caracteres.", nameof(request.Motivo));
+        }
+
+        // 1. Solo Admin. Primero lee el pago de vw_pagos por id y verifica que sea de su condominio; si no => 404.
+        var condominioId = _userContextService.CondominioId;
+        var pagoActual = await _supabaseClient.GetSingleOrDefaultAsync<VwPago>(
+            "vw_pagos",
+            $"id=eq.{id}");
+
+        if (pagoActual == null || pagoActual.CondominioId != condominioId)
+        {
+            _logger.LogWarning("Pago {PagoId} no encontrado o no pertenece al condominio {CondominioId}", id, condominioId);
+            throw new KeyNotFoundException("Pago no encontrado.");
+        }
+
+        // 2. Llama a rpc_rechazar_pago(p_pago_id, p_motivo, p_actor_id).
+        var payload = new Dictionary<string, object?>
+        {
+            { "p_pago_id", id },
+            { "p_motivo", motivoLimpio },
+            { "p_actor_id", _userContextService.UserId }
+        };
+
+        var rpcResult = await _supabaseClient.RpcAsync<JsonElement>(
+            "rpc_rechazar_pago",
+            payload,
+            actorId: _userContextService.UserId);
+
+        // 3. Responde 200 con { pago }
+        PagoResponse? pagoResponse = null;
+        if (rpcResult.ValueKind == JsonValueKind.Object && rpcResult.TryGetProperty("pago", out var pagoElem) && pagoElem.ValueKind == JsonValueKind.Object)
+        {
+            try
+            {
+                var opt = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var vwPago = JsonSerializer.Deserialize<VwPago>(pagoElem.GetRawText(), opt);
+                if (vwPago != null && !string.IsNullOrEmpty(vwPago.NumeroCasa))
+                {
+                    pagoResponse = vwPago.ToResponse();
+                }
+            }
+            catch
+            {
+                // Releeremos de vw_pagos
+            }
+        }
+
+        if (pagoResponse == null)
+        {
+            var vwPago = await _supabaseClient.GetSingleOrDefaultAsync<VwPago>("vw_pagos", $"id=eq.{id}");
+            if (vwPago != null)
+            {
+                pagoResponse = vwPago.ToResponse();
+            }
+        }
+
+        if (pagoResponse == null)
+        {
+            throw new InvalidOperationException("No se pudo obtener la información del pago rechazado.");
+        }
+
+        return new RechazarPagoResponse
+        {
+            Pago = pagoResponse
+        };
+    }
 }
