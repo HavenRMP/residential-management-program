@@ -143,4 +143,109 @@ public class CargoMapperTests
         Assert.Equal("Vencido", responses[0].EstadoEfectivo);
         Assert.Equal("Pagado", responses[1].EstadoEfectivo);
     }
+
+    #region Casos 1 al 5 - Mapeo
+
+    [Fact]
+    public void Caso1_Mapeo_EstaVencidoVerdaderoConEstadoPendiente_EstadoEfectivoEsVencido()
+    {
+        // Caso 1: esta_vencido verdadero con estado Pendiente => estado_efectivo Vencido.
+        var vw = new VwCargo
+        {
+            Id = Guid.NewGuid(),
+            Estado = EstadoCargo.Pendiente,
+            EstaVencido = true,
+            FechaVencimiento = new DateOnly(2026, 1, 15)
+        };
+
+        var response = vw.ToResponse();
+
+        Assert.Equal(EstadoCargo.Pendiente, response.Estado);
+        Assert.Equal("Vencido", response.EstadoEfectivo);
+    }
+
+    [Fact]
+    public void Caso2_Mapeo_EstaVencidoVerdaderoConEstadoParcial_EstadoEfectivoEsVencido()
+    {
+        // Caso 2: esta_vencido verdadero con estado Parcial => Vencido.
+        var vw = new VwCargo
+        {
+            Id = Guid.NewGuid(),
+            Estado = EstadoCargo.Parcial,
+            EstaVencido = true,
+            FechaVencimiento = new DateOnly(2026, 2, 20)
+        };
+
+        var response = vw.ToResponse();
+
+        Assert.Equal(EstadoCargo.Parcial, response.Estado);
+        Assert.Equal("Vencido", response.EstadoEfectivo);
+    }
+
+    [Theory]
+    [InlineData(EstadoCargo.Pendiente, "Pendiente")]
+    [InlineData(EstadoCargo.Parcial, "Parcial")]
+    [InlineData(EstadoCargo.Pagado, "Pagado")]
+    [InlineData(EstadoCargo.Cancelado, "Cancelado")]
+    public void Caso3_Mapeo_EstaVencidoFalso_EstadoEfectivoIgualAlEstadoPersistido(EstadoCargo estado, string esperado)
+    {
+        // Caso 3: esta_vencido falso => estado_efectivo igual al estado persistido.
+        var vw = new VwCargo
+        {
+            Id = Guid.NewGuid(),
+            Estado = estado,
+            EstaVencido = false,
+            FechaVencimiento = new DateOnly(2026, 12, 31)
+        };
+
+        var response = vw.ToResponse();
+
+        Assert.Equal(estado, response.Estado);
+        Assert.Equal(esperado, response.EstadoEfectivo);
+    }
+
+    [Theory]
+    [InlineData(EstadoCargo.Pagado, "Pagado")]
+    [InlineData(EstadoCargo.Cancelado, "Cancelado")]
+    public void Caso4_Mapeo_PagadoOCancelado_NuncaSalenComoVencido_DocumentaComportamientoVista(EstadoCargo estado, string esperado)
+    {
+        // Caso 4: Pagado o Cancelado nunca salen como Vencido (la vista en base de datos ya manda esta_vencido falso; el test lo documenta).
+        // En la vista PostgreSQL: esta_vencido = (fecha_vencimiento < current_date AND estado NOT IN ('Pagado', 'Cancelado'))
+        // Por definición de vista, Pagado y Cancelado siempre tienen EstaVencido = false.
+        var vw = new VwCargo
+        {
+            Id = Guid.NewGuid(),
+            Estado = estado,
+            EstaVencido = false,
+            FechaVencimiento = new DateOnly(2020, 1, 1) // Fecha pasada, pero estado Pagado o Cancelado
+        };
+
+        var response = vw.ToResponse();
+
+        Assert.Equal(estado, response.Estado);
+        Assert.Equal(esperado, response.EstadoEfectivo);
+        Assert.NotEqual("Vencido", response.EstadoEfectivo);
+    }
+
+    [Theory]
+    [InlineData(2026, 1, "2026-01")]
+    [InlineData(2026, 11, "2026-11")]
+    [InlineData(2027, 12, "2027-12")]
+    public void Caso5_Mapeo_PeriodoPrimerDiaDelMes_SeExponeComoTextoAnioMes(int anio, int mes, string esperado)
+    {
+        // Caso 5: periodo DateOnly del primer día del mes se expone como texto año-mes.
+        var vw = new VwCargo
+        {
+            Id = Guid.NewGuid(),
+            Periodo = new DateOnly(anio, mes, 1),
+            Estado = EstadoCargo.Pendiente,
+            EstaVencido = false
+        };
+
+        var response = vw.ToResponse();
+
+        Assert.Equal(esperado, response.Periodo);
+    }
+
+    #endregion
 }
