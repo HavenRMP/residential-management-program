@@ -493,4 +493,174 @@ public class CargosServiceTests
         Assert.Single(resultado.Items);
         Assert.Equal("Vencido", resultado.Items[0].EstadoEfectivo);
     }
+
+    [Fact]
+    public async Task ObtenerDetalleCargo_IdVacio_LanzaArgumentException()
+    {
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => _service.ObtenerDetalleCargoAsync(Guid.Empty));
+        Assert.Contains("id", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ObtenerDetalleCargo_NoExiste_LanzaKeyNotFoundException()
+    {
+        var cargoId = Guid.NewGuid();
+        _mockClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync((VwCargo?)null);
+
+        var ex = await Assert.ThrowsAsync<KeyNotFoundException>(() => _service.ObtenerDetalleCargoAsync(cargoId));
+        Assert.Equal("Cargo no encontrado.", ex.Message);
+    }
+
+    [Fact]
+    public async Task ObtenerDetalleCargo_Admin_CondominioDiferente_LanzaKeyNotFoundException()
+    {
+        var cargoId = Guid.NewGuid();
+        var otroCondominioId = Guid.NewGuid();
+
+        _mockClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(new VwCargo
+            {
+                Id = cargoId,
+                CondominioId = otroCondominioId
+            });
+
+        var ex = await Assert.ThrowsAsync<KeyNotFoundException>(() => _service.ObtenerDetalleCargoAsync(cargoId));
+        Assert.Equal("Cargo no encontrado.", ex.Message);
+    }
+
+    [Fact]
+    public async Task ObtenerDetalleCargo_Admin_Exito_ConsultaCargosYPagos()
+    {
+        var cargoId = Guid.NewGuid();
+
+        var vwCargo = new VwCargo
+        {
+            Id = cargoId,
+            CondominioId = _condominioId,
+            ViviendaId = 15,
+            NumeroCasa = "15-B",
+            Concepto = "Cuota Octubre",
+            Monto = 2000m,
+            MontoPagadoConfirmado = 1000m,
+            SaldoPendiente = 1000m,
+            Estado = EstadoCargo.Parcial,
+            EstaVencido = false
+        };
+
+        var vwPagos = new List<VwPago>
+        {
+            new()
+            {
+                Id = Guid.NewGuid(),
+                CargoId = cargoId,
+                Monto = 1000m,
+                MontoCubierto = 1000m,
+                Estado = EstadoPago.Confirmado,
+                FechaPago = new DateOnly(2026, 10, 5)
+            }
+        };
+
+        _mockClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(vwCargo);
+
+        _mockClient
+            .Setup(c => c.GetAsync<VwPago>("vw_pagos", $"cargo_id=eq.{cargoId}&order=fecha_pago.desc,creado_en.desc"))
+            .ReturnsAsync(vwPagos);
+
+        var detalle = await _service.ObtenerDetalleCargoAsync(cargoId);
+
+        Assert.NotNull(detalle);
+        Assert.Equal(cargoId, detalle.Id);
+        Assert.Equal("15-B", detalle.NumeroCasa);
+        Assert.Equal("Parcial", detalle.EstadoEfectivo);
+        Assert.Single(detalle.Pagos);
+        Assert.Equal(1000m, detalle.Pagos[0].Monto);
+    }
+
+    [Fact]
+    public async Task ObtenerDetalleCargo_Inquilino_NoEsTitular_LanzaKeyNotFoundException()
+    {
+        _mockUserContext.Setup(u => u.EsAdmin).Returns(false);
+
+        var cargoId = Guid.NewGuid();
+        var vwCargo = new VwCargo
+        {
+            Id = cargoId,
+            CondominioId = _condominioId,
+            ViviendaId = 88
+        };
+
+        _mockClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(vwCargo);
+
+        _mockViviendasLookup
+            .Setup(v => v.EsResidenteTitularAsync(88, _userId))
+            .ReturnsAsync(false);
+
+        var ex = await Assert.ThrowsAsync<KeyNotFoundException>(() => _service.ObtenerDetalleCargoAsync(cargoId));
+        Assert.Equal("Cargo no encontrado.", ex.Message);
+    }
+
+    [Fact]
+    public async Task ObtenerDetalleCargo_Inquilino_EsTitular_Exito_IncluyePagosEnCualquierEstado()
+    {
+        _mockUserContext.Setup(u => u.EsAdmin).Returns(false);
+
+        var cargoId = Guid.NewGuid();
+        var vwCargo = new VwCargo
+        {
+            Id = cargoId,
+            CondominioId = _condominioId,
+            ViviendaId = 12,
+            NumeroCasa = "12",
+            Estado = EstadoCargo.Pendiente,
+            EstaVencido = true
+        };
+
+        var vwPagos = new List<VwPago>
+        {
+            new()
+            {
+                Id = Guid.NewGuid(),
+                CargoId = cargoId,
+                Monto = 500m,
+                Estado = EstadoPago.PendienteConfirmacion,
+                FechaPago = new DateOnly(2026, 10, 1)
+            },
+            new()
+            {
+                Id = Guid.NewGuid(),
+                CargoId = cargoId,
+                Monto = 300m,
+                Estado = EstadoPago.Rechazado,
+                FechaPago = new DateOnly(2026, 9, 28)
+            }
+        };
+
+        _mockClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(vwCargo);
+
+        _mockViviendasLookup
+            .Setup(v => v.EsResidenteTitularAsync(12, _userId))
+            .ReturnsAsync(true);
+
+        _mockClient
+            .Setup(c => c.GetAsync<VwPago>("vw_pagos", $"cargo_id=eq.{cargoId}&order=fecha_pago.desc,creado_en.desc"))
+            .ReturnsAsync(vwPagos);
+
+        var detalle = await _service.ObtenerDetalleCargoAsync(cargoId);
+
+        Assert.NotNull(detalle);
+        Assert.Equal(cargoId, detalle.Id);
+        Assert.Equal("Vencido", detalle.EstadoEfectivo);
+        Assert.Equal(2, detalle.Pagos.Count);
+        Assert.Contains(detalle.Pagos, p => p.Estado == EstadoPago.PendienteConfirmacion);
+        Assert.Contains(detalle.Pagos, p => p.Estado == EstadoPago.Rechazado);
+    }
 }

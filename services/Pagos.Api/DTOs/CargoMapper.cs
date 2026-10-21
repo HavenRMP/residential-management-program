@@ -46,4 +46,34 @@ public static class CargoMapper
 
         return items.Select(ToResponse).ToList();
     }
+
+    /// <summary>
+    /// Convierte una entidad <see cref="VwCargo"/> y su colección de pagos <see cref="VwPago"/> a <see cref="CargoDetalleResponse"/>.
+    /// </summary>
+    public static CargoDetalleResponse ToDetalleResponse(this VwCargo vw, IEnumerable<VwPago>? pagos = null)
+    {
+        ArgumentNullException.ThrowIfNull(vw);
+
+        return new CargoDetalleResponse
+        {
+            Id = vw.Id,
+            CondominioId = vw.CondominioId,
+            ViviendaId = vw.ViviendaId,
+            NumeroCasa = vw.NumeroCasa,
+            PlantillaId = vw.PlantillaId,
+            Periodo = PeriodoHelper.ATextoOpcional(vw.Periodo),
+            Tipo = vw.Tipo,
+            Concepto = vw.Concepto,
+            Monto = vw.Monto,
+            MontoPagadoConfirmado = vw.MontoPagadoConfirmado,
+            SaldoPendiente = vw.SaldoPendiente,
+            Estado = vw.Estado,
+            EstadoEfectivo = vw.EstaVencido ? "Vencido" : vw.Estado.ToString(),
+            FechaVencimiento = vw.FechaVencimiento,
+            ResponsablePago = vw.ResponsablePago,
+            MotivoCancelacion = vw.MotivoCancelacion,
+            CreadoEn = vw.CreadoEn,
+            Pagos = pagos?.ToResumenResponseList() ?? new List<PagoResumenResponse>()
+        };
+    }
 }

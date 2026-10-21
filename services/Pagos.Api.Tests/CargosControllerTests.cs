@@ -406,4 +406,202 @@ public class CargosControllerTests : IClassFixture<PagosApiFactory>
         Assert.NotNull(err);
         Assert.Contains("vencimiento", err.Error, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public async Task GetCargoPorId_SinToken_Retorna401Unauthorized()
+    {
+        var client = _factory.CreateClient();
+        var response = await client.GetAsync($"/api/cargos/{Guid.NewGuid()}");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetCargoPorId_ConRolSubusuario_Retorna403Forbidden()
+    {
+        var client = _factory.CreateClient();
+        var token = TestTokenGenerator.GenerateSubusuarioToken();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync($"/api/cargos/{Guid.NewGuid()}");
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetCargoPorId_Admin_Exito_Retorna200OkConDetalle()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var cargoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var mockRestClient = new Mock<ISupabaseRestClient>();
+
+        var vwCargo = new VwCargo
+        {
+            Id = cargoId,
+            CondominioId = condominioId,
+            ViviendaId = 1,
+            NumeroCasa = "101",
+            Concepto = "Cuota Octubre",
+            Monto = 1500m,
+            Estado = EstadoCargo.Parcial,
+            EstaVencido = false
+        };
+
+        var vwPagos = new List<VwPago>
+        {
+            new()
+            {
+                Id = Guid.NewGuid(),
+                CargoId = cargoId,
+                Monto = 500m,
+                Estado = EstadoPago.Confirmado,
+                FechaPago = new DateOnly(2026, 10, 10)
+            }
+        };
+
+        mockRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(vwCargo);
+
+        mockRestClient
+            .Setup(c => c.GetAsync<VwPago>("vw_pagos", $"cargo_id=eq.{cargoId}&order=fecha_pago.desc,creado_en.desc"))
+            .ReturnsAsync(vwPagos);
+
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                var descriptorRest = services.SingleOrDefault(d => d.ServiceType == typeof(ISupabaseRestClient));
+                if (descriptorRest != null) services.Remove(descriptorRest);
+                services.AddScoped(_ => mockRestClient.Object);
+            });
+        }).CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync($"/api/cargos/{cargoId}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var detalle = await response.Content.ReadFromJsonAsync<CargoDetalleResponse>();
+        Assert.NotNull(detalle);
+        Assert.Equal(cargoId, detalle.Id);
+        Assert.Equal("Parcial", detalle.EstadoEfectivo);
+        Assert.Single(detalle.Pagos);
+        Assert.Equal(500m, detalle.Pagos[0].Monto);
+    }
+
+    [Fact]
+    public async Task GetCargoPorId_Inquilino_NoTitular_Retorna404NotFound()
+    {
+        var inquilinoId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var cargoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateInquilinoToken(inquilinoId, condominioId);
+
+        var mockViviendas = new Mock<IViviendasLookupService>();
+        mockViviendas
+            .Setup(v => v.EsResidenteTitularAsync(55, inquilinoId))
+            .ReturnsAsync(false);
+
+        var mockRestClient = new Mock<ISupabaseRestClient>();
+        mockRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(new VwCargo
+            {
+                Id = cargoId,
+                CondominioId = condominioId,
+                ViviendaId = 55
+            });
+
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                var descriptorViviendas = services.SingleOrDefault(d => d.ServiceType == typeof(IViviendasLookupService));
+                if (descriptorViviendas != null) services.Remove(descriptorViviendas);
+                services.AddScoped(_ => mockViviendas.Object);
+
+                var descriptorRest = services.SingleOrDefault(d => d.ServiceType == typeof(ISupabaseRestClient));
+                if (descriptorRest != null) services.Remove(descriptorRest);
+                services.AddScoped(_ => mockRestClient.Object);
+            });
+        }).CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync($"/api/cargos/{cargoId}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var err = await response.Content.ReadFromJsonAsync<ErrorResponseDto>();
+        Assert.NotNull(err);
+        Assert.Equal("Cargo no encontrado.", err.Error);
+    }
+
+    [Fact]
+    public async Task GetCargoPorId_Inquilino_Titular_Retorna200OkConDetalle()
+    {
+        var inquilinoId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var cargoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateInquilinoToken(inquilinoId, condominioId);
+
+        var mockViviendas = new Mock<IViviendasLookupService>();
+        mockViviendas
+            .Setup(v => v.EsResidenteTitularAsync(77, inquilinoId))
+            .ReturnsAsync(true);
+
+        var mockRestClient = new Mock<ISupabaseRestClient>();
+        mockRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(new VwCargo
+            {
+                Id = cargoId,
+                CondominioId = condominioId,
+                ViviendaId = 77,
+                NumeroCasa = "Casa 77",
+                Estado = EstadoCargo.Pendiente,
+                EstaVencido = true
+            });
+
+        mockRestClient
+            .Setup(c => c.GetAsync<VwPago>("vw_pagos", $"cargo_id=eq.{cargoId}&order=fecha_pago.desc,creado_en.desc"))
+            .ReturnsAsync(new List<VwPago>
+            {
+                new()
+                {
+                    Id = Guid.NewGuid(),
+                    CargoId = cargoId,
+                    Monto = 200m,
+                    Estado = EstadoPago.PendienteConfirmacion,
+                    FechaPago = new DateOnly(2026, 10, 1)
+                }
+            });
+
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                var descriptorViviendas = services.SingleOrDefault(d => d.ServiceType == typeof(IViviendasLookupService));
+                if (descriptorViviendas != null) services.Remove(descriptorViviendas);
+                services.AddScoped(_ => mockViviendas.Object);
+
+                var descriptorRest = services.SingleOrDefault(d => d.ServiceType == typeof(ISupabaseRestClient));
+                if (descriptorRest != null) services.Remove(descriptorRest);
+                services.AddScoped(_ => mockRestClient.Object);
+            });
+        }).CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync($"/api/cargos/{cargoId}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var detalle = await response.Content.ReadFromJsonAsync<CargoDetalleResponse>();
+        Assert.NotNull(detalle);
+        Assert.Equal(cargoId, detalle.Id);
+        Assert.Equal("Vencido", detalle.EstadoEfectivo);
+        Assert.Single(detalle.Pagos);
+        Assert.Equal(EstadoPago.PendienteConfirmacion, detalle.Pagos[0].Estado);
+    }
 }

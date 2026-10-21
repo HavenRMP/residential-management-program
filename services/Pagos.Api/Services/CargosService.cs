@@ -304,4 +304,63 @@ public class CargosService : ICargosService
 
         return RespuestaPaginadaDto<CargoResponse>.Crear(responseItems, total, filtros);
     }
+
+    public async Task<CargoDetalleResponse> ObtenerDetalleCargoAsync(Guid id)
+    {
+        if (id == Guid.Empty)
+        {
+            throw new ArgumentException("El id del cargo es obligatorio.", nameof(id));
+        }
+
+        var condominioId = _userContextService.CondominioId;
+        if (condominioId == Guid.Empty)
+        {
+            throw new InvalidOperationException("El usuario no tiene un condominio asignado en su contexto.");
+        }
+
+        // 1. Leer vw_cargos por id (consulta 1)
+        var cargo = await _supabaseClient.GetSingleOrDefaultAsync<VwCargo>(
+            "vw_cargos",
+            $"id=eq.{id}");
+
+        if (cargo == null)
+        {
+            throw new KeyNotFoundException("Cargo no encontrado.");
+        }
+
+        var esAdmin = _userContextService.EsAdmin;
+
+        if (esAdmin)
+        {
+            // Regla 1: Admin: solo cargos de su condominio. Si no corresponde => 404.
+            if (cargo.CondominioId != condominioId)
+            {
+                _logger.LogWarning("Admin intentó consultar cargo {CargoId} de otro condominio", id);
+                throw new KeyNotFoundException("Cargo no encontrado.");
+            }
+        }
+        else
+        {
+            // Regla 1: Inquilino: solo cargos de sus viviendas (P6, método 3 sobre la vivienda del cargo). Si no corresponde => 404.
+            if (cargo.CondominioId != condominioId)
+            {
+                throw new KeyNotFoundException("Cargo no encontrado.");
+            }
+
+            var esTitular = await _viviendasLookupService.EsResidenteTitularAsync(cargo.ViviendaId, _userContextService.UserId);
+            if (!esTitular)
+            {
+                _logger.LogWarning("Inquilino {UserId} no es titular de la vivienda {ViviendaId} del cargo {CargoId}", _userContextService.UserId, cargo.ViviendaId, id);
+                throw new KeyNotFoundException("Cargo no encontrado.");
+            }
+        }
+
+        // 2. Leer vw_pagos filtrando por cargo_id (consulta 2)
+        // Regla 2: El inquilino ve sus pagos en cualquier estado (incluye PendienteConfirmacion y Rechazado).
+        var pagos = await _supabaseClient.GetAsync<VwPago>(
+            "vw_pagos",
+            $"cargo_id=eq.{id}&order=fecha_pago.desc,creado_en.desc");
+
+        return cargo.ToDetalleResponse(pagos);
+    }
 }
