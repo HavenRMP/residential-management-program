@@ -34,7 +34,8 @@ public class CargoInsert
     public DateOnly FechaVencimiento { get; set; }
 
     [JsonPropertyName("responsable_pago")]
-    public ResponsablePago ResponsablePago { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ResponsablePago? ResponsablePago { get; set; }
 
     [JsonPropertyName("creado_por")]
     public Guid CreadoPor { get; set; }
