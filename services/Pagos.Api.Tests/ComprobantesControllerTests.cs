@@ -18,6 +18,9 @@ public class ComprobantesControllerTests : IClassFixture<PagosApiFactory>
         _factory = factory;
     }
 
+    /// <summary>
+    /// Caso 13b: Sin token => 401.
+    /// </summary>
     [Fact]
     public async Task SubirComprobante_SinToken_Retorna401Unauthorized()
     {
@@ -32,6 +35,9 @@ public class ComprobantesControllerTests : IClassFixture<PagosApiFactory>
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    /// <summary>
+    /// Caso 13a: Subusuario => 403.
+    /// </summary>
     [Fact]
     public async Task SubirComprobante_ConRolSubusuario_Retorna403Forbidden()
     {
@@ -161,8 +167,11 @@ public class ComprobantesControllerTests : IClassFixture<PagosApiFactory>
         Assert.Equal("Vivienda no encontrada.", err.Error);
     }
 
+    /// <summary>
+    /// Caso 12b: Inquilino sube a vivienda ajena => 404.
+    /// </summary>
     [Fact]
-    public async Task SubirComprobante_InquilinoNoEsResidenteTitular_Retorna404NotFound()
+    public async Task SubirComprobante_InquilinoViviendaAjena_Retorna404NotFound()
     {
         var inquilinoId = Guid.NewGuid();
         var condominioId = Guid.NewGuid();
@@ -197,8 +206,11 @@ public class ComprobantesControllerTests : IClassFixture<PagosApiFactory>
         Assert.Equal("Vivienda no encontrada.", err.Error);
     }
 
+    /// <summary>
+    /// Caso 14a: Archivo inválido => 400.
+    /// </summary>
     [Fact]
-    public async Task SubirComprobante_ProcesadorRechazaArchivo_Retorna400BadRequestConMensaje()
+    public async Task SubirComprobante_ArchivoInvalido_Retorna400BadRequest()
     {
         var adminId = Guid.NewGuid();
         var condominioId = Guid.NewGuid();
@@ -242,8 +254,11 @@ public class ComprobantesControllerTests : IClassFixture<PagosApiFactory>
         Assert.Equal("El archivo proporcionado no es un comprobante válido. Formatos soportados: JPG, PNG, PDF.", err.Error);
     }
 
+    /// <summary>
+    /// Caso 14b: Storage lanza error => 502 sin detalles internos.
+    /// </summary>
     [Fact]
-    public async Task SubirComprobante_StorageFalla_Retorna502BadGatewayConMensajeGenerico()
+    public async Task SubirComprobante_StorageLanzaError_Retorna502SinDetallesInternos()
     {
         var adminId = Guid.NewGuid();
         var condominioId = Guid.NewGuid();
@@ -306,8 +321,11 @@ public class ComprobantesControllerTests : IClassFixture<PagosApiFactory>
         Assert.DoesNotContain("Sensitive key", err.Error);
     }
 
+    /// <summary>
+    /// Caso 11: Admin sube a vivienda de su condominio => 201 con ruta y hash.
+    /// </summary>
     [Fact]
-    public async Task SubirComprobante_AdminSubidaExitosa_Retorna201CreatedConDatos()
+    public async Task SubirComprobante_AdminViviendaPropiaCondominio_Retorna201ConRutaYHash()
     {
         var adminId = Guid.NewGuid();
         var condominioId = Guid.NewGuid();
@@ -378,8 +396,11 @@ public class ComprobantesControllerTests : IClassFixture<PagosApiFactory>
         Assert.EndsWith(".jpg", result.Ruta);
     }
 
+    /// <summary>
+    /// Caso 12a: Inquilino sube a vivienda propia => 201.
+    /// </summary>
     [Fact]
-    public async Task SubirComprobante_InquilinoSubidaExitosa_Retorna201CreatedConDatos()
+    public async Task SubirComprobante_InquilinoViviendaPropia_Retorna201ConRutaYHash()
     {
         var inquilinoId = Guid.NewGuid();
         var condominioId = Guid.NewGuid();

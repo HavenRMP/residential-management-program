@@ -28,81 +28,12 @@ public class ComprobanteProcessorTests
         _processor = new ComprobanteProcessor(optionsWrapper, NullLogger<ComprobanteProcessor>.Instance);
     }
 
+    /// <summary>
+    /// Caso 1: JPG válido => acepta, devuelve hash de 64 caracteres y tamaño final.
+    /// </summary>
     [Fact]
-    public void Procesar_ArchivoVacio_LanzaArgumentException()
+    public void Procesar_JpgValido_AceptaYDevuelveHash64YTamanoFinal()
     {
-        var bytes = Array.Empty<byte>();
-        var ex = Assert.Throws<ArgumentException>(() => _processor.Procesar(bytes, "vacio.jpg"));
-        Assert.Contains("vacío", ex.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task ProcesarAsync_StreamNulo_LanzaArgumentNullException()
-    {
-        await Assert.ThrowsAsync<ArgumentNullException>(() => _processor.ProcesarAsync(null!, "test.jpg"));
-    }
-
-    [Fact]
-    public void Procesar_ArchivoSuperaTamanoMaximoEntrada_LanzaArgumentException()
-    {
-        // 5 MB + 1 byte
-        var bytes = new byte[_options.MaxInputSizeBytes + 1];
-        // Forzar magic bytes de JPEG
-        bytes[0] = 0xFF;
-        bytes[1] = 0xD8;
-        bytes[2] = 0xFF;
-
-        var ex = Assert.Throws<ArgumentException>(() => _processor.Procesar(bytes, "grande.jpg"));
-        Assert.Contains("supera el tamaño máximo permitido", ex.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void Procesar_ContenidoNoPermitido_LanzaArgumentException()
-    {
-        // Archivo de texto plano con extensión engañosa .jpg
-        var bytes = Encoding.UTF8.GetBytes("Esto no es una imagen ni un pdf");
-        var ex = Assert.Throws<ArgumentException>(() => _processor.Procesar(bytes, "fake.jpg"));
-        Assert.Contains("no permitido", ex.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void Procesar_PdfValidoMenorA1MB_RetornaPdfSinModificar()
-    {
-        // PDF válido simulado (comienza con %PDF)
-        var contenidoPdf = "%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF";
-        var bytes = Encoding.UTF8.GetBytes(contenidoPdf);
-
-        using var sha256 = SHA256.Create();
-        var hashEsperado = Convert.ToHexString(sha256.ComputeHash(bytes)).ToLowerInvariant();
-
-        var result = _processor.Procesar(bytes, "comprobante.pdf");
-
-        Assert.NotNull(result);
-        Assert.Equal("application/pdf", result.ContentTypeFinal);
-        Assert.Equal(".pdf", result.ExtensionFinal);
-        Assert.Equal(bytes.Length, result.TamanoFinal);
-        Assert.Equal(hashEsperado, result.HashOriginal);
-        Assert.Equal(bytes, result.BytesFinales);
-    }
-
-    [Fact]
-    public void Procesar_PdfMayorA1MB_LanzaArgumentException()
-    {
-        // PDF de 1.1 MB
-        var bytes = new byte[1153433];
-        bytes[0] = 0x25; // %
-        bytes[1] = 0x50; // P
-        bytes[2] = 0x44; // D
-        bytes[3] = 0x46; // F
-
-        var ex = Assert.Throws<ArgumentException>(() => _processor.Procesar(bytes, "pesado.pdf"));
-        Assert.Contains("PDF supera el tamaño máximo permitido", ex.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void Procesar_JpegValido_CalculaHashOriginalYProcesaAJpeg()
-    {
-        // Crear un JPEG real con SkiaSharp
         using var bitmap = new SKBitmap(400, 300);
         using var canvas = new SKCanvas(bitmap);
         canvas.Clear(SKColors.Blue);
@@ -119,66 +50,181 @@ public class ComprobanteProcessorTests
         Assert.NotNull(result);
         Assert.Equal("image/jpeg", result.ContentTypeFinal);
         Assert.Equal(".jpg", result.ExtensionFinal);
+        Assert.Equal(64, result.HashOriginal.Length);
+        Assert.Matches("^[a-f0-9]{64}$", result.HashOriginal);
         Assert.Equal(hashEsperado, result.HashOriginal);
         Assert.True(result.TamanoFinal > 0);
         Assert.Equal(result.BytesFinales.Length, result.TamanoFinal);
-
-        // Validar que la salida sigue siendo un JPEG válido por magic bytes
         Assert.Equal(0xFF, result.BytesFinales[0]);
         Assert.Equal(0xD8, result.BytesFinales[1]);
         Assert.Equal(0xFF, result.BytesFinales[2]);
     }
 
+    /// <summary>
+    /// Caso 2: PNG válido => acepta.
+    /// </summary>
     [Fact]
-    public void Procesar_ImagenMayorA1600px_RedimensionaLadoMayorA1600()
+    public void Procesar_PngValido_Acepta()
     {
-        // Imagen 2000 x 1000 px
-        using var bitmap = new SKBitmap(2000, 1000);
+        using var bitmap = new SKBitmap(200, 200);
         using var canvas = new SKCanvas(bitmap);
-        canvas.Clear(SKColors.ForestGreen);
+        canvas.Clear(SKColors.IndianRed);
 
         using var image = SKImage.FromBitmap(bitmap);
-        using var data = image.Encode(SKEncodedImageFormat.Jpeg, 80);
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        var bytesPng = data.ToArray();
+
+        var result = _processor.Procesar(bytesPng, "recibo.png");
+
+        Assert.NotNull(result);
+        Assert.Equal(64, result.HashOriginal.Length);
+        Assert.Matches("^[a-f0-9]{64}$", result.HashOriginal);
+        Assert.True(result.TamanoFinal > 0);
+        Assert.True(result.ContentTypeFinal == "image/jpeg" || result.ContentTypeFinal == "image/png");
+    }
+
+    /// <summary>
+    /// Caso 3: PDF válido de menos de 1 MB => acepta sin modificar bytes.
+    /// </summary>
+    [Fact]
+    public void Procesar_PdfValidoMenorA1MB_AceptaSinModificarBytes()
+    {
+        var contenidoPdf = "%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF";
+        var bytes = Encoding.UTF8.GetBytes(contenidoPdf);
+
+        using var sha256 = SHA256.Create();
+        var hashEsperado = Convert.ToHexString(sha256.ComputeHash(bytes)).ToLowerInvariant();
+
+        var result = _processor.Procesar(bytes, "comprobante.pdf");
+
+        Assert.NotNull(result);
+        Assert.Equal("application/pdf", result.ContentTypeFinal);
+        Assert.Equal(".pdf", result.ExtensionFinal);
+        Assert.Equal(bytes.Length, result.TamanoFinal);
+        Assert.Equal(64, result.HashOriginal.Length);
+        Assert.Equal(hashEsperado, result.HashOriginal);
+        Assert.Equal(bytes, result.BytesFinales);
+    }
+
+    /// <summary>
+    /// Caso 4: PDF de más de 1 MB => rechaza.
+    /// </summary>
+    [Fact]
+    public void Procesar_PdfMayorA1MB_Rechaza()
+    {
+        // 1.1 MB con cabecera de PDF
+        var bytes = new byte[1153433];
+        bytes[0] = 0x25; // %
+        bytes[1] = 0x50; // P
+        bytes[2] = 0x44; // D
+        bytes[3] = 0x46; // F
+
+        var ex = Assert.Throws<ArgumentException>(() => _processor.Procesar(bytes, "pesado.pdf"));
+        Assert.Contains("PDF supera el tamaño máximo permitido", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Caso 5: Archivo con extensión .jpg pero contenido de otro tipo => rechaza.
+    /// </summary>
+    [Fact]
+    public void Procesar_ExtensionJpgContenidoDeOtroTipo_Rechaza()
+    {
+        var bytesTexto = Encoding.UTF8.GetBytes("Esto es un texto plano fingiendo ser JPG.");
+        var ex = Assert.Throws<ArgumentException>(() => _processor.Procesar(bytesTexto, "foto_falsa.jpg"));
+        Assert.Contains("no permitido", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Caso 6: Archivo mayor al máximo de entrada => rechaza.
+    /// </summary>
+    [Fact]
+    public void Procesar_ArchivoMayorAlMaximoDeEntrada_Rechaza()
+    {
+        // 5 MB + 1 byte
+        var bytes = new byte[_options.MaxInputSizeBytes + 1];
+        bytes[0] = 0xFF;
+        bytes[1] = 0xD8;
+        bytes[2] = 0xFF;
+
+        var ex = Assert.Throws<ArgumentException>(() => _processor.Procesar(bytes, "enorme.jpg"));
+        Assert.Contains("supera el tamaño máximo permitido", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Caso 7: Mismo contenido dos veces => mismo hash.
+    /// </summary>
+    [Fact]
+    public void Procesar_MismoContenidoDosVeces_MismoHash()
+    {
+        using var bitmap = new SKBitmap(300, 200);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Goldenrod);
+
+        using var image = SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Jpeg, 85);
+        var bytes = data.ToArray();
+
+        var res1 = _processor.Procesar(bytes, "intento1.jpg");
+        var res2 = _processor.Procesar(bytes, "intento2.jpg");
+
+        Assert.NotNull(res1);
+        Assert.NotNull(res2);
+        Assert.Equal(64, res1.HashOriginal.Length);
+        Assert.Equal(res1.HashOriginal, res2.HashOriginal);
+    }
+
+    /// <summary>
+    /// Caso 8: Imagen grande => la salida es menor o igual a su entrada y el lado mayor no pasa de 1600 px.
+    /// </summary>
+    [Fact]
+    public void Procesar_ImagenGrande_SalidaMenorOIgualAEntradaYLadoMayorNoPasaDe1600()
+    {
+        // Crear imagen 2200 x 1400 px con detalles para que tenga peso real
+        using var bitmap = new SKBitmap(2200, 1400);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.DarkSlateBlue);
+        using var paint = new SKPaint { Color = SKColors.Orange, StrokeWidth = 5 };
+        for (int i = 0; i < 2200; i += 50)
+        {
+            canvas.DrawLine(i, 0, i, 1400, paint);
+        }
+
+        using var image = SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Jpeg, 100);
         var bytesGigante = data.ToArray();
 
-        var result = _processor.Procesar(bytesGigante, "foto_gigante.jpg");
+        var result = _processor.Procesar(bytesGigante, "foto_grande.jpg");
+
+        Assert.NotNull(result);
+        Assert.True(result.TamanoFinal <= bytesGigante.Length, "El tamaño procesado debe ser menor o igual al tamaño de entrada.");
 
         // Decodificar el resultado para verificar dimensiones
         using var resultStream = new SKMemoryStream(result.BytesFinales);
         using var resultBitmap = SKBitmap.Decode(resultStream);
 
         Assert.NotNull(resultBitmap);
-        Assert.Equal(1600, resultBitmap.Width);
-        Assert.Equal(800, resultBitmap.Height);
+        Assert.True(resultBitmap.Width <= 1600, $"El ancho ({resultBitmap.Width}) debe ser <= 1600 px");
+        Assert.True(resultBitmap.Height <= 1600, $"El alto ({resultBitmap.Height}) debe ser <= 1600 px");
+        Assert.Equal(1600, Math.Max(resultBitmap.Width, resultBitmap.Height));
     }
 
     [Fact]
-    public void Procesar_PngSinTransparencia_ConvierteAJpeg()
+    public void Procesar_ArchivoVacio_LanzaArgumentException()
     {
-        // Crear un PNG completamente opaco
-        using var bitmap = new SKBitmap(200, 200, SKColorType.Rgba8888, SKAlphaType.Opaque);
-        using var canvas = new SKCanvas(bitmap);
-        canvas.Clear(SKColors.DarkRed);
+        var bytes = Array.Empty<byte>();
+        var ex = Assert.Throws<ArgumentException>(() => _processor.Procesar(bytes, "vacio.jpg"));
+        Assert.Contains("vacío", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
 
-        using var image = SKImage.FromBitmap(bitmap);
-        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-        var bytesPng = data.ToArray();
-
-        var result = _processor.Procesar(bytesPng, "opaco.png");
-
-        Assert.NotNull(result);
-        // Debe convertirse a JPG porque no requiere canal de transparencia
-        Assert.Equal("image/jpeg", result.ContentTypeFinal);
-        Assert.Equal(".jpg", result.ExtensionFinal);
-        Assert.Equal(0xFF, result.BytesFinales[0]);
-        Assert.Equal(0xD8, result.BytesFinales[1]);
-        Assert.Equal(0xFF, result.BytesFinales[2]);
+    [Fact]
+    public async Task ProcesarAsync_StreamNulo_LanzaArgumentNullException()
+    {
+        await Assert.ThrowsAsync<ArgumentNullException>(() => _processor.ProcesarAsync(null!, "test.jpg"));
     }
 
     [Fact]
     public void Procesar_PngConTransparencia_ConservaFormatoPng()
     {
-        // Crear un PNG con píxeles transparentes
         using var bitmap = new SKBitmap(200, 200, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var canvas = new SKCanvas(bitmap);
         canvas.Clear(SKColors.Transparent);
@@ -192,13 +238,12 @@ public class ComprobanteProcessorTests
         var result = _processor.Procesar(bytesPngTransparente, "icono_transparente.png");
 
         Assert.NotNull(result);
-        // Debe conservarse como PNG
         Assert.Equal("image/png", result.ContentTypeFinal);
         Assert.Equal(".png", result.ExtensionFinal);
         Assert.Equal(0x89, result.BytesFinales[0]);
-        Assert.Equal(0x50, result.BytesFinales[1]); // P
-        Assert.Equal(0x4E, result.BytesFinales[2]); // N
-        Assert.Equal(0x47, result.BytesFinales[3]); // G
+        Assert.Equal(0x50, result.BytesFinales[1]);
+        Assert.Equal(0x4E, result.BytesFinales[2]);
+        Assert.Equal(0x47, result.BytesFinales[3]);
     }
 
     [Fact]

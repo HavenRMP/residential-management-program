@@ -50,8 +50,11 @@ public class ComprobanteStorageServiceTests
 
     #region Pruebas de ComprobanteRutaHelper
 
+    /// <summary>
+    /// Caso 9: La ruta generada sigue condominio/vivienda/año/mes/guid.extensión y dos llamadas dan rutas distintas.
+    /// </summary>
     [Fact]
-    public void ConstruirRuta_ParametrosValidos_GeneraFormatoCorrectoConGuidNuevo()
+    public void ConstruirRuta_SigueFormatoCondominioViviendaAnioMesGuidExtension_YDosLlamadasDanRutasDistintas()
     {
         var condominioId = Guid.NewGuid();
         var viviendaId = 101;
@@ -62,10 +65,9 @@ public class ComprobanteStorageServiceTests
         var ruta1 = ComprobanteRutaHelper.ConstruirRuta(condominioId, viviendaId, anio, mes, ext);
         var ruta2 = ComprobanteRutaHelper.ConstruirRuta(condominioId, viviendaId, anio, mes, ext);
 
-        Assert.StartsWith($"{condominioId}/101/2026/10/", ruta1);
-        Assert.EndsWith(".jpg", ruta1);
-
-        // Guids diferentes por archivo
+        var regex = @"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/101/2026/10/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\.jpg$";
+        Assert.Matches(regex, ruta1);
+        Assert.Matches(regex, ruta2);
         Assert.NotEqual(ruta1, ruta2);
     }
 
@@ -78,13 +80,18 @@ public class ComprobanteStorageServiceTests
             ComprobanteRutaHelper.ConstruirRuta(Guid.NewGuid(), 1, 2026, mes, "jpg"));
     }
 
+    /// <summary>
+    /// Caso 10: Una ruta con .. o barra inicial se rechaza.
+    /// </summary>
     [Theory]
     [InlineData("/comprobantes/foto.jpg")]
-    [InlineData("\\comprobantes\\foto.jpg")]
+    [InlineData("/")]
     [InlineData("comprobantes/../secreto.jpg")]
+    [InlineData("../secreto.jpg")]
+    [InlineData("\\comprobantes\\foto.jpg")]
     [InlineData("condominio\\vivienda\\foto.jpg")]
     [InlineData("")]
-    public void ValidarRuta_RutasInvalidasOConEscape_LanzaArgumentException(string rutaInvalida)
+    public void ValidarRuta_ConPuntosOBarraInicial_Rechaza(string rutaInvalida)
     {
         Assert.Throws<ArgumentException>(() => ComprobanteRutaHelper.ValidarRuta(rutaInvalida));
     }
