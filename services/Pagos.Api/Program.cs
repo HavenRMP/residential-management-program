@@ -13,6 +13,7 @@ builder.Services.AddHavenExceptionHandler();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IUserContextService, UserContextService>();
+builder.Services.AddScoped<IViviendasLookupService, ViviendasLookupService>();
 
 builder.Services.AddSingleton<IAuthorizationHandler, RolCondominioHandler>();
 
