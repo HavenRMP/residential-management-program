@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Moq;
 using Pagos.Api.Clients;
 using Pagos.Api.DTOs;
@@ -768,5 +769,408 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
         Assert.Equal(movimientoOrigenId, mov.MovimientoOrigenId);
         Assert.Equal(-500m, mov.MontoConSigno);
         Assert.Equal(500m, mov.Monto);
+    }
+
+    // =========================================================================
+    // 5. POST api/saldos/movimientos/{id}/revertir
+    // =========================================================================
+
+    [Fact]
+    public async Task RevertirAplicacionSaldo_SinToken_Retorna401Unauthorized()
+    {
+        var client = _factory.CreateClient();
+        var movimientoId = Guid.NewGuid();
+        var response = await client.PostAsJsonAsync($"/api/saldos/movimientos/{movimientoId}/revertir", new RevertirAplicacionSaldoRequest
+        {
+            Motivo = "Error en aplicación"
+        });
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RevertirAplicacionSaldo_InquilinoOSubusuario_Retorna403Forbidden()
+    {
+        var movimientoId = Guid.NewGuid();
+        var request = new RevertirAplicacionSaldoRequest { Motivo = "Error en aplicación" };
+
+        // Inquilino => 403
+        var clientInquilino = _factory.CreateClient();
+        var tokenInquilino = TestTokenGenerator.GenerateInquilinoToken();
+        clientInquilino.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokenInquilino);
+        var responseInquilino = await clientInquilino.PostAsJsonAsync($"/api/saldos/movimientos/{movimientoId}/revertir", request);
+        Assert.Equal(HttpStatusCode.Forbidden, responseInquilino.StatusCode);
+
+        // Subusuario => 403
+        var clientSub = _factory.CreateClient();
+        var tokenSub = TestTokenGenerator.GenerateSubusuarioToken();
+        clientSub.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokenSub);
+        var responseSub = await clientSub.PostAsJsonAsync($"/api/saldos/movimientos/{movimientoId}/revertir", request);
+        Assert.Equal(HttpStatusCode.Forbidden, responseSub.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("1234")] // 4 caracteres (mínimo 5)
+    public async Task RevertirAplicacionSaldo_MotivoInvalido_Retorna400BadRequest(string motivoInvalido)
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var movimientoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsJsonAsync($"/api/saldos/movimientos/{movimientoId}/revertir", new RevertirAplicacionSaldoRequest
+        {
+            Motivo = motivoInvalido
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RevertirAplicacionSaldo_MotivoMayorA300Caracteres_Retorna400BadRequest()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var movimientoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsJsonAsync($"/api/saldos/movimientos/{movimientoId}/revertir", new RevertirAplicacionSaldoRequest
+        {
+            Motivo = new string('x', 301)
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RevertirAplicacionSaldo_MovimientoNoExiste_Retorna404NotFound()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var movimientoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwMovimientoSaldoFavor>("vw_movimientos_saldo_favor", $"id=eq.{movimientoId}"))
+            .ReturnsAsync((VwMovimientoSaldoFavor?)null);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsJsonAsync($"/api/saldos/movimientos/{movimientoId}/revertir", new RevertirAplicacionSaldoRequest
+        {
+            Motivo = "Reversión por error"
+        });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        _factory.MockSupabaseRestClient.Verify(c => c.RpcAsync<JsonElement>(It.IsAny<string>(), It.IsAny<object>(), It.IsAny<Guid?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RevertirAplicacionSaldo_MovimientoDeOtroCondominio_Retorna404NotFound()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var otroCondominioId = Guid.NewGuid();
+        var movimientoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwMovimientoSaldoFavor>("vw_movimientos_saldo_favor", $"id=eq.{movimientoId}"))
+            .ReturnsAsync(new VwMovimientoSaldoFavor
+            {
+                Id = movimientoId,
+                CondominioId = otroCondominioId,
+                ViviendaId = 1,
+                Tipo = TipoMovimientoSaldo.Aplicacion,
+                Monto = 100m
+            });
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsJsonAsync($"/api/saldos/movimientos/{movimientoId}/revertir", new RevertirAplicacionSaldoRequest
+        {
+            Motivo = "Reversión por error"
+        });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        _factory.MockSupabaseRestClient.Verify(c => c.RpcAsync<JsonElement>(It.IsAny<string>(), It.IsAny<object>(), It.IsAny<Guid?>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(TipoMovimientoSaldo.Abono)]
+    [InlineData(TipoMovimientoSaldo.ReversoAbono)]
+    [InlineData(TipoMovimientoSaldo.ReversoAplicacion)]
+    public async Task RevertirAplicacionSaldo_TipoNoAplicacion_Retorna409ConflictSinLlamarRpc(TipoMovimientoSaldo tipoInvalido)
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var movimientoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwMovimientoSaldoFavor>("vw_movimientos_saldo_favor", $"id=eq.{movimientoId}"))
+            .ReturnsAsync(new VwMovimientoSaldoFavor
+            {
+                Id = movimientoId,
+                CondominioId = condominioId,
+                ViviendaId = 1,
+                Tipo = tipoInvalido,
+                Monto = 200m
+            });
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsJsonAsync($"/api/saldos/movimientos/{movimientoId}/revertir", new RevertirAplicacionSaldoRequest
+        {
+            Motivo = "Reversión por cobro indebido"
+        });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        _factory.MockSupabaseRestClient.Verify(c => c.RpcAsync<JsonElement>(It.IsAny<string>(), It.IsAny<object>(), It.IsAny<Guid?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RevertirAplicacionSaldo_RpcRespondePG009_Retorna409Conflict()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var movimientoId = Guid.NewGuid();
+        var cargoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwMovimientoSaldoFavor>("vw_movimientos_saldo_favor", $"id=eq.{movimientoId}"))
+            .ReturnsAsync(new VwMovimientoSaldoFavor
+            {
+                Id = movimientoId,
+                CondominioId = condominioId,
+                ViviendaId = 1,
+                Tipo = TipoMovimientoSaldo.Aplicacion,
+                Monto = 200m,
+                CargoId = cargoId
+            });
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.RpcAsync<JsonElement>("rpc_revertir_aplicacion_saldo", It.IsAny<object>(), It.IsAny<Guid?>()))
+            .ThrowsAsync(new PostgrestException(409, "PG009", "El movimiento no se puede revertir"));
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsJsonAsync($"/api/saldos/movimientos/{movimientoId}/revertir", new RevertirAplicacionSaldoRequest
+        {
+            Motivo = "Reversión de prueba"
+        });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RevertirAplicacionSaldo_AdminValido_Retorna200OkConMovimientoCargoYSaldo()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var movimientoId = Guid.NewGuid();
+        var cargoId = Guid.NewGuid();
+        var reversoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwMovimientoSaldoFavor>("vw_movimientos_saldo_favor", $"id=eq.{movimientoId}"))
+            .ReturnsAsync(new VwMovimientoSaldoFavor
+            {
+                Id = movimientoId,
+                CondominioId = condominioId,
+                ViviendaId = 10,
+                Tipo = TipoMovimientoSaldo.Aplicacion,
+                Monto = 300m,
+                CargoId = cargoId
+            });
+
+        object? rpcPayloadCapturado = null;
+        Guid? actorRpcCapturado = null;
+
+        var jsonResponse = $@"{{
+            ""movimiento"": {{
+                ""id"": ""{reversoId}"",
+                ""condominio_id"": ""{condominioId}"",
+                ""vivienda_id"": 10,
+                ""tipo"": ""ReversoAplicacion"",
+                ""monto"": 300.0,
+                ""monto_con_signo"": 300.0,
+                ""cargo_id"": ""{cargoId}"",
+                ""movimiento_origen_id"": ""{movimientoId}"",
+                ""motivo"": ""Aplicación indebida de saldo"",
+                ""creado_por"": ""{adminId}"",
+                ""creado_en"": ""2026-10-21T19:00:00Z""
+            }},
+            ""cargo"": {{
+                ""id"": ""{cargoId}"",
+                ""condominio_id"": ""{condominioId}"",
+                ""condominio_nombre"": ""Condominio Las Palmas"",
+                ""vivienda_id"": 10,
+                ""numero_casa"": ""101"",
+                ""tipo"": ""Mantenimiento"",
+                ""concepto"": ""Cuota octubre"",
+                ""monto"": 1000.0,
+                ""monto_pagado_confirmado"": 0.0,
+                ""saldo_pendiente"": 1000.0,
+                ""estado"": ""Pendiente"",
+                ""fecha_vencimiento"": ""2026-10-31""
+            }},
+            ""saldo_a_favor"": 500.00
+        }}";
+
+        using var jsonDoc = JsonDocument.Parse(jsonResponse);
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.RpcAsync<JsonElement>("rpc_revertir_aplicacion_saldo", It.IsAny<object>(), It.IsAny<Guid?>()))
+            .Callback<string, object, Guid?>((_, payload, actor) =>
+            {
+                rpcPayloadCapturado = payload;
+                actorRpcCapturado = actor;
+            })
+            .ReturnsAsync(jsonDoc.RootElement);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var request = new RevertirAplicacionSaldoRequest
+        {
+            Motivo = "Aplicación indebida de saldo"
+        };
+
+        var response = await client.PostAsJsonAsync($"/api/saldos/movimientos/{movimientoId}/revertir", request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        Assert.NotNull(rpcPayloadCapturado);
+        Assert.Equal(adminId, actorRpcCapturado);
+
+        var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(rpcPayloadCapturado);
+        Assert.Equal(movimientoId, dict["p_movimiento_id"]);
+        Assert.Equal("Aplicación indebida de saldo", dict["p_motivo"]);
+        Assert.Equal(adminId, dict["p_actor_id"]);
+
+        var resultado = await response.Content.ReadFromJsonAsync<RevertirAplicacionSaldoResponse>();
+        Assert.NotNull(resultado);
+        Assert.NotNull(resultado.Movimiento);
+        Assert.Equal(reversoId, resultado.Movimiento.Id);
+        Assert.Equal(TipoMovimientoSaldo.ReversoAplicacion, resultado.Movimiento.Tipo);
+        Assert.Equal(movimientoId, resultado.Movimiento.MovimientoOrigenId);
+
+        Assert.NotNull(resultado.Cargo);
+        Assert.Equal(cargoId, resultado.Cargo.Id);
+        Assert.Equal(1000.0m, resultado.Cargo.SaldoPendiente);
+        Assert.Equal("101", resultado.Cargo.NumeroCasa);
+
+        Assert.Equal(500.00m, resultado.SaldoAFavor);
+    }
+
+    [Fact]
+    public async Task RevertirAplicacionSaldo_CargoSinCamposCalculadosEnRpc_ReleeDeVwCargos()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var movimientoId = Guid.NewGuid();
+        var cargoId = Guid.NewGuid();
+        var reversoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwMovimientoSaldoFavor>("vw_movimientos_saldo_favor", $"id=eq.{movimientoId}"))
+            .ReturnsAsync(new VwMovimientoSaldoFavor
+            {
+                Id = movimientoId,
+                CondominioId = condominioId,
+                ViviendaId = 10,
+                Tipo = TipoMovimientoSaldo.Aplicacion,
+                Monto = 300m,
+                CargoId = cargoId
+            });
+
+        // La RPC devuelve el nodo cargo crudo (sin numero_casa ni condominio_nombre)
+        var jsonResponse = $@"{{
+            ""movimiento"": {{
+                ""id"": ""{reversoId}"",
+                ""condominio_id"": ""{condominioId}"",
+                ""vivienda_id"": 10,
+                ""tipo"": ""ReversoAplicacion"",
+                ""monto"": 300.0,
+                ""monto_con_signo"": 300.0,
+                ""cargo_id"": ""{cargoId}"",
+                ""movimiento_origen_id"": ""{movimientoId}"",
+                ""motivo"": ""Reversión requerida"",
+                ""creado_por"": ""{adminId}"",
+                ""creado_en"": ""2026-10-21T19:00:00Z""
+            }},
+            ""cargo"": {{
+                ""id"": ""{cargoId}"",
+                ""condominio_id"": ""{condominioId}"",
+                ""vivienda_id"": 10,
+                ""monto"": 1000.0
+            }},
+            ""saldo_a_favor"": 600.00
+        }}";
+
+        using var jsonDoc = JsonDocument.Parse(jsonResponse);
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.RpcAsync<JsonElement>("rpc_revertir_aplicacion_saldo", It.IsAny<object>(), It.IsAny<Guid?>()))
+            .ReturnsAsync(jsonDoc.RootElement);
+
+        // Relectura de vw_cargos por falta de campos calculados
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(new VwCargo
+            {
+                Id = cargoId,
+                CondominioId = condominioId,
+                CondominioNombre = "Condominio Las Palmas",
+                ViviendaId = 10,
+                NumeroCasa = "Casa 10-A",
+                Tipo = TipoCargo.Mantenimiento,
+                Concepto = "Cuota octubre",
+                Monto = 1000m,
+                MontoPagadoConfirmado = 0m,
+                SaldoPendiente = 1000m,
+                Estado = EstadoCargo.Pendiente,
+                FechaVencimiento = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10))
+            });
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var request = new RevertirAplicacionSaldoRequest
+        {
+            Motivo = "Reversión requerida"
+        };
+
+        var response = await client.PostAsJsonAsync($"/api/saldos/movimientos/{movimientoId}/revertir", request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var resultado = await response.Content.ReadFromJsonAsync<RevertirAplicacionSaldoResponse>();
+        Assert.NotNull(resultado);
+        Assert.NotNull(resultado.Cargo);
+        Assert.Equal("Casa 10-A", resultado.Cargo.NumeroCasa);
+        Assert.Equal(EstadoCargo.Pendiente, resultado.Cargo.Estado);
+        Assert.Equal(1000m, resultado.Cargo.SaldoPendiente);
+
+        _factory.MockSupabaseRestClient.Verify(c => c.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"), Times.Once);
     }
 }

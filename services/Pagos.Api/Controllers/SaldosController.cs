@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Pagos.Api.Clients;
 using Pagos.Api.DTOs;
 using Pagos.Api.Services;
 
@@ -123,6 +124,51 @@ public class SaldosController : ControllerBase
         catch (UnauthorizedAccessException ex)
         {
             _logger.LogWarning("ListarMovimientosSaldoPorVivienda acceso no autorizado: {Message}", ex.Message);
+            return StatusCode(StatusCodes.Status403Forbidden, new ErrorResponseDto(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Revierte una aplicación previa de saldo a favor a un cargo (exclusivo para Administrador).
+    /// </summary>
+    [Authorize(Policy = "Admin")]
+    [HttpPost("movimientos/{id:guid}/revertir")]
+    [ProducesResponseType(typeof(RevertirAplicacionSaldoResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> RevertirAplicacionSaldo(Guid id, [FromBody] RevertirAplicacionSaldoRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        try
+        {
+            var resultado = await _saldosService.RevertirAplicacionSaldoAsync(id, request);
+            return Ok(resultado);
+        }
+        catch (PostgrestException ex)
+        {
+            _logger.LogWarning("RevertirAplicacionSaldo falló en base de datos o regla de negocio: {Code} - {Message}", ex.Code, ex.MensajeUsuario);
+            return StatusCode(ex.StatusCode, new ErrorResponseDto(ex.MensajeUsuario));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            _logger.LogWarning("RevertirAplicacionSaldo recurso no encontrado: {Message}", ex.Message);
+            return NotFound(new ErrorResponseDto(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning("RevertirAplicacionSaldo argumento inválido: {Message}", ex.Message);
+            return BadRequest(new ErrorResponseDto(ex.Message));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning("RevertirAplicacionSaldo acceso denegado: {Message}", ex.Message);
             return StatusCode(StatusCodes.Status403Forbidden, new ErrorResponseDto(ex.Message));
         }
     }

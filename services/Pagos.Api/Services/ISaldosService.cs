@@ -29,5 +29,12 @@ public interface ISaldosService
     Task<RespuestaPaginadaDto<MovimientoSaldoResponse>> ListarMovimientosSaldoPorViviendaAsync(
         int viviendaId,
         ConsultaMovimientosSaldoFiltrosDto filtros);
+
+    /// <summary>
+    /// Revierte una aplicación de saldo a favor previa sobre un cargo (exclusivo para Administrador).
+    /// </summary>
+    Task<RevertirAplicacionSaldoResponse> RevertirAplicacionSaldoAsync(
+        Guid id,
+        RevertirAplicacionSaldoRequest request);
 }
 
