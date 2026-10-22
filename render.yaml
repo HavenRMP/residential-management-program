@@ -26,6 +26,21 @@ services:
       - key: Supabase__ServiceRoleKey
         sync: false
 
+  - type: web
+    name: pagos-api
+    env: docker
+    dockerContext: .
+    dockerfilePath: services/Pagos.Api/Dockerfile
+    envVars:
+      - key: Supabase__Url
+        sync: false
+      - key: Supabase__AnonKey
+        sync: false
+      - key: Supabase__ServiceRoleKey
+        sync: false
+      - key: DevTools__ApiKey
+        sync: false
+
   # - type: web
   #   name: condominios-api
   #   env: docker
