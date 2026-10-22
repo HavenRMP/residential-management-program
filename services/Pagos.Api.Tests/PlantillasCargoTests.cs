@@ -81,7 +81,7 @@ public class PlantillasCargoTests : IClassFixture<PagosApiFactory>
 
         // Las 3 viviendas pertenecen al condominio
         _factory.MockSupabaseRestClient
-            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>("viviendas", It.IsAny<string>()))
+            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>("vw_viviendas", It.IsAny<string>()))
             .ReturnsAsync(new ViviendaItemDto { Id = 1 });
 
         // Pre-chequeo sin duplicados
@@ -161,7 +161,7 @@ public class PlantillasCargoTests : IClassFixture<PagosApiFactory>
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         _factory.MockSupabaseRestClient
-            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>("viviendas", It.IsAny<string>()))
+            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>("vw_viviendas", It.IsAny<string>()))
             .ReturnsAsync(new ViviendaItemDto { Id = 1 });
 
         _factory.MockSupabaseRestClient
@@ -232,11 +232,11 @@ public class PlantillasCargoTests : IClassFixture<PagosApiFactory>
 
         // Vivienda 1 existe en condominio, Vivienda 99 es de otro condominio
         _factory.MockSupabaseRestClient
-            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>("viviendas", It.Is<string>(q => q.Contains("id=eq.1"))))
+            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>("vw_viviendas", It.Is<string>(q => q.Contains("id=eq.1"))))
             .ReturnsAsync(new ViviendaItemDto { Id = 1 });
 
         _factory.MockSupabaseRestClient
-            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>("viviendas", It.Is<string>(q => q.Contains("id=eq.99"))))
+            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>("vw_viviendas", It.Is<string>(q => q.Contains("id=eq.99"))))
             .ReturnsAsync((ViviendaItemDto?)null);
 
         var request = new CrearPlantillasCargoRequest
@@ -278,7 +278,7 @@ public class PlantillasCargoTests : IClassFixture<PagosApiFactory>
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         _factory.MockSupabaseRestClient
-            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>("viviendas", It.IsAny<string>()))
+            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>("vw_viviendas", It.IsAny<string>()))
             .ReturnsAsync(new ViviendaItemDto { Id = 1 });
 
         // Coincidencia para vivienda 2
@@ -329,7 +329,7 @@ public class PlantillasCargoTests : IClassFixture<PagosApiFactory>
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         _factory.MockSupabaseRestClient
-            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>("viviendas", It.IsAny<string>()))
+            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>("vw_viviendas", It.IsAny<string>()))
             .ReturnsAsync(new ViviendaItemDto { Id = 1 });
 
         // Pre-chequeo pasa limpio
