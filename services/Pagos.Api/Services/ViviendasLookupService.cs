@@ -13,13 +13,13 @@ public class ViviendasLookupService : IViviendasLookupService
     }
 
     /// <summary>
-    /// Obtiene los IDs de las viviendas asignadas a un usuario titular consultando 'vivienda_residente'.
+    /// Obtiene los IDs de las viviendas asignadas a un usuario titular consultando 'vw_vivienda_usuarios'.
     /// Devuelve una lista vacía si no tiene viviendas asignadas.
     /// </summary>
     public async Task<List<int>> GetViviendaIdsPorUsuarioTitularAsync(Guid usuarioId)
     {
         var queryString = $"usuario_id=eq.{usuarioId}&select=vivienda_id";
-        var items = await _supabaseRestClient.GetAsync<ViviendaResidenteItemDto>("vivienda_residente", queryString);
+        var items = await _supabaseRestClient.GetAsync<ViviendaResidenteItemDto>("vw_vivienda_usuarios", queryString);
 
         if (items == null || items.Count == 0)
         {
@@ -30,23 +30,23 @@ public class ViviendasLookupService : IViviendasLookupService
     }
 
     /// <summary>
-    /// Determina si una vivienda existe y pertenece al condominio especificado consultando 'viviendas'.
+    /// Determina si una vivienda existe y pertenece al condominio especificado consultando la vista 'vw_viviendas'.
     /// </summary>
     public async Task<bool> ExisteViviendaEnCondominioAsync(int viviendaId, Guid condominioId)
     {
         var queryString = $"id=eq.{viviendaId}&condominio_id=eq.{condominioId}&select=id";
-        var vivienda = await _supabaseRestClient.GetSingleOrDefaultAsync<ViviendaItemDto>("viviendas", queryString);
+        var vivienda = await _supabaseRestClient.GetSingleOrDefaultAsync<ViviendaItemDto>("vw_viviendas", queryString);
 
         return vivienda != null;
     }
 
     /// <summary>
-    /// Verifica si un usuario es residente titular de una vivienda dada consultando 'vivienda_residente'.
+    /// Verifica si un usuario es residente titular de una vivienda dada consultando 'vw_vivienda_usuarios'.
     /// </summary>
     public async Task<bool> EsResidenteTitularAsync(int viviendaId, Guid usuarioId)
     {
         var queryString = $"vivienda_id=eq.{viviendaId}&usuario_id=eq.{usuarioId}&select=vivienda_id";
-        var asignacion = await _supabaseRestClient.GetSingleOrDefaultAsync<ViviendaResidenteItemDto>("vivienda_residente", queryString);
+        var asignacion = await _supabaseRestClient.GetSingleOrDefaultAsync<ViviendaResidenteItemDto>("vw_vivienda_usuarios", queryString);
 
         return asignacion != null;
     }

@@ -4,6 +4,13 @@ namespace Pagos.Api.Authentication;
 
 public class RolCondominioHandler : AuthorizationHandler<RolCondominioRequirement>
 {
+    private readonly ILogger<RolCondominioHandler> _logger;
+
+    public RolCondominioHandler(ILogger<RolCondominioHandler>? logger = null)
+    {
+        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<RolCondominioHandler>.Instance;
+    }
+
     protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, RolCondominioRequirement requirement)
     {
         if (context.User.Identity?.IsAuthenticated != true)
@@ -11,10 +18,12 @@ public class RolCondominioHandler : AuthorizationHandler<RolCondominioRequiremen
             return Task.CompletedTask;
         }
 
-        // 1. Validar que el token traiga un app_metadata.condominio_id válido
-        if (!TokenClaimsExtractor.TryGetCondominioId(context.User, out _))
+        // 1. Validar que el token traiga un condominio_id válido
+        if (!TokenClaimsExtractor.TryGetCondominioId(context.User, out var condominioId))
         {
-            context.Fail(new AuthorizationFailureReason(this, "El token no contiene un condominio_id válido en app_metadata."));
+            var msg = "El usuario autenticado no tiene un 'condominio_id' asignado ni en claims ni en vw_usuarios.";
+            _logger.LogWarning("Autorización rechazada: {Reason}", msg);
+            context.Fail(new AuthorizationFailureReason(this, msg));
             return Task.CompletedTask;
         }
 
@@ -22,9 +31,14 @@ public class RolCondominioHandler : AuthorizationHandler<RolCondominioRequiremen
         var rol = TokenClaimsExtractor.GetRol(context.User);
         if (string.IsNullOrWhiteSpace(rol) || !requirement.RolesPermitidos.Contains(rol))
         {
-            context.Fail(new AuthorizationFailureReason(this, $"El rol '{rol}' no tiene autorización para esta política."));
+            var msg = $"El rol '{rol}' no tiene autorización. Roles permitidos: [{string.Join(", ", requirement.RolesPermitidos)}]";
+            _logger.LogWarning("Autorización rechazada: {Reason}", msg);
+            context.Fail(new AuthorizationFailureReason(this, msg));
             return Task.CompletedTask;
         }
+
+        _logger.LogInformation("Autorización exitosa. Rol: '{Rol}', Condominio: '{CondominioId}'",
+            rol, condominioId);
 
         context.Succeed(requirement);
         return Task.CompletedTask;

@@ -53,15 +53,23 @@ public static class TokenClaimsExtractor
         if (user == null) return null;
 
         // 1. Probar claims directos
-        var directRol = user.FindFirst(ClaimTypes.Role)?.Value
-                        ?? user.FindFirst("role")?.Value
-                        ?? user.FindFirst("rol")?.Value
-                        ?? user.FindFirst("app_metadata.rol")?.Value
-                        ?? user.FindFirst("app_metadata.role")?.Value;
+        // Nota: Ignoramos "authenticated" y "anon" porque son roles internos del sistema de Supabase Auth,
+        // no roles de la aplicación Haven ("Administrador", "Residente", etc.).
+        var candidateClaims = user.FindAll(c =>
+            c.Type == ClaimTypes.Role ||
+            c.Type == "role" ||
+            c.Type == "rol" ||
+            c.Type == "app_metadata.rol" ||
+            c.Type == "app_metadata.role");
 
-        if (!string.IsNullOrWhiteSpace(directRol))
+        foreach (var c in candidateClaims)
         {
-            return directRol;
+            if (!string.IsNullOrWhiteSpace(c.Value) &&
+                !string.Equals(c.Value, "authenticated", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(c.Value, "anon", StringComparison.OrdinalIgnoreCase))
+            {
+                return c.Value;
+            }
         }
 
         // 2. Probar dentro del claim app_metadata como JSON
@@ -73,11 +81,23 @@ public static class TokenClaimsExtractor
                 using var doc = JsonDocument.Parse(appMetadataClaim);
                 if (doc.RootElement.TryGetProperty("rol", out var rolProp) && rolProp.ValueKind == JsonValueKind.String)
                 {
-                    return rolProp.GetString();
+                    var val = rolProp.GetString();
+                    if (!string.IsNullOrWhiteSpace(val) &&
+                        !string.Equals(val, "authenticated", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(val, "anon", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return val;
+                    }
                 }
                 if (doc.RootElement.TryGetProperty("role", out var roleProp) && roleProp.ValueKind == JsonValueKind.String)
                 {
-                    return roleProp.GetString();
+                    var val = roleProp.GetString();
+                    if (!string.IsNullOrWhiteSpace(val) &&
+                        !string.Equals(val, "authenticated", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(val, "anon", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return val;
+                    }
                 }
             }
             catch (JsonException)

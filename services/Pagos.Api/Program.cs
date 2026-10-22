@@ -42,6 +42,7 @@ builder.Services.AddAuthorization(options =>
             RolesHaven.AdministradorNombre, "Admin", RolesHaven.ResidenteNombre, "Inquilino")));
 });
 
+builder.Services.AddHttpClient("UserContextLookup");
 builder.Services.AddHttpClient<ISupabaseRestClient, SupabaseRestClient>();
 
 builder.Services.AddControllers()
@@ -95,6 +96,7 @@ app.UseSwaggerUI(options =>
 app.UseCors("AllowClients");
 
 app.UseAuthentication();
+app.UseUserContextEnrichment();
 app.UseAuthorization();
 
 app.MapControllers();
