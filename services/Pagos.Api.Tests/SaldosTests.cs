@@ -59,7 +59,7 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
         // Lookup confirma pertenencia al condominio
         _factory.MockSupabaseRestClient
             .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>(
-                "viviendas",
+                "vw_viviendas",
                 It.Is<string>(q => q.Contains("id=eq.10") && q.Contains($"condominio_id=eq.{condominioId}"))))
             .ReturnsAsync(new ViviendaItemDto { Id = 10 });
 
@@ -106,7 +106,7 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
         // Lookup no encuentra la vivienda en su condominio
         _factory.MockSupabaseRestClient
             .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>(
-                "viviendas",
+                "vw_viviendas",
                 It.IsAny<string>()))
             .ReturnsAsync((ViviendaItemDto?)null);
 
@@ -133,7 +133,7 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
         // Lookup confirma que es titular
         _factory.MockSupabaseRestClient
             .Setup(c => c.GetSingleOrDefaultAsync<ViviendaResidenteItemDto>(
-                "vivienda_residente",
+                "vw_vivienda_usuarios",
                 It.Is<string>(q => q.Contains("vivienda_id=eq.5") && q.Contains($"usuario_id=eq.{inquilinoId}"))))
             .ReturnsAsync(new ViviendaResidenteItemDto { ViviendaId = 5 });
 
@@ -176,7 +176,7 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
         // No es titular
         _factory.MockSupabaseRestClient
             .Setup(c => c.GetSingleOrDefaultAsync<ViviendaResidenteItemDto>(
-                "vivienda_residente",
+                "vw_vivienda_usuarios",
                 It.IsAny<string>()))
             .ReturnsAsync((ViviendaResidenteItemDto?)null);
 
@@ -201,7 +201,7 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
 
         _factory.MockSupabaseRestClient
             .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>(
-                "viviendas",
+                "vw_viviendas",
                 It.IsAny<string>()))
             .ReturnsAsync(new ViviendaItemDto { Id = 20 });
 
@@ -269,7 +269,7 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
         // Lookup devuelve lista vacía de viviendas
         _factory.MockSupabaseRestClient
             .Setup(c => c.GetAsync<ViviendaResidenteItemDto>(
-                "vivienda_residente",
+                "vw_vivienda_usuarios",
                 It.IsAny<string>()))
             .ReturnsAsync(new List<ViviendaResidenteItemDto>());
 
@@ -304,7 +304,7 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
         // Lookup devuelve dos viviendas: 1 y 2
         _factory.MockSupabaseRestClient
             .Setup(c => c.GetAsync<ViviendaResidenteItemDto>(
-                "vivienda_residente",
+                "vw_vivienda_usuarios",
                 It.Is<string>(q => q.Contains($"usuario_id=eq.{inquilinoId}"))))
             .ReturnsAsync(new List<ViviendaResidenteItemDto>
             {
@@ -402,7 +402,7 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
 
         _factory.MockSupabaseRestClient
             .Setup(c => c.GetAsync<ViviendaResidenteItemDto>(
-                "vivienda_residente",
+                "vw_vivienda_usuarios",
                 It.IsAny<string>()))
             .ReturnsAsync(new List<ViviendaResidenteItemDto>());
 
@@ -435,7 +435,7 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
         // El usuario tiene 3 viviendas en el sistema: 1, 2, y 99 (99 es de otro condominio)
         _factory.MockSupabaseRestClient
             .Setup(c => c.GetAsync<ViviendaResidenteItemDto>(
-                "vivienda_residente",
+                "vw_vivienda_usuarios",
                 It.Is<string>(q => q.Contains($"usuario_id=eq.{targetUserId}"))))
             .ReturnsAsync(new List<ViviendaResidenteItemDto>
             {
@@ -530,7 +530,7 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
         // Lookup indica que NO existe en el condominio
         _factory.MockSupabaseRestClient
             .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>(
-                "viviendas",
+                "vw_viviendas",
                 It.IsAny<string>()))
             .ReturnsAsync((ViviendaItemDto?)null);
 
@@ -559,7 +559,7 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
         // Lookup indica que no es residente titular
         _factory.MockSupabaseRestClient
             .Setup(c => c.GetSingleOrDefaultAsync<ViviendaResidenteItemDto>(
-                "vivienda_residente",
+                "vw_vivienda_usuarios",
                 It.IsAny<string>()))
             .ReturnsAsync((ViviendaResidenteItemDto?)null);
 
@@ -588,7 +588,7 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
         // Pertenencia confirmada
         _factory.MockSupabaseRestClient
             .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>(
-                "viviendas",
+                "vw_viviendas",
                 It.Is<string>(q => q.Contains("id=eq.10") && q.Contains($"condominio_id=eq.{condominioId}"))))
             .ReturnsAsync(new ViviendaItemDto { Id = 10 });
 
@@ -664,7 +664,7 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
         // Titularidad confirmada
         _factory.MockSupabaseRestClient
             .Setup(c => c.GetSingleOrDefaultAsync<ViviendaResidenteItemDto>(
-                "vivienda_residente",
+                "vw_vivienda_usuarios",
                 It.Is<string>(q => q.Contains("vivienda_id=eq.15") && q.Contains($"usuario_id=eq.{inquilinoId}"))))
             .ReturnsAsync(new ViviendaResidenteItemDto { ViviendaId = 15 });
 
@@ -697,7 +697,7 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
 
         _factory.MockSupabaseRestClient
             .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>(
-                "viviendas",
+                "vw_viviendas",
                 It.IsAny<string>()))
             .ReturnsAsync(new ViviendaItemDto { Id = 10 });
 
@@ -732,7 +732,7 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
 
         _factory.MockSupabaseRestClient
             .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>(
-                "viviendas",
+                "vw_viviendas",
                 It.IsAny<string>()))
             .ReturnsAsync(new ViviendaItemDto { Id = 10 });
 
@@ -782,7 +782,7 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
 
         _factory.MockSupabaseRestClient
             .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>(
-                "viviendas",
+                "vw_viviendas",
                 It.IsAny<string>()))
             .ReturnsAsync(new ViviendaItemDto { Id = 10 });
 
@@ -840,7 +840,7 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
 
         _factory.MockSupabaseRestClient
             .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>(
-                "viviendas",
+                "vw_viviendas",
                 It.IsAny<string>()))
             .ReturnsAsync(new ViviendaItemDto { Id = 10 });
 
