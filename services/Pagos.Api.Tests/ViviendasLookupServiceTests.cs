@@ -31,7 +31,7 @@ public class ViviendasLookupServiceTests
         };
 
         _mockRestClient
-            .Setup(c => c.GetAsync<ViviendaResidenteItemDto>("vivienda_residente", queryEsperada))
+            .Setup(c => c.GetAsync<ViviendaResidenteItemDto>("vw_vivienda_usuarios", queryEsperada))
             .ReturnsAsync(listaSimulada);
 
         // Act
@@ -52,7 +52,7 @@ public class ViviendasLookupServiceTests
         var queryEsperada = $"usuario_id=eq.{usuarioId}&select=vivienda_id";
 
         _mockRestClient
-            .Setup(c => c.GetAsync<ViviendaResidenteItemDto>("vivienda_residente", queryEsperada))
+            .Setup(c => c.GetAsync<ViviendaResidenteItemDto>("vw_vivienda_usuarios", queryEsperada))
             .ReturnsAsync(new List<ViviendaResidenteItemDto>());
 
         // Act
@@ -72,7 +72,7 @@ public class ViviendasLookupServiceTests
         var queryEsperada = $"id=eq.{viviendaId}&condominio_id=eq.{condominioId}&select=id";
 
         _mockRestClient
-            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>("viviendas", queryEsperada))
+            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>("vw_viviendas", queryEsperada))
             .ReturnsAsync(new ViviendaItemDto { Id = viviendaId });
 
         // Act
@@ -91,7 +91,7 @@ public class ViviendasLookupServiceTests
         var queryEsperada = $"id=eq.{viviendaId}&condominio_id=eq.{condominioId}&select=id";
 
         _mockRestClient
-            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>("viviendas", queryEsperada))
+            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>("vw_viviendas", queryEsperada))
             .ReturnsAsync((ViviendaItemDto?)null);
 
         // Act
@@ -110,7 +110,7 @@ public class ViviendasLookupServiceTests
         var queryEsperada = $"vivienda_id=eq.{viviendaId}&usuario_id=eq.{usuarioId}&select=vivienda_id";
 
         _mockRestClient
-            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaResidenteItemDto>("vivienda_residente", queryEsperada))
+            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaResidenteItemDto>("vw_vivienda_usuarios", queryEsperada))
             .ReturnsAsync(new ViviendaResidenteItemDto { ViviendaId = viviendaId });
 
         // Act
@@ -129,7 +129,7 @@ public class ViviendasLookupServiceTests
         var queryEsperada = $"vivienda_id=eq.{viviendaId}&usuario_id=eq.{usuarioId}&select=vivienda_id";
 
         _mockRestClient
-            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaResidenteItemDto>("vivienda_residente", queryEsperada))
+            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaResidenteItemDto>("vw_vivienda_usuarios", queryEsperada))
             .ReturnsAsync((ViviendaResidenteItemDto?)null);
 
         // Act
