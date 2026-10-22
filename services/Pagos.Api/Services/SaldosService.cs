@@ -1,5 +1,7 @@
+using System.Text.Json;
 using Pagos.Api.Clients;
 using Pagos.Api.DTOs;
+using Pagos.Api.Enums;
 using Pagos.Api.Models;
 
 namespace Pagos.Api.Services;
@@ -173,6 +175,171 @@ public class SaldosService : ISaldosService
         var total = totalCount ?? responseItems.Count;
 
         return RespuestaPaginadaDto<MovimientoSaldoResponse>.Crear(responseItems, total, filtros);
+    }
+
+    public async Task<RevertirAplicacionSaldoResponse> RevertirAplicacionSaldoAsync(Guid id, RevertirAplicacionSaldoRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (id == Guid.Empty)
+        {
+            throw new ArgumentException("El identificador del movimiento es obligatorio.", nameof(id));
+        }
+
+        var motivoLimpio = request.Motivo?.Trim();
+        if (string.IsNullOrWhiteSpace(motivoLimpio) || motivoLimpio.Length < 5 || motivoLimpio.Length > 300)
+        {
+            throw new ArgumentException("El motivo debe tener entre 5 y 300 caracteres.", nameof(request.Motivo));
+        }
+
+        // Regla 1: Solo Admin. Primero lee el movimiento de vw_movimientos_saldo_favor por id y verifica que sea de su condominio; si no => 404.
+        if (!_userContextService.EsAdmin)
+        {
+            throw new UnauthorizedAccessException("Solo los administradores pueden revertir aplicaciones de saldo a favor.");
+        }
+
+        var condominioId = _userContextService.CondominioId;
+        if (condominioId == Guid.Empty)
+        {
+            throw new InvalidOperationException("El administrador no tiene un condominio asignado en su contexto.");
+        }
+
+        var movimiento = await _supabaseClient.GetSingleOrDefaultAsync<VwMovimientoSaldoFavor>(
+            "vw_movimientos_saldo_favor",
+            $"id=eq.{id}");
+
+        if (movimiento == null || movimiento.CondominioId != condominioId)
+        {
+            _logger.LogWarning("Movimiento {MovimientoId} no encontrado o no pertenece al condominio {CondominioId}", id, condominioId);
+            throw new KeyNotFoundException("Movimiento de saldo a favor no encontrado.");
+        }
+
+        // Regla 2: Solo se pueden revertir movimientos de tipo Aplicacion. Si el tipo es otro => 409 sin llamar a la RPC.
+        if (movimiento.Tipo != TipoMovimientoSaldo.Aplicacion)
+        {
+            _logger.LogWarning("Intento de revertir movimiento {MovimientoId} con tipo no permitido: {Tipo}", id, movimiento.Tipo);
+            throw new PostgrestException(StatusCodes.Status409Conflict, "PG009", "Solo se pueden revertir movimientos de tipo Aplicación.");
+        }
+
+        // Regla 3: Llama a rpc_revertir_aplicacion_saldo(p_movimiento_id, p_motivo, p_actor_id). Movimiento ya revertido o no revertible (PG009) => 409.
+        var payload = new Dictionary<string, object?>
+        {
+            { "p_movimiento_id", id },
+            { "p_motivo", motivoLimpio },
+            { "p_actor_id", _userContextService.UserId }
+        };
+
+        var rpcResult = await _supabaseClient.RpcAsync<JsonElement>(
+            "rpc_revertir_aplicacion_saldo",
+            payload,
+            actorId: _userContextService.UserId);
+
+        // Regla 4: Responde 200 con { movimiento, cargo, saldo_a_favor } tomados de la respuesta; si el nodo cargo no trae los campos calculados, relee de vw_cargos.
+        MovimientoSaldoResponse? movimientoResponse = null;
+        if (rpcResult.ValueKind == JsonValueKind.Object &&
+            (rpcResult.TryGetProperty("movimiento", out var movElem) || rpcResult.TryGetProperty("movimiento_saldo", out movElem)) &&
+            movElem.ValueKind == JsonValueKind.Object)
+        {
+            try
+            {
+                var opt = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                movimientoResponse = JsonSerializer.Deserialize<MovimientoSaldoResponse>(movElem.GetRawText(), opt);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "No se pudo deserializar movimiento devuelto por rpc_revertir_aplicacion_saldo.");
+            }
+        }
+
+        if (movimientoResponse == null || movimientoResponse.Id == Guid.Empty)
+        {
+            var movReverso = await _supabaseClient.GetSingleOrDefaultAsync<VwMovimientoSaldoFavor>(
+                "vw_movimientos_saldo_favor",
+                $"movimiento_origen_id=eq.{id}");
+            if (movReverso != null)
+            {
+                movimientoResponse = movReverso.ToResponse();
+            }
+        }
+
+        if (movimientoResponse == null)
+        {
+            throw new InvalidOperationException("No se pudo obtener la información del movimiento de reversa generado.");
+        }
+
+        CargoResponse? cargoResponse = null;
+        var cargoIdTarget = movimiento.CargoId;
+
+        if (rpcResult.ValueKind == JsonValueKind.Object && rpcResult.TryGetProperty("cargo", out var cargoElem) && cargoElem.ValueKind == JsonValueKind.Object)
+        {
+            try
+            {
+                var opt = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var vwCargo = JsonSerializer.Deserialize<VwCargo>(cargoElem.GetRawText(), opt);
+                if (vwCargo != null)
+                {
+                    if (cargoIdTarget == null || cargoIdTarget == Guid.Empty)
+                    {
+                        cargoIdTarget = vwCargo.Id;
+                    }
+
+                    if (!string.IsNullOrEmpty(vwCargo.NumeroCasa) && !string.IsNullOrEmpty(vwCargo.CondominioNombre))
+                    {
+                        cargoResponse = vwCargo.ToResponse();
+                    }
+                }
+            }
+            catch
+            {
+                // Se releerá de vw_cargos
+            }
+        }
+
+        if (cargoResponse == null && cargoIdTarget.HasValue && cargoIdTarget.Value != Guid.Empty)
+        {
+            var vwCargo = await _supabaseClient.GetSingleOrDefaultAsync<VwCargo>(
+                "vw_cargos",
+                $"id=eq.{cargoIdTarget.Value}");
+            if (vwCargo != null)
+            {
+                cargoResponse = vwCargo.ToResponse();
+            }
+        }
+
+        if (cargoResponse == null)
+        {
+            throw new InvalidOperationException("No se pudo obtener la información del cargo actualizado.");
+        }
+
+        decimal saldoAFavor = 0m;
+        if (rpcResult.ValueKind == JsonValueKind.Object && rpcResult.TryGetProperty("saldo_a_favor", out var saldoElem))
+        {
+            if (saldoElem.ValueKind == JsonValueKind.Number)
+            {
+                saldoAFavor = saldoElem.GetDecimal();
+            }
+            else if (decimal.TryParse(saldoElem.GetString(), out var parsedSaldo))
+            {
+                saldoAFavor = parsedSaldo;
+            }
+        }
+        else
+        {
+            var saldoVivienda = await _supabaseClient.GetSingleOrDefaultAsync<VSaldoVivienda>(
+                "v_saldo_vivienda",
+                $"vivienda_id=eq.{movimiento.ViviendaId}");
+            if (saldoVivienda != null)
+            {
+                saldoAFavor = saldoVivienda.SaldoAFavor;
+            }
+        }
+
+        return new RevertirAplicacionSaldoResponse
+        {
+            Movimiento = movimientoResponse,
+            Cargo = cargoResponse,
+            SaldoAFavor = saldoAFavor
+        };
     }
 
     private async Task ValidarAccesoAViviendaAsync(int viviendaId)
