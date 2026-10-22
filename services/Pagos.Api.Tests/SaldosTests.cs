@@ -188,6 +188,51 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
             Times.Never);
     }
 
+    [Fact]
+    public async Task GetSaldoPorVivienda_ViviendaSinCargos_RetornaTotalesEnCero()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>(
+                "viviendas",
+                It.IsAny<string>()))
+            .ReturnsAsync(new ViviendaItemDto { Id = 20 });
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<VSaldoVivienda>(
+                "v_saldo_vivienda",
+                "vivienda_id=eq.20"))
+            .ReturnsAsync(new VSaldoVivienda
+            {
+                ViviendaId = 20,
+                CondominioId = condominioId,
+                NumeroCasa = "Casa 20",
+                TotalPendiente = 0m,
+                TotalVencido = 0m,
+                TotalCargosAbiertos = 0,
+                SaldoAFavor = 0m
+            });
+
+        var response = await client.GetAsync("/api/saldos/viviendas/20");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var saldo = await response.Content.ReadFromJsonAsync<SaldoViviendaResponse>();
+        Assert.NotNull(saldo);
+        Assert.Equal(20, saldo.ViviendaId);
+        Assert.Equal("Casa 20", saldo.NumeroCasa);
+        Assert.Equal(0m, saldo.TotalPendiente);
+        Assert.Equal(0m, saldo.TotalVencido);
+        Assert.Equal(0, saldo.TotalCargosAbiertos);
+        Assert.Equal(0m, saldo.SaldoAFavor);
+    }
+
     // =========================================================================
     // 2. GET api/saldos/mi-saldo (Inquilino)
     // =========================================================================
@@ -325,6 +370,17 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
     {
         var client = _factory.CreateClient();
         var token = TestTokenGenerator.GenerateInquilinoToken();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync($"/api/saldos/usuarios/{Guid.NewGuid()}");
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetSaldoPorUsuario_Subusuario_Retorna403Forbidden()
+    {
+        var client = _factory.CreateClient();
+        var token = TestTokenGenerator.GenerateSubusuarioToken();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var response = await client.GetAsync($"/api/saldos/usuarios/{Guid.NewGuid()}");
@@ -769,6 +825,58 @@ public class SaldosTests : IClassFixture<PagosApiFactory>
         Assert.Equal(movimientoOrigenId, mov.MovimientoOrigenId);
         Assert.Equal(-500m, mov.MontoConSigno);
         Assert.Equal(500m, mov.Monto);
+    }
+
+    [Fact]
+    public async Task GetMovimientosSaldo_Paginacion_RespetaDefault20YMaximo100()
+    {
+        _factory.MockSupabaseRestClient.Reset();
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetSingleOrDefaultAsync<ViviendaItemDto>(
+                "viviendas",
+                It.IsAny<string>()))
+            .ReturnsAsync(new ViviendaItemDto { Id = 10 });
+
+        PaginationParams? paramsCapturadosDefault = null;
+        PaginationParams? paramsCapturadosMax = null;
+
+        _factory.MockSupabaseRestClient
+            .Setup(c => c.GetPagedAsync<VwMovimientoSaldoFavor>(
+                "vw_movimientos_saldo_favor",
+                It.IsAny<PaginationParams>(),
+                It.IsAny<string>()))
+            .Callback<string, PaginationParams, string>((_, p, _) =>
+            {
+                if (paramsCapturadosDefault == null)
+                {
+                    paramsCapturadosDefault = p;
+                }
+                else
+                {
+                    paramsCapturadosMax = p;
+                }
+            })
+            .ReturnsAsync((new List<VwMovimientoSaldoFavor>(), 0));
+
+        // 1. Petición sin parámetros => default Page 1, PageSize 20
+        var responseDefault = await client.GetAsync("/api/saldos/viviendas/10/movimientos");
+        Assert.Equal(HttpStatusCode.OK, responseDefault.StatusCode);
+        Assert.NotNull(paramsCapturadosDefault);
+        Assert.Equal(1, paramsCapturadosDefault.Page);
+        Assert.Equal(20, paramsCapturadosDefault.PageSize);
+
+        // 2. Petición con tamanoPagina=150 => topa a PageSize 100
+        var responseMax = await client.GetAsync("/api/saldos/viviendas/10/movimientos?tamanoPagina=150");
+        Assert.Equal(HttpStatusCode.OK, responseMax.StatusCode);
+        Assert.NotNull(paramsCapturadosMax);
+        Assert.Equal(100, paramsCapturadosMax.PageSize);
     }
 
     // =========================================================================
