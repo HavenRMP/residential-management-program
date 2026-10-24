@@ -1,7 +1,7 @@
 name: haven
 description: "Residential Management Program"
 publish_to: 'none'
-version: 6.0.1+115
+version: 6.0.1+116
 
 environment:
   sdk: ^3.11.1
@@ -25,6 +25,7 @@ dependencies:
   local_auth: ^3.0.2
   screen_brightness: ^2.1.11
   audioplayers: ^6.7.1
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:
