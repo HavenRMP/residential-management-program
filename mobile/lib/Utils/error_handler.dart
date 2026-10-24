@@ -85,6 +85,18 @@ class ErrorHandler {
     if (upper.contains('NT004')) return 'El título de la notificación no puede estar vacío.';
     if (upper.contains('NT005')) return 'El mensaje de la notificación no puede estar vacío.';
 
+    // Módulo de Pagos (PG001 a PG010)
+    if (upper.contains('PG001')) return 'El cargo no existe o pertenece a otro condominio/vivienda.';
+    if (upper.contains('PG002')) return 'El pago no fue encontrado.';
+    if (upper.contains('PG003')) return 'No tienes permiso para gestionar este pago o cargo.';
+    if (upper.contains('PG004')) return 'El estado del cargo no permite nuevos pagos.';
+    if (upper.contains('PG005')) return 'El comprobante excede el tamaño máximo permitido (5 MB imágenes, 1 MB PDFs).';
+    if (upper.contains('PG006')) return 'El saldo a favor acumulado es insuficiente para cubrir el monto solicitado.';
+    if (upper.contains('PG007')) return 'El pago ya se encuentra confirmado, rechazado o anulado.';
+    if (upper.contains('PG008')) return 'No se puede cancelar un cargo que cuenta con pagos confirmados.';
+    if (upper.contains('PG009')) return 'Formato de comprobante no válido. Solo se admiten archivos JPG, PNG y PDF.';
+    if (upper.contains('PG010')) return 'El monto ingresado no es válido para esta operación.';
+
     // Postgres / Supabase Códigos Estándar
     if (upper.contains('23505')) return 'Ya existe un registro duplicado o ya estás vinculado.';
     if (upper.contains('42501')) return 'No tienes permiso para realizar esta operación.';
