@@ -18,6 +18,7 @@ import 'visitas_residente_screen.dart';
 import 'perfil_screen.dart';
 import 'paqueteria_residente_screen.dart';
 import 'reservas_residente_screen.dart';
+import 'pagos_residente_screen.dart';
 import '../Services/paqueteria_service.dart';
 import '../Widgets/qr_scanner_view.dart';
 import '../Utils/haptic_helper.dart';
@@ -664,6 +665,10 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                   const SizedBox(height: 20),
                 ],
 
+                // Acceso Rápido a Pagos y Estado de Cuenta
+                _buildPagosQuickAccessCard(),
+                const SizedBox(height: 20),
+
                 // Módulo "Mi Vivienda"
                 if (_isLoadingViviendas)
                   _buildLoadingVivienda()
@@ -917,6 +922,83 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
             child: const Text('Ver', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPagosQuickAccessCard() {
+    return InkWell(
+      onTap: () {
+        HapticHelper.selection();
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PagosResidenteScreen(
+              controller: widget.controller,
+              misViviendas: _misViviendas,
+            ),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x06000000),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEEF2FF),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.account_balance_wallet_rounded,
+                color: Color(0xFF111C99),
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Estado de Cuenta y Cuotas',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Revisa tus cargos, saldos a favor y reporta pagos',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: Color(0xFF94A3B8),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1211,6 +1293,66 @@ class _ResidenteDashboardScreenState extends State<ResidenteDashboardScreen> {
                               ),
                               SizedBox(width: 4),
                               Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF047857)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  const Divider(color: Color(0xFFE2E8F0), height: 1),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.payment_rounded, size: 16, color: Color(0xFF64748B)),
+                          SizedBox(width: 6),
+                          Text(
+                            'Pagos y Estado de Cuenta',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF334155),
+                            ),
+                          ),
+                        ],
+                      ),
+                      InkWell(
+                        onTap: () {
+                          HapticHelper.selection();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PagosResidenteScreen(
+                                controller: widget.controller,
+                                misViviendas: _misViviendas,
+                              ),
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEEF2FF),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFFC7D2FE)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Ver Pagos',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF111C99),
+                                ),
+                              ),
+                              SizedBox(width: 4),
+                              Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF111C99)),
                             ],
                           ),
                         ),
