@@ -6,6 +6,7 @@ import { CondominiosService } from '../../../core/services/condominios.service';
 import { AvisosService } from '../../../core/services/avisos.service';
 import { PaqueteriaService } from '../../../core/services/paqueteria.service';
 import { ReservasService } from '../../../core/services/reservas.service';
+import { PagosService } from '../../../core/services/pagos.service';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient, withXhr } from '@angular/common/http';
@@ -21,6 +22,7 @@ describe('ResidenteDashboardComponent', () => {
   let mockAvisosService: any;
   let mockPaqueteriaService: any;
   let mockReservasService: any;
+  let mockPagosService: any;
 
   const avisoMock: Aviso = {
     id: 'aviso-1',
@@ -65,6 +67,10 @@ describe('ResidenteDashboardComponent', () => {
       contarEnCaseta: jasmine.createSpy('contarEnCaseta').and.resolveTo(0)
     };
 
+    mockPagosService = {
+      contarCargosAbiertos: jasmine.createSpy('contarCargosAbiertos').and.resolveTo(0)
+    };
+
     mockReservasService = {
       accionesPendientes: signal<number>(0),
       cargarMias: jasmine.createSpy('cargarMias').and.resolveTo(),
@@ -80,6 +86,7 @@ describe('ResidenteDashboardComponent', () => {
         { provide: AvisosService, useValue: mockAvisosService },
         { provide: PaqueteriaService, useValue: mockPaqueteriaService },
         { provide: ReservasService, useValue: mockReservasService },
+        { provide: PagosService, useValue: mockPagosService },
         provideRouter([]),
         provideHttpClient(withXhr()),
         provideHttpClientTesting()
@@ -190,6 +197,34 @@ describe('ResidenteDashboardComponent', () => {
       const f = await abrirPortal();
 
       expect(botonPaqueteria(f)?.textContent?.replace(/\s+/g, ' ')).toContain('2 en caseta');
+    });
+  });
+
+  describe('Acceso a pagos', () => {
+    const botonPagos = (f: ComponentFixture<ResidenteDashboardComponent>) =>
+      f.nativeElement.querySelector('a[href="/dashboard/residente/pagos"]') as HTMLElement | null;
+
+    async function abrirPortal(): Promise<ComponentFixture<ResidenteDashboardComponent>> {
+      const f = TestBed.createComponent(ResidenteDashboardComponent);
+      f.detectChanges();
+      await f.whenStable();
+      f.detectChanges();
+      return f;
+    }
+
+    it('muestra el botón sin insignia cuando no hay cargos por pagar', async () => {
+      const f = await abrirPortal();
+
+      expect(botonPagos(f)?.textContent).toContain('Pagos');
+      expect(botonPagos(f)?.textContent).not.toContain('por pagar');
+    });
+
+    it('muestra cuántos cargos tiene por pagar', async () => {
+      mockPagosService.contarCargosAbiertos.and.resolveTo(3);
+
+      const f = await abrirPortal();
+
+      expect(botonPagos(f)?.textContent?.replace(/\s+/g, ' ')).toContain('3 por pagar');
     });
   });
 
