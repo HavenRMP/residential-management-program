@@ -304,6 +304,31 @@ import { NotificacionesPopoverComponent } from '../../../core/components/notific
                 <span class="whitespace-nowrap font-medium fade-in-direct">Paquetería</span>
               }
             </a>
+
+            <!-- Pagos -->
+            <a
+              routerLink="/dashboard/admin/pagos"
+              [routerLinkActiveOptions]="{ exact: false }"
+              routerLinkActive="bg-[#111C99] text-white font-semibold shadow-xs"
+              class="flex items-center h-10 rounded-lg text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer group whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111C99]"
+              [class.px-3]="!sidebarCollapsed()"
+              [class.px-0]="sidebarCollapsed()"
+              [class.justify-center]="sidebarCollapsed()"
+              [title]="sidebarCollapsed() ? 'Pagos' : ''"
+              aria-label="Pagos"
+              (click)="mobileMenuOpen.set(false)"
+              >
+              <svg
+                class="w-5 h-5 shrink-0 transition-transform group-hover:scale-105"
+                [class.mr-3]="!sidebarCollapsed()"
+                fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+              </svg>
+              @if (showText()) {
+                <span class="whitespace-nowrap font-medium fade-in-direct">Pagos</span>
+              }
+            </a>
           </nav>
         </div>
     
