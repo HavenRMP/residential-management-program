@@ -87,6 +87,12 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/paqueteria/admin/paqueteria-admin.component')
             .then(m => m.PaqueteriaAdminComponent)
+      },
+      {
+        path: 'pagos',
+        loadComponent: () =>
+          import('./features/pagos/admin/pagos-admin.component')
+            .then(m => m.PagosAdminComponent)
       }
     ]
   },
