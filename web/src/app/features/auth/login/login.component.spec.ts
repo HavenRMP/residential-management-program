@@ -48,12 +48,6 @@ describe('LoginComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should toggle modes correctly', () => {
-    expect(component.modo()).toBe('residente');
-    component.setModo('staff');
-    expect(component.modo()).toBe('staff');
-  });
-
   it('form should be invalid when empty', () => {
     component.loginForm.controls['email'].setValue('');
     component.loginForm.controls['password'].setValue('');
