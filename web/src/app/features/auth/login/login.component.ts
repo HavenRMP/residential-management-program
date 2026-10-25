@@ -21,40 +21,12 @@ import Swal from 'sweetalert2';
           <img src="/haven-logo.png" alt="Haven" class="w-12 h-12 object-contain" />
         </div>
     
-        <!-- Mode Toggle -->
-        <div class="flex border border-[#e2e8f0] rounded-lg overflow-hidden mb-8">
-          <button
-            type="button"
-            id="toggle-residente"
-            (click)="setModo('residente')"
-            class="flex-1 py-2.5 text-sm font-semibold transition-all"
-            [class.bg-[#111C99]]="modo() === 'residente'"
-            [class.text-white]="modo() === 'residente'"
-            [class.text-[#64748b]]="modo() !== 'residente'"
-            [class.bg-white]="modo() !== 'residente'"
-            >
-            Residente
-          </button>
-          <button
-            type="button"
-            id="toggle-staff"
-            (click)="setModo('staff')"
-            class="flex-1 py-2.5 text-sm font-semibold transition-all"
-            [class.bg-[#111C99]]="modo() === 'staff'"
-            [class.text-white]="modo() === 'staff'"
-            [class.text-[#64748b]]="modo() !== 'staff'"
-            [class.bg-white]="modo() !== 'staff'"
-            >
-            Administrador · Vigilancia
-          </button>
-        </div>
-    
         <!-- Title & Subtitle -->
         <h2 class="text-3xl leading-tight font-bold text-[#0f172a] tracking-tight">
           Iniciar sesión
         </h2>
         <p class="text-base font-normal text-[#64748b] mt-2 mb-8 min-h-[24px]">
-          {{ modo() === 'residente' ? 'Acceso para residentes' : 'Acceso para administración y vigilancia' }}
+          Accede con tu cuenta de Haven
         </p>
     
         <!-- Skeleton de carga: sustituye al formulario mientras se valida la sesión -->
@@ -178,58 +150,39 @@ import Swal from 'sweetalert2';
                     <span>{{ isSubmitting() ? 'Entrando...' : 'Entrar' }}</span>
                   </button>
                 </div>
-                <!-- Zona de Acción Secundaria / Simétrica (Misma altura para ambos modos) -->
-                <div class="min-h-[88px] flex flex-col justify-end">
-                  <!-- Google OAuth (solo modo residente) -->
-                  @if (modo() === 'residente') {
-                    <div class="flex items-center gap-3 mb-4">
-                      <div class="flex-1 h-px bg-[#e2e8f0]"></div>
-                      <span class="text-xs text-[#94a3b8] font-medium">o</span>
-                      <div class="flex-1 h-px bg-[#e2e8f0]"></div>
-                    </div>
-                    <button
-                      type="button"
-                      id="btn-google"
-                      [disabled]="isSubmittingGoogle()"
-                      (click)="loginGoogle()"
-                      class="w-full py-3.5 px-4 bg-white border border-[#e2e8f0] hover:bg-[#f1f3f7] active:bg-[#e2e8f0] text-[#0f172a] font-semibold text-base rounded-lg disabled:opacity-75 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-3 cursor-pointer shadow-xs"
-                      >
-                      <!-- Google SVG icon 4 colores -->
-                      <svg width="20" height="20" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" fill="#FFC107"/>
-                        <path d="M6.306 14.691l6.571 4.819C14.655 15.108 19.001 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z" fill="#FF3D00"/>
-                        <path d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0124 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z" fill="#4CAF50"/>
-                        <path d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 01-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" fill="#1976D2"/>
-                      </svg>
-                      <span>{{ isSubmittingGoogle() ? 'Redirigiendo...' : 'Continuar con Google' }}</span>
-                    </button>
-                  }
-                  <!-- Nota Institucional de Seguridad (solo modo staff) -->
-                  @if (modo() === 'staff') {
-                    <div class="flex items-center gap-3 mb-4">
-                      <div class="flex-1 h-px bg-[#e2e8f0]"></div>
-                      <span class="text-[11px] text-[#94a3b8] font-semibold uppercase tracking-wider">Seguridad Haven</span>
-                      <div class="flex-1 h-px bg-[#e2e8f0]"></div>
-                    </div>
-                    <div class="py-3 px-4 bg-[#f8fafc] border border-[#e2e8f0] rounded-lg text-center flex items-center justify-center gap-2.5">
-                      <svg class="w-4 h-4 text-[#64748b] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-                      </svg>
-                      <span class="text-xs text-[#64748b] font-medium leading-tight">Acceso restringido con credenciales corporativas directas.</span>
-                    </div>
-                  }
-                </div>
-                <!-- Enlace a Registro (solo residentes) -->
-                @if (modo() === 'residente') {
-                  <div class="pt-4 text-center border-t border-slate-100">
-                    <p class="text-sm text-slate-600">
-                      ¿No tienes una cuenta?
-                      <a routerLink="/registro" class="font-semibold text-[#111C99] hover:underline cursor-pointer ml-1">
-                        Regístrate aquí
-                      </a>
-                    </p>
+                <!-- Acción secundaria -->
+                <div class="flex flex-col">
+                  <div class="flex items-center gap-3 mb-4">
+                    <div class="flex-1 h-px bg-[#e2e8f0]"></div>
+                    <span class="text-xs text-[#94a3b8] font-medium">o</span>
+                    <div class="flex-1 h-px bg-[#e2e8f0]"></div>
                   </div>
-                }
+                  <button
+                    type="button"
+                    id="btn-google"
+                    [disabled]="isSubmittingGoogle()"
+                    (click)="loginGoogle()"
+                    class="w-full py-3.5 px-4 bg-white border border-[#e2e8f0] hover:bg-[#f1f3f7] active:bg-[#e2e8f0] text-[#0f172a] font-semibold text-base rounded-lg disabled:opacity-75 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-3 cursor-pointer shadow-xs"
+                    >
+                    <!-- Google SVG icon 4 colores -->
+                    <svg width="20" height="20" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" fill="#FFC107"/>
+                      <path d="M6.306 14.691l6.571 4.819C14.655 15.108 19.001 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z" fill="#FF3D00"/>
+                      <path d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0124 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z" fill="#4CAF50"/>
+                      <path d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 01-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" fill="#1976D2"/>
+                    </svg>
+                    <span>{{ isSubmittingGoogle() ? 'Redirigiendo...' : 'Continuar con Google' }}</span>
+                  </button>
+                </div>
+                <!-- Enlace a Registro -->
+                <div class="pt-4 text-center border-t border-slate-100">
+                  <p class="text-sm text-slate-600">
+                    ¿No tienes una cuenta?
+                    <a routerLink="/registro" class="font-semibold text-[#111C99] hover:underline cursor-pointer ml-1">
+                      Regístrate aquí
+                    </a>
+                  </p>
+                </div>
               </form>
             }
           </div>
@@ -245,7 +198,6 @@ export class LoginComponent implements OnInit {
   readonly isSubmittingGoogle = signal<boolean>(false);
   readonly isWakingUp = signal<boolean>(false);
   readonly errorMessage = signal<string | null>(null);
-  readonly modo = signal<'residente' | 'staff'>('residente');
   readonly showPassword = signal<boolean>(false);
 
   /** También cubre la restauración de sesión al abrir la app, no solo el envío del formulario */
@@ -258,11 +210,6 @@ export class LoginComponent implements OnInit {
     if (this.isWakingUp()) return 'Conectando con el servidor en la nube, esto puede tardar unos segundos...';
     return 'Verificando tus datos...';
   });
-
-  private readonly MODO_ROLES: Record<'residente' | 'staff', string[]> = {
-    residente: ['residente'],
-    staff: ['administrador', 'vigilante']
-  };
 
   loginForm: FormGroup = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
@@ -282,13 +229,6 @@ export class LoginComponent implements OnInit {
   ngOnInit(): void {
     // Despierta el servidor en Render en segundo plano mientras el usuario llena el formulario
     this.pingService.checkBackendConnection();
-  }
-
-  setModo(modo: 'residente' | 'staff'): void {
-    this.modo.set(modo);
-    this.errorMessage.set(null);
-    this.showPassword.set(false);
-    this.loginForm.reset();
   }
 
   async loginGoogle(): Promise<void> {
@@ -334,18 +274,7 @@ export class LoginComponent implements OnInit {
           timerProgressBar: true
         });
 
-        const rolReal = result.role || '';
-        const coincideConModo = this.MODO_ROLES[this.modo()].includes(rolReal);
-
-        if (coincideConModo) {
-          Toast.fire({ icon: 'success', title: '¡Inicio de sesión correcto!' });
-        } else {
-          const etiqueta = rolReal === 'vigilante' ? 'vigilancia' : rolReal;
-          Toast.fire({
-            icon: 'info',
-            title: `Detectamos que tu cuenta es de ${etiqueta}, te llevamos a tu panel.`
-          });
-        }
+        Toast.fire({ icon: 'success', title: '¡Inicio de sesión correcto!' });
       } else {
         this.errorMessage.set(traducirErrorLogin(result.error));
       }
