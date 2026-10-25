@@ -151,6 +151,7 @@ describe('PagosComponent', () => {
     }));
 
     boton('Ver pagos')!.click();
+    fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
 
@@ -168,6 +169,7 @@ describe('PagosComponent', () => {
     api.get.and.returnValue(throwError(() => ({ status: 500 })));
 
     boton('Ver pagos')!.click();
+    fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
 

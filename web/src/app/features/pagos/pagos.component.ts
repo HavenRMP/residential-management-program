@@ -8,13 +8,11 @@ import {
   CLASES_ESTADO_CARGO,
   CLASES_ESTADO_PAGO,
   Cargo,
-  CargoDetalle,
   ETIQUETAS_ESTADO_CARGO,
   ETIQUETAS_ESTADO_PAGO,
   ETIQUETAS_METODO_PAGO,
   ETIQUETAS_TIPO_CARGO,
   Pago,
-  PagoResumen,
   cargoAdmitePago,
   formatearFechaPago,
   formatearMonto,
@@ -25,20 +23,15 @@ import { mensajeAmigable } from '../../core/utils/api-errors.util';
 import { autoActualizar } from '../../core/utils/auto-actualizar.util';
 import { UserMenuComponent } from '../../core/components/user-menu/user-menu.component';
 import { PagoFormComponent } from './pago-form/pago-form.component';
+import { CargoPagosComponent } from './cargo-pagos/cargo-pagos.component';
 
 type Pestana = 'porPagar' | 'historial' | 'pagos';
-
-interface DetalleCargo {
-  cargando: boolean;
-  error: string | null;
-  detalle: CargoDetalle | null;
-}
 
 /** Portal del residente: lo que debe, lo que ha pagado y el reporte de pagos con comprobante */
 @Component({
   selector: 'app-pagos',
   standalone: true,
-  imports: [CommonModule, RouterLink, UserMenuComponent, PagoFormComponent],
+  imports: [CommonModule, RouterLink, UserMenuComponent, PagoFormComponent, CargoPagosComponent],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans antialiased">
@@ -237,26 +230,7 @@ interface DetalleCargo {
                     </div>
 
                     @if (estaAbierto(c)) {
-                      <div class="border-t border-slate-100 pt-2 space-y-1.5" data-test="detalle-cargo">
-                        @if (detalleDe(c)?.cargando) {
-                          <p class="text-xs text-slate-500">Cargando pagos...</p>
-                        } @else if (detalleDe(c)?.error; as err) {
-                          <p class="text-xs text-rose-700" role="alert">{{ err }}</p>
-                        } @else if ((detalleDe(c)?.detalle?.pagos?.length ?? 0) === 0) {
-                          <p class="text-xs text-slate-500">Este cargo todavía no tiene pagos.</p>
-                        } @else {
-                          @for (p of detalleDe(c)!.detalle!.pagos; track p.id) {
-                            <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
-                              <span class="text-slate-700">
-                                {{ monto(p.monto) }} · {{ fecha(p.fechaPago) }} · {{ metodos[p.metodo] }}@if (p.esReversa) {<span> (reversa)</span>}
-                              </span>
-                              <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border" [ngClass]="clasePago(p)">
-                                {{ etiquetaPago(p) }}
-                              </span>
-                            </div>
-                          }
-                        }
-                      </div>
+                      <app-cargo-pagos [cargoId]="c.id" />
                     }
                   </li>
                 }
@@ -344,8 +318,8 @@ export class PagosComponent implements OnInit {
 
   readonly pestana = signal<Pestana>('porPagar');
   readonly cargoPagando = signal<Cargo | null>(null);
-  /** Pagos de cada cargo que se abrió, por id del cargo */
-  readonly detalles = signal<Record<string, DetalleCargo>>({});
+  /** Cargos cuyos pagos están desplegados, por id */
+  readonly abiertos = signal<ReadonlySet<string>>(new Set());
 
   /** Los más urgentes primero: lo que vence antes */
   readonly porPagar = computed(() =>
@@ -390,7 +364,7 @@ export class PagosComponent implements OnInit {
   }
 
   async recargar(): Promise<void> {
-    this.detalles.set({});
+    this.abiertos.set(new Set());
     await this.pagosService.cargarResumen();
   }
 
@@ -418,27 +392,15 @@ export class PagosComponent implements OnInit {
   // --- Pagos de un cargo ---
 
   estaAbierto(c: Cargo): boolean {
-    return !!this.detalles()[c.id];
+    return this.abiertos().has(c.id);
   }
 
-  detalleDe(c: Cargo): DetalleCargo | undefined {
-    return this.detalles()[c.id];
-  }
-
-  async alternarDetalle(c: Cargo): Promise<void> {
-    if (this.estaAbierto(c)) {
-      this.detalles.update(({ [c.id]: _quitado, ...resto }) => resto);
-      return;
-    }
-    this.detalles.update(d => ({ ...d, [c.id]: { cargando: true, error: null, detalle: null } }));
-    try {
-      const detalle = await this.pagosService.obtenerCargo(c.id);
-      this.detalles.update(d => (d[c.id] ? { ...d, [c.id]: { cargando: false, error: null, detalle } } : d));
-    } catch (err: any) {
-      console.error('[PagosComponent] Error al cargar los pagos del cargo:', err);
-      const error = mensajeAmigable(err, 'No se pudieron cargar los pagos de este cargo.');
-      this.detalles.update(d => (d[c.id] ? { ...d, [c.id]: { cargando: false, error, detalle: null } } : d));
-    }
+  alternarDetalle(c: Cargo): void {
+    this.abiertos.update(abiertos => {
+      const siguiente = new Set(abiertos);
+      if (!siguiente.delete(c.id)) siguiente.add(c.id);
+      return siguiente;
+    });
   }
 
   tienePagoPorConfirmar(c: Cargo): boolean {
@@ -481,11 +443,11 @@ export class PagosComponent implements OnInit {
     return CLASES_ESTADO_CARGO[c.estadoEfectivo] ?? 'bg-slate-100 text-slate-700 border-slate-200';
   }
 
-  etiquetaPago(p: Pick<Pago | PagoResumen, 'estado'>): string {
+  etiquetaPago(p: Pick<Pago, 'estado'>): string {
     return ETIQUETAS_ESTADO_PAGO[p.estado] ?? p.estado;
   }
 
-  clasePago(p: Pick<Pago | PagoResumen, 'estado'>): string {
+  clasePago(p: Pick<Pago, 'estado'>): string {
     return CLASES_ESTADO_PAGO[p.estado] ?? 'bg-slate-100 text-slate-700 border-slate-200';
   }
 }
