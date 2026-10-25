@@ -126,6 +126,13 @@ export const routes: Routes = [
         .then(m => m.PaqueteriaComponent)
   },
   {
+    path: 'dashboard/residente/pagos',
+    canActivate: [authGuard, roleGuard(['residente'])],
+    loadComponent: () =>
+      import('./features/pagos/pagos.component')
+        .then(m => m.PagosComponent)
+  },
+  {
     path: 'avisos/:id',
     canActivate: [authGuard],
     loadComponent: () =>
