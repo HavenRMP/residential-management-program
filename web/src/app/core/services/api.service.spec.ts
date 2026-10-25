@@ -24,6 +24,12 @@ describe('ApiService.resolveUrl', () => {
     }
   });
 
+  it('enruta cargos, pagos, plantillas, saldos y comprobantes al microservicio de pagos', () => {
+    for (const ruta of ['/api/cargos', '/api/cargos/abc/cancelar', '/api/pagos/reportar', '/api/pagos/abc/comprobante-url', '/api/plantillas-cargo/generar', '/api/saldos/mi-saldo', '/api/comprobantes']) {
+      expect(api.resolveUrl(ruta)).withContext(ruta).toBe(`${environment.services.pagos}${ruta}`);
+    }
+  });
+
   it('respeta el microservicio indicado y las URL completas', () => {
     expect(api.resolveUrl('/api/paqueteria', 'viviendas')).toBe(`${environment.services.viviendas}/api/paqueteria`);
     expect(api.resolveUrl('https://otro.example.com/x')).toBe('https://otro.example.com/x');
