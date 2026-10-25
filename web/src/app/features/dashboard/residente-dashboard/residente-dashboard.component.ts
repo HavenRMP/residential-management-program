@@ -10,6 +10,7 @@ import { AvisosService } from '../../../core/services/avisos.service';
 import { SubusuariosService } from '../../../core/services/subusuarios.service';
 import { PaqueteriaService } from '../../../core/services/paqueteria.service';
 import { ReservasService } from '../../../core/services/reservas.service';
+import { PagosService } from '../../../core/services/pagos.service';
 import { CacheService } from '../../../core/services/cache.service';
 import { Vivienda } from '../../../core/models/vivienda.model';
 import { Aviso, AvisoPrioridad } from '../../../core/models/aviso.model';
@@ -113,6 +114,20 @@ import { claseBadgePrioridad, etiquetaPrioridad, tiempoRestanteAviso } from '../
                 @if (reservasService.accionesPendientes() > 0) {
                   <span class="min-w-5 h-5 px-1 inline-flex items-center justify-center rounded-full bg-amber-500 text-white text-[11px] font-semibold">
                     {{ reservasService.accionesPendientes() }}<span class="sr-only"> por atender</span>
+                  </span>
+                }
+              </a>
+              <a
+                routerLink="/dashboard/residente/pagos"
+                class="h-8 px-3 inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition-colors shadow-2xs"
+                >
+                <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                </svg>
+                <span>Pagos</span>
+                @if (cargosAbiertos() > 0) {
+                  <span class="min-w-5 h-5 px-1 inline-flex items-center justify-center rounded-full bg-amber-500 text-white text-[11px] font-semibold">
+                    {{ cargosAbiertos() }}<span class="sr-only"> por pagar</span>
                   </span>
                 }
               </a>
@@ -373,11 +388,14 @@ export class ResidenteDashboardComponent implements OnInit {
   readonly avisosService = inject(AvisosService);
   readonly subusuariosService = inject(SubusuariosService);
   private readonly paqueteriaService = inject(PaqueteriaService);
+  private readonly pagosService = inject(PagosService);
   /** Solicitudes por aprobar y reservas por confirmar: se muestran como insignia en el botón de reservas */
   readonly reservasService = inject(ReservasService);
 
   /** Paquetes que ya llegaron a caseta y esperan a que los recojan */
   readonly paquetesEnCaseta = signal<number>(0);
+  /** Cargos que la vivienda aún debe pagar: se muestran como insignia en el botón de pagos */
+  readonly cargosAbiertos = signal<number>(0);
 
   readonly currentUser = this.authService.currentUser;
   readonly misViviendas = signal<Vivienda[]>([]);
@@ -403,6 +421,7 @@ export class ResidenteDashboardComponent implements OnInit {
     // Sin await: el banner de invitaciones no debe retrasar la carga del portal
     this.subusuariosService.cargarInvitacionesRecibidas();
     void this.cargarPaquetesEnCaseta();
+    void this.cargarCargosAbiertos();
     // Solo alimentan la insignia del botón: si fallan el portal sigue igual
     void this.reservasService.cargarMias();
     void this.reservasService.cargarPorAprobar();
@@ -413,6 +432,11 @@ export class ResidenteDashboardComponent implements OnInit {
   /** Solo es un aviso del botón de paquetería: si la consulta falla el portal sigue igual */
   private async cargarPaquetesEnCaseta(): Promise<void> {
     this.paquetesEnCaseta.set(await this.paqueteriaService.contarEnCaseta());
+  }
+
+  /** Solo es un aviso del botón de pagos: si la consulta falla el portal sigue igual */
+  private async cargarCargosAbiertos(): Promise<void> {
+    this.cargosAbiertos.set(await this.pagosService.contarCargosAbiertos());
   }
 
   /**
