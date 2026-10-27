@@ -45,7 +45,7 @@ import { PagoFormComponent } from '../pago-form/pago-form.component';
             Actualizar
           </button>
           <button type="button" (click)="formularioAbierto.set(true)"
-            class="h-8 px-3 inline-flex items-center gap-1.5 rounded-md bg-[#111C99] hover:bg-[#0d1577] text-white text-xs font-medium transition-colors shadow-2xs cursor-pointer">
+            class="h-8 px-3 inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap rounded-md bg-[#111C99] hover:bg-[#0d1577] text-white text-xs font-medium transition-colors shadow-2xs cursor-pointer">
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
             </svg>
