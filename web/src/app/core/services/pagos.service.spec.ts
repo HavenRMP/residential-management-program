@@ -155,8 +155,20 @@ describe('PagosService', () => {
       }));
       const anulacion = await service.anularPago('p1', 'Pago duplicado');
       expect(ultimaPost()[0]).toBe('/api/pagos/p1/anular');
-      expect(anulacion.pagoReversa.esReversa).toBeTrue();
+      expect(anulacion.pagoReversa?.esReversa).toBeTrue();
       expect(anulacion.pagoAnulado.estado).toBe('Anulado');
+    });
+
+    it('anular un pago sin pago de reversa en la respuesta no falla', async () => {
+      api.post.and.returnValue(of({
+        pago_anulado: pagoCrudo('p1', { estado: 'Anulado' }), pago_reversa: null,
+        cargo: cargoCrudo('c1'), movimiento_saldo: null, saldo_a_favor: 0
+      }));
+
+      const anulacion = await service.anularPago('p1', 'Pago duplicado');
+
+      expect(anulacion.pagoAnulado.estado).toBe('Anulado');
+      expect(anulacion.pagoReversa).toBeNull();
     });
 
     it('obtiene el enlace temporal del comprobante', async () => {
