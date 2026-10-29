@@ -27,13 +27,13 @@ import { NotificacionesPopoverComponent } from '../../../core/components/notific
             </svg>
           </button>
     
-          <div class="flex items-center gap-2.5">
-            <img src="/haven-logo.png" alt="Haven" class="w-7 h-7 rounded-lg object-contain" />
+          <a routerLink="/dashboard/admin" class="flex items-center gap-2.5 cursor-pointer rounded-lg focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]" aria-label="Haven, ir al panel principal">
+            <img src="/haven-logo.png" alt="" class="w-7 h-7 rounded-lg object-contain" />
             <span class="font-bold text-base tracking-tight text-slate-900">Haven</span>
             <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
               Admin
             </span>
-          </div>
+          </a>
         </div>
     
         <div class="flex items-center gap-1.5">
@@ -60,7 +60,7 @@ import { NotificacionesPopoverComponent } from '../../../core/components/notific
         [class.-translate-x-full]="!mobileMenuOpen()"
         >
         <div class="flex-1 overflow-hidden flex flex-col">
-          <!-- Sidebar Brand Header (Logo Estático y Destacado) -->
+          <!-- Sidebar Brand Header (Logo Destacado que lleva al panel principal) -->
           <div
             class="h-16 border-b border-slate-100 flex items-center shrink-0 w-full transition-all duration-300 select-none"
             [class.px-4]="!sidebarCollapsed()"
@@ -68,9 +68,15 @@ import { NotificacionesPopoverComponent } from '../../../core/components/notific
             [class.justify-between]="!sidebarCollapsed()"
             [class.justify-center]="sidebarCollapsed()"
             >
-            <div class="flex items-center gap-3 overflow-hidden" [class.justify-center]="sidebarCollapsed()">
-              <!-- Logo Container Destacado pero 100% No Clicable -->
-              <div class="relative size-9 rounded-xl bg-gradient-to-br from-indigo-50/80 via-slate-50 to-blue-50/40 p-1.5 border border-slate-200/80 shadow-2xs flex items-center justify-center shrink-0 pointer-events-none">
+            <a
+              routerLink="/dashboard/admin"
+              class="flex items-center gap-3 overflow-hidden rounded-xl cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]"
+              [class.justify-center]="sidebarCollapsed()"
+              (click)="mobileMenuOpen.set(false)"
+              aria-label="Haven, ir al panel principal"
+              >
+              <!-- Logo Container Destacado -->
+              <div class="relative size-9 rounded-xl bg-gradient-to-br from-indigo-50/80 via-slate-50 to-blue-50/40 p-1.5 border border-slate-200/80 shadow-2xs flex items-center justify-center shrink-0">
                 <img src="/haven-logo.png" alt="Haven" class="w-full h-full object-contain" />
               </div>
     
@@ -86,7 +92,7 @@ import { NotificacionesPopoverComponent } from '../../../core/components/notific
                   <span class="text-[10px] text-slate-500 font-medium mt-0.5 block tracking-normal">Gestión Residencial</span>
                 </div>
               }
-            </div>
+            </a>
     
             <!-- Botón Cerrar Drawer (Móvil) -->
             @if (showText()) {
