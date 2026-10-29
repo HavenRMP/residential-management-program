@@ -10,7 +10,7 @@ export const environment = {
     avisos: 'https://avisos-api-qg5b.onrender.com',
     visitas: 'https://visitas-api-r66s.onrender.com',
     reservas: 'https://reservas-api-hmos.onrender.com',
-    pagos: 'https://pagos-api.onrender.com'
+    pagos: 'https://pagos-api-2b2k.onrender.com'
   },
   get apiUrl(): string { return this.services.default; },
   get usuariosApiUrl(): string { return this.services.usuarios; }
