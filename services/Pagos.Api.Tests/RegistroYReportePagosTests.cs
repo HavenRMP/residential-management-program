@@ -459,10 +459,73 @@ public class RegistroYReportePagosTests : IClassFixture<PagosApiFactory>
     }
 
     /// <summary>
-    /// Caso 7: Cargo ya Pagado => 201 (el excedente va a saldo a favor); el test verifica que la respuesta devuelve movimiento_saldo.
+    /// Caso 7a: Cargo ya Pagado o Cancelado => 409 sin llamar a la RPC.
+    /// </summary>
+    [Theory]
+    [InlineData(EstadoCargo.Pagado, "PG010")]
+    [InlineData(EstadoCargo.Cancelado, "PG001")]
+    public async Task RegistrarPago_Admin_CargoPagadoOCancelado_Retorna409SinLlamarRpc(EstadoCargo estado, string codigoEsperado)
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var cargoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var vwCargo = new VwCargo
+        {
+            Id = cargoId,
+            CondominioId = condominioId,
+            ViviendaId = 1,
+            NumeroCasa = "Casa 1",
+            Monto = 1000m,
+            MontoPagadoConfirmado = estado == EstadoCargo.Pagado ? 1000m : 0m,
+            SaldoPendiente = 0m,
+            Estado = estado
+        };
+
+        var mockSupabase = new Mock<ISupabaseRestClient>();
+        mockSupabase
+            .Setup(s => s.GetSingleOrDefaultAsync<VwCargo>("vw_cargos", $"id=eq.{cargoId}"))
+            .ReturnsAsync(vwCargo);
+
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(ISupabaseRestClient));
+                if (descriptor != null) services.Remove(descriptor);
+                services.AddScoped(_ => mockSupabase.Object);
+            });
+        }).CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var request = new RegistrarPagoAdminRequest
+        {
+            CargoId = cargoId,
+            Monto = 200m,
+            FechaPago = ObtenerHoyMexico(),
+            Metodo = MetodoPago.Efectivo
+        };
+
+        var response = await client.PostAsJsonAsync("/api/pagos", request);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var err = await response.Content.ReadFromJsonAsync<ErrorResponseDto>();
+        Assert.NotNull(err);
+        Assert.Equal(
+            codigoEsperado == "PG010" ? "El cargo ya está pagado" : "El cargo está cancelado o el estado no permite la operación",
+            err.Error);
+        mockSupabase.Verify(
+            s => s.RpcAsync<JsonElement>("rpc_registrar_pago", It.IsAny<object>(), It.IsAny<Guid?>()),
+            Times.Never);
+    }
+
+    /// <summary>
+    /// Caso 7b: Cargo Parcial con pago mayor al saldo pendiente => 201 (el excedente va a saldo a favor) con movimiento_saldo.
     /// </summary>
     [Fact]
-    public async Task RegistrarPago_Admin_CargoYaPagadoConExcedente_Retorna201ConMovimientoSaldo()
+    public async Task RegistrarPago_Admin_CargoParcialConExcedente_Retorna201ConMovimientoSaldo()
     {
         var adminId = Guid.NewGuid();
         var condominioId = Guid.NewGuid();
@@ -477,9 +540,9 @@ public class RegistroYReportePagosTests : IClassFixture<PagosApiFactory>
             ViviendaId = 1,
             NumeroCasa = "Casa 1",
             Monto = 1000m,
-            MontoPagadoConfirmado = 1000m,
-            SaldoPendiente = 0m,
-            Estado = EstadoCargo.Pagado
+            MontoPagadoConfirmado = 900m,
+            SaldoPendiente = 100m,
+            Estado = EstadoCargo.Parcial
         };
 
         var mockSupabase = new Mock<ISupabaseRestClient>();

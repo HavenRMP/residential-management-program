@@ -91,7 +91,8 @@ public class PagosConfirmacionAnulacionYConsultaTests : IClassFixture<PagosApiFa
         Guid condominioId,
         int viviendaId,
         decimal monto,
-        string motivo)
+        string motivo,
+        bool incluirReversa = true)
     {
         var pagoAnulado = new Dictionary<string, object?>
         {
@@ -143,7 +144,7 @@ public class PagosConfirmacionAnulacionYConsultaTests : IClassFixture<PagosApiFa
         var root = new Dictionary<string, object?>
         {
             ["pago_anulado"] = pagoAnulado,
-            ["pago_reversa"] = pagoReversa,
+            ["pago_reversa"] = incluirReversa ? pagoReversa : null,
             ["cargo"] = cargo,
             ["saldo_a_favor"] = 0m
         };
@@ -461,6 +462,62 @@ public class PagosConfirmacionAnulacionYConsultaTests : IClassFixture<PagosApiFa
         Assert.NotNull(body.Cargo);
         Assert.Equal(EstadoPago.Anulado, body.PagoAnulado.Estado);
         Assert.True(body.PagoReversa.EsReversa);
+    }
+
+    /// <summary>
+    /// Caso 5b: La RPC actual no crea pago de reversa (pago_reversa null) => 200 con pago_reversa null.
+    /// </summary>
+    [Fact]
+    public async Task AnularPago_Admin_RpcSinPagoReversa_Retorna200ConPagoReversaNull()
+    {
+        var adminId = Guid.NewGuid();
+        var condominioId = Guid.NewGuid();
+        var pagoId = Guid.NewGuid();
+        var cargoId = Guid.NewGuid();
+        var token = TestTokenGenerator.GenerateAdminToken(adminId, condominioId);
+
+        var vwPago = new VwPago
+        {
+            Id = pagoId,
+            CargoId = cargoId,
+            CondominioId = condominioId,
+            ViviendaId = 10,
+            NumeroCasa = "Casa 10",
+            Monto = 1000m,
+            Estado = EstadoPago.Confirmado,
+            EsReversa = false
+        };
+
+        var mockSupabase = new Mock<ISupabaseRestClient>();
+        mockSupabase
+            .Setup(s => s.GetSingleOrDefaultAsync<VwPago>("vw_pagos", $"id=eq.{pagoId}"))
+            .ReturnsAsync(vwPago);
+
+        var rpcResponse = CrearRpcAnularPagoResult(pagoId, Guid.NewGuid(), cargoId, condominioId, 10, 1000m, "Error en el monto pagado", incluirReversa: false);
+        mockSupabase
+            .Setup(s => s.RpcAsync<JsonElement>("rpc_anular_pago", It.IsAny<object>(), It.IsAny<Guid?>()))
+            .ReturnsAsync(rpcResponse);
+
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(ISupabaseRestClient));
+                if (descriptor != null) services.Remove(descriptor);
+                services.AddScoped(_ => mockSupabase.Object);
+            });
+        }).CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsJsonAsync($"/api/pagos/{pagoId}/anular", new AnularPagoRequest { Motivo = "Error en el monto pagado" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<AnularPagoResponse>();
+        Assert.NotNull(body);
+        Assert.Equal(EstadoPago.Anulado, body.PagoAnulado.Estado);
+        Assert.Null(body.PagoReversa);
+        Assert.NotNull(body.Cargo);
     }
 
     /// <summary>
