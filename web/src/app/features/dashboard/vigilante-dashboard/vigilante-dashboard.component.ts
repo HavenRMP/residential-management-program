@@ -1,5 +1,6 @@
 import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { UserMenuComponent } from '../../../core/components/user-menu/user-menu.component';
 import { CasetaVisitasComponent } from '../../visitas/caseta-visitas/caseta-visitas.component';
@@ -13,17 +14,19 @@ type Vista = 'caseta' | 'paquetes' | 'directorio' | 'reservas';
 @Component({
   selector: 'app-vigilante-dashboard',
   standalone: true,
-  imports: [CommonModule, UserMenuComponent, CasetaVisitasComponent, DirectorioCasasComponent, AvisosCasetaComponent, ReservasCasetaComponent, PaqueteriaCasetaComponent],
+  imports: [CommonModule, RouterLink, UserMenuComponent, CasetaVisitasComponent, DirectorioCasasComponent, AvisosCasetaComponent, ReservasCasetaComponent, PaqueteriaCasetaComponent],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="min-h-screen bg-[#F7F7F7] text-[#0f172a] font-sans antialiased">
       <!-- Navbar -->
       <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div class="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <img src="/haven-logo.png" alt="Haven" class="w-9 h-9 rounded-lg object-contain" />
-            <div>
+          <div class="flex items-center">
+            <a routerLink="/dashboard/vigilante" class="flex items-center gap-3 cursor-pointer rounded-lg focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]" aria-label="Haven, ir al panel de vigilancia">
+              <img src="/haven-logo.png" alt="" class="w-9 h-9 rounded-lg object-contain" />
               <span class="font-bold text-lg tracking-tight text-slate-900">Haven</span>
+            </a>
+            <div>
               <span class="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
                 Control de Caseta / Vigilancia
               </span>
