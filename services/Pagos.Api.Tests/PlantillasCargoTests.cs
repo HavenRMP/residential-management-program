@@ -606,6 +606,15 @@ public class PlantillasCargoTests : IClassFixture<PagosApiFactory>
                 It.IsAny<object>(),
                 adminId),
             Times.Once);
+
+        // Sin responsable_pago en el request no se envía al PATCH (columna NOT NULL en BD)
+        _factory.MockSupabaseRestClient.Verify(
+            c => c.PatchAsync<PlantillaInsertResult>(
+                "plantillas_cargo",
+                $"id=eq.{id}",
+                It.Is<IDictionary<string, object?>>(d => !d.ContainsKey("responsable_pago")),
+                adminId),
+            Times.Once);
     }
 
     [Fact]
