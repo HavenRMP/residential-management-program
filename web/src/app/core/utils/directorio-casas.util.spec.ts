@@ -1,5 +1,5 @@
 import { ViviendaConResidentes } from '../models/vivienda.model';
-import { filasDelDirectorio, filtrarDirectorio, normalizarBusqueda, ocupacionPorVivienda, telefonoParaLlamar, todasLasPersonas } from './directorio-casas.util';
+import { filasDelDirectorio, filtrarCasas, filtrarDirectorio, normalizarBusqueda, ocupacionPorVivienda, telefonoParaLlamar, todasLasPersonas } from './directorio-casas.util';
 
 const casas: ViviendaConResidentes[] = [
   {
@@ -99,5 +99,25 @@ describe('directorio-casas.util', () => {
     expect(filasDelDirectorio(casas, '  ').length).toBe(3);
     expect(filasDelDirectorio(casas, 'ana').map(f => f.nombreCompleto)).toEqual(['Ana López']);
     expect(filasDelDirectorio(casas, 'b-07').length).toBe(1);
+  });
+
+  describe('filtrarCasas', () => {
+    it('sin consulta devuelve todas las casas', () => {
+      expect(filtrarCasas(casas, '  ')).toBe(casas);
+    });
+
+    it('encuentra la casa por su número o por el nombre de un residente, sin acentos', () => {
+      expect(filtrarCasas(casas, 'b-07').map(c => c.id)).toEqual([2]);
+      expect(filtrarCasas(casas, 'perez').map(c => c.id)).toEqual([1]);
+    });
+
+    it('conserva todos los residentes de la casa que coincide', () => {
+      expect(filtrarCasas(casas, 'ana')[0].residentes.length).toBe(2);
+    });
+
+    it('encuentra por teléfono desde tres dígitos', () => {
+      expect(filtrarCasas(casas, '1234 56').map(c => c.id)).toEqual([1, 3]);
+      expect(filtrarCasas(casas, '55')).toEqual([]);
+    });
   });
 });
