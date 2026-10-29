@@ -102,6 +102,13 @@ describe('ResidenteDashboardComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  it('el logo lleva al portal del residente', () => {
+    const logo = fixture.nativeElement.querySelector('header a') as HTMLAnchorElement;
+
+    expect(logo.getAttribute('href')).toBe('/dashboard/residente');
+    expect(logo.textContent).toContain('Haven');
+  });
+
   describe('Componente de tarjeta de comunicado (#138)', () => {
     it('debe devolver la clase de badge correspondiente a la prioridad', () => {
       expect(component.getBadgeClass('urgente')).toContain('text-rose-700');
