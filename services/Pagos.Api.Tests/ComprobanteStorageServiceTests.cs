@@ -208,6 +208,33 @@ public class ComprobanteStorageServiceTests
         Assert.DoesNotContain(ServiceRoleKey, urlFirmada);
     }
 
+    /// <summary>
+    /// Formato real de Supabase: signedURL viene relativo a /storage/v1 ("/object/sign/...").
+    /// La URL devuelta debe incluir el prefijo /storage/v1 para que funcione.
+    /// </summary>
+    [Fact]
+    public async Task CrearUrlFirmadaAsync_SignedUrlSinPrefijoStorage_AgregaPrefijoStorageV1()
+    {
+        var ruta = $"{Guid.NewGuid()}/10/2026/10/{Guid.NewGuid()}.jpg";
+        var signedRelativeUrl = $"/object/sign/comprobantes/{ruta}?token=expiring-temp-token-xyz";
+
+        var mockHandler = new Mock<HttpMessageHandler>();
+        mockHandler.Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new { signedURL = signedRelativeUrl })
+            });
+
+        var service = CreateService(mockHandler.Object);
+        var urlFirmada = await service.CrearUrlFirmadaAsync(ruta, 600);
+
+        Assert.Equal($"{BaseUrl}/storage/v1{signedRelativeUrl}", urlFirmada);
+    }
+
     [Fact]
     public async Task CrearUrlFirmadaAsync_ObjetoNoExiste_LanzaKeyNotFoundException()
     {

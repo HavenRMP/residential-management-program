@@ -179,7 +179,13 @@ public class ComprobanteStorageService : IComprobanteStorageService
             return rawSignedUrl;
         }
 
+        // Supabase devuelve signedURL relativo a /storage/v1 (ej. "/object/sign/..."),
+        // así que hay que anteponer ese prefijo si no viene incluido.
         var relativePath = rawSignedUrl.StartsWith('/') ? rawSignedUrl : $"/{rawSignedUrl}";
+        if (!relativePath.StartsWith("/storage/v1/", StringComparison.OrdinalIgnoreCase))
+        {
+            relativePath = $"/storage/v1{relativePath}";
+        }
         return $"{_supabaseUrl}{relativePath}";
     }
 
