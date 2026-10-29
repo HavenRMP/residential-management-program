@@ -18,7 +18,7 @@ class PagosService {
         return envUrl.trim();
       }
     }
-    return 'https://pagos-api.onrender.com';
+    return 'https://pagos-api-2b2k.onrender.com';
   }
 
   Future<Map<String, String>> _getHeaders({bool isJson = true}) async {
@@ -49,6 +49,7 @@ class PagosService {
         request.headers['Authorization'] = 'Bearer $token';
       }
 
+      request.fields['vivienda_id'] = viviendaId.toString();
       request.fields['viviendaId'] = viviendaId.toString();
 
       final multipartFile = http.MultipartFile.fromBytes(
@@ -93,16 +94,30 @@ class PagosService {
     DateTime? fechaPago,
     String? folioComprobante,
     required String rutaComprobante,
+    String? hashComprobante,
+    String? bancoOrigen,
     String? notas,
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/api/pagos/reportar');
+      final date = fechaPago ?? DateTime.now();
+      final fechaStr = "${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
       final body = {
+        'cargo_id': cargoId,
         'cargoId': cargoId,
         'monto': monto,
         'metodo': metodo,
-        'fechaPago': (fechaPago ?? DateTime.now()).toUtc().toIso8601String(),
+        'fecha_pago': fechaStr,
+        'fechaPago': date.toUtc().toIso8601String(),
+        'referencia': folioComprobante ?? '',
         'folioComprobante': folioComprobante ?? '',
+        if (bancoOrigen != null && bancoOrigen.isNotEmpty) 'banco_origen': bancoOrigen,
+        'comprobante': {
+          'ruta': rutaComprobante,
+          if (hashComprobante != null) 'hash': hashComprobante,
+        },
+        'comprobante_ruta': rutaComprobante,
+        if (hashComprobante != null) 'comprobante_hash': hashComprobante,
         'rutaComprobante': rutaComprobante,
         if (notas != null && notas.isNotEmpty) 'notas': notas,
       };
@@ -138,17 +153,35 @@ class PagosService {
     DateTime? fechaPago,
     String? folioComprobante,
     String? rutaComprobante,
+    String? hashComprobante,
+    String? bancoOrigen,
     String? notas,
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/api/pagos');
+      final date = fechaPago ?? DateTime.now();
+      final fechaStr = "${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
       final body = {
+        'cargo_id': cargoId,
         'cargoId': cargoId,
         'monto': monto,
         'metodo': metodo,
-        'fechaPago': (fechaPago ?? DateTime.now()).toUtc().toIso8601String(),
-        'folioComprobante': folioComprobante,
-        'rutaComprobante': rutaComprobante,
+        'fecha_pago': fechaStr,
+        'fechaPago': date.toUtc().toIso8601String(),
+        if (folioComprobante != null) ...{
+          'referencia': folioComprobante,
+          'folioComprobante': folioComprobante,
+        },
+        if (bancoOrigen != null && bancoOrigen.isNotEmpty) 'banco_origen': bancoOrigen,
+        if (rutaComprobante != null && rutaComprobante.isNotEmpty) ...{
+          'comprobante': {
+            'ruta': rutaComprobante,
+            if (hashComprobante != null) 'hash': hashComprobante,
+          },
+          'comprobante_ruta': rutaComprobante,
+          if (hashComprobante != null) 'comprobante_hash': hashComprobante,
+          'rutaComprobante': rutaComprobante,
+        },
         if (notas != null && notas.isNotEmpty) 'notas': notas,
       };
 
@@ -266,15 +299,29 @@ class PagosService {
   }) async {
     try {
       final queryParams = <String, String>{
+        'page': pagina.toString(),
+        'pageSize': tamanoPagina.toString(),
         'pagina': pagina.toString(),
         'tamanoPagina': tamanoPagina.toString(),
-        if (viviendaId != null) 'viviendaId': viviendaId.toString(),
-        if (cargoId != null && cargoId.isNotEmpty) 'cargoId': cargoId,
+        if (viviendaId != null) ...{
+          'vivienda_id': viviendaId.toString(),
+          'viviendaId': viviendaId.toString(),
+        },
+        if (cargoId != null && cargoId.isNotEmpty) ...{
+          'cargo_id': cargoId,
+          'cargoId': cargoId,
+        },
         if (estado != null && estado.isNotEmpty) 'estado': estado,
         if (metodo != null && metodo.isNotEmpty) 'metodo': metodo,
         if (origen != null && origen.isNotEmpty) 'origen': origen,
-        if (desde != null) 'desde': desde.toUtc().toIso8601String(),
-        if (hasta != null) 'hasta': hasta.toUtc().toIso8601String(),
+        if (desde != null) ...{
+          'fecha_pago_desde': "${desde.year.toString().padLeft(4, '0')}-${desde.month.toString().padLeft(2, '0')}-${desde.day.toString().padLeft(2, '0')}",
+          'desde': desde.toUtc().toIso8601String(),
+        },
+        if (hasta != null) ...{
+          'fecha_pago_hasta': "${hasta.year.toString().padLeft(4, '0')}-${hasta.month.toString().padLeft(2, '0')}-${hasta.day.toString().padLeft(2, '0')}",
+          'hasta': hasta.toUtc().toIso8601String(),
+        },
       };
 
       final uri = Uri.parse('$baseUrl/api/pagos').replace(queryParameters: queryParams);
@@ -333,8 +380,8 @@ class PagosService {
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
-        if (decoded is Map && decoded['urlFirmada'] != null) {
-          return decoded['urlFirmada'].toString();
+        if (decoded is Map && (decoded['url'] != null || decoded['urlFirmada'] != null)) {
+          return (decoded['url'] ?? decoded['urlFirmada']).toString();
         }
         throw Exception('URL firmada no encontrada en la respuesta');
       } else {
@@ -368,10 +415,12 @@ class PagosService {
     try {
       final uri = Uri.parse('$baseUrl/api/cargos');
       final body = {
+        'vivienda_id': viviendaId,
         'viviendaId': viviendaId,
         'tipo': tipo,
         'concepto': concepto,
         'monto': monto,
+        'fecha_vencimiento': fechaVencimiento,
         'fechaVencimiento': fechaVencimiento,
         'periodo': periodo,
         if (notas != null && notas.isNotEmpty) 'notas': notas,
@@ -412,13 +461,21 @@ class PagosService {
   }) async {
     try {
       final queryParams = <String, String>{
+        'page': pagina.toString(),
+        'pageSize': tamanoPagina.toString(),
         'pagina': pagina.toString(),
         'tamanoPagina': tamanoPagina.toString(),
-        if (viviendaId != null) 'viviendaId': viviendaId.toString(),
+        if (viviendaId != null) ...{
+          'vivienda_id': viviendaId.toString(),
+          'viviendaId': viviendaId.toString(),
+        },
         if (estado != null && estado.isNotEmpty) 'estado': estado,
         if (tipo != null && tipo.isNotEmpty) 'tipo': tipo,
         if (periodo != null && periodo.isNotEmpty) 'periodo': periodo,
-        if (vencidosSolo != null) 'vencidosSolo': vencidosSolo.toString(),
+        if (vencidosSolo != null) ...{
+          'vencido': vencidosSolo.toString(),
+          'vencidosSolo': vencidosSolo.toString(),
+        },
       };
 
       final uri = Uri.parse('$baseUrl/api/cargos').replace(queryParameters: queryParams);
@@ -565,9 +622,15 @@ class PagosService {
         'concepto': concepto,
         'tipo': tipo,
         'monto': monto,
+        'dia_vencimiento': diaVencimiento,
         'diaVencimiento': diaVencimiento,
+        'vigencia_inicio': vigenciaInicio,
         'vigenciaInicio': vigenciaInicio,
-        'vigenciaFin': vigenciaFin,
+        if (vigenciaFin != null) ...{
+          'vigencia_fin': vigenciaFin,
+          'vigenciaFin': vigenciaFin,
+        },
+        'responsable_pago': responsablePago,
         'responsablePago': responsablePago,
         'viviendas': viviendas,
       };

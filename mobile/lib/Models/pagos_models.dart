@@ -108,8 +108,8 @@ class ComprobanteUploadResponse {
     return ComprobanteUploadResponse(
       ruta: json['ruta']?.toString() ?? '',
       hash: json['hash']?.toString() ?? '',
-      tamanoBytes: (json['tamanoBytes'] as num?)?.toInt() ?? 0,
-      contentType: json['contentType']?.toString() ?? 'image/jpeg',
+      tamanoBytes: (json['tamanoBytes'] ?? json['tamano_bytes'] as num?)?.toInt() ?? 0,
+      contentType: json['contentType']?.toString() ?? json['content_type']?.toString() ?? 'image/jpeg',
     );
   }
 
@@ -139,11 +139,12 @@ class PagoAsociadoModel {
 
   factory PagoAsociadoModel.fromJson(Map<String, dynamic> json) {
     DateTime? parsedFecha;
-    if (json['fechaPago'] != null) {
-      parsedFecha = DateTime.tryParse(json['fechaPago'].toString());
+    final f = json['fecha_pago'] ?? json['fechaPago'];
+    if (f != null) {
+      parsedFecha = DateTime.tryParse(f.toString());
     }
     return PagoAsociadoModel(
-      pagoId: json['pagoId']?.toString() ?? '',
+      pagoId: json['pago_id']?.toString() ?? json['id']?.toString() ?? json['pagoId']?.toString() ?? '',
       monto: (json['monto'] as num?)?.toDouble() ?? 0.0,
       fechaPago: parsedFecha,
       metodo: json['metodo']?.toString() ?? MetodoPago.otro,
@@ -203,22 +204,24 @@ class CargoModel {
   }
 
   factory CargoModel.fromJson(Map<String, dynamic> json) {
-    final pagosRaw = json['pagosAsociados'] as List<dynamic>? ?? [];
+    final pagosRaw = (json['pagos'] ?? json['pagosAsociados'] ?? json['pagos_asociados']) as List<dynamic>? ?? [];
+    final montoVal = (json['monto'] as num?)?.toDouble() ?? 0.0;
+    final pagadoVal = (json['monto_pagado_confirmado'] ?? json['montoPagado'] as num?)?.toDouble() ?? 0.0;
+    final saldoVal = (json['saldo_pendiente'] ?? json['saldoPendiente'] as num?)?.toDouble() ?? (montoVal - pagadoVal);
+
     return CargoModel(
       id: json['id']?.toString() ?? '',
-      viviendaId: (json['viviendaId'] as num?)?.toInt() ?? 0,
-      numeroCasa: json['numeroCasa']?.toString(),
+      viviendaId: (json['vivienda_id'] ?? json['viviendaId'] as num?)?.toInt() ?? 0,
+      numeroCasa: json['numero_casa']?.toString() ?? json['numeroCasa']?.toString(),
       tipo: json['tipo']?.toString() ?? TipoCargo.mantenimiento,
       concepto: json['concepto']?.toString() ?? 'Cargo',
-      monto: (json['monto'] as num?)?.toDouble() ?? 0.0,
-      montoPagado: (json['montoPagado'] as num?)?.toDouble() ?? 0.0,
-      saldoPendiente: (json['saldoPendiente'] as num?)?.toDouble() ??
-          ((json['monto'] as num?)?.toDouble() ?? 0.0) -
-              ((json['montoPagado'] as num?)?.toDouble() ?? 0.0),
+      monto: montoVal,
+      montoPagado: pagadoVal,
+      saldoPendiente: saldoVal,
       estado: json['estado']?.toString() ?? EstadoCargo.pendiente,
-      fechaVencimiento: json['fechaVencimiento']?.toString(),
+      fechaVencimiento: json['fecha_vencimiento']?.toString() ?? json['fechaVencimiento']?.toString(),
       periodo: json['periodo']?.toString(),
-      notas: json['notas']?.toString(),
+      notas: json['motivo_cancelacion']?.toString() ?? json['notas']?.toString(),
       pagosAsociados: pagosRaw
           .whereType<Map<String, dynamic>>()
           .map((p) => PagoAsociadoModel.fromJson(p))
@@ -281,29 +284,31 @@ class PagoModel {
 
   factory PagoModel.fromJson(Map<String, dynamic> json) {
     DateTime? parsedFechaPago;
-    if (json['fechaPago'] != null) {
-      parsedFechaPago = DateTime.tryParse(json['fechaPago'].toString());
+    final fPago = json['fecha_pago'] ?? json['fechaPago'];
+    if (fPago != null) {
+      parsedFechaPago = DateTime.tryParse(fPago.toString());
     }
     DateTime? parsedFechaRegistro;
-    if (json['fechaRegistro'] != null) {
-      parsedFechaRegistro = DateTime.tryParse(json['fechaRegistro'].toString());
+    final fReg = json['creado_en'] ?? json['fecha_registro'] ?? json['fechaRegistro'];
+    if (fReg != null) {
+      parsedFechaRegistro = DateTime.tryParse(fReg.toString());
     }
 
     return PagoModel(
       id: json['id']?.toString() ?? json['pagoId']?.toString() ?? '',
-      cargoId: json['cargoId']?.toString(),
-      viviendaId: (json['viviendaId'] as num?)?.toInt(),
-      numeroCasa: json['numeroCasa']?.toString(),
-      conceptoCargo: json['conceptoCargo']?.toString(),
+      cargoId: json['cargo_id']?.toString() ?? json['cargoId']?.toString(),
+      viviendaId: (json['vivienda_id'] ?? json['viviendaId'] as num?)?.toInt(),
+      numeroCasa: json['numero_casa']?.toString() ?? json['numeroCasa']?.toString(),
+      conceptoCargo: json['cargo_concepto']?.toString() ?? json['conceptoCargo']?.toString(),
       monto: (json['monto'] as num?)?.toDouble() ?? 0.0,
       metodo: json['metodo']?.toString() ?? MetodoPago.otro,
       fechaPago: parsedFechaPago,
-      folioComprobante: json['folioComprobante']?.toString(),
-      rutaComprobante: json['rutaComprobante']?.toString(),
+      folioComprobante: json['referencia']?.toString() ?? json['folioComprobante']?.toString(),
+      rutaComprobante: json['ruta_comprobante']?.toString() ?? json['rutaComprobante']?.toString(),
       notas: json['notas']?.toString(),
       estado: json['estado']?.toString() ?? EstadoPago.pendienteConfirmacion,
       origen: json['origen']?.toString() ?? OrigenPago.inquilino,
-      motivoRechazo: json['motivoRechazo']?.toString() ?? json['motivo']?.toString(),
+      motivoRechazo: json['motivo_rechazo']?.toString() ?? json['motivoRechazo']?.toString() ?? json['motivo']?.toString(),
       fechaRegistro: parsedFechaRegistro,
     );
   }
@@ -347,12 +352,12 @@ class SaldoViviendaResumen {
 
   factory SaldoViviendaResumen.fromJson(Map<String, dynamic> json) {
     return SaldoViviendaResumen(
-      viviendaId: (json['viviendaId'] as num?)?.toInt() ?? 0,
-      numeroCasa: json['numeroCasa']?.toString() ?? '',
-      totalPendiente: (json['totalPendiente'] as num?)?.toDouble() ?? 0.0,
-      totalVencido: (json['totalVencido'] as num?)?.toDouble() ?? 0.0,
-      totalCargosAbiertos: (json['totalCargosAbiertos'] as num?)?.toInt() ?? 0,
-      saldoAFavor: (json['saldoAFavor'] as num?)?.toDouble() ?? 0.0,
+      viviendaId: (json['vivienda_id'] ?? json['viviendaId'] as num?)?.toInt() ?? 0,
+      numeroCasa: json['numero_casa']?.toString() ?? json['numeroCasa']?.toString() ?? '',
+      totalPendiente: (json['total_pendiente'] ?? json['totalPendiente'] as num?)?.toDouble() ?? 0.0,
+      totalVencido: (json['total_vencido'] ?? json['totalVencido'] as num?)?.toDouble() ?? 0.0,
+      totalCargosAbiertos: (json['total_cargos_abiertos'] ?? json['totalCargosAbiertos'] as num?)?.toInt() ?? 0,
+      saldoAFavor: (json['saldo_a_favor'] ?? json['saldoAFavor'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -385,10 +390,10 @@ class MiSaldoResponse {
   factory MiSaldoResponse.fromJson(Map<String, dynamic> json) {
     final vivsRaw = json['viviendas'] as List<dynamic>? ?? [];
     return MiSaldoResponse(
-      totalPendiente: (json['totalPendiente'] as num?)?.toDouble() ?? 0.0,
-      totalVencido: (json['totalVencido'] as num?)?.toDouble() ?? 0.0,
-      totalCargosAbiertos: (json['totalCargosAbiertos'] as num?)?.toInt() ?? 0,
-      saldoAFavor: (json['saldoAFavor'] as num?)?.toDouble() ?? 0.0,
+      totalPendiente: (json['total_pendiente'] ?? json['totalPendiente'] as num?)?.toDouble() ?? 0.0,
+      totalVencido: (json['total_vencido'] ?? json['totalVencido'] as num?)?.toDouble() ?? 0.0,
+      totalCargosAbiertos: (json['total_cargos_abiertos'] ?? json['totalCargosAbiertos'] as num?)?.toInt() ?? 0,
+      saldoAFavor: (json['saldo_a_favor'] ?? json['saldoAFavor'] as num?)?.toDouble() ?? 0.0,
       viviendas: vivsRaw
           .whereType<Map<String, dynamic>>()
           .map((v) => SaldoViviendaResumen.fromJson(v))
@@ -431,19 +436,20 @@ class MovimientoSaldoModel {
 
   factory MovimientoSaldoModel.fromJson(Map<String, dynamic> json) {
     DateTime? parsedFecha;
-    if (json['fecha'] != null) {
-      parsedFecha = DateTime.tryParse(json['fecha'].toString());
+    final f = json['creado_en'] ?? json['fecha'];
+    if (f != null) {
+      parsedFecha = DateTime.tryParse(f.toString());
     }
     return MovimientoSaldoModel(
       id: json['id']?.toString() ?? '',
-      viviendaId: (json['viviendaId'] as num?)?.toInt() ?? 0,
+      viviendaId: (json['vivienda_id'] ?? json['viviendaId'] as num?)?.toInt() ?? 0,
       tipo: json['tipo']?.toString() ?? TipoMovimientoSaldo.abono,
       monto: (json['monto'] as num?)?.toDouble() ?? 0.0,
-      saldoAnterior: (json['saldoAnterior'] as num?)?.toDouble() ?? 0.0,
-      saldoNuevo: (json['saldoNuevo'] as num?)?.toDouble() ?? 0.0,
+      saldoAnterior: (json['saldo_anterior'] ?? json['saldoAnterior'] as num?)?.toDouble() ?? 0.0,
+      saldoNuevo: (json['saldo_nuevo'] ?? json['saldoNuevo'] as num?)?.toDouble() ?? 0.0,
       fecha: parsedFecha,
-      concepto: json['concepto']?.toString(),
-      referenciaId: json['referenciaId']?.toString(),
+      concepto: json['motivo']?.toString() ?? json['concepto']?.toString(),
+      referenciaId: json['pago_id']?.toString() ?? json['cargo_id']?.toString() ?? json['referencia_id']?.toString() ?? json['referenciaId']?.toString(),
     );
   }
 
