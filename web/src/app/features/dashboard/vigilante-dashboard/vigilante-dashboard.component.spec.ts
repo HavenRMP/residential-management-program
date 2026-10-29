@@ -1,6 +1,7 @@
 import { Component, EventEmitter, Input, Output, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { RouterLink, provideRouter } from '@angular/router';
 import { VigilanteDashboardComponent } from './vigilante-dashboard.component';
 import { AuthService } from '../../../core/services/auth.service';
 
@@ -35,12 +36,19 @@ describe('VigilanteDashboardComponent', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       imports: [VigilanteDashboardComponent],
-      providers: [{ provide: AuthService, useValue: { currentUser: signal(null), logout: () => undefined } }]
+      providers: [provideRouter([]), { provide: AuthService, useValue: { currentUser: signal(null), logout: () => undefined } }]
     }).overrideComponent(VigilanteDashboardComponent, {
-      set: { imports: [CommonModule, UserMenuStub, CasetaStub, DirectorioStub, AvisosStub, ReservasStub, PaquetesStub] }
+      set: { imports: [CommonModule, RouterLink, UserMenuStub, CasetaStub, DirectorioStub, AvisosStub, ReservasStub, PaquetesStub] }
     });
     fixture = TestBed.createComponent(VigilanteDashboardComponent);
     fixture.detectChanges();
+  });
+
+  it('el logo lleva al panel de vigilancia', () => {
+    const logo = fixture.nativeElement.querySelector('header a') as HTMLAnchorElement;
+
+    expect(logo.getAttribute('href')).toBe('/dashboard/vigilante');
+    expect(logo.textContent).toContain('Haven');
   });
 
   it('abre en la vista de Caseta, con los avisos al lado, y oculta el directorio', () => {
