@@ -9,6 +9,7 @@ import { filtrarCasas } from '../../../core/utils/directorio-casas.util';
   standalone: true,
   imports: [FormsModule],
   changeDetection: ChangeDetectionStrategy.Eager,
+  host: { class: 'flex flex-col min-h-0 h-full' },
   template: `
     <div class="flex flex-col min-h-0 h-full">
       <label for="selector-vivienda-buscar" class="block text-xs font-semibold text-slate-800 mb-1">Vivienda *</label>
