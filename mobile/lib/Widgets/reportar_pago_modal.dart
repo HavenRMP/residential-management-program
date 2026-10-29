@@ -47,6 +47,7 @@ class _ReportarPagoModalState extends State<ReportarPagoModal> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _montoController;
   late final TextEditingController _folioController;
+  late final TextEditingController _bancoController;
   late final TextEditingController _notasController;
 
   String _metodoSeleccionado = MetodoPago.transferencia;
@@ -56,6 +57,7 @@ class _ReportarPagoModalState extends State<ReportarPagoModal> {
   bool _isUploadingFile = false;
   String? _uploadError;
   String? _rutaComprobante;
+  String? _hashComprobante;
   String? _archivoNombre;
   int? _tamanoBytes;
 
@@ -70,6 +72,7 @@ class _ReportarPagoModalState extends State<ReportarPagoModal> {
           : widget.cargo.monto.toStringAsFixed(2),
     );
     _folioController = TextEditingController();
+    _bancoController = TextEditingController();
     _notasController = TextEditingController();
   }
 
@@ -77,6 +80,7 @@ class _ReportarPagoModalState extends State<ReportarPagoModal> {
   void dispose() {
     _montoController.dispose();
     _folioController.dispose();
+    _bancoController.dispose();
     _notasController.dispose();
     super.dispose();
   }
@@ -124,6 +128,7 @@ class _ReportarPagoModalState extends State<ReportarPagoModal> {
         setState(() {
           _isUploadingFile = false;
           _rutaComprobante = uploadResult.ruta;
+          _hashComprobante = uploadResult.hash;
           _uploadError = null;
         });
         widget.controller.notifyToast('Comprobante subido y optimizado.', success: true);
@@ -181,7 +186,11 @@ class _ReportarPagoModalState extends State<ReportarPagoModal> {
         folioComprobante: _folioController.text.trim().isNotEmpty
             ? _folioController.text.trim()
             : null,
+        bancoOrigen: _bancoController.text.trim().isNotEmpty
+            ? _bancoController.text.trim()
+            : null,
         rutaComprobante: _rutaComprobante!,
+        hashComprobante: _hashComprobante,
         notas: _notasController.text.trim().isNotEmpty
             ? _notasController.text.trim()
             : null,
@@ -458,6 +467,34 @@ class _ReportarPagoModalState extends State<ReportarPagoModal> {
                   controller: _folioController,
                   decoration: InputDecoration(
                     hintText: 'Ej. TRF-908234 o Clave de rastreo',
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Banco Origen
+                const Text(
+                  'Banco de Origen (opcional)',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF334155),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: _bancoController,
+                  decoration: InputDecoration(
+                    hintText: 'Ej. BBVA, Santander, Banorte, STP...',
                     filled: true,
                     fillColor: const Color(0xFFF8FAFC),
                     border: OutlineInputBorder(
