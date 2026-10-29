@@ -69,6 +69,26 @@ export function filtrarDirectorio(casas: ViviendaConResidentes[], consulta: stri
   return filas;
 }
 
+/**
+ * Casas que coinciden con la consulta por número, nombre, apellidos o teléfono de sus residentes, con todos sus
+ * residentes. Sin consulta devuelve todas, en el orden recibido.
+ */
+export function filtrarCasas(casas: ViviendaConResidentes[], consulta: string): ViviendaConResidentes[] {
+  const q = normalizarBusqueda(consulta);
+  if (!q) return casas;
+  const qDigitos = q.replace(/\D/g, '');
+
+  return casas.filter(
+    casa =>
+      normalizarBusqueda(casa.numeroCasa).includes(q) ||
+      casa.residentes.some(
+        r =>
+          normalizarBusqueda(`${r.nombre} ${r.apellidos}`).includes(q) ||
+          (qDigitos.length >= 3 && telefonoParaLlamar(r.telefono).includes(qDigitos))
+      )
+  );
+}
+
 /** Cuántos residentes tiene una casa y si cuenta como ocupada */
 export interface OcupacionCasa {
   ocupada: boolean;
