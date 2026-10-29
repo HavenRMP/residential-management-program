@@ -10,7 +10,7 @@ export const environment = {
     avisos: (import.meta as any).env?.['NG_APP_AVISOS_API_URL'] || 'https://avisos-api-qg5b.onrender.com',
     visitas: (import.meta as any).env?.['NG_APP_VISITAS_API_URL'] || 'https://visitas-api-r66s.onrender.com',
     reservas: (import.meta as any).env?.['NG_APP_RESERVAS_API_URL'] || 'https://reservas-api-hmos.onrender.com',
-    pagos: (import.meta as any).env?.['NG_APP_PAGOS_API_URL'] || 'https://pagos-api.onrender.com'
+    pagos: (import.meta as any).env?.['NG_APP_PAGOS_API_URL'] || 'https://pagos-api-2b2k.onrender.com'
   },
   get apiUrl(): string { return this.services.default; },
   get usuariosApiUrl(): string { return this.services.usuarios; }
