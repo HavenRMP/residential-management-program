@@ -31,10 +31,12 @@ import { claseBadgePrioridad, etiquetaPrioridad, tiempoRestanteAviso } from '../
       <!-- Top Navbar Spartan UI -->
       <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
         <div class="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <img src="/haven-logo.png" alt="Haven" class="w-7 h-7 rounded-lg object-contain" />
-            <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2">
+            <a routerLink="/dashboard/residente" class="flex items-center gap-3 cursor-pointer rounded-lg focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#111C99]" aria-label="Haven, ir al portal del residente">
+              <img src="/haven-logo.png" alt="" class="w-7 h-7 rounded-lg object-contain" />
               <span class="font-bold text-base tracking-tight text-slate-900">Haven</span>
+            </a>
+            <div class="flex items-center gap-2">
               <span class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-200 text-slate-800 border border-slate-300">
                 Residente
               </span>
