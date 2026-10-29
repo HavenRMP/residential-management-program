@@ -160,6 +160,18 @@ public class PagosService : IPagosService
             throw new KeyNotFoundException("Cargo no encontrado.");
         }
 
+        // Mismas reglas de estado que el reporte del inquilino: no se registran pagos
+        // sobre cargos cancelados o ya pagados (evita convertir un error en saldo a favor).
+        if (cargoActual.Estado == EstadoCargo.Cancelado)
+        {
+            throw new PostgrestException(409, "PG001", "El cargo está cancelado o el estado no permite la operación");
+        }
+
+        if (cargoActual.Estado == EstadoCargo.Pagado)
+        {
+            throw new PostgrestException(409, "PG010", "El cargo ya está pagado");
+        }
+
         // 7. Llamar a la RPC rpc_registrar_pago
         var payload = new Dictionary<string, object?>
         {
@@ -776,7 +788,7 @@ public class PagosService : IPagosService
                 "Saldo a favor insuficiente para revertir el abono del pago. Primero deben revertirse las aplicaciones de saldo hechas a otros cargos.");
         }
 
-        // 3. Responde 200 con { pago_anulado, pago_reversa, cargo, movimiento_saldo (o null), saldo_a_favor }
+        // 3. Responde 200 con { pago_anulado, pago_reversa (o null), cargo, movimiento_saldo (o null), saldo_a_favor }
         PagoResponse? pagoAnuladoResponse = null;
         if (rpcResult.ValueKind == JsonValueKind.Object && rpcResult.TryGetProperty("pago_anulado", out var pagoAnuladoElem) && pagoAnuladoElem.ValueKind == JsonValueKind.Object)
         {
@@ -850,19 +862,9 @@ public class PagosService : IPagosService
             }
         }
 
-        if (pagoReversaResponse == null)
-        {
-            var vwPagoRev = await _supabaseClient.GetSingleOrDefaultAsync<VwPago>("vw_pagos", $"pago_original_id=eq.{id}&es_reversa=eq.true");
-            if (vwPagoRev != null)
-            {
-                pagoReversaResponse = vwPagoRev.ToResponse();
-            }
-        }
-
-        if (pagoReversaResponse == null)
-        {
-            throw new InvalidOperationException("No se pudo obtener la información del pago de reversa.");
-        }
+        // La BD ya no crea un pago de reversa al anular: marca el pago como Anulado,
+        // retira su cobertura del cargo y, si hubo abono, registra un ReversoAbono.
+        // pago_reversa queda en null salvo que la RPC lo devuelva.
 
         // Cargo
         CargoResponse? cargoResponse = null;

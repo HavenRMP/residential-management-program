@@ -13,6 +13,11 @@ public class ComprobantesController : ControllerBase
 {
     private const long MaxFileSizeBytes = 5 * 1024 * 1024; // 5 MB
 
+    // Tope del cuerpo HTTP completo. Es mayor que MaxFileSizeBytes para que el overhead
+    // multipart no rechace archivos válidos y para que los archivos de 5-10 MB lleguen
+    // al controlador y reciban 413 con mensaje claro (si el cuerpo excede el tope, ASP.NET responde 400 genérico).
+    private const long MaxRequestBodyBytes = 10 * 1024 * 1024; // 10 MB
+
     private readonly IComprobanteProcessor _comprobanteProcessor;
     private readonly IComprobanteStorageService _comprobanteStorageService;
     private readonly IUserContextService _userContextService;
@@ -40,7 +45,8 @@ public class ComprobantesController : ControllerBase
     /// <param name="cancellationToken">Token de cancelación.</param>
     [HttpPost]
     [Consumes("multipart/form-data")]
-    [RequestSizeLimit(MaxFileSizeBytes)]
+    [RequestSizeLimit(MaxRequestBodyBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = MaxRequestBodyBytes)]
     [ProducesResponseType(typeof(ComprobanteSubidoResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

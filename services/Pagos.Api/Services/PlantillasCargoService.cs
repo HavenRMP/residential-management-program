@@ -338,16 +338,21 @@ public class PlantillasCargoService : IPlantillasCargoService
         }
 
         // 4. Regla 6: PATCH directo sobre plantillas_cargo con header x-actor-id, modificado_por y modificado_en
-        var patchData = new
+        var patchData = new Dictionary<string, object?>
         {
-            monto = request.Monto,
-            dia_vencimiento = request.DiaVencimiento,
-            vigencia_fin = request.VigenciaFin,
-            responsable_pago = request.ResponsablePago,
-            concepto = conceptoLimpio,
-            modificado_por = _userContextService.UserId,
-            modificado_en = _timeProvider.GetUtcNow()
+            ["monto"] = request.Monto,
+            ["dia_vencimiento"] = request.DiaVencimiento,
+            ["vigencia_fin"] = request.VigenciaFin,
+            ["concepto"] = conceptoLimpio,
+            ["modificado_por"] = _userContextService.UserId,
+            ["modificado_en"] = _timeProvider.GetUtcNow()
         };
+
+        // responsable_pago es NOT NULL en BD: si no se envía, se conserva el valor actual.
+        if (request.ResponsablePago.HasValue)
+        {
+            patchData["responsable_pago"] = request.ResponsablePago.Value.ToString();
+        }
 
         try
         {
