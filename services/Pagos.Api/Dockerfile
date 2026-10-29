@@ -20,6 +20,12 @@ RUN dotnet publish -c Release -o /app/publish --no-restore
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
+# SkiaSharp (procesamiento de comprobantes) necesita libfontconfig en Linux;
+# sin ella, toda subida de imagen falla con 500.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libfontconfig1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copiar el artefacto publicado del stage anterior
 COPY --from=build /app/publish ./
 
