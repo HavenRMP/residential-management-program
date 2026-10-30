@@ -15,7 +15,7 @@ dependencies:
   http: ^1.4.0
   supabase_flutter: ^2.10.0
   firebase_core: ^4.15.0
-  firebase_messaging: ^16.7.0
+  firebase_messaging: ^16.7.1
   flutter_local_notifications: ^22.3.1
   permission_handler: ^11.3.1
   shared_preferences: ^2.5.5
