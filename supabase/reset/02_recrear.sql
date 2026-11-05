@@ -1,109 +1,26 @@
 -- ==============================================================================
--- HAVEN - Reconstruccion completa de la base de datos
+-- HAVEN - Paso 2 de 3: recrear la estructura
 -- ------------------------------------------------------------------------------
--- Tira y vuelve a levantar todo: esquema public (tablas, vistas, funciones,
--- tipos, triggers, RLS, permisos), cuentas de auth, triggers sobre auth.users,
--- bucket y politicas de storage, event trigger de RLS, cron jobs y datos semilla.
+-- Crea el esquema public (tablas, vistas, funciones, tipos, triggers, RLS y
+-- permisos), los triggers sobre auth.users, el bucket y las politicas de storage,
+-- el event trigger de RLS y los cron jobs. No carga datos.
+-- Requiere haber ejecutado antes 01_tirar.sql.
 --
--- Es idempotente: se puede ejecutar cuantas veces se quiera.
--- Corre en una sola transaccion: si algo falla, no se aplica nada.
---
+-- Orden de ejecucion: 01_tirar.sql -> 02_recrear.sql -> 03_seed.sql
+-- Cada archivo corre en su propia transaccion: si algo falla, ese paso no se aplica.
 -- Ejecutar desde el SQL Editor de Supabase o con:
---   psql "<connection string session pooler>" -v ON_ERROR_STOP=1 -f supabase/reset_full.sql
---
--- Cuenta de administrador garantizada:  admin@haven.com / AdminPassword1
---
--- No se borran los archivos ya subidos a storage (Supabase no permite borrarlos
--- por SQL); para vaciarlos usar el dashboard o la API de Storage.
+--   psql "<connection string session pooler>" -v ON_ERROR_STOP=1 -f supabase/reset/<archivo>
 -- ==============================================================================
 
 BEGIN;
 
--- ------------------------------------------------------------------------------
--- 0. Extensiones requeridas
--- ------------------------------------------------------------------------------
+-- 2.0 Extensiones requeridas
 CREATE EXTENSION IF NOT EXISTS pgcrypto    WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE EXTENSION IF NOT EXISTS btree_gist  WITH SCHEMA public;
 
--- ------------------------------------------------------------------------------
--- 1. Demolicion
--- ------------------------------------------------------------------------------
-
--- 1.1 Cron jobs
-SELECT cron.unschedule(jobid) FROM cron.job;
-
--- 1.2 Event trigger que activa RLS automaticamente
-DROP EVENT TRIGGER IF EXISTS ensure_rls;
-
--- 1.3 Triggers sobre auth.users que apuntan a funciones de public
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-DROP TRIGGER IF EXISTS on_auth_user_metadata_updated ON auth.users;
-
--- 1.4 Politicas de storage
-DROP POLICY IF EXISTS comprobantes_admin_insert ON storage.objects;
-DROP POLICY IF EXISTS comprobantes_admin_select ON storage.objects;
-DROP POLICY IF EXISTS comprobantes_residente_insert ON storage.objects;
-DROP POLICY IF EXISTS comprobantes_residente_select ON storage.objects;
-
--- 1.5 Todos los objetos del esquema public (menos los de extensiones)
-DO $$
-DECLARE
-  v_obj text;
-BEGIN
-  FOREACH v_obj IN ARRAY ARRAY(
-    SELECT format('DROP %s IF EXISTS %I.%I CASCADE',
-                  CASE c.relkind WHEN 'm' THEN 'MATERIALIZED VIEW' ELSE 'VIEW' END,
-                  n.nspname, c.relname)
-    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-    WHERE n.nspname = 'public' AND c.relkind IN ('v', 'm')
-      AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'e')
-    UNION ALL
-    SELECT format('DROP TABLE IF EXISTS %I.%I CASCADE', n.nspname, c.relname)
-    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-    WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'f')
-      AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'e')
-  ) LOOP
-    EXECUTE v_obj;
-  END LOOP;
-
-  FOREACH v_obj IN ARRAY ARRAY(
-    SELECT format('DROP SEQUENCE IF EXISTS %I.%I CASCADE', n.nspname, c.relname)
-    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-    WHERE n.nspname = 'public' AND c.relkind = 'S'
-      AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'e')
-    UNION ALL
-    SELECT format('DROP %s IF EXISTS %I.%I(%s) CASCADE',
-                  CASE p.prokind WHEN 'a' THEN 'AGGREGATE' WHEN 'p' THEN 'PROCEDURE' ELSE 'FUNCTION' END,
-                  n.nspname, p.proname, pg_get_function_identity_arguments(p.oid))
-    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-    WHERE n.nspname = 'public'
-      AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
-  ) LOOP
-    EXECUTE v_obj;
-  END LOOP;
-
-  FOREACH v_obj IN ARRAY ARRAY(
-    SELECT format('DROP %s IF EXISTS %I.%I CASCADE',
-                  CASE t.typtype WHEN 'd' THEN 'DOMAIN' ELSE 'TYPE' END,
-                  n.nspname, t.typname)
-    FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
-    WHERE n.nspname = 'public' AND t.typtype IN ('e', 'd', 'c', 'r')
-      AND (t.typrelid = 0 OR (SELECT c.relkind FROM pg_class c WHERE c.oid = t.typrelid) = 'c')
-      AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = t.oid AND d.deptype = 'e')
-  ) LOOP
-    EXECUTE v_obj;
-  END LOOP;
-END
-$$;
-
--- 1.6 Cuentas de autenticacion (en cascada: identities, sesiones, tokens)
-DELETE FROM auth.users;
-
--- ------------------------------------------------------------------------------
--- 2. Esquema public (estructura, RLS, politicas, permisos)
--- ------------------------------------------------------------------------------
+-- 2.1 Esquema public (estructura, RLS, politicas, permisos)
 --
 -- PostgreSQL database dump
 --
@@ -258,6 +175,71 @@ $$;
 
 
 ALTER FUNCTION public._proyectar_visita_dto(p_visita_id uuid) OWNER TO postgres;
+
+--
+-- Name: _recalcular_estado_cargo(uuid); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public._recalcular_estado_cargo(p_cargo_id uuid) RETURNS character varying
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+    v_monto_cargo NUMERIC(12,2);
+    v_total_pagos NUMERIC(12,2);
+    v_total_saldo NUMERIC(12,2);
+    v_total_cubierto NUMERIC(12,2);
+    v_nuevo_estado VARCHAR(20);
+    v_estado_actual VARCHAR(20);
+BEGIN
+    SELECT monto, estado INTO v_monto_cargo, v_estado_actual 
+    FROM public.cargos 
+    WHERE id = p_cargo_id 
+    FOR UPDATE;
+
+    IF v_estado_actual = 'Cancelado' THEN
+        RETURN 'Cancelado';
+    END IF;
+
+    -- Suma de amortizaciones de pagos confirmados no revertidos
+    SELECT COALESCE(SUM(monto_cubierto), 0.00) INTO v_total_pagos
+    FROM public.pagos
+    WHERE cargo_id = p_cargo_id 
+      AND estado = 'Confirmado' 
+      AND es_reversa = false;
+
+    -- Suma neta de saldo a favor aplicado al cargo (Aplicacion - ReversoAplicacion)
+    SELECT COALESCE(
+        SUM(
+            CASE 
+                WHEN tipo = 'Aplicacion' THEN monto 
+                WHEN tipo = 'ReversoAplicacion' THEN -monto 
+                ELSE 0.00 
+            END
+        ), 0.00) INTO v_total_saldo
+    FROM public.movimientos_saldo_favor
+    WHERE cargo_id = p_cargo_id;
+
+    v_total_cubierto := v_total_pagos + v_total_saldo;
+
+    IF v_total_cubierto <= 0 THEN
+        v_nuevo_estado := 'Pendiente';
+    ELSIF v_total_cubierto < v_monto_cargo THEN
+        v_nuevo_estado := 'Parcial';
+    ELSE
+        v_nuevo_estado := 'Pagado';
+    END IF;
+
+    UPDATE public.cargos 
+    SET estado = v_nuevo_estado 
+    WHERE id = p_cargo_id;
+
+    RETURN v_nuevo_estado;
+END;
+$$;
+
+
+ALTER FUNCTION public._recalcular_estado_cargo(p_cargo_id uuid) OWNER TO postgres;
 
 --
 -- Name: actualizar_bloqueo_area(uuid, uuid, timestamp with time zone, timestamp with time zone, text); Type: FUNCTION; Schema: public; Owner: postgres
@@ -1929,11 +1911,11 @@ CREATE FUNCTION public.cancelar_invitacion_subusuario(p_id uuid DEFAULT NULL::uu
     SET search_path TO 'public'
     AS $$
 DECLARE
-    v_titular_id UUID;
+    v_actor_id UUID;
     v_target_id UUID;
     v_invitacion RECORD;
 BEGIN
-    v_titular_id := auth.uid();
+    v_actor_id := auth.uid();
     v_target_id := COALESCE(p_id, p_invitacion_id);
 
     IF v_target_id IS NULL THEN
@@ -1948,18 +1930,17 @@ BEGIN
         RETURN false;
     END IF;
 
-    IF v_titular_id IS NOT NULL AND v_invitacion.titular_id <> v_titular_id THEN
+    IF v_actor_id IS NOT NULL AND COALESCE(v_invitacion.titular_id, v_invitacion.creado_por) <> v_actor_id THEN
         IF NOT EXISTS (
             SELECT 1 FROM public.vivienda_residente
-            WHERE vivienda_id = v_invitacion.vivienda_id AND usuario_id = v_titular_id
+            WHERE vivienda_id = v_invitacion.vivienda_id AND usuario_id = v_actor_id
         ) THEN
             RAISE EXCEPTION 'No tienes permiso para cancelar esta invitación.' USING ERRCODE = 'SB005';
         END IF;
     END IF;
 
     UPDATE public.invitaciones_subusuarios
-    SET estado = 'CANCELADA',
-        actualizado_en = timezone('utc'::text, now())
+    SET estado = 'CANCELADA'
     WHERE id = v_target_id
       AND UPPER(estado) = 'PENDIENTE';
 
@@ -2682,6 +2663,28 @@ $_$;
 ALTER FUNCTION public.fn_auditoria() OWNER TO postgres;
 
 --
+-- Name: fn_generar_codigo_invitacion_subusuario(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.fn_generar_codigo_invitacion_subusuario() RETURNS character varying
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    v_caracteres TEXT := '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; -- Excluye caracteres ambiguos (0, O, 1, I)
+    v_resultado TEXT := '';
+    i INTEGER;
+BEGIN
+    FOR i IN 1..8 LOOP
+        v_resultado := v_resultado || substr(v_caracteres, (random() * length(v_caracteres) + 1)::integer, 1);
+    END LOOP;
+    RETURN v_resultado;
+END;
+$$;
+
+
+ALTER FUNCTION public.fn_generar_codigo_invitacion_subusuario() OWNER TO postgres;
+
+--
 -- Name: fn_mi_condominio_id(); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -2981,109 +2984,274 @@ $$;
 
 ALTER FUNCTION public.handle_user_metadata_update() OWNER TO postgres;
 
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
 --
--- Name: invitar_subusuario(integer, text, character varying); Type: FUNCTION; Schema: public; Owner: postgres
+-- Name: condominios; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.invitar_subusuario(p_vivienda_id integer, p_email_invitado text, p_parentesco character varying) RETURNS jsonb
+CREATE TABLE public.condominios (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    nombre text NOT NULL,
+    direccion text,
+    zona_horaria text DEFAULT 'America/Mexico_City'::text NOT NULL,
+    activo boolean DEFAULT true NOT NULL,
+    creado_en timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+
+ALTER TABLE public.condominios OWNER TO postgres;
+
+--
+-- Name: invitaciones_subusuarios; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.invitaciones_subusuarios (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    vivienda_id integer NOT NULL,
+    creado_por uuid NOT NULL,
+    email_invitado character varying(255) NOT NULL,
+    codigo_invitacion character varying(8) NOT NULL,
+    estado character varying(20) DEFAULT 'pendiente'::character varying NOT NULL,
+    usuario_id uuid,
+    expira_en timestamp with time zone DEFAULT (timezone('utc'::text, now()) + '24:00:00'::interval) NOT NULL,
+    respondido_en timestamp with time zone,
+    creado_en timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    parentesco character varying(50) DEFAULT 'Familiar'::character varying,
+    invitado_id uuid,
+    titular_id uuid,
+    CONSTRAINT invitaciones_subusuarios_estado_check CHECK ((upper((estado)::text) = ANY (ARRAY['PENDIENTE'::text, 'ACEPTADA'::text, 'RECHAZADA'::text, 'EXPIRADA'::text, 'CANCELADA'::text, 'REVOCADA'::text])))
+);
+
+
+ALTER TABLE public.invitaciones_subusuarios OWNER TO postgres;
+
+--
+-- Name: usuarios; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.usuarios (
+    id uuid NOT NULL,
+    rol_id integer DEFAULT 2 NOT NULL,
+    condominio_id uuid,
+    email text NOT NULL,
+    nombre text NOT NULL,
+    apellidos text NOT NULL,
+    telefono text,
+    activo boolean DEFAULT true NOT NULL,
+    debe_cambiar_password boolean DEFAULT false NOT NULL,
+    creado_en timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    CONSTRAINT chk_vigilancia_condominio_requerido CHECK (((rol_id <> 3) OR (condominio_id IS NOT NULL)))
+);
+
+
+ALTER TABLE public.usuarios OWNER TO postgres;
+
+--
+-- Name: viviendas; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.viviendas (
+    id integer NOT NULL,
+    condominio_id uuid NOT NULL,
+    numero_casa text NOT NULL,
+    tipo text,
+    activo boolean DEFAULT true NOT NULL,
+    creado_en timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+
+ALTER TABLE public.viviendas OWNER TO postgres;
+
+--
+-- Name: vw_invitaciones_subusuarios; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.vw_invitaciones_subusuarios AS
+ SELECT i.id,
+    i.vivienda_id,
+    v.numero_casa,
+    v.condominio_id,
+    c.nombre AS condominio_nombre,
+    i.creado_por AS titular_id,
+    TRIM(BOTH FROM ((u_titular.nombre || ' '::text) || COALESCE(u_titular.apellidos, (''::character varying)::text))) AS titular_nombre,
+    i.usuario_id AS invitado_id,
+    i.email_invitado AS invitado_email,
+    i.codigo_invitacion AS codigo,
+    i.codigo_invitacion,
+    COALESCE(i.parentesco, 'Familiar'::character varying) AS parentesco,
+    i.estado,
+    i.expira_en,
+    i.creado_en
+   FROM ((((public.invitaciones_subusuarios i
+     JOIN public.viviendas v ON ((v.id = i.vivienda_id)))
+     LEFT JOIN public.condominios c ON ((c.id = v.condominio_id)))
+     LEFT JOIN public.usuarios u_titular ON ((u_titular.id = i.creado_por)))
+     LEFT JOIN public.usuarios u_invitado ON ((u_invitado.id = i.usuario_id)));
+
+
+ALTER VIEW public.vw_invitaciones_subusuarios OWNER TO postgres;
+
+--
+-- Name: invitar_subusuario(integer, character varying, character varying, uuid); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.invitar_subusuario(p_vivienda_id integer, p_email character varying, p_parentesco character varying DEFAULT 'Familiar'::character varying, p_creado_por uuid DEFAULT NULL::uuid) RETURNS public.vw_invitaciones_subusuarios
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 DECLARE
-    v_titular_id UUID;
+    v_actor_id UUID;
     v_invitado_id UUID;
-    v_es_titular BOOLEAN;
-    v_conteo_actual INT;
+    v_subusuarios_activos INTEGER := 0;
+    v_invitaciones_pendientes INTEGER := 0;
+    v_codigo VARCHAR(8);
     v_invitacion_id UUID;
-    v_numero_casa TEXT;
-    v_titular_nombre TEXT;
-    v_creado_en TIMESTAMPTZ;
+    v_resultado public.vw_invitaciones_subusuarios;
 BEGIN
-    v_titular_id := auth.uid();
-
-    SELECT EXISTS (
-        SELECT 1 FROM public.vivienda_residente
-        WHERE vivienda_id = p_vivienda_id AND usuario_id = v_titular_id
-    ) INTO v_es_titular;
-
-    IF NOT v_es_titular THEN
-        RAISE EXCEPTION 'No tienes permisos de titular sobre esta vivienda.' USING ERRCODE = 'SB005';
+    -- 1. Resolver ejecutor (parámetro explícito o contexto de sesión)
+    v_actor_id := COALESCE(p_creado_por, auth.uid());
+    IF v_actor_id IS NULL THEN
+        RAISE EXCEPTION 'No se proporcionó un ID de usuario creador válido'
+            USING ERRCODE = '42501';
     END IF;
 
-    SELECT id INTO v_invitado_id
-    FROM public.usuarios
-    WHERE LOWER(email) = LOWER(TRIM(p_email_invitado)) AND activo = true;
+    -- 2. Validar existencia del usuario por correo electrónico
+    SELECT id INTO v_invitado_id 
+    FROM public.usuarios 
+    WHERE LOWER(TRIM(email)) = LOWER(TRIM(p_email));
 
     IF v_invitado_id IS NULL THEN
-        RAISE EXCEPTION 'No se encontró ningún usuario activo registrado con el correo %.', p_email_invitado
+        RAISE EXCEPTION 'Usuario con email % no encontrado en el sistema', p_email
             USING ERRCODE = 'P0002';
     END IF;
 
-    IF v_invitado_id = v_titular_id THEN
-        RAISE EXCEPTION 'No puedes enviarte una invitación a ti mismo.' USING ERRCODE = 'SB001';
+    -- Validar que no sea auto-invitación
+    IF v_invitado_id = v_actor_id THEN
+        RAISE EXCEPTION 'No puedes invitarte a ti mismo como sub-usuario'
+            USING ERRCODE = 'SU003';
     END IF;
 
+    -- 3. Validar que el invitado no sea el residente titular de esta casa
     IF EXISTS (
-        SELECT 1 FROM public.vivienda_residente
+        SELECT 1 FROM public.vivienda_residente 
         WHERE vivienda_id = p_vivienda_id AND usuario_id = v_invitado_id
     ) THEN
-        RAISE EXCEPTION 'El usuario ya es residente titular de esta vivienda.' USING ERRCODE = 'SB002';
+        RAISE EXCEPTION 'El usuario ya es el residente titular de esta vivienda'
+            USING ERRCODE = 'SU002';
     END IF;
 
+    -- 4. Validar que el usuario no sea ya sub-usuario activo
     IF EXISTS (
         SELECT 1 FROM public.vivienda_subusuarios
-        WHERE vivienda_id = p_vivienda_id AND usuario_id = v_invitado_id AND activo = true
-    ) OR EXISTS (
-        SELECT 1 FROM public.invitaciones_subusuarios
-        WHERE vivienda_id = p_vivienda_id AND invitado_id = v_invitado_id AND UPPER(estado) = 'PENDIENTE'
+        WHERE vivienda_id = p_vivienda_id 
+          AND usuario_id = v_invitado_id 
+          AND activo = true
     ) THEN
-        RAISE EXCEPTION 'El usuario ya está invitado o ya pertenece como subusuario a esta vivienda.' USING ERRCODE = 'SB002';
+        RAISE EXCEPTION 'El usuario ya es sub-usuario activo de esta vivienda'
+            USING ERRCODE = '23505';
     END IF;
 
-    SELECT (
-        (SELECT COUNT(*) FROM public.vivienda_subusuarios WHERE vivienda_id = p_vivienda_id AND activo = true) +
-        (SELECT COUNT(*) FROM public.invitaciones_subusuarios WHERE vivienda_id = p_vivienda_id AND UPPER(estado) = 'PENDIENTE')
-    )::INT INTO v_conteo_actual;
+    -- 5. REGLA ESTRICTA DE CUPO: Máximo 2 entre residentes secundarios activos e invitaciones vigentes
+    SELECT COUNT(*) INTO v_subusuarios_activos
+    FROM public.vivienda_subusuarios
+    WHERE vivienda_id = p_vivienda_id AND activo = true;
 
-    IF v_conteo_actual >= 5 THEN
-        RAISE EXCEPTION 'Límite máximo alcanzado: solo se permiten hasta 5 subusuarios (entre activos e invitaciones pendientes) por vivienda.'
-            USING ERRCODE = 'SB001';
+    SELECT COUNT(*) INTO v_invitaciones_pendientes
+    FROM public.invitaciones_subusuarios
+    WHERE vivienda_id = p_vivienda_id 
+      AND LOWER(estado) = 'pendiente'
+      AND expira_en > now();
+
+    IF (v_subusuarios_activos + v_invitaciones_pendientes) >= 2 THEN
+        RAISE EXCEPTION 'Límite de sub-usuarios excedido para esta vivienda (máximo 2 entre residentes activos e invitaciones pendientes)'
+            USING ERRCODE = 'SU001';
     END IF;
 
-    INSERT INTO public.invitaciones_subusuarios (
-        vivienda_id, titular_id, invitado_id, parentesco, estado
-    )
-    VALUES (
-        p_vivienda_id, v_titular_id, v_invitado_id, p_parentesco, 'PENDIENTE'
-    )
-    RETURNING id, creado_en INTO v_invitacion_id, v_creado_en;
+    -- 6. Validar que no exista ya una invitación pendiente vigente para este mismo usuario
+    IF EXISTS (
+        SELECT 1 FROM public.invitaciones_subusuarios
+        WHERE vivienda_id = p_vivienda_id 
+          AND (usuario_id = v_invitado_id OR LOWER(email_invitado) = LOWER(TRIM(p_email)))
+          AND LOWER(estado) = 'pendiente'
+          AND expira_en > now()
+    ) THEN
+        RAISE EXCEPTION 'Ya existe una invitación pendiente vigente para este usuario en esta vivienda'
+            USING ERRCODE = 'SU002';
+    END IF;
 
-    SELECT numero_casa INTO v_numero_casa FROM public.viviendas WHERE id = p_vivienda_id;
-    SELECT TRIM(nombre || ' ' || apellidos) INTO v_titular_nombre FROM public.usuarios WHERE id = v_titular_id;
+    -- 7. Generar código alfanumérico único con resolución de colisiones
+    LOOP
+        v_codigo := public.fn_generar_codigo_invitacion_subusuario();
+        BEGIN
+            INSERT INTO public.invitaciones_subusuarios (
+                vivienda_id,
+                creado_por,
+                email_invitado,
+                codigo_invitacion,
+                estado,
+                usuario_id,
+                parentesco,
+                expira_en
+            ) VALUES (
+                p_vivienda_id,
+                v_actor_id,
+                LOWER(TRIM(p_email)),
+                v_codigo,
+                'pendiente',
+                v_invitado_id,
+                COALESCE(NULLIF(TRIM(p_parentesco), ''), 'Familiar'),
+                timezone('utc'::text, now()) + INTERVAL '24 hours'
+            ) RETURNING id INTO v_invitacion_id;
 
-    PERFORM public.crear_notificacion(
-        v_invitado_id,
-        'invitacion_subusuario',
-        'Nueva invitación a vivienda',
-        format('%s te ha invitado a unirte a la vivienda %s como %s.', v_titular_nombre, v_numero_casa, p_parentesco),
-        '/invitaciones'
-    );
+            EXIT;
+        EXCEPTION WHEN unique_violation THEN
+            -- Reintenta generar otro código si choca con uno pendiente activo
+        END;
+    END LOOP;
 
-    RETURN jsonb_build_object(
-        'id', v_invitacion_id,
-        'vivienda_id', p_vivienda_id,
-        'titular_id', v_titular_id,
-        'invitado_id', v_invitado_id,
-        'invitado_email', p_email_invitado,
-        'parentesco', p_parentesco,
-        'estado', 'PENDIENTE',
-        'creado_en', v_creado_en
-    );
+    -- 8. Disparar notificación interna al usuario invitado
+    BEGIN
+        PERFORM public.alta_notificacion(
+            v_invitado_id, 
+            'INVITACION', 
+            'Invitación a vivienda', 
+            'Has recibido una invitación para unirte a una vivienda como co-habitante.', 
+            '/panel/invitaciones'
+        );
+    EXCEPTION WHEN OTHERS THEN
+        -- Silenciar si la notificación opcional no está en el entorno
+    END;
+
+    -- 9. Retornar fila formateada desde la vista
+    SELECT * INTO v_resultado 
+    FROM public.vw_invitaciones_subusuarios 
+    WHERE id = v_invitacion_id;
+
+    RETURN v_resultado;
 END;
 $$;
 
 
-ALTER FUNCTION public.invitar_subusuario(p_vivienda_id integer, p_email_invitado text, p_parentesco character varying) OWNER TO postgres;
+ALTER FUNCTION public.invitar_subusuario(p_vivienda_id integer, p_email character varying, p_parentesco character varying, p_creado_por uuid) OWNER TO postgres;
+
+--
+-- Name: invitar_subusuario_por_email(integer, character varying, character varying, uuid); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.invitar_subusuario_por_email(p_vivienda_id integer, p_email character varying, p_parentesco character varying, p_creado_por uuid) RETURNS public.vw_invitaciones_subusuarios
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+    RETURN public.invitar_subusuario(p_vivienda_id, p_email, p_parentesco, p_creado_por);
+END;
+$$;
+
+
+ALTER FUNCTION public.invitar_subusuario_por_email(p_vivienda_id integer, p_email character varying, p_parentesco character varying, p_creado_por uuid) OWNER TO postgres;
 
 --
 -- Name: liberar_notificacion_push(uuid); Type: FUNCTION; Schema: public; Owner: postgres
@@ -3895,6 +4063,42 @@ $$;
 ALTER FUNCTION public.redimir_codigo_condominio(p_codigo text, p_usuario_id uuid) OWNER TO postgres;
 
 --
+-- Name: redimir_codigo_subusuario(character varying, uuid); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.redimir_codigo_subusuario(p_codigo character varying, p_usuario_id uuid DEFAULT NULL::uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+    v_invitacion_id UUID;
+    v_actor_id UUID;
+BEGIN
+    v_actor_id := COALESCE(p_usuario_id, auth.uid());
+    IF v_actor_id IS NULL THEN
+        RAISE EXCEPTION 'No se proporcionó un ID de usuario válido ni existe una sesión activa'
+            USING ERRCODE = '42501';
+    END IF;
+
+    SELECT id INTO v_invitacion_id
+    FROM public.invitaciones_subusuarios
+    WHERE codigo_invitacion = UPPER(TRIM(p_codigo))
+      AND UPPER(estado) = 'PENDIENTE'
+      AND expira_en > now();
+
+    IF v_invitacion_id IS NULL THEN
+        RAISE EXCEPTION 'El código de invitación no existe, ya fue utilizado o ha expirado'
+            USING ERRCODE = 'CD001';
+    END IF;
+
+    RETURN public.responder_invitacion_subusuario(v_invitacion_id, v_actor_id, 'ACEPTADA');
+END;
+$$;
+
+
+ALTER FUNCTION public.redimir_codigo_subusuario(p_codigo character varying, p_usuario_id uuid) OWNER TO postgres;
+
+--
 -- Name: redimir_codigo_vivienda(text, uuid); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -4120,107 +4324,106 @@ $$;
 ALTER FUNCTION public.registrar_salida_visita(p_visita_id uuid, p_actor_id uuid) OWNER TO postgres;
 
 --
--- Name: responder_invitacion_subusuario(uuid, character varying); Type: FUNCTION; Schema: public; Owner: postgres
+-- Name: responder_invitacion_subusuario(uuid, uuid, character varying); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.responder_invitacion_subusuario(p_invitacion_id uuid, p_respuesta character varying) RETURNS jsonb
+CREATE FUNCTION public.responder_invitacion_subusuario(p_invitacion_id uuid, p_usuario_id uuid DEFAULT NULL::uuid, p_respuesta character varying DEFAULT 'ACEPTADA'::character varying) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 DECLARE
-    v_usuario_actual UUID;
-    v_invitacion RECORD;
-    v_condominio_vivienda UUID;
-    v_invitado_nombre TEXT;
-    v_numero_casa TEXT;
-    v_respuesta_upper TEXT;
+    v_invitacion public.invitaciones_subusuarios%ROWTYPE;
+    v_condominio_id UUID;
+    v_respuesta_limpia VARCHAR;
+    v_actor_id UUID;
+    v_invitado_esperado UUID;
 BEGIN
-    v_usuario_actual := auth.uid();
-    v_respuesta_upper := UPPER(TRIM(p_respuesta));
-
-    IF v_respuesta_upper NOT IN ('ACEPTADA', 'RECHAZADA') THEN
-        RAISE EXCEPTION 'La respuesta debe ser ACEPTADA o RECHAZADA.' USING ERRCODE = '22023';
+    -- 1. Resolver usuario ejecutor (parámetro explícito o contexto de auth)
+    v_actor_id := COALESCE(p_usuario_id, auth.uid());
+    IF v_actor_id IS NULL THEN
+        RAISE EXCEPTION 'No se proporcionó un ID de usuario válido ni existe una sesión activa'
+            USING ERRCODE = '42501';
     END IF;
 
+    -- 2. Limpiar y validar respuesta permitida
+    v_respuesta_limpia := UPPER(TRIM(COALESCE(p_respuesta, 'ACEPTADA')));
+    IF v_respuesta_limpia NOT IN ('ACEPTADA', 'RECHAZADA') THEN
+        RAISE EXCEPTION 'Respuesta no válida. Los valores permitidos son ACEPTADA o RECHAZADA'
+            USING ERRCODE = '22023';
+    END IF;
+
+    -- 3. Validar existencia de la invitación
     SELECT * INTO v_invitacion
     FROM public.invitaciones_subusuarios
-    WHERE id = p_invitacion_id
-    FOR UPDATE;
-
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'La invitación especificada no existe.' USING ERRCODE = 'SB003';
-    END IF;
-
-    IF v_invitacion.invitado_id <> v_usuario_actual THEN
-        RAISE EXCEPTION 'No tienes permiso para responder a esta invitación.' USING ERRCODE = 'SB005';
-    END IF;
-
-    IF UPPER(v_invitacion.estado) <> 'PENDIENTE' THEN
-        RAISE EXCEPTION 'Esta invitación ya fue procesada anteriormente (estado actual: %).', v_invitacion.estado
-            USING ERRCODE = 'SB004';
-    END IF;
-
-    UPDATE public.invitaciones_subusuarios
-    SET estado = v_respuesta_upper,
-        actualizado_en = timezone('utc'::text, now())
     WHERE id = p_invitacion_id;
 
-    SELECT condominio_id, numero_casa INTO v_condominio_vivienda, v_numero_casa
-    FROM public.viviendas
-    WHERE id = v_invitacion.vivienda_id;
-
-    SELECT TRIM(nombre || ' ' || apellidos) INTO v_invitado_nombre
-    FROM public.usuarios
-    WHERE id = v_usuario_actual;
-
-    IF v_respuesta_upper = 'ACEPTADA' THEN
-        INSERT INTO public.vivienda_subusuarios (
-            vivienda_id, usuario_id, titular_id, parentesco, activo
-        )
-        VALUES (
-            v_invitacion.vivienda_id,
-            v_invitacion.invitado_id,
-            v_invitacion.titular_id,
-            v_invitacion.parentesco,
-            true
-        )
-        ON CONFLICT (vivienda_id, usuario_id)
-        DO UPDATE SET
-            titular_id = EXCLUDED.titular_id,
-            parentesco = EXCLUDED.parentesco,
-            activo = true,
-            actualizado_en = timezone('utc'::text, now());
-
-        UPDATE public.usuarios
-        SET condominio_id = v_condominio_vivienda
-        WHERE id = v_usuario_actual AND condominio_id IS NULL;
-
-        PERFORM public.crear_notificacion(
-            v_invitacion.titular_id,
-            'respuesta_invitacion',
-            'Invitación aceptada',
-            format('%s ha aceptado tu invitación para unirse a la vivienda %s.', v_invitado_nombre, v_numero_casa),
-            '/mi-vivienda/subusuarios'
-        );
-    ELSE
-        PERFORM public.crear_notificacion(
-            v_invitacion.titular_id,
-            'respuesta_invitacion',
-            'Invitación rechazada',
-            format('%s ha rechazado tu invitación para unirse a la vivienda %s.', v_invitado_nombre, v_numero_casa),
-            '/mi-vivienda/subusuarios'
-        );
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Invitación con ID % no encontrada', p_invitacion_id
+            USING ERRCODE = 'P0002';
     END IF;
 
-    RETURN jsonb_build_object(
-        'invitacion_id', p_invitacion_id,
-        'nuevo_estado', v_respuesta_upper
-    );
+    -- 4. Validar estado PENDIENTE
+    IF UPPER(v_invitacion.estado) <> 'PENDIENTE' THEN
+        RAISE EXCEPTION 'La invitación no se encuentra en estado PENDIENTE (estado actual: %)', v_invitacion.estado
+            USING ERRCODE = 'SU004';
+    END IF;
+
+    -- 5. Validar que quien responde sea el invitado destinatario
+    v_invitado_esperado := COALESCE(v_invitacion.usuario_id, v_invitacion.invitado_id);
+    IF v_invitado_esperado IS NULL THEN
+        SELECT id INTO v_invitado_esperado 
+        FROM public.usuarios 
+        WHERE LOWER(email) = LOWER(v_invitacion.email_invitado);
+    END IF;
+
+    IF v_invitado_esperado IS NOT NULL AND v_invitado_esperado <> v_actor_id THEN
+        RAISE EXCEPTION 'El usuario no tiene autorización para responder esta invitación. [invitado esperado: %, recibido: %]', 
+            v_invitado_esperado, v_actor_id
+            USING ERRCODE = '42501';
+    END IF;
+
+    -- 6. Actualizar estado y fecha de respuesta
+    UPDATE public.invitaciones_subusuarios
+    SET estado = v_respuesta_limpia,
+        respondido_en = timezone('utc'::text, now()),
+        usuario_id = COALESCE(usuario_id, v_actor_id)
+    WHERE id = p_invitacion_id;
+
+    -- 7. Si fue ACEPTADA: registrar en vivienda_subusuarios (sin titular_id) y sincronizar condominio_id
+    IF v_respuesta_limpia = 'ACEPTADA' THEN
+        INSERT INTO public.vivienda_subusuarios (
+            vivienda_id, 
+            usuario_id, 
+            parentesco, 
+            activo
+        )
+        VALUES (
+            v_invitacion.vivienda_id, 
+            v_actor_id, 
+            COALESCE(v_invitacion.parentesco, 'Familiar'), 
+            true
+        )
+        ON CONFLICT (vivienda_id, usuario_id) DO UPDATE
+        SET activo = true,
+            parentesco = EXCLUDED.parentesco;
+
+        -- Obtener condominio_id de la casa asignada
+        SELECT condominio_id INTO v_condominio_id
+        FROM public.viviendas
+        WHERE id = v_invitacion.vivienda_id;
+
+        -- Sincronizar condominio_id en el perfil del usuario
+        UPDATE public.usuarios
+        SET condominio_id = v_condominio_id
+        WHERE id = v_actor_id;
+    END IF;
+
+    RETURN TRUE;
 END;
 $$;
 
 
-ALTER FUNCTION public.responder_invitacion_subusuario(p_invitacion_id uuid, p_respuesta character varying) OWNER TO postgres;
+ALTER FUNCTION public.responder_invitacion_subusuario(p_invitacion_id uuid, p_usuario_id uuid, p_respuesta character varying) OWNER TO postgres;
 
 --
 -- Name: revocar_subusuario(integer, uuid); Type: FUNCTION; Schema: public; Owner: postgres
@@ -4301,286 +4504,253 @@ ALTER FUNCTION public.rls_auto_enable() OWNER TO postgres;
 -- Name: rpc_anular_pago(uuid, text, uuid); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.rpc_anular_pago(p_pago_id uuid, p_motivo text, p_admin_id uuid) RETURNS jsonb
+CREATE FUNCTION public.rpc_anular_pago(p_pago_id uuid, p_motivo text, p_actor_id uuid DEFAULT NULL::uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 DECLARE
-    v_pago public.pagos%ROWTYPE;
-    v_cargo public.cargos%ROWTYPE;
-    v_abono_origen public.movimientos_saldo_favor%ROWTYPE;
-    v_reverso_abono public.movimientos_saldo_favor%ROWTYPE;
+    v_pago_orig RECORD;
+    v_pago_reversa public.pagos%ROWTYPE;
+    v_cargo RECORD;
+    v_mov_abono public.movimientos_saldo_favor%ROWTYPE;
+    v_mov_saldo_reverso public.movimientos_saldo_favor%ROWTYPE;
+    v_actor UUID;
     v_saldo_favor_actual NUMERIC(12,2);
-    v_nuevo_pagado NUMERIC(12,2);
-    v_nuevo_estado VARCHAR(20);
-    v_saldo_favor_final NUMERIC(12,2);
+    v_resultado JSONB;
 BEGIN
-    IF p_motivo IS NULL OR length(btrim(p_motivo)) = 0 THEN
-        RAISE EXCEPTION 'El motivo de anulación es obligatorio.' USING ERRCODE = '23514';
-    END IF;
+    v_actor := COALESCE(p_actor_id, auth.uid());
 
-    SELECT * INTO v_pago
-    FROM public.pagos
-    WHERE id = p_pago_id
-    FOR UPDATE;
-
+    SELECT * INTO v_pago_orig FROM public.pagos WHERE id = p_pago_id FOR UPDATE;
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'Pago no encontrado.' USING ERRCODE = 'PG000';
+        RAISE EXCEPTION 'El pago especificado no existe' USING ERRCODE = 'PG000';
     END IF;
 
-    IF v_pago.estado <> 'Confirmado' OR v_pago.es_reversa = true THEN
-        RAISE EXCEPTION 'Solo se pueden anular pagos confirmados.' USING ERRCODE = 'PG004';
+    IF v_pago_orig.estado <> 'Confirmado' THEN
+        RAISE EXCEPTION 'Solo se pueden anular pagos en estado Confirmado' USING ERRCODE = 'PG004';
     END IF;
 
-    SELECT * INTO v_cargo
-    FROM public.cargos
-    WHERE id = v_pago.cargo_id
-    FOR UPDATE;
+    SELECT * INTO v_cargo FROM public.cargos WHERE id = v_pago_orig.cargo_id FOR UPDATE;
 
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'Cargo asociado no encontrado.' USING ERRCODE = 'PG000';
-    END IF;
+    -- Validar si el pago generó un abono que ya fue consumido
+    SELECT * INTO v_mov_abono 
+    FROM public.movimientos_saldo_favor 
+    WHERE pago_id = p_pago_id AND tipo = 'Abono';
 
-    IF v_pago.monto_excedente > 0 THEN
-        SELECT * INTO v_abono_origen
-        FROM public.movimientos_saldo_favor
-        WHERE pago_id = v_pago.id
-          AND tipo = 'AbonoExcedente'
-        FOR UPDATE;
+    IF FOUND THEN
+        SELECT saldo_a_favor INTO v_saldo_favor_actual 
+        FROM public.v_saldo_vivienda 
+        WHERE vivienda_id = v_cargo.vivienda_id;
 
-        SELECT COALESCE(SUM(
-            CASE
-                WHEN m.tipo IN ('AbonoExcedente', 'ReversoAplicacion') THEN m.monto
-                ELSE -m.monto
-            END
-        ), 0)::NUMERIC(12,2)
-        INTO v_saldo_favor_actual
-        FROM public.movimientos_saldo_favor m
-        WHERE m.vivienda_id = v_pago.vivienda_id;
-
-        IF v_saldo_favor_actual < v_pago.monto_excedente THEN
-            RAISE EXCEPTION 'No se puede anular el pago: el saldo a favor generado ya fue utilizado parcial o totalmente en otros cargos.'
-                USING ERRCODE = 'PG007';
+        IF v_saldo_favor_actual < v_mov_abono.monto THEN
+            RAISE EXCEPTION 'Saldo a favor insuficiente para anular el pago (el excedente ya fue utilizado)' USING ERRCODE = 'PG007';
         END IF;
 
-        IF v_abono_origen.id IS NOT NULL THEN
-            INSERT INTO public.movimientos_saldo_favor (
-                condominio_id, vivienda_id, tipo, monto,
-                pago_id, cargo_id, movimiento_origen_id, motivo, creado_por
-            )
-            VALUES (
-                v_pago.condominio_id, v_pago.vivienda_id, 'ReversoAbono', v_pago.monto_excedente,
-                v_pago.id, v_pago.cargo_id, v_abono_origen.id, btrim(p_motivo), p_admin_id
-            )
-            RETURNING * INTO v_reverso_abono;
-        END IF;
+        INSERT INTO public.movimientos_saldo_favor (
+            condominio_id, vivienda_id, tipo, monto, pago_id, cargo_id, movimiento_origen_id, motivo, creado_por
+        ) VALUES (
+            v_cargo.condominio_id, v_cargo.vivienda_id, 'ReversoAbono', v_mov_abono.monto, p_pago_id, v_cargo.id,
+            v_mov_abono.id, 'Reverso de abono por anulación de pago: ' || TRIM(p_motivo), v_actor
+        ) RETURNING * INTO v_mov_saldo_reverso;
     END IF;
 
-    UPDATE public.pagos
+    -- 1. Marcar pago original como Anulado
+    UPDATE public.pagos 
     SET estado = 'Anulado',
-        motivo_anulacion = btrim(p_motivo),
-        anulado_por = p_admin_id,
+        motivo_anulacion = p_motivo,
+        anulado_por = v_actor,
         anulado_en = timezone('utc'::text, now())
-    WHERE id = v_pago.id
-    RETURNING * INTO v_pago;
+    WHERE id = p_pago_id
+    RETURNING * INTO v_pago_orig;
 
-    v_nuevo_pagado := GREATEST(v_cargo.monto_pagado_confirmado - v_pago.monto_cubierto, 0);
-    v_nuevo_estado := CASE
-        WHEN v_cargo.estado = 'Cancelado' THEN 'Cancelado'
-        WHEN v_nuevo_pagado >= v_cargo.monto THEN 'Pagado'
-        WHEN v_nuevo_pagado > 0 THEN 'PagoParcial'
-        ELSE 'Pendiente'
-    END;
+    -- 2. Crear fila inmutable de reversa contable
+    INSERT INTO public.pagos (
+        cargo_id,
+        monto,
+        monto_cubierto,
+        monto_excedente,
+        fecha_pago,
+        metodo,
+        referencia,
+        banco_origen,
+        estado,
+        origen,
+        es_reversa,
+        pago_original_id,
+        motivo_anulacion,
+        registrado_por,
+        creado_en,
+        confirmado_por,
+        confirmado_en
+    ) VALUES (
+        v_pago_orig.cargo_id,
+        v_pago_orig.monto,
+        v_pago_orig.monto_cubierto,
+        v_pago_orig.monto_excedente,
+        (timezone('America/Mexico_City', now()))::date,
+        v_pago_orig.metodo,
+        CONCAT('REV-', COALESCE(v_pago_orig.referencia, substr(v_pago_orig.id::text, 1, 8))),
+        v_pago_orig.banco_origen,
+        'Confirmado',
+        'Admin',
+        true,
+        v_pago_orig.id,
+        p_motivo,
+        v_actor,
+        timezone('utc'::text, now()),
+        v_actor,
+        timezone('utc'::text, now())
+    ) RETURNING * INTO v_pago_reversa;
 
-    UPDATE public.cargos
-    SET monto_pagado_confirmado = v_nuevo_pagado,
-        estado = v_nuevo_estado
-    WHERE id = v_cargo.id
-    RETURNING * INTO v_cargo;
+    -- 3. Recalcular estado del cargo
+    PERFORM public._recalcular_estado_cargo(v_cargo.id);
 
-    SELECT saldo_a_favor INTO v_saldo_favor_final
-    FROM public.v_saldo_vivienda
-    WHERE vivienda_id = v_pago.vivienda_id;
+    SELECT saldo_a_favor INTO v_saldo_favor_actual 
+    FROM public.v_saldo_vivienda 
+    WHERE vivienda_id = v_cargo.vivienda_id;
 
-    RETURN jsonb_build_object(
-        'pago_anulado', to_jsonb(v_pago),
-        'cargo', to_jsonb(v_cargo),
-        'movimiento_saldo', CASE WHEN v_reverso_abono.id IS NOT NULL THEN to_jsonb(v_reverso_abono) ELSE NULL END,
-        'saldo_a_favor', COALESCE(v_saldo_favor_final, 0)
-    );
+    SELECT jsonb_build_object(
+        'pago_anulado', to_jsonb(v_pago_orig),
+        'pago_reversa', to_jsonb(v_pago_reversa),
+        'cargo', (SELECT to_jsonb(vc) FROM public.vw_cargos vc WHERE vc.id = v_cargo.id),
+        'movimiento_saldo', CASE WHEN v_mov_saldo_reverso.id IS NOT NULL THEN to_jsonb(v_mov_saldo_reverso) ELSE NULL END,
+        'saldo_a_favor', COALESCE(v_saldo_favor_actual, 0.00)
+    ) INTO v_resultado;
+
+    RETURN v_resultado;
 END;
 $$;
 
 
-ALTER FUNCTION public.rpc_anular_pago(p_pago_id uuid, p_motivo text, p_admin_id uuid) OWNER TO postgres;
+ALTER FUNCTION public.rpc_anular_pago(p_pago_id uuid, p_motivo text, p_actor_id uuid) OWNER TO postgres;
 
 --
--- Name: rpc_aplicar_saldo_favor(integer, uuid, numeric, uuid); Type: FUNCTION; Schema: public; Owner: postgres
+-- Name: rpc_aplicar_saldo_favor(uuid, numeric, uuid); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.rpc_aplicar_saldo_favor(p_vivienda_id integer, p_cargo_id uuid, p_monto numeric, p_actor_id uuid) RETURNS jsonb
+CREATE FUNCTION public.rpc_aplicar_saldo_favor(p_cargo_id uuid, p_monto numeric, p_actor_id uuid DEFAULT NULL::uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 DECLARE
-    v_vivienda public.viviendas%ROWTYPE;
-    v_cargo public.cargos%ROWTYPE;
-    v_movimiento public.movimientos_saldo_favor%ROWTYPE;
-    v_saldo_favor_disponible NUMERIC(12,2);
-    v_saldo_pendiente_cargo NUMERIC(12,2);
-    v_nuevo_pagado NUMERIC(12,2);
-    v_nuevo_estado VARCHAR(20);
-    v_saldo_favor_restante NUMERIC(12,2);
+    v_cargo RECORD;
+    v_saldo_vivienda RECORD;
+    v_mov public.movimientos_saldo_favor%ROWTYPE;
+    v_actor UUID;
+    v_saldo_pendiente NUMERIC(12,2);
+    v_saldo_favor_final NUMERIC(12,2);
+    v_resultado JSONB;
 BEGIN
-    SELECT * INTO v_vivienda
-    FROM public.viviendas
-    WHERE id = p_vivienda_id
-    FOR UPDATE;
+    v_actor := COALESCE(p_actor_id, auth.uid());
 
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'Vivienda no encontrada.' USING ERRCODE = 'PG000';
+    IF p_monto <= 0 THEN
+        RAISE EXCEPTION 'El monto a aplicar debe ser mayor a 0' USING ERRCODE = 'PG008';
     END IF;
 
-    SELECT * INTO v_cargo
-    FROM public.cargos
-    WHERE id = p_cargo_id
-    FOR UPDATE;
-
-    IF NOT FOUND OR v_cargo.vivienda_id <> p_vivienda_id THEN
-        RAISE EXCEPTION 'Cargo no encontrado para la vivienda indicada.' USING ERRCODE = 'PG000';
+    SELECT * INTO v_cargo FROM public.cargos WHERE id = p_cargo_id FOR UPDATE;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'El cargo especificado no existe' USING ERRCODE = 'PG000';
     END IF;
 
     IF v_cargo.estado = 'Cancelado' THEN
-        RAISE EXCEPTION 'El cargo está cancelado y no admite aplicación de saldo.' USING ERRCODE = 'PG001';
+        RAISE EXCEPTION 'No se puede aplicar saldo a un cargo cancelado' USING ERRCODE = 'PG001';
     END IF;
 
     IF v_cargo.estado = 'Pagado' THEN
-        RAISE EXCEPTION 'El cargo ya se encuentra pagado.' USING ERRCODE = 'PG010';
+        RAISE EXCEPTION 'El cargo ya se encuentra totalmente pagado' USING ERRCODE = 'PG010';
     END IF;
 
-    v_saldo_pendiente_cargo := v_cargo.monto - v_cargo.monto_pagado_confirmado;
+    -- Bloqueo a nivel vivienda para evitar concurrencia
+    SELECT * INTO v_saldo_vivienda 
+    FROM public.v_saldo_vivienda 
+    WHERE vivienda_id = v_cargo.vivienda_id;
 
-    IF p_monto IS NULL OR p_monto <= 0 OR p_monto > v_saldo_pendiente_cargo THEN
-        RAISE EXCEPTION 'El monto a aplicar es inválido o supera el saldo pendiente del cargo.'
-            USING ERRCODE = 'PG008';
+    IF v_saldo_vivienda.saldo_a_favor < p_monto THEN
+        RAISE EXCEPTION 'Saldo a favor insuficiente para cubrir el monto especificado' USING ERRCODE = 'PG007';
     END IF;
 
-    SELECT COALESCE(SUM(
-        CASE
-            WHEN m.tipo IN ('AbonoExcedente', 'ReversoAplicacion') THEN m.monto
-            ELSE -m.monto
-        END
-    ), 0)::NUMERIC(12,2)
-    INTO v_saldo_favor_disponible
-    FROM public.movimientos_saldo_favor m
-    WHERE m.vivienda_id = p_vivienda_id;
+    SELECT saldo_pendiente INTO v_saldo_pendiente 
+    FROM public.vw_cargos 
+    WHERE id = p_cargo_id;
 
-    IF p_monto > v_saldo_favor_disponible THEN
-        RAISE EXCEPTION 'Saldo a favor insuficiente para cubrir el monto solicitado.'
-            USING ERRCODE = 'PG007';
+    IF p_monto > v_saldo_pendiente THEN
+        RAISE EXCEPTION 'El monto a aplicar excede el saldo pendiente del cargo' USING ERRCODE = 'PG008';
     END IF;
 
     INSERT INTO public.movimientos_saldo_favor (
-        condominio_id, vivienda_id, tipo, monto,
-        cargo_id, motivo, creado_por
-    )
-    VALUES (
-        v_cargo.condominio_id, p_vivienda_id, 'AplicacionACargo', p_monto,
-        v_cargo.id, 'Aplicación de saldo a favor a cargo', p_actor_id
-    )
-    RETURNING * INTO v_movimiento;
+        condominio_id, vivienda_id, tipo, monto, cargo_id, motivo, creado_por
+    ) VALUES (
+        v_cargo.condominio_id, v_cargo.vivienda_id, 'Aplicacion', p_monto, p_cargo_id,
+        'Aplicación manual de saldo a favor', v_actor
+    ) RETURNING * INTO v_mov;
 
-    v_nuevo_pagado := v_cargo.monto_pagado_confirmado + p_monto;
-    v_nuevo_estado := CASE
-        WHEN v_nuevo_pagado >= v_cargo.monto THEN 'Pagado'
-        WHEN v_nuevo_pagado > 0 THEN 'PagoParcial'
-        ELSE 'Pendiente'
-    END;
+    PERFORM public._recalcular_estado_cargo(p_cargo_id);
 
-    UPDATE public.cargos
-    SET monto_pagado_confirmado = v_nuevo_pagado,
-        estado = v_nuevo_estado
-    WHERE id = v_cargo.id
-    RETURNING * INTO v_cargo;
+    SELECT saldo_a_favor INTO v_saldo_favor_final 
+    FROM public.v_saldo_vivienda 
+    WHERE vivienda_id = v_cargo.vivienda_id;
 
-    v_saldo_favor_restante := v_saldo_favor_disponible - p_monto;
+    SELECT jsonb_build_object(
+        'movimiento', to_jsonb(v_mov),
+        'cargo', (SELECT to_jsonb(vc) FROM public.vw_cargos vc WHERE vc.id = p_cargo_id),
+        'saldo_a_favor', COALESCE(v_saldo_favor_final, 0.00)
+    ) INTO v_resultado;
 
-    RETURN jsonb_build_object(
-        'movimiento', to_jsonb(v_movimiento),
-        'cargo', to_jsonb(v_cargo),
-        'saldo_a_favor_restante', v_saldo_favor_restante
-    );
+    RETURN v_resultado;
 END;
 $$;
 
 
-ALTER FUNCTION public.rpc_aplicar_saldo_favor(p_vivienda_id integer, p_cargo_id uuid, p_monto numeric, p_actor_id uuid) OWNER TO postgres;
+ALTER FUNCTION public.rpc_aplicar_saldo_favor(p_cargo_id uuid, p_monto numeric, p_actor_id uuid) OWNER TO postgres;
 
 --
 -- Name: rpc_cancelar_cargo(uuid, text, uuid); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.rpc_cancelar_cargo(p_cargo_id uuid, p_motivo text, p_actor_id uuid) RETURNS jsonb
+CREATE FUNCTION public.rpc_cancelar_cargo(p_cargo_id uuid, p_motivo text, p_actor_id uuid DEFAULT NULL::uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 DECLARE
-    v_cargo public.cargos%ROWTYPE;
-    v_tiene_pagos_activos BOOLEAN;
-    v_tiene_aplicaciones_activas BOOLEAN;
+    v_cargo RECORD;
+    v_tiene_pagos BOOLEAN;
+    v_tiene_saldo BOOLEAN;
+    v_actor UUID;
 BEGIN
-    IF p_motivo IS NULL OR length(btrim(p_motivo)) = 0 THEN
-        RAISE EXCEPTION 'El motivo de cancelación es obligatorio.' USING ERRCODE = '23514';
-    END IF;
+    v_actor := COALESCE(p_actor_id, auth.uid());
 
-    SELECT * INTO v_cargo
-    FROM public.cargos
-    WHERE id = p_cargo_id
-    FOR UPDATE;
-
+    SELECT * INTO v_cargo FROM public.cargos WHERE id = p_cargo_id FOR UPDATE;
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'Cargo no encontrado.' USING ERRCODE = 'PG000';
+        RAISE EXCEPTION 'El cargo especificado no existe' USING ERRCODE = 'PG000';
     END IF;
 
     IF v_cargo.estado = 'Cancelado' THEN
-        RAISE EXCEPTION 'El cargo ya está cancelado.' USING ERRCODE = 'PG005';
+        RAISE EXCEPTION 'El cargo ya se encuentra cancelado' USING ERRCODE = 'PG005';
     END IF;
 
     SELECT EXISTS (
-        SELECT 1
-        FROM public.pagos p
-        WHERE p.cargo_id = p_cargo_id
-          AND p.es_reversa = false
-          AND p.estado IN ('PendienteConfirmacion', 'Confirmado')
-    ) INTO v_tiene_pagos_activos;
+        SELECT 1 FROM public.pagos 
+        WHERE cargo_id = p_cargo_id 
+          AND estado IN ('Confirmado', 'PendienteConfirmacion')
+    ) INTO v_tiene_pagos;
 
     SELECT EXISTS (
-        SELECT 1
-        FROM public.movimientos_saldo_favor m
-        WHERE m.cargo_id = p_cargo_id
-          AND m.tipo = 'AplicacionACargo'
-          AND NOT EXISTS (
-              SELECT 1
-              FROM public.movimientos_saldo_favor r
-              WHERE r.movimiento_origen_id = m.id
-                AND r.tipo = 'ReversoAplicacion'
-          )
-    ) INTO v_tiene_aplicaciones_activas;
+        SELECT 1 FROM public.movimientos_saldo_favor 
+        WHERE cargo_id = p_cargo_id AND tipo = 'Aplicacion'
+    ) INTO v_tiene_saldo;
 
-    IF v_cargo.monto_pagado_confirmado > 0 OR v_tiene_pagos_activos OR v_tiene_aplicaciones_activas THEN
-        RAISE EXCEPTION 'No se puede cancelar: el cargo tiene pagos o aplicaciones de saldo vigentes.'
-            USING ERRCODE = 'PG006';
+    IF v_tiene_pagos OR v_tiene_saldo THEN
+        RAISE EXCEPTION 'No se puede cancelar un cargo con pagos o aplicaciones de saldo vigentes' USING ERRCODE = 'PG006';
     END IF;
 
-    UPDATE public.cargos
+    UPDATE public.cargos 
     SET estado = 'Cancelado',
-        motivo_cancelacion = btrim(p_motivo),
-        cancelado_por = p_actor_id,
+        motivo_cancelacion = p_motivo,
+        cancelado_por = v_actor,
         cancelado_en = timezone('utc'::text, now())
     WHERE id = p_cargo_id
     RETURNING * INTO v_cargo;
 
-    RETURN to_jsonb(v_cargo);
+    RETURN jsonb_build_object('cargo', to_jsonb(v_cargo));
 END;
 $$;
 
@@ -4591,100 +4761,84 @@ ALTER FUNCTION public.rpc_cancelar_cargo(p_cargo_id uuid, p_motivo text, p_actor
 -- Name: rpc_confirmar_pago(uuid, uuid); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.rpc_confirmar_pago(p_pago_id uuid, p_admin_id uuid) RETURNS jsonb
+CREATE FUNCTION public.rpc_confirmar_pago(p_pago_id uuid, p_actor_id uuid DEFAULT NULL::uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 DECLARE
-    v_pago public.pagos%ROWTYPE;
-    v_cargo public.cargos%ROWTYPE;
-    v_movimiento public.movimientos_saldo_favor%ROWTYPE;
-    v_saldo_actual NUMERIC(12,2);
+    v_pago RECORD;
+    v_cargo RECORD;
+    v_mov_saldo public.movimientos_saldo_favor%ROWTYPE;
+    v_actor UUID;
+    v_saldo_pendiente NUMERIC(12,2);
     v_cubierto NUMERIC(12,2);
     v_excedente NUMERIC(12,2);
-    v_nuevo_pagado NUMERIC(12,2);
-    v_nuevo_estado VARCHAR(20);
-    v_saldo_favor NUMERIC(12,2);
+    v_saldo_favor_actual NUMERIC(12,2);
+    v_resultado JSONB;
 BEGIN
-    SELECT * INTO v_pago
-    FROM public.pagos
-    WHERE id = p_pago_id
-    FOR UPDATE;
+    v_actor := COALESCE(p_actor_id, auth.uid());
 
+    SELECT * INTO v_pago FROM public.pagos WHERE id = p_pago_id FOR UPDATE;
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'Pago no encontrado.' USING ERRCODE = 'PG000';
+        RAISE EXCEPTION 'El pago especificado no existe' USING ERRCODE = 'PG000';
     END IF;
 
     IF v_pago.estado <> 'PendienteConfirmacion' THEN
-        RAISE EXCEPTION 'El pago no está pendiente de confirmación.' USING ERRCODE = 'PG002';
+        RAISE EXCEPTION 'Solo se pueden confirmar pagos en estado PendienteConfirmacion' USING ERRCODE = 'PG002';
     END IF;
 
-    SELECT * INTO v_cargo
-    FROM public.cargos
-    WHERE id = v_pago.cargo_id
-    FOR UPDATE;
-
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'Cargo asociado no encontrado.' USING ERRCODE = 'PG000';
-    END IF;
-
+    SELECT * INTO v_cargo FROM public.cargos WHERE id = v_pago.cargo_id FOR UPDATE;
     IF v_cargo.estado = 'Cancelado' THEN
-        RAISE EXCEPTION 'El cargo está cancelado y no permite confirmar pagos.' USING ERRCODE = 'PG001';
+        RAISE EXCEPTION 'No se puede confirmar un pago sobre un cargo cancelado' USING ERRCODE = 'PG001';
     END IF;
 
-    v_saldo_actual := v_cargo.monto - v_cargo.monto_pagado_confirmado;
-    v_cubierto := LEAST(v_pago.monto, v_saldo_actual);
-    v_excedente := GREATEST(v_pago.monto - v_saldo_actual, 0);
+    SELECT saldo_pendiente INTO v_saldo_pendiente FROM public.vw_cargos WHERE id = v_cargo.id;
 
-    UPDATE public.pagos
-    SET monto_cubierto = v_cubierto,
+    IF v_pago.monto <= v_saldo_pendiente THEN
+        v_cubierto := v_pago.monto;
+        v_excedente := 0.00;
+    ELSE
+        v_cubierto := v_saldo_pendiente;
+        v_excedente := v_pago.monto - v_saldo_pendiente;
+    END IF;
+
+    UPDATE public.pagos 
+    SET estado = 'Confirmado',
+        monto_cubierto = v_cubierto,
         monto_excedente = v_excedente,
-        estado = 'Confirmado',
-        confirmado_por = p_admin_id,
+        confirmado_por = v_actor,
         confirmado_en = timezone('utc'::text, now())
-    WHERE id = v_pago.id
+    WHERE id = p_pago_id
     RETURNING * INTO v_pago;
-
-    v_nuevo_pagado := v_cargo.monto_pagado_confirmado + v_cubierto;
-    v_nuevo_estado := CASE
-        WHEN v_nuevo_pagado >= v_cargo.monto THEN 'Pagado'
-        WHEN v_nuevo_pagado > 0 THEN 'PagoParcial'
-        ELSE 'Pendiente'
-    END;
-
-    UPDATE public.cargos
-    SET monto_pagado_confirmado = v_nuevo_pagado,
-        estado = v_nuevo_estado
-    WHERE id = v_cargo.id
-    RETURNING * INTO v_cargo;
 
     IF v_excedente > 0 THEN
         INSERT INTO public.movimientos_saldo_favor (
-            condominio_id, vivienda_id, tipo, monto,
-            pago_id, cargo_id, motivo, creado_por
-        )
-        VALUES (
-            v_cargo.condominio_id, v_cargo.vivienda_id, 'AbonoExcedente', v_excedente,
-            v_pago.id, v_cargo.id, 'Excedente generado al confirmar pago de residente', p_admin_id
-        )
-        RETURNING * INTO v_movimiento;
+            condominio_id, vivienda_id, tipo, monto, pago_id, cargo_id, motivo, creado_por
+        ) VALUES (
+            v_cargo.condominio_id, v_cargo.vivienda_id, 'Abono', v_excedente, v_pago.id, v_cargo.id,
+            'Excedente acreditado automáticamente de pago confirmado', v_actor
+        ) RETURNING * INTO v_mov_saldo;
     END IF;
 
-    SELECT saldo_a_favor INTO v_saldo_favor
-    FROM public.v_saldo_vivienda
+    PERFORM public._recalcular_estado_cargo(v_cargo.id);
+
+    SELECT saldo_a_favor INTO v_saldo_favor_actual 
+    FROM public.v_saldo_vivienda 
     WHERE vivienda_id = v_cargo.vivienda_id;
 
-    RETURN jsonb_build_object(
+    SELECT jsonb_build_object(
         'pago', to_jsonb(v_pago),
-        'cargo', to_jsonb(v_cargo),
-        'movimiento_saldo', CASE WHEN v_movimiento.id IS NOT NULL THEN to_jsonb(v_movimiento) ELSE NULL END,
-        'saldo_a_favor', COALESCE(v_saldo_favor, 0)
-    );
+        'cargo', (SELECT to_jsonb(vc) FROM public.vw_cargos vc WHERE vc.id = v_cargo.id),
+        'movimiento_saldo', CASE WHEN v_mov_saldo.id IS NOT NULL THEN to_jsonb(v_mov_saldo) ELSE NULL END,
+        'saldo_a_favor', COALESCE(v_saldo_favor_actual, 0.00)
+    ) INTO v_resultado;
+
+    RETURN v_resultado;
 END;
 $$;
 
 
-ALTER FUNCTION public.rpc_confirmar_pago(p_pago_id uuid, p_admin_id uuid) OWNER TO postgres;
+ALTER FUNCTION public.rpc_confirmar_pago(p_pago_id uuid, p_actor_id uuid) OWNER TO postgres;
 
 --
 -- Name: rpc_depurar_comprobantes_antiguos(integer, integer); Type: FUNCTION; Schema: public; Owner: postgres
@@ -4794,12 +4948,12 @@ BEGIN
 
         INSERT INTO public.cargos (
             condominio_id, vivienda_id, plantilla_id, periodo,
-            tipo, concepto, monto, monto_pagado_confirmado,
+            tipo, concepto, monto,
             estado, fecha_vencimiento, responsable_pago, creado_por
         )
         VALUES (
             v_plantilla.condominio_id, v_plantilla.vivienda_id, v_plantilla.id, v_periodo,
-            v_plantilla.tipo, v_plantilla.concepto, v_plantilla.monto, 0,
+            v_plantilla.tipo, v_plantilla.concepto, v_plantilla.monto,
             'Pendiente', v_fecha_vencimiento, v_plantilla.responsable_pago, v_creador
         )
         ON CONFLICT (plantilla_id, periodo) DO NOTHING
@@ -4828,303 +4982,231 @@ ALTER FUNCTION public.rpc_generar_cargos_mensuales(p_periodo date, p_condominio_
 -- Name: rpc_rechazar_pago(uuid, text, uuid); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.rpc_rechazar_pago(p_pago_id uuid, p_motivo text, p_admin_id uuid) RETURNS jsonb
+CREATE FUNCTION public.rpc_rechazar_pago(p_pago_id uuid, p_motivo text, p_actor_id uuid DEFAULT NULL::uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 DECLARE
-    v_pago public.pagos%ROWTYPE;
+    v_pago RECORD;
+    v_actor UUID;
 BEGIN
-    IF p_motivo IS NULL OR length(btrim(p_motivo)) = 0 THEN
-        RAISE EXCEPTION 'El motivo de rechazo es obligatorio.' USING ERRCODE = '23514';
-    END IF;
+    v_actor := COALESCE(p_actor_id, auth.uid());
 
-    SELECT * INTO v_pago
-    FROM public.pagos
-    WHERE id = p_pago_id
-    FOR UPDATE;
-
+    SELECT * INTO v_pago FROM public.pagos WHERE id = p_pago_id FOR UPDATE;
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'Pago no encontrado.' USING ERRCODE = 'PG000';
+        RAISE EXCEPTION 'El pago especificado no existe' USING ERRCODE = 'PG000';
     END IF;
 
     IF v_pago.estado <> 'PendienteConfirmacion' THEN
-        RAISE EXCEPTION 'El pago no se encuentra en estado PendienteConfirmacion para ser rechazado.'
-            USING ERRCODE = 'PG003';
+        RAISE EXCEPTION 'Solo se pueden rechazar pagos en estado PendienteConfirmacion' USING ERRCODE = 'PG003';
     END IF;
 
-    UPDATE public.pagos
+    UPDATE public.pagos 
     SET estado = 'Rechazado',
-        motivo_rechazo = btrim(p_motivo),
-        rechazado_por = p_admin_id,
+        motivo_rechazo = p_motivo,
+        rechazado_por = v_actor,
         rechazado_en = timezone('utc'::text, now())
     WHERE id = p_pago_id
     RETURNING * INTO v_pago;
 
-    RETURN to_jsonb(v_pago);
+    RETURN jsonb_build_object('pago', to_jsonb(v_pago));
 END;
 $$;
 
 
-ALTER FUNCTION public.rpc_rechazar_pago(p_pago_id uuid, p_motivo text, p_admin_id uuid) OWNER TO postgres;
+ALTER FUNCTION public.rpc_rechazar_pago(p_pago_id uuid, p_motivo text, p_actor_id uuid) OWNER TO postgres;
 
 --
--- Name: rpc_registrar_pago_admin(uuid, numeric, date, character varying, character varying, character varying, text, character, uuid); Type: FUNCTION; Schema: public; Owner: postgres
+-- Name: rpc_registrar_pago(uuid, numeric, date, text, text, text, text, text, text, text, uuid); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.rpc_registrar_pago_admin(p_cargo_id uuid, p_monto numeric, p_fecha_pago date, p_metodo character varying, p_referencia character varying, p_banco_origen character varying, p_comprobante_ruta text, p_comprobante_hash character, p_admin_id uuid) RETURNS jsonb
+CREATE FUNCTION public.rpc_registrar_pago(p_cargo_id uuid, p_monto numeric, p_fecha_pago date, p_metodo text, p_origen text, p_estado text, p_referencia text DEFAULT NULL::text, p_banco_origen text DEFAULT NULL::text, p_comprobante_ruta text DEFAULT NULL::text, p_comprobante_hash text DEFAULT NULL::text, p_actor_id uuid DEFAULT NULL::uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 DECLARE
-    v_cargo public.cargos%ROWTYPE;
-    v_pago public.pagos%ROWTYPE;
-    v_movimiento public.movimientos_saldo_favor%ROWTYPE;
-    v_saldo_actual NUMERIC(12,2);
-    v_cubierto NUMERIC(12,2);
-    v_excedente NUMERIC(12,2);
-    v_nuevo_pagado NUMERIC(12,2);
-    v_nuevo_estado VARCHAR(20);
-    v_saldo_favor NUMERIC(12,2);
+    v_cargo RECORD;
+    v_pago RECORD;
+    v_mov_saldo public.movimientos_saldo_favor%ROWTYPE;
+    v_estado_inicial VARCHAR(30);
+    v_actor UUID;
+    v_saldo_pendiente NUMERIC(12,2);
+    v_cubierto NUMERIC(12,2) := 0.00;
+    v_excedente NUMERIC(12,2) := 0.00;
+    v_saldo_favor_actual NUMERIC(12,2);
+    v_resultado JSONB;
 BEGIN
-    IF p_monto IS NULL OR p_monto <= 0 THEN
-        RAISE EXCEPTION 'El monto del pago debe ser mayor a 0.' USING ERRCODE = 'PG008';
-    END IF;
+    v_actor := COALESCE(p_actor_id, auth.uid());
 
-    SELECT * INTO v_cargo
-    FROM public.cargos
-    WHERE id = p_cargo_id
-    FOR UPDATE;
-
+    SELECT * INTO v_cargo FROM public.cargos WHERE id = p_cargo_id FOR UPDATE;
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'Cargo no encontrado.' USING ERRCODE = 'PG000';
+        RAISE EXCEPTION 'El cargo especificado no existe' USING ERRCODE = 'PG000';
     END IF;
 
     IF v_cargo.estado = 'Cancelado' THEN
-        RAISE EXCEPTION 'El cargo está cancelado y no admite pagos.' USING ERRCODE = 'PG001';
+        RAISE EXCEPTION 'No se puede registrar un pago en un cargo cancelado' USING ERRCODE = 'PG001';
     END IF;
 
-    IF v_cargo.estado = 'Pagado' THEN
-        RAISE EXCEPTION 'El cargo ya está pagado en su totalidad.' USING ERRCODE = 'PG010';
+    v_estado_inicial := p_estado;
+    IF v_estado_inicial NOT IN ('Confirmado', 'PendienteConfirmacion') THEN
+        RAISE EXCEPTION 'Estado inicial inválido para registro de pago' USING ERRCODE = 'PG001';
     END IF;
 
-    v_saldo_actual := v_cargo.monto - v_cargo.monto_pagado_confirmado;
-    v_cubierto := LEAST(p_monto, v_saldo_actual);
-    v_excedente := GREATEST(p_monto - v_saldo_actual, 0);
+    -- Calcular cobertura y excedente
+    SELECT saldo_pendiente INTO v_saldo_pendiente FROM public.vw_cargos WHERE id = p_cargo_id;
+
+    IF v_estado_inicial = 'Confirmado' THEN
+        IF p_monto <= v_saldo_pendiente THEN
+            v_cubierto := p_monto;
+            v_excedente := 0.00;
+        ELSE
+            v_cubierto := v_saldo_pendiente;
+            v_excedente := p_monto - v_saldo_pendiente;
+        END IF;
+    ELSE
+        -- Si queda pendiente de confirmación, el monto cubierto se asienta al confirmar
+        v_cubierto := LEAST(p_monto, v_saldo_pendiente);
+        v_excedente := GREATEST(p_monto - v_saldo_pendiente, 0.00);
+    END IF;
 
     INSERT INTO public.pagos (
-        cargo_id, condominio_id, vivienda_id,
-        monto, monto_cubierto, monto_excedente,
-        fecha_pago, metodo, referencia, banco_origen,
-        comprobante_ruta, comprobante_hash,
-        estado, origen, es_reversa,
-        registrado_por, confirmado_por, confirmado_en
-    )
-    VALUES (
-        v_cargo.id, v_cargo.condominio_id, v_cargo.vivienda_id,
-        p_monto, v_cubierto, v_excedente,
-        p_fecha_pago, p_metodo, NULLIF(btrim(p_referencia), ''), NULLIF(btrim(p_banco_origen), ''),
-        p_comprobante_ruta, p_comprobante_hash,
-        'Confirmado', 'Admin', false,
-        p_admin_id, p_admin_id, timezone('utc'::text, now())
-    )
-    RETURNING * INTO v_pago;
+        cargo_id,
+        monto,
+        monto_cubierto,
+        monto_excedente,
+        fecha_pago,
+        metodo,
+        referencia,
+        banco_origen,
+        estado,
+        origen,
+        comprobante_ruta,
+        comprobante_hash,
+        es_reversa,
+        registrado_por,
+        confirmado_por,
+        confirmado_en
+    ) VALUES (
+        p_cargo_id,
+        p_monto,
+        v_cubierto,
+        v_excedente,
+        p_fecha_pago,
+        p_metodo,
+        p_referencia,
+        p_banco_origen,
+        v_estado_inicial,
+        p_origen,
+        p_comprobante_ruta,
+        p_comprobante_hash,
+        false,
+        v_actor,
+        CASE WHEN v_estado_inicial = 'Confirmado' THEN v_actor ELSE NULL END,
+        CASE WHEN v_estado_inicial = 'Confirmado' THEN timezone('utc'::text, now()) ELSE NULL END
+    ) RETURNING * INTO v_pago;
 
-    v_nuevo_pagado := v_cargo.monto_pagado_confirmado + v_cubierto;
-    v_nuevo_estado := CASE
-        WHEN v_nuevo_pagado >= v_cargo.monto THEN 'Pagado'
-        WHEN v_nuevo_pagado > 0 THEN 'PagoParcial'
-        ELSE 'Pendiente'
-    END;
+    -- Si fue confirmado y hay excedente, acreditar a saldo a favor
+    IF v_estado_inicial = 'Confirmado' THEN
+        IF v_excedente > 0 THEN
+            INSERT INTO public.movimientos_saldo_favor (
+                condominio_id, vivienda_id, tipo, monto, pago_id, cargo_id, motivo, creado_por
+            ) VALUES (
+                v_cargo.condominio_id, v_cargo.vivienda_id, 'Abono', v_excedente, v_pago.id, v_cargo.id,
+                'Excedente acreditado automáticamente de pago confirmado', v_actor
+            ) RETURNING * INTO v_mov_saldo;
+        END IF;
 
-    UPDATE public.cargos
-    SET monto_pagado_confirmado = v_nuevo_pagado,
-        estado = v_nuevo_estado
-    WHERE id = v_cargo.id
-    RETURNING * INTO v_cargo;
-
-    IF v_excedente > 0 THEN
-        INSERT INTO public.movimientos_saldo_favor (
-            condominio_id, vivienda_id, tipo, monto,
-            pago_id, cargo_id, motivo, creado_por
-        )
-        VALUES (
-            v_cargo.condominio_id, v_cargo.vivienda_id, 'AbonoExcedente', v_excedente,
-            v_pago.id, v_cargo.id, 'Excedente generado en pago registrado por administración', p_admin_id
-        )
-        RETURNING * INTO v_movimiento;
+        PERFORM public._recalcular_estado_cargo(p_cargo_id);
     END IF;
 
-    SELECT saldo_a_favor INTO v_saldo_favor
-    FROM public.v_saldo_vivienda
+    SELECT saldo_a_favor INTO v_saldo_favor_actual 
+    FROM public.v_saldo_vivienda 
     WHERE vivienda_id = v_cargo.vivienda_id;
 
-    RETURN jsonb_build_object(
+    SELECT jsonb_build_object(
         'pago', to_jsonb(v_pago),
-        'cargo', to_jsonb(v_cargo),
-        'movimiento_saldo', CASE WHEN v_movimiento.id IS NOT NULL THEN to_jsonb(v_movimiento) ELSE NULL END,
-        'saldo_a_favor', COALESCE(v_saldo_favor, 0)
-    );
+        'cargo', (SELECT to_jsonb(vc) FROM public.vw_cargos vc WHERE vc.id = p_cargo_id),
+        'movimiento_saldo', CASE WHEN v_mov_saldo.id IS NOT NULL THEN to_jsonb(v_mov_saldo) ELSE NULL END,
+        'saldo_a_favor', COALESCE(v_saldo_favor_actual, 0.00)
+    ) INTO v_resultado;
+
+    RETURN v_resultado;
 END;
 $$;
 
 
-ALTER FUNCTION public.rpc_registrar_pago_admin(p_cargo_id uuid, p_monto numeric, p_fecha_pago date, p_metodo character varying, p_referencia character varying, p_banco_origen character varying, p_comprobante_ruta text, p_comprobante_hash character, p_admin_id uuid) OWNER TO postgres;
-
---
--- Name: rpc_reportar_pago(uuid, numeric, date, character varying, character varying, character varying, text, character, uuid); Type: FUNCTION; Schema: public; Owner: postgres
---
-
-CREATE FUNCTION public.rpc_reportar_pago(p_cargo_id uuid, p_monto numeric, p_fecha_pago date, p_metodo character varying, p_referencia character varying, p_banco_origen character varying, p_comprobante_ruta text, p_comprobante_hash character, p_registrado_por uuid) RETURNS jsonb
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-DECLARE
-    v_cargo public.cargos%ROWTYPE;
-    v_pago public.pagos%ROWTYPE;
-BEGIN
-    IF p_monto IS NULL OR p_monto <= 0 THEN
-        RAISE EXCEPTION 'El monto del pago debe ser mayor a 0.' USING ERRCODE = 'PG008';
-    END IF;
-
-    SELECT * INTO v_cargo
-    FROM public.cargos
-    WHERE id = p_cargo_id
-    FOR UPDATE;
-
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'Cargo no encontrado.' USING ERRCODE = 'PG000';
-    END IF;
-
-    IF v_cargo.estado = 'Cancelado' THEN
-        RAISE EXCEPTION 'El cargo está cancelado y no admite pagos.' USING ERRCODE = 'PG001';
-    END IF;
-
-    IF v_cargo.estado = 'Pagado' THEN
-        RAISE EXCEPTION 'El cargo ya está pagado en su totalidad.' USING ERRCODE = 'PG010';
-    END IF;
-
-    INSERT INTO public.pagos (
-        cargo_id, condominio_id, vivienda_id,
-        monto, monto_cubierto, monto_excedente,
-        fecha_pago, metodo, referencia, banco_origen,
-        comprobante_ruta, comprobante_hash,
-        estado, origen, es_reversa, registrado_por
-    )
-    VALUES (
-        v_cargo.id, v_cargo.condominio_id, v_cargo.vivienda_id,
-        p_monto, p_monto, 0,
-        p_fecha_pago, p_metodo, NULLIF(btrim(p_referencia), ''), NULLIF(btrim(p_banco_origen), ''),
-        p_comprobante_ruta, p_comprobante_hash,
-        'PendienteConfirmacion', 'Residente', false, p_registrado_por
-    )
-    RETURNING * INTO v_pago;
-
-    RETURN to_jsonb(v_pago);
-END;
-$$;
-
-
-ALTER FUNCTION public.rpc_reportar_pago(p_cargo_id uuid, p_monto numeric, p_fecha_pago date, p_metodo character varying, p_referencia character varying, p_banco_origen character varying, p_comprobante_ruta text, p_comprobante_hash character, p_registrado_por uuid) OWNER TO postgres;
+ALTER FUNCTION public.rpc_registrar_pago(p_cargo_id uuid, p_monto numeric, p_fecha_pago date, p_metodo text, p_origen text, p_estado text, p_referencia text, p_banco_origen text, p_comprobante_ruta text, p_comprobante_hash text, p_actor_id uuid) OWNER TO postgres;
 
 --
 -- Name: rpc_revertir_aplicacion_saldo(uuid, text, uuid); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.rpc_revertir_aplicacion_saldo(p_movimiento_id uuid, p_motivo text, p_admin_id uuid) RETURNS jsonb
+CREATE FUNCTION public.rpc_revertir_aplicacion_saldo(p_movimiento_id uuid, p_motivo text, p_actor_id uuid DEFAULT NULL::uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 DECLARE
-    v_origen public.movimientos_saldo_favor%ROWTYPE;
-    v_reverso public.movimientos_saldo_favor%ROWTYPE;
-    v_cargo public.cargos%ROWTYPE;
-    v_ya_revertido BOOLEAN;
-    v_nuevo_pagado NUMERIC(12,2);
-    v_nuevo_estado VARCHAR(20);
+    v_mov_orig RECORD;
+    v_mov_reverso public.movimientos_saldo_favor%ROWTYPE;
+    v_cargo RECORD;
+    v_actor UUID;
     v_saldo_favor_final NUMERIC(12,2);
+    v_resultado JSONB;
 BEGIN
-    IF p_motivo IS NULL OR length(btrim(p_motivo)) = 0 THEN
-        RAISE EXCEPTION 'El motivo de reversión es obligatorio.' USING ERRCODE = '23514';
+    v_actor := COALESCE(p_actor_id, auth.uid());
+
+    IF NULLIF(TRIM(p_motivo), '') IS NULL THEN
+        RAISE EXCEPTION 'El motivo de reversión es obligatorio' USING ERRCODE = 'PG009';
     END IF;
 
-    SELECT * INTO v_origen
-    FROM public.movimientos_saldo_favor
-    WHERE id = p_movimiento_id
-    FOR UPDATE;
+    SELECT * INTO v_mov_orig 
+    FROM public.movimientos_saldo_favor 
+    WHERE id = p_movimiento_id FOR UPDATE;
 
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'Movimiento de saldo a favor no encontrado.' USING ERRCODE = 'PG000';
+        RAISE EXCEPTION 'El movimiento especificado no existe' USING ERRCODE = 'PG000';
     END IF;
 
-    IF v_origen.tipo <> 'AplicacionACargo' THEN
-        RAISE EXCEPTION 'Solo se pueden revertir movimientos de tipo AplicacionACargo.'
-            USING ERRCODE = 'PG009';
+    IF v_mov_orig.tipo <> 'Aplicacion' THEN
+        RAISE EXCEPTION 'Solo se pueden revertir movimientos de tipo Aplicacion' USING ERRCODE = 'PG009';
     END IF;
 
-    SELECT EXISTS (
-        SELECT 1
-        FROM public.movimientos_saldo_favor r
-        WHERE r.movimiento_origen_id = v_origen.id
-          AND r.tipo = 'ReversoAplicacion'
-    ) INTO v_ya_revertido;
-
-    IF v_ya_revertido THEN
-        RAISE EXCEPTION 'Este movimiento de aplicación de saldo ya fue revertido anteriormente.'
-            USING ERRCODE = 'PG009';
+    IF EXISTS (
+        SELECT 1 FROM public.movimientos_saldo_favor 
+        WHERE movimiento_origen_id = p_movimiento_id AND tipo = 'ReversoAplicacion'
+    ) THEN
+        RAISE EXCEPTION 'El movimiento ya fue revertido con anterioridad' USING ERRCODE = 'PG009';
     END IF;
 
-    SELECT * INTO v_cargo
-    FROM public.cargos
-    WHERE id = v_origen.cargo_id
-    FOR UPDATE;
-
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'Cargo asociado al movimiento no encontrado.' USING ERRCODE = 'PG000';
-    END IF;
-
-    IF v_cargo.estado = 'Cancelado' THEN
-        RAISE EXCEPTION 'No se puede revertir la aplicación sobre un cargo cancelado.'
-            USING ERRCODE = 'PG001';
-    END IF;
+    SELECT * INTO v_cargo FROM public.cargos WHERE id = v_mov_orig.cargo_id FOR UPDATE;
 
     INSERT INTO public.movimientos_saldo_favor (
-        condominio_id, vivienda_id, tipo, monto,
-        cargo_id, movimiento_origen_id, motivo, creado_por
-    )
-    VALUES (
-        v_origen.condominio_id, v_origen.vivienda_id, 'ReversoAplicacion', v_origen.monto,
-        v_origen.cargo_id, v_origen.id, btrim(p_motivo), p_admin_id
-    )
-    RETURNING * INTO v_reverso;
+        condominio_id, vivienda_id, tipo, monto, cargo_id, movimiento_origen_id, motivo, creado_por
+    ) VALUES (
+        v_mov_orig.condominio_id, v_mov_orig.vivienda_id, 'ReversoAplicacion', v_mov_orig.monto,
+        v_mov_orig.cargo_id, p_movimiento_id, TRIM(p_motivo), v_actor
+    ) RETURNING * INTO v_mov_reverso;
 
-    v_nuevo_pagado := GREATEST(v_cargo.monto_pagado_confirmado - v_origen.monto, 0);
-    v_nuevo_estado := CASE
-        WHEN v_nuevo_pagado >= v_cargo.monto THEN 'Pagado'
-        WHEN v_nuevo_pagado > 0 THEN 'PagoParcial'
-        ELSE 'Pendiente'
-    END;
+    IF v_cargo.id IS NOT NULL THEN
+        PERFORM public._recalcular_estado_cargo(v_cargo.id);
+    END IF;
 
-    UPDATE public.cargos
-    SET monto_pagado_confirmado = v_nuevo_pagado,
-        estado = v_nuevo_estado
-    WHERE id = v_cargo.id
-    RETURNING * INTO v_cargo;
+    SELECT saldo_a_favor INTO v_saldo_favor_final 
+    FROM public.v_saldo_vivienda 
+    WHERE vivienda_id = v_mov_orig.vivienda_id;
 
-    SELECT saldo_a_favor INTO v_saldo_favor_final
-    FROM public.v_saldo_vivienda
-    WHERE vivienda_id = v_origen.vivienda_id;
+    SELECT jsonb_build_object(
+        'movimiento', to_jsonb(v_mov_reverso),
+        'cargo', CASE WHEN v_cargo.id IS NOT NULL THEN (SELECT to_jsonb(vc) FROM public.vw_cargos vc WHERE vc.id = v_cargo.id) ELSE NULL END,
+        'saldo_a_favor', COALESCE(v_saldo_favor_final, 0.00)
+    ) INTO v_resultado;
 
-    RETURN jsonb_build_object(
-        'movimiento_reverso', to_jsonb(v_reverso),
-        'cargo', to_jsonb(v_cargo),
-        'saldo_a_favor', COALESCE(v_saldo_favor_final, 0)
-    );
+    RETURN v_resultado;
 END;
 $$;
 
 
-ALTER FUNCTION public.rpc_revertir_aplicacion_saldo(p_movimiento_id uuid, p_motivo text, p_admin_id uuid) OWNER TO postgres;
+ALTER FUNCTION public.rpc_revertir_aplicacion_saldo(p_movimiento_id uuid, p_motivo text, p_actor_id uuid) OWNER TO postgres;
 
 --
 -- Name: solicitar_reserva(uuid, uuid, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: postgres
@@ -5367,10 +5449,6 @@ $$;
 
 ALTER FUNCTION public.validar_codigo_visita(p_codigo character varying, p_actor_id uuid) OWNER TO postgres;
 
-SET default_tablespace = '';
-
-SET default_table_access_method = heap;
-
 --
 -- Name: areas_comunes; Type: TABLE; Schema: public; Owner: postgres
 --
@@ -5498,27 +5576,24 @@ CREATE TABLE public.cargos (
     condominio_id uuid NOT NULL,
     vivienda_id integer NOT NULL,
     plantilla_id uuid,
-    periodo date,
-    tipo character varying(30) NOT NULL,
-    concepto character varying(150) NOT NULL,
+    tipo character varying(20) NOT NULL,
+    concepto character varying(200) NOT NULL,
     monto numeric(12,2) NOT NULL,
-    monto_pagado_confirmado numeric(12,2) DEFAULT 0 NOT NULL,
-    saldo_pendiente numeric(12,2) GENERATED ALWAYS AS ((monto - monto_pagado_confirmado)) STORED,
-    estado character varying(20) DEFAULT 'Pendiente'::character varying NOT NULL,
+    periodo date,
     fecha_vencimiento date NOT NULL,
+    estado character varying(20) DEFAULT 'Pendiente'::character varying NOT NULL,
     responsable_pago character varying(20) DEFAULT 'Residente'::character varying NOT NULL,
     motivo_cancelacion text,
     cancelado_por uuid,
     cancelado_en timestamp with time zone,
-    creado_por uuid NOT NULL,
+    creado_por uuid,
     creado_en timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-    CONSTRAINT cargos_check CHECK (((monto_pagado_confirmado >= (0)::numeric) AND (monto_pagado_confirmado <= monto))),
-    CONSTRAINT cargos_estado_check CHECK (((estado)::text = ANY (ARRAY[('Pendiente'::character varying)::text, ('PagoParcial'::character varying)::text, ('Pagado'::character varying)::text, ('Cancelado'::character varying)::text]))),
+    CONSTRAINT cargos_estado_check CHECK (((estado)::text = ANY (ARRAY[('Pendiente'::character varying)::text, ('Parcial'::character varying)::text, ('Pagado'::character varying)::text, ('Cancelado'::character varying)::text]))),
     CONSTRAINT cargos_monto_check CHECK ((monto > (0)::numeric)),
-    CONSTRAINT cargos_responsable_pago_check CHECK (((responsable_pago)::text = ANY (ARRAY[('Propietario'::character varying)::text, ('Inquilino'::character varying)::text, ('Residente'::character varying)::text]))),
-    CONSTRAINT cargos_tipo_check CHECK (((tipo)::text = ANY (ARRAY[('Mantenimiento'::character varying)::text, ('Renta'::character varying)::text, ('Extraordinario'::character varying)::text, ('Multa'::character varying)::text, ('Servicio'::character varying)::text, ('Otro'::character varying)::text]))),
-    CONSTRAINT chk_cargos_cancelacion_motivo CHECK ((((estado)::text <> 'Cancelado'::text) OR ((motivo_cancelacion IS NOT NULL) AND (length(btrim(motivo_cancelacion)) > 0)))),
-    CONSTRAINT chk_cargos_periodo_primer_dia CHECK (((periodo IS NULL) OR (EXTRACT(day FROM periodo) = (1)::numeric)))
+    CONSTRAINT cargos_responsable_pago_check CHECK (((responsable_pago)::text = ANY (ARRAY[('Propietario'::character varying)::text, ('Residente'::character varying)::text]))),
+    CONSTRAINT cargos_tipo_check CHECK (((tipo)::text = ANY (ARRAY[('Renta'::character varying)::text, ('Mantenimiento'::character varying)::text, ('Servicio'::character varying)::text, ('Multa'::character varying)::text, ('Otro'::character varying)::text]))),
+    CONSTRAINT chk_cargo_periodo_mes CHECK (((periodo IS NULL) OR (periodo = (date_trunc('month'::text, (periodo)::timestamp with time zone))::date))),
+    CONSTRAINT chk_cargo_periodo_requerido CHECK (((((tipo)::text = ANY (ARRAY[('Renta'::character varying)::text, ('Mantenimiento'::character varying)::text])) AND (periodo IS NOT NULL)) OR ((tipo)::text <> ALL (ARRAY[('Renta'::character varying)::text, ('Mantenimiento'::character varying)::text]))))
 );
 
 
@@ -5675,22 +5750,6 @@ ALTER SEQUENCE public.codigos_vivienda_bitacora_id_seq OWNED BY public.codigos_v
 
 
 --
--- Name: condominios; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.condominios (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    nombre text NOT NULL,
-    direccion text,
-    zona_horaria text DEFAULT 'America/Mexico_City'::text NOT NULL,
-    activo boolean DEFAULT true NOT NULL,
-    creado_en timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
-
-ALTER TABLE public.condominios OWNER TO postgres;
-
---
 -- Name: condominios_bitacora; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -5727,25 +5786,6 @@ ALTER SEQUENCE public.condominios_bitacora_id_seq OWNER TO postgres;
 
 ALTER SEQUENCE public.condominios_bitacora_id_seq OWNED BY public.condominios_bitacora.id;
 
-
---
--- Name: invitaciones_subusuarios; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.invitaciones_subusuarios (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    vivienda_id integer NOT NULL,
-    titular_id uuid NOT NULL,
-    invitado_id uuid NOT NULL,
-    parentesco character varying(50) NOT NULL,
-    estado character varying(20) DEFAULT 'PENDIENTE'::character varying NOT NULL,
-    creado_en timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-    actualizado_en timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-    CONSTRAINT invitaciones_subusuarios_estado_check CHECK ((upper((estado)::text) = ANY (ARRAY['PENDIENTE'::text, 'ACEPTADA'::text, 'RECHAZADA'::text, 'CANCELADA'::text])))
-);
-
-
-ALTER TABLE public.invitaciones_subusuarios OWNER TO postgres;
 
 --
 -- Name: invitaciones_subusuarios_bitacora; Type: TABLE; Schema: public; Owner: postgres
@@ -5799,11 +5839,10 @@ CREATE TABLE public.movimientos_saldo_favor (
     cargo_id uuid,
     movimiento_origen_id uuid,
     motivo text,
-    creado_por uuid NOT NULL,
+    creado_por uuid,
     creado_en timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-    CONSTRAINT chk_msf_coherencia_referencias CHECK (((((tipo)::text = 'AbonoExcedente'::text) AND (pago_id IS NOT NULL)) OR (((tipo)::text = 'AplicacionACargo'::text) AND (cargo_id IS NOT NULL)) OR (((tipo)::text = 'ReversoAbono'::text) AND (movimiento_origen_id IS NOT NULL) AND (motivo IS NOT NULL) AND (length(btrim(motivo)) > 0)) OR (((tipo)::text = 'ReversoAplicacion'::text) AND (movimiento_origen_id IS NOT NULL) AND (cargo_id IS NOT NULL) AND (motivo IS NOT NULL) AND (length(btrim(motivo)) > 0)))),
     CONSTRAINT movimientos_saldo_favor_monto_check CHECK ((monto > (0)::numeric)),
-    CONSTRAINT movimientos_saldo_favor_tipo_check CHECK (((tipo)::text = ANY (ARRAY[('AbonoExcedente'::character varying)::text, ('AplicacionACargo'::character varying)::text, ('ReversoAbono'::character varying)::text, ('ReversoAplicacion'::character varying)::text])))
+    CONSTRAINT movimientos_saldo_favor_tipo_check CHECK (((tipo)::text = ANY (ARRAY[('Abono'::character varying)::text, ('Aplicacion'::character varying)::text, ('ReversoAbono'::character varying)::text, ('ReversoAplicacion'::character varying)::text])))
 );
 
 
@@ -5913,24 +5952,22 @@ ALTER SEQUENCE public.notificaciones_bitacora_id_seq OWNED BY public.notificacio
 CREATE TABLE public.pagos (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     cargo_id uuid NOT NULL,
-    condominio_id uuid NOT NULL,
-    vivienda_id integer NOT NULL,
     monto numeric(12,2) NOT NULL,
-    monto_cubierto numeric(12,2) DEFAULT 0 NOT NULL,
-    monto_excedente numeric(12,2) DEFAULT 0 NOT NULL,
-    fecha_pago date NOT NULL,
-    metodo character varying(30) NOT NULL,
-    referencia character varying(80),
-    banco_origen character varying(80),
+    monto_cubierto numeric(12,2) DEFAULT 0.00 NOT NULL,
+    monto_excedente numeric(12,2) DEFAULT 0.00 NOT NULL,
+    fecha_pago date DEFAULT (timezone('America/Mexico_City'::text, now()))::date NOT NULL,
+    metodo character varying(20) NOT NULL,
+    referencia character varying(100),
+    banco_origen character varying(100),
+    estado character varying(30) NOT NULL,
+    origen character varying(20) NOT NULL,
     comprobante_ruta text,
-    comprobante_hash character(64),
-    estado character varying(25) NOT NULL,
-    origen character varying(15) NOT NULL,
+    comprobante_hash character varying(64),
     es_reversa boolean DEFAULT false NOT NULL,
     pago_original_id uuid,
     motivo_rechazo text,
     motivo_anulacion text,
-    registrado_por uuid NOT NULL,
+    registrado_por uuid,
     creado_en timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
     confirmado_por uuid,
     confirmado_en timestamp with time zone,
@@ -5938,16 +5975,10 @@ CREATE TABLE public.pagos (
     rechazado_en timestamp with time zone,
     anulado_por uuid,
     anulado_en timestamp with time zone,
-    CONSTRAINT chk_pagos_anulacion_motivo CHECK ((((estado)::text <> 'Anulado'::text) OR ((motivo_anulacion IS NOT NULL) AND (length(btrim(motivo_anulacion)) > 0)))),
-    CONSTRAINT chk_pagos_desglose CHECK (((es_reversa = true) OR ((monto_cubierto + monto_excedente) = monto))),
-    CONSTRAINT chk_pagos_rechazo_motivo CHECK ((((estado)::text <> 'Rechazado'::text) OR ((motivo_rechazo IS NOT NULL) AND (length(btrim(motivo_rechazo)) > 0)))),
-    CONSTRAINT chk_pagos_signo_reversa CHECK ((((es_reversa = false) AND (monto > (0)::numeric) AND (pago_original_id IS NULL)) OR ((es_reversa = true) AND (monto < (0)::numeric) AND (pago_original_id IS NOT NULL)))),
     CONSTRAINT pagos_estado_check CHECK (((estado)::text = ANY (ARRAY[('PendienteConfirmacion'::character varying)::text, ('Confirmado'::character varying)::text, ('Rechazado'::character varying)::text, ('Anulado'::character varying)::text]))),
-    CONSTRAINT pagos_metodo_check CHECK (((metodo)::text = ANY (ARRAY[('Transferencia'::character varying)::text, ('Deposito'::character varying)::text, ('Efectivo'::character varying)::text, ('Tarjeta'::character varying)::text, ('Otro'::character varying)::text]))),
-    CONSTRAINT pagos_monto_check CHECK ((monto <> (0)::numeric)),
-    CONSTRAINT pagos_monto_cubierto_check CHECK ((monto_cubierto >= (0)::numeric)),
-    CONSTRAINT pagos_monto_excedente_check CHECK ((monto_excedente >= (0)::numeric)),
-    CONSTRAINT pagos_origen_check CHECK (((origen)::text = ANY (ARRAY[('Residente'::character varying)::text, ('Admin'::character varying)::text])))
+    CONSTRAINT pagos_metodo_check CHECK (((metodo)::text = ANY (ARRAY[('Efectivo'::character varying)::text, ('Transferencia'::character varying)::text, ('Deposito'::character varying)::text, ('Otro'::character varying)::text]))),
+    CONSTRAINT pagos_monto_check CHECK ((monto > (0)::numeric)),
+    CONSTRAINT pagos_origen_check CHECK (((origen)::text = ANY (ARRAY[('Admin'::character varying)::text, ('Inquilino'::character varying)::text])))
 );
 
 
@@ -6075,23 +6106,23 @@ CREATE TABLE public.plantillas_cargo (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     condominio_id uuid NOT NULL,
     vivienda_id integer NOT NULL,
-    tipo character varying(30) NOT NULL,
-    concepto character varying(150) NOT NULL,
+    tipo character varying(20) NOT NULL,
+    concepto character varying(200) NOT NULL,
     monto numeric(12,2) NOT NULL,
-    dia_vencimiento smallint NOT NULL,
+    dia_vencimiento integer NOT NULL,
     vigencia_inicio date NOT NULL,
     vigencia_fin date,
     responsable_pago character varying(20) DEFAULT 'Residente'::character varying NOT NULL,
     activa boolean DEFAULT true NOT NULL,
-    creado_por uuid NOT NULL,
+    creado_por uuid,
     creado_en timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
     modificado_por uuid,
     modificado_en timestamp with time zone,
-    CONSTRAINT chk_plantillas_vigencia CHECK (((vigencia_fin IS NULL) OR (vigencia_fin >= vigencia_inicio))),
-    CONSTRAINT plantillas_cargo_dia_vencimiento_check CHECK (((dia_vencimiento >= 1) AND (dia_vencimiento <= 28))),
+    CONSTRAINT chk_plantilla_vigencia CHECK (((vigencia_fin IS NULL) OR (vigencia_fin >= vigencia_inicio))),
+    CONSTRAINT plantillas_cargo_dia_vencimiento_check CHECK (((dia_vencimiento >= 1) AND (dia_vencimiento <= 31))),
     CONSTRAINT plantillas_cargo_monto_check CHECK ((monto > (0)::numeric)),
-    CONSTRAINT plantillas_cargo_responsable_pago_check CHECK (((responsable_pago)::text = ANY (ARRAY[('Propietario'::character varying)::text, ('Inquilino'::character varying)::text, ('Residente'::character varying)::text]))),
-    CONSTRAINT plantillas_cargo_tipo_check CHECK (((tipo)::text = ANY (ARRAY[('Mantenimiento'::character varying)::text, ('Renta'::character varying)::text, ('Extraordinario'::character varying)::text, ('Multa'::character varying)::text, ('Servicio'::character varying)::text, ('Otro'::character varying)::text])))
+    CONSTRAINT plantillas_cargo_responsable_pago_check CHECK (((responsable_pago)::text = ANY (ARRAY[('Propietario'::character varying)::text, ('Residente'::character varying)::text]))),
+    CONSTRAINT plantillas_cargo_tipo_check CHECK (((tipo)::text = ANY (ARRAY[('Renta'::character varying)::text, ('Mantenimiento'::character varying)::text, ('Servicio'::character varying)::text, ('Multa'::character varying)::text, ('Otro'::character varying)::text])))
 );
 
 
@@ -6334,27 +6365,6 @@ ALTER SEQUENCE public.servicios_paqueteria_id_seq OWNED BY public.servicios_paqu
 
 
 --
--- Name: usuarios; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.usuarios (
-    id uuid NOT NULL,
-    rol_id integer DEFAULT 2 NOT NULL,
-    condominio_id uuid,
-    email text NOT NULL,
-    nombre text NOT NULL,
-    apellidos text NOT NULL,
-    telefono text,
-    activo boolean DEFAULT true NOT NULL,
-    debe_cambiar_password boolean DEFAULT false NOT NULL,
-    creado_en timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-    CONSTRAINT chk_vigilancia_condominio_requerido CHECK (((rol_id <> 3) OR (condominio_id IS NOT NULL)))
-);
-
-
-ALTER TABLE public.usuarios OWNER TO postgres;
-
---
 -- Name: usuarios_bitacora; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -6393,47 +6403,78 @@ ALTER SEQUENCE public.usuarios_bitacora_id_seq OWNED BY public.usuarios_bitacora
 
 
 --
--- Name: viviendas; Type: TABLE; Schema: public; Owner: postgres
+-- Name: vw_cargos; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.viviendas (
-    id integer NOT NULL,
-    condominio_id uuid NOT NULL,
-    numero_casa text NOT NULL,
-    tipo text,
-    activo boolean DEFAULT true NOT NULL,
-    creado_en timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
-);
+CREATE VIEW public.vw_cargos AS
+ SELECT c.id,
+    c.condominio_id,
+    co.nombre AS condominio_nombre,
+    c.vivienda_id,
+    v.numero_casa,
+    c.plantilla_id,
+    c.periodo,
+    c.tipo,
+    c.concepto,
+    c.monto,
+    ((COALESCE(pagos_agg.monto_pagado, 0.00) + COALESCE(saldo_agg.saldo_aplicado, 0.00)))::numeric(12,2) AS monto_pagado_confirmado,
+        CASE
+            WHEN ((c.estado)::text = 'Cancelado'::text) THEN 0.00
+            ELSE (GREATEST((c.monto - (COALESCE(pagos_agg.monto_pagado, 0.00) + COALESCE(saldo_agg.saldo_aplicado, 0.00))), 0.00))::numeric(12,2)
+        END AS saldo_pendiente,
+    c.estado,
+    c.fecha_vencimiento,
+    ((c.fecha_vencimiento < (timezone('America/Mexico_City'::text, now()))::date) AND ((c.estado)::text = ANY (ARRAY[('Pendiente'::character varying)::text, ('Parcial'::character varying)::text]))) AS esta_vencido,
+    c.responsable_pago,
+    c.motivo_cancelacion,
+    c.cancelado_por,
+    c.cancelado_en,
+    c.creado_por,
+    c.creado_en
+   FROM ((((public.cargos c
+     JOIN public.condominios co ON ((co.id = c.condominio_id)))
+     JOIN public.viviendas v ON ((v.id = c.vivienda_id)))
+     LEFT JOIN ( SELECT pagos.cargo_id,
+            sum(pagos.monto_cubierto) AS monto_pagado
+           FROM public.pagos
+          WHERE (((pagos.estado)::text = 'Confirmado'::text) AND (pagos.es_reversa = false))
+          GROUP BY pagos.cargo_id) pagos_agg ON ((pagos_agg.cargo_id = c.id)))
+     LEFT JOIN ( SELECT movimientos_saldo_favor.cargo_id,
+            sum(
+                CASE
+                    WHEN ((movimientos_saldo_favor.tipo)::text = 'Aplicacion'::text) THEN movimientos_saldo_favor.monto
+                    WHEN ((movimientos_saldo_favor.tipo)::text = 'ReversoAplicacion'::text) THEN (- movimientos_saldo_favor.monto)
+                    ELSE 0.00
+                END) AS saldo_aplicado
+           FROM public.movimientos_saldo_favor
+          WHERE (movimientos_saldo_favor.cargo_id IS NOT NULL)
+          GROUP BY movimientos_saldo_favor.cargo_id) saldo_agg ON ((saldo_agg.cargo_id = c.id)));
 
 
-ALTER TABLE public.viviendas OWNER TO postgres;
+ALTER VIEW public.vw_cargos OWNER TO postgres;
 
 --
 -- Name: v_saldo_vivienda; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE VIEW public.v_saldo_vivienda WITH (security_invoker='true') AS
- SELECT id AS vivienda_id,
-    condominio_id,
-    numero_casa,
-    (COALESCE(( SELECT sum(c.saldo_pendiente) AS sum
-           FROM public.cargos c
-          WHERE ((c.vivienda_id = v.id) AND ((c.estado)::text = ANY (ARRAY[('Pendiente'::character varying)::text, ('PagoParcial'::character varying)::text])))), (0)::numeric))::numeric(12,2) AS total_pendiente,
-    (COALESCE(( SELECT sum(c.saldo_pendiente) AS sum
-           FROM public.cargos c
-          WHERE ((c.vivienda_id = v.id) AND ((c.estado)::text = ANY (ARRAY[('Pendiente'::character varying)::text, ('PagoParcial'::character varying)::text])) AND (c.fecha_vencimiento < CURRENT_DATE))), (0)::numeric))::numeric(12,2) AS total_vencido,
-    (COALESCE(( SELECT count(*) AS count
-           FROM public.cargos c
-          WHERE ((c.vivienda_id = v.id) AND ((c.estado)::text = ANY (ARRAY[('Pendiente'::character varying)::text, ('PagoParcial'::character varying)::text])))), (0)::bigint))::integer AS total_cargos_abiertos,
+CREATE VIEW public.v_saldo_vivienda AS
+ SELECT v.id AS vivienda_id,
+    v.condominio_id,
+    v.numero_casa,
+    (COALESCE(sum(c.saldo_pendiente) FILTER (WHERE ((c.estado)::text = ANY (ARRAY[('Pendiente'::character varying)::text, ('Parcial'::character varying)::text]))), 0.00))::numeric(12,2) AS total_pendiente,
+    (COALESCE(sum(c.saldo_pendiente) FILTER (WHERE (((c.estado)::text = ANY (ARRAY[('Pendiente'::character varying)::text, ('Parcial'::character varying)::text])) AND (c.esta_vencido = true))), 0.00))::numeric(12,2) AS total_vencido,
+    (count(c.id) FILTER (WHERE ((c.estado)::text = ANY (ARRAY[('Pendiente'::character varying)::text, ('Parcial'::character varying)::text]))))::integer AS total_cargos_abiertos,
     (COALESCE(( SELECT sum(
                 CASE
-                    WHEN ((m.tipo)::text = ANY (ARRAY[('AbonoExcedente'::character varying)::text, ('ReversoAplicacion'::character varying)::text])) THEN m.monto
-                    ELSE (- m.monto)
+                    WHEN ((ms.tipo)::text = ANY (ARRAY[('Abono'::character varying)::text, ('ReversoAplicacion'::character varying)::text])) THEN ms.monto
+                    ELSE (- ms.monto)
                 END) AS sum
-           FROM public.movimientos_saldo_favor m
-          WHERE (m.vivienda_id = v.id)), (0)::numeric))::numeric(12,2) AS saldo_a_favor
-   FROM public.viviendas v
-  WHERE (activo = true);
+           FROM public.movimientos_saldo_favor ms
+          WHERE (ms.vivienda_id = v.id)), 0.00))::numeric(12,2) AS saldo_a_favor
+   FROM (public.viviendas v
+     LEFT JOIN public.vw_cargos c ON ((c.vivienda_id = v.id)))
+  WHERE (v.activo = true)
+  GROUP BY v.id, v.condominio_id, v.numero_casa;
 
 
 ALTER VIEW public.v_saldo_vivienda OWNER TO postgres;
@@ -6667,8 +6708,8 @@ CREATE TABLE public.vivienda_subusuarios (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     vivienda_id integer NOT NULL,
     usuario_id uuid NOT NULL,
-    titular_id uuid NOT NULL,
-    parentesco character varying(50) NOT NULL,
+    titular_id uuid,
+    parentesco character varying(50) DEFAULT 'Familiar'::character varying NOT NULL,
     activo boolean DEFAULT true NOT NULL,
     creado_en timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
     actualizado_en timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
@@ -6915,39 +6956,6 @@ CREATE VIEW public.vw_calendario_reservas_limitado WITH (security_invoker='true'
 ALTER VIEW public.vw_calendario_reservas_limitado OWNER TO postgres;
 
 --
--- Name: vw_cargos; Type: VIEW; Schema: public; Owner: postgres
---
-
-CREATE VIEW public.vw_cargos WITH (security_invoker='true') AS
- SELECT c.id,
-    c.condominio_id,
-    co.nombre AS condominio_nombre,
-    c.vivienda_id,
-    v.numero_casa,
-    c.plantilla_id,
-    c.periodo,
-    c.tipo,
-    c.concepto,
-    c.monto,
-    c.monto_pagado_confirmado,
-    c.saldo_pendiente,
-    c.estado,
-    c.fecha_vencimiento,
-    (((c.estado)::text = ANY (ARRAY[('Pendiente'::character varying)::text, ('PagoParcial'::character varying)::text])) AND (c.fecha_vencimiento < CURRENT_DATE)) AS esta_vencido,
-    c.responsable_pago,
-    c.motivo_cancelacion,
-    c.cancelado_por,
-    c.cancelado_en,
-    c.creado_por,
-    c.creado_en
-   FROM ((public.cargos c
-     JOIN public.viviendas v ON ((v.id = c.vivienda_id)))
-     JOIN public.condominios co ON ((co.id = c.condominio_id)));
-
-
-ALTER VIEW public.vw_cargos OWNER TO postgres;
-
---
 -- Name: vw_condominios; Type: VIEW; Schema: public; Owner: postgres
 --
 
@@ -6963,34 +6971,6 @@ CREATE VIEW public.vw_condominios WITH (security_invoker='true') AS
 
 
 ALTER VIEW public.vw_condominios OWNER TO postgres;
-
---
--- Name: vw_invitaciones_subusuarios; Type: VIEW; Schema: public; Owner: postgres
---
-
-CREATE VIEW public.vw_invitaciones_subusuarios WITH (security_invoker='true') AS
- SELECT i.id,
-    i.vivienda_id,
-    v.numero_casa,
-    c.nombre AS condominio_nombre,
-    i.titular_id,
-    TRIM(BOTH FROM ((ut.nombre || ' '::text) || ut.apellidos)) AS titular_nombre,
-    ut.email AS titular_email,
-    i.invitado_id,
-    TRIM(BOTH FROM ((ui.nombre || ' '::text) || ui.apellidos)) AS invitado_nombre,
-    ui.email AS invitado_email,
-    i.parentesco,
-    upper((i.estado)::text) AS estado,
-    i.creado_en,
-    i.actualizado_en
-   FROM ((((public.invitaciones_subusuarios i
-     JOIN public.viviendas v ON ((i.vivienda_id = v.id)))
-     JOIN public.condominios c ON ((v.condominio_id = c.id)))
-     JOIN public.usuarios ut ON ((i.titular_id = ut.id)))
-     JOIN public.usuarios ui ON ((i.invitado_id = ui.id)));
-
-
-ALTER VIEW public.vw_invitaciones_subusuarios OWNER TO postgres;
 
 --
 -- Name: vw_mis_paquetes; Type: VIEW; Schema: public; Owner: postgres
@@ -7098,14 +7078,14 @@ ALTER VIEW public.vw_mis_viviendas OWNER TO postgres;
 -- Name: vw_movimientos_saldo_favor; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE VIEW public.vw_movimientos_saldo_favor WITH (security_invoker='true') AS
+CREATE VIEW public.vw_movimientos_saldo_favor AS
  SELECT id,
     condominio_id,
     vivienda_id,
     tipo,
     monto,
         CASE
-            WHEN ((tipo)::text = ANY (ARRAY[('AbonoExcedente'::character varying)::text, ('ReversoAplicacion'::character varying)::text])) THEN monto
+            WHEN ((tipo)::text = ANY (ARRAY[('Abono'::character varying)::text, ('ReversoAplicacion'::character varying)::text])) THEN monto
             ELSE (- monto)
         END AS monto_con_signo,
     pago_id,
@@ -7174,11 +7154,11 @@ ALTER VIEW public.vw_notificaciones OWNER TO postgres;
 -- Name: vw_pagos; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE VIEW public.vw_pagos WITH (security_invoker='true') AS
+CREATE VIEW public.vw_pagos AS
  SELECT p.id,
     p.cargo_id,
-    p.condominio_id,
-    p.vivienda_id,
+    c.condominio_id,
+    c.vivienda_id,
     v.numero_casa,
     c.tipo AS cargo_tipo,
     c.concepto AS cargo_concepto,
@@ -7191,7 +7171,7 @@ CREATE VIEW public.vw_pagos WITH (security_invoker='true') AS
     p.banco_origen,
     p.estado,
     p.origen,
-    (p.comprobante_ruta IS NOT NULL) AS tiene_comprobante,
+    ((p.comprobante_ruta IS NOT NULL) AND (TRIM(BOTH FROM p.comprobante_ruta) <> ''::text)) AS tiene_comprobante,
     p.comprobante_ruta,
     p.comprobante_hash,
     p.es_reversa,
@@ -7208,7 +7188,7 @@ CREATE VIEW public.vw_pagos WITH (security_invoker='true') AS
     p.anulado_en
    FROM ((public.pagos p
      JOIN public.cargos c ON ((c.id = p.cargo_id)))
-     JOIN public.viviendas v ON ((v.id = p.vivienda_id)));
+     JOIN public.viviendas v ON ((v.id = c.vivienda_id)));
 
 
 ALTER VIEW public.vw_pagos OWNER TO postgres;
@@ -7337,7 +7317,7 @@ ALTER VIEW public.vw_paquetes_residente OWNER TO postgres;
 -- Name: vw_plantillas_cargo; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE VIEW public.vw_plantillas_cargo WITH (security_invoker='true') AS
+CREATE VIEW public.vw_plantillas_cargo AS
  SELECT pc.id,
     pc.condominio_id,
     co.nombre AS condominio_nombre,
@@ -7346,6 +7326,7 @@ CREATE VIEW public.vw_plantillas_cargo WITH (security_invoker='true') AS
     pc.tipo,
     pc.concepto,
     pc.monto,
+    pc.monto AS monto_base,
     pc.dia_vencimiento,
     pc.vigencia_inicio,
     pc.vigencia_fin,
@@ -7356,8 +7337,8 @@ CREATE VIEW public.vw_plantillas_cargo WITH (security_invoker='true') AS
     pc.modificado_por,
     pc.modificado_en
    FROM ((public.plantillas_cargo pc
-     JOIN public.viviendas v ON ((v.id = pc.vivienda_id)))
-     JOIN public.condominios co ON ((co.id = pc.condominio_id)));
+     JOIN public.condominios co ON ((co.id = pc.condominio_id)))
+     JOIN public.viviendas v ON ((v.id = pc.vivienda_id)));
 
 
 ALTER VIEW public.vw_plantillas_cargo OWNER TO postgres;
@@ -8415,17 +8396,17 @@ CREATE INDEX idx_avisos_condominio_activo ON public.avisos USING btree (condomin
 
 
 --
--- Name: idx_cargos_condominio_estado_vencimiento; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_cargos_condominio_vencimiento; Type: INDEX; Schema: public; Owner: postgres
 --
 
-CREATE INDEX idx_cargos_condominio_estado_vencimiento ON public.cargos USING btree (condominio_id, estado, fecha_vencimiento);
+CREATE INDEX idx_cargos_condominio_vencimiento ON public.cargos USING btree (condominio_id, fecha_vencimiento);
 
 
 --
 -- Name: idx_cargos_periodo; Type: INDEX; Schema: public; Owner: postgres
 --
 
-CREATE INDEX idx_cargos_periodo ON public.cargos USING btree (condominio_id, periodo);
+CREATE INDEX idx_cargos_periodo ON public.cargos USING btree (periodo);
 
 
 --
@@ -8433,6 +8414,13 @@ CREATE INDEX idx_cargos_periodo ON public.cargos USING btree (condominio_id, per
 --
 
 CREATE INDEX idx_cargos_vivienda_estado ON public.cargos USING btree (vivienda_id, estado);
+
+
+--
+-- Name: idx_codigo_invitacion_subusuario_vigente; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX idx_codigo_invitacion_subusuario_vigente ON public.invitaciones_subusuarios USING btree (codigo_invitacion) WHERE ((estado)::text = 'pendiente'::text);
 
 
 --
@@ -8464,13 +8452,6 @@ CREATE INDEX idx_codigos_vivienda_vivienda ON public.codigos_vivienda USING btre
 
 
 --
--- Name: idx_invitaciones_subusuarios_invitado; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_invitaciones_subusuarios_invitado ON public.invitaciones_subusuarios USING btree (invitado_id, estado);
-
-
---
 -- Name: idx_invitaciones_subusuarios_vivienda; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -8478,31 +8459,24 @@ CREATE INDEX idx_invitaciones_subusuarios_vivienda ON public.invitaciones_subusu
 
 
 --
--- Name: idx_msf_cargo_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_mov_saldo_cargo; Type: INDEX; Schema: public; Owner: postgres
 --
 
-CREATE INDEX idx_msf_cargo_id ON public.movimientos_saldo_favor USING btree (cargo_id);
-
-
---
--- Name: idx_msf_condominio; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_msf_condominio ON public.movimientos_saldo_favor USING btree (condominio_id);
+CREATE INDEX idx_mov_saldo_cargo ON public.movimientos_saldo_favor USING btree (cargo_id);
 
 
 --
--- Name: idx_msf_pago_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_mov_saldo_pago; Type: INDEX; Schema: public; Owner: postgres
 --
 
-CREATE INDEX idx_msf_pago_id ON public.movimientos_saldo_favor USING btree (pago_id);
+CREATE INDEX idx_mov_saldo_pago ON public.movimientos_saldo_favor USING btree (pago_id);
 
 
 --
--- Name: idx_msf_vivienda_creado; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_mov_saldo_vivienda; Type: INDEX; Schema: public; Owner: postgres
 --
 
-CREATE INDEX idx_msf_vivienda_creado ON public.movimientos_saldo_favor USING btree (vivienda_id, creado_en DESC);
+CREATE INDEX idx_mov_saldo_vivienda ON public.movimientos_saldo_favor USING btree (vivienda_id);
 
 
 --
@@ -8530,35 +8504,35 @@ CREATE INDEX idx_notificaciones_usuario_leida ON public.notificaciones USING btr
 -- Name: idx_pagos_anti_duplicado_hash; Type: INDEX; Schema: public; Owner: postgres
 --
 
-CREATE UNIQUE INDEX idx_pagos_anti_duplicado_hash ON public.pagos USING btree (condominio_id, comprobante_hash) WHERE ((comprobante_hash IS NOT NULL) AND ((estado)::text = ANY (ARRAY[('PendienteConfirmacion'::character varying)::text, ('Confirmado'::character varying)::text])) AND (es_reversa = false));
+CREATE UNIQUE INDEX idx_pagos_anti_duplicado_hash ON public.pagos USING btree (comprobante_hash) WHERE (((estado)::text <> ALL (ARRAY[('Rechazado'::character varying)::text, ('Anulado'::character varying)::text])) AND (comprobante_hash IS NOT NULL) AND (TRIM(BOTH FROM comprobante_hash) <> ''::text));
 
 
 --
 -- Name: idx_pagos_anti_duplicado_ref; Type: INDEX; Schema: public; Owner: postgres
 --
 
-CREATE UNIQUE INDEX idx_pagos_anti_duplicado_ref ON public.pagos USING btree (condominio_id, lower(btrim((referencia)::text)), monto, fecha_pago) WHERE ((referencia IS NOT NULL) AND ((estado)::text = ANY (ARRAY[('PendienteConfirmacion'::character varying)::text, ('Confirmado'::character varying)::text])) AND (es_reversa = false));
+CREATE UNIQUE INDEX idx_pagos_anti_duplicado_ref ON public.pagos USING btree (referencia, monto, fecha_pago) WHERE (((estado)::text <> ALL (ARRAY[('Rechazado'::character varying)::text, ('Anulado'::character varying)::text])) AND (referencia IS NOT NULL) AND (TRIM(BOTH FROM referencia) <> ''::text));
 
 
 --
--- Name: idx_pagos_cargo_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_pagos_cargo; Type: INDEX; Schema: public; Owner: postgres
 --
 
-CREATE INDEX idx_pagos_cargo_id ON public.pagos USING btree (cargo_id);
-
-
---
--- Name: idx_pagos_condominio_estado_fecha; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_pagos_condominio_estado_fecha ON public.pagos USING btree (condominio_id, estado, fecha_pago DESC);
+CREATE INDEX idx_pagos_cargo ON public.pagos USING btree (cargo_id);
 
 
 --
--- Name: idx_pagos_vivienda_estado; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_pagos_estado; Type: INDEX; Schema: public; Owner: postgres
 --
 
-CREATE INDEX idx_pagos_vivienda_estado ON public.pagos USING btree (vivienda_id, estado);
+CREATE INDEX idx_pagos_estado ON public.pagos USING btree (estado);
+
+
+--
+-- Name: idx_pagos_fecha; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_pagos_fecha ON public.pagos USING btree (fecha_pago);
 
 
 --
@@ -8583,10 +8557,17 @@ CREATE INDEX idx_paquetes_vivienda ON public.paquetes USING btree (vivienda_id, 
 
 
 --
--- Name: idx_plantillas_condominio_activa; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_plantillas_condominio; Type: INDEX; Schema: public; Owner: postgres
 --
 
-CREATE INDEX idx_plantillas_condominio_activa ON public.plantillas_cargo USING btree (condominio_id, activa);
+CREATE INDEX idx_plantillas_condominio ON public.plantillas_cargo USING btree (condominio_id);
+
+
+--
+-- Name: idx_plantillas_vivienda; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_plantillas_vivienda ON public.plantillas_cargo USING btree (vivienda_id);
 
 
 --
@@ -8730,10 +8711,24 @@ CREATE TRIGGER trg_auditoria_avisos AFTER INSERT OR DELETE OR UPDATE ON public.a
 
 
 --
--- Name: cargos trg_auditoria_cargos; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: cargos trg_auditoria_cargos_del; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TRIGGER trg_auditoria_cargos AFTER INSERT OR DELETE OR UPDATE ON public.cargos FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+CREATE TRIGGER trg_auditoria_cargos_del BEFORE DELETE ON public.cargos FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+
+
+--
+-- Name: cargos trg_auditoria_cargos_ins; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER trg_auditoria_cargos_ins AFTER INSERT ON public.cargos FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+
+
+--
+-- Name: cargos trg_auditoria_cargos_upd; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER trg_auditoria_cargos_upd BEFORE UPDATE ON public.cargos FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
 
 
 --
@@ -8758,17 +8753,24 @@ CREATE TRIGGER trg_auditoria_condominios AFTER INSERT OR DELETE OR UPDATE ON pub
 
 
 --
--- Name: invitaciones_subusuarios trg_auditoria_invitaciones_subusuarios; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: movimientos_saldo_favor trg_auditoria_mov_saldo_del; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TRIGGER trg_auditoria_invitaciones_subusuarios AFTER INSERT OR DELETE OR UPDATE ON public.invitaciones_subusuarios FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+CREATE TRIGGER trg_auditoria_mov_saldo_del BEFORE DELETE ON public.movimientos_saldo_favor FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
 
 
 --
--- Name: movimientos_saldo_favor trg_auditoria_movimientos_saldo_favor; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: movimientos_saldo_favor trg_auditoria_mov_saldo_ins; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TRIGGER trg_auditoria_movimientos_saldo_favor AFTER INSERT OR DELETE OR UPDATE ON public.movimientos_saldo_favor FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+CREATE TRIGGER trg_auditoria_mov_saldo_ins AFTER INSERT ON public.movimientos_saldo_favor FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+
+
+--
+-- Name: movimientos_saldo_favor trg_auditoria_mov_saldo_upd; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER trg_auditoria_mov_saldo_upd BEFORE UPDATE ON public.movimientos_saldo_favor FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
 
 
 --
@@ -8779,10 +8781,24 @@ CREATE TRIGGER trg_auditoria_notificaciones AFTER INSERT OR DELETE OR UPDATE ON 
 
 
 --
--- Name: pagos trg_auditoria_pagos; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: pagos trg_auditoria_pagos_del; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TRIGGER trg_auditoria_pagos AFTER INSERT OR DELETE OR UPDATE ON public.pagos FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+CREATE TRIGGER trg_auditoria_pagos_del BEFORE DELETE ON public.pagos FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+
+
+--
+-- Name: pagos trg_auditoria_pagos_ins; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER trg_auditoria_pagos_ins AFTER INSERT ON public.pagos FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+
+
+--
+-- Name: pagos trg_auditoria_pagos_upd; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER trg_auditoria_pagos_upd BEFORE UPDATE ON public.pagos FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
 
 
 --
@@ -8793,10 +8809,24 @@ CREATE TRIGGER trg_auditoria_paquetes AFTER INSERT OR DELETE OR UPDATE ON public
 
 
 --
--- Name: plantillas_cargo trg_auditoria_plantillas_cargo; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: plantillas_cargo trg_auditoria_plantillas_cargo_del; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TRIGGER trg_auditoria_plantillas_cargo AFTER INSERT OR DELETE OR UPDATE ON public.plantillas_cargo FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+CREATE TRIGGER trg_auditoria_plantillas_cargo_del BEFORE DELETE ON public.plantillas_cargo FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+
+
+--
+-- Name: plantillas_cargo trg_auditoria_plantillas_cargo_ins; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER trg_auditoria_plantillas_cargo_ins AFTER INSERT ON public.plantillas_cargo FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+
+
+--
+-- Name: plantillas_cargo trg_auditoria_plantillas_cargo_upd; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER trg_auditoria_plantillas_cargo_upd BEFORE UPDATE ON public.plantillas_cargo FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
 
 
 --
@@ -8863,6 +8893,27 @@ CREATE TRIGGER trg_auditoria_viviendas AFTER INSERT OR DELETE OR UPDATE ON publi
 
 
 --
+-- Name: invitaciones_subusuarios trg_invitaciones_subusuarios_auditoria_delete; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER trg_invitaciones_subusuarios_auditoria_delete BEFORE DELETE ON public.invitaciones_subusuarios FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+
+
+--
+-- Name: invitaciones_subusuarios trg_invitaciones_subusuarios_auditoria_insert; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER trg_invitaciones_subusuarios_auditoria_insert AFTER INSERT ON public.invitaciones_subusuarios FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+
+
+--
+-- Name: invitaciones_subusuarios trg_invitaciones_subusuarios_auditoria_update; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER trg_invitaciones_subusuarios_auditoria_update BEFORE UPDATE ON public.invitaciones_subusuarios FOR EACH ROW EXECUTE FUNCTION public.fn_auditoria();
+
+
+--
 -- Name: usuarios trg_sync_usuario_app_metadata; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
@@ -8898,7 +8949,7 @@ ALTER TABLE ONLY public.avisos
 --
 
 ALTER TABLE ONLY public.cargos
-    ADD CONSTRAINT cargos_cancelado_por_fkey FOREIGN KEY (cancelado_por) REFERENCES public.usuarios(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT cargos_cancelado_por_fkey FOREIGN KEY (cancelado_por) REFERENCES auth.users(id);
 
 
 --
@@ -8906,7 +8957,7 @@ ALTER TABLE ONLY public.cargos
 --
 
 ALTER TABLE ONLY public.cargos
-    ADD CONSTRAINT cargos_condominio_id_fkey FOREIGN KEY (condominio_id) REFERENCES public.condominios(id) ON DELETE CASCADE;
+    ADD CONSTRAINT cargos_condominio_id_fkey FOREIGN KEY (condominio_id) REFERENCES public.condominios(id) ON DELETE RESTRICT;
 
 
 --
@@ -8914,7 +8965,7 @@ ALTER TABLE ONLY public.cargos
 --
 
 ALTER TABLE ONLY public.cargos
-    ADD CONSTRAINT cargos_creado_por_fkey FOREIGN KEY (creado_por) REFERENCES public.usuarios(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT cargos_creado_por_fkey FOREIGN KEY (creado_por) REFERENCES auth.users(id);
 
 
 --
@@ -8930,7 +8981,7 @@ ALTER TABLE ONLY public.cargos
 --
 
 ALTER TABLE ONLY public.cargos
-    ADD CONSTRAINT cargos_vivienda_id_fkey FOREIGN KEY (vivienda_id) REFERENCES public.viviendas(id) ON DELETE CASCADE;
+    ADD CONSTRAINT cargos_vivienda_id_fkey FOREIGN KEY (vivienda_id) REFERENCES public.viviendas(id) ON DELETE RESTRICT;
 
 
 --
@@ -8982,11 +9033,19 @@ ALTER TABLE ONLY public.codigos_vivienda
 
 
 --
+-- Name: invitaciones_subusuarios invitaciones_subusuarios_creado_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.invitaciones_subusuarios
+    ADD CONSTRAINT invitaciones_subusuarios_creado_por_fkey FOREIGN KEY (creado_por) REFERENCES public.usuarios(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: invitaciones_subusuarios invitaciones_subusuarios_invitado_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.invitaciones_subusuarios
-    ADD CONSTRAINT invitaciones_subusuarios_invitado_id_fkey FOREIGN KEY (invitado_id) REFERENCES public.usuarios(id) ON DELETE CASCADE;
+    ADD CONSTRAINT invitaciones_subusuarios_invitado_id_fkey FOREIGN KEY (invitado_id) REFERENCES public.usuarios(id);
 
 
 --
@@ -8994,7 +9053,15 @@ ALTER TABLE ONLY public.invitaciones_subusuarios
 --
 
 ALTER TABLE ONLY public.invitaciones_subusuarios
-    ADD CONSTRAINT invitaciones_subusuarios_titular_id_fkey FOREIGN KEY (titular_id) REFERENCES public.usuarios(id) ON DELETE CASCADE;
+    ADD CONSTRAINT invitaciones_subusuarios_titular_id_fkey FOREIGN KEY (titular_id) REFERENCES public.usuarios(id);
+
+
+--
+-- Name: invitaciones_subusuarios invitaciones_subusuarios_usuario_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.invitaciones_subusuarios
+    ADD CONSTRAINT invitaciones_subusuarios_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id) ON DELETE SET NULL;
 
 
 --
@@ -9010,7 +9077,7 @@ ALTER TABLE ONLY public.invitaciones_subusuarios
 --
 
 ALTER TABLE ONLY public.movimientos_saldo_favor
-    ADD CONSTRAINT movimientos_saldo_favor_cargo_id_fkey FOREIGN KEY (cargo_id) REFERENCES public.cargos(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT movimientos_saldo_favor_cargo_id_fkey FOREIGN KEY (cargo_id) REFERENCES public.cargos(id) ON DELETE SET NULL;
 
 
 --
@@ -9018,7 +9085,7 @@ ALTER TABLE ONLY public.movimientos_saldo_favor
 --
 
 ALTER TABLE ONLY public.movimientos_saldo_favor
-    ADD CONSTRAINT movimientos_saldo_favor_condominio_id_fkey FOREIGN KEY (condominio_id) REFERENCES public.condominios(id) ON DELETE CASCADE;
+    ADD CONSTRAINT movimientos_saldo_favor_condominio_id_fkey FOREIGN KEY (condominio_id) REFERENCES public.condominios(id) ON DELETE RESTRICT;
 
 
 --
@@ -9026,7 +9093,7 @@ ALTER TABLE ONLY public.movimientos_saldo_favor
 --
 
 ALTER TABLE ONLY public.movimientos_saldo_favor
-    ADD CONSTRAINT movimientos_saldo_favor_creado_por_fkey FOREIGN KEY (creado_por) REFERENCES public.usuarios(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT movimientos_saldo_favor_creado_por_fkey FOREIGN KEY (creado_por) REFERENCES auth.users(id);
 
 
 --
@@ -9042,7 +9109,7 @@ ALTER TABLE ONLY public.movimientos_saldo_favor
 --
 
 ALTER TABLE ONLY public.movimientos_saldo_favor
-    ADD CONSTRAINT movimientos_saldo_favor_pago_id_fkey FOREIGN KEY (pago_id) REFERENCES public.pagos(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT movimientos_saldo_favor_pago_id_fkey FOREIGN KEY (pago_id) REFERENCES public.pagos(id) ON DELETE SET NULL;
 
 
 --
@@ -9050,7 +9117,7 @@ ALTER TABLE ONLY public.movimientos_saldo_favor
 --
 
 ALTER TABLE ONLY public.movimientos_saldo_favor
-    ADD CONSTRAINT movimientos_saldo_favor_vivienda_id_fkey FOREIGN KEY (vivienda_id) REFERENCES public.viviendas(id) ON DELETE CASCADE;
+    ADD CONSTRAINT movimientos_saldo_favor_vivienda_id_fkey FOREIGN KEY (vivienda_id) REFERENCES public.viviendas(id) ON DELETE RESTRICT;
 
 
 --
@@ -9066,7 +9133,7 @@ ALTER TABLE ONLY public.notificaciones
 --
 
 ALTER TABLE ONLY public.pagos
-    ADD CONSTRAINT pagos_anulado_por_fkey FOREIGN KEY (anulado_por) REFERENCES public.usuarios(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT pagos_anulado_por_fkey FOREIGN KEY (anulado_por) REFERENCES auth.users(id);
 
 
 --
@@ -9078,19 +9145,11 @@ ALTER TABLE ONLY public.pagos
 
 
 --
--- Name: pagos pagos_condominio_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.pagos
-    ADD CONSTRAINT pagos_condominio_id_fkey FOREIGN KEY (condominio_id) REFERENCES public.condominios(id) ON DELETE CASCADE;
-
-
---
 -- Name: pagos pagos_confirmado_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.pagos
-    ADD CONSTRAINT pagos_confirmado_por_fkey FOREIGN KEY (confirmado_por) REFERENCES public.usuarios(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT pagos_confirmado_por_fkey FOREIGN KEY (confirmado_por) REFERENCES auth.users(id);
 
 
 --
@@ -9098,7 +9157,7 @@ ALTER TABLE ONLY public.pagos
 --
 
 ALTER TABLE ONLY public.pagos
-    ADD CONSTRAINT pagos_pago_original_id_fkey FOREIGN KEY (pago_original_id) REFERENCES public.pagos(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT pagos_pago_original_id_fkey FOREIGN KEY (pago_original_id) REFERENCES public.pagos(id);
 
 
 --
@@ -9106,7 +9165,7 @@ ALTER TABLE ONLY public.pagos
 --
 
 ALTER TABLE ONLY public.pagos
-    ADD CONSTRAINT pagos_rechazado_por_fkey FOREIGN KEY (rechazado_por) REFERENCES public.usuarios(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT pagos_rechazado_por_fkey FOREIGN KEY (rechazado_por) REFERENCES auth.users(id);
 
 
 --
@@ -9114,15 +9173,7 @@ ALTER TABLE ONLY public.pagos
 --
 
 ALTER TABLE ONLY public.pagos
-    ADD CONSTRAINT pagos_registrado_por_fkey FOREIGN KEY (registrado_por) REFERENCES public.usuarios(id) ON DELETE RESTRICT;
-
-
---
--- Name: pagos pagos_vivienda_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.pagos
-    ADD CONSTRAINT pagos_vivienda_id_fkey FOREIGN KEY (vivienda_id) REFERENCES public.viviendas(id) ON DELETE CASCADE;
+    ADD CONSTRAINT pagos_registrado_por_fkey FOREIGN KEY (registrado_por) REFERENCES auth.users(id);
 
 
 --
@@ -9186,7 +9237,7 @@ ALTER TABLE ONLY public.paquetes
 --
 
 ALTER TABLE ONLY public.plantillas_cargo
-    ADD CONSTRAINT plantillas_cargo_condominio_id_fkey FOREIGN KEY (condominio_id) REFERENCES public.condominios(id) ON DELETE CASCADE;
+    ADD CONSTRAINT plantillas_cargo_condominio_id_fkey FOREIGN KEY (condominio_id) REFERENCES public.condominios(id) ON DELETE RESTRICT;
 
 
 --
@@ -9194,7 +9245,7 @@ ALTER TABLE ONLY public.plantillas_cargo
 --
 
 ALTER TABLE ONLY public.plantillas_cargo
-    ADD CONSTRAINT plantillas_cargo_creado_por_fkey FOREIGN KEY (creado_por) REFERENCES public.usuarios(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT plantillas_cargo_creado_por_fkey FOREIGN KEY (creado_por) REFERENCES auth.users(id);
 
 
 --
@@ -9202,7 +9253,7 @@ ALTER TABLE ONLY public.plantillas_cargo
 --
 
 ALTER TABLE ONLY public.plantillas_cargo
-    ADD CONSTRAINT plantillas_cargo_modificado_por_fkey FOREIGN KEY (modificado_por) REFERENCES public.usuarios(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT plantillas_cargo_modificado_por_fkey FOREIGN KEY (modificado_por) REFERENCES auth.users(id);
 
 
 --
@@ -9210,7 +9261,7 @@ ALTER TABLE ONLY public.plantillas_cargo
 --
 
 ALTER TABLE ONLY public.plantillas_cargo
-    ADD CONSTRAINT plantillas_cargo_vivienda_id_fkey FOREIGN KEY (vivienda_id) REFERENCES public.viviendas(id) ON DELETE CASCADE;
+    ADD CONSTRAINT plantillas_cargo_vivienda_id_fkey FOREIGN KEY (vivienda_id) REFERENCES public.viviendas(id) ON DELETE RESTRICT;
 
 
 --
@@ -9411,13 +9462,6 @@ CREATE POLICY "Lectura de condominios" ON public.condominios FOR SELECT TO authe
 
 
 --
--- Name: invitaciones_subusuarios Lectura de invitaciones_subusuarios; Type: POLICY; Schema: public; Owner: postgres
---
-
-CREATE POLICY "Lectura de invitaciones_subusuarios" ON public.invitaciones_subusuarios FOR SELECT TO authenticated USING (((titular_id = ( SELECT auth.uid() AS uid)) OR (invitado_id = ( SELECT auth.uid() AS uid)) OR public.fn_soy_titular_vivienda(vivienda_id)));
-
-
---
 -- Name: notificaciones Lectura de notificaciones propias; Type: POLICY; Schema: public; Owner: postgres
 --
 
@@ -9529,24 +9573,10 @@ ALTER TABLE public.avisos_bitacora ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cargos ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: cargos cargos_admin_select; Type: POLICY; Schema: public; Owner: postgres
---
-
-CREATE POLICY cargos_admin_select ON public.cargos FOR SELECT TO authenticated USING (((public.fn_mi_rol_id() = 1) AND (condominio_id = public.fn_mi_condominio_id())));
-
-
---
 -- Name: cargos_bitacora; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
 
 ALTER TABLE public.cargos_bitacora ENABLE ROW LEVEL SECURITY;
-
---
--- Name: cargos cargos_residente_select; Type: POLICY; Schema: public; Owner: postgres
---
-
-CREATE POLICY cargos_residente_select ON public.cargos FOR SELECT TO authenticated USING (public.fn_soy_titular_vivienda(vivienda_id));
-
 
 --
 -- Name: codigos_condominio; Type: ROW SECURITY; Schema: public; Owner: postgres
@@ -9609,20 +9639,6 @@ ALTER TABLE public.movimientos_saldo_favor ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.movimientos_saldo_favor_bitacora ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: movimientos_saldo_favor msf_admin_select; Type: POLICY; Schema: public; Owner: postgres
---
-
-CREATE POLICY msf_admin_select ON public.movimientos_saldo_favor FOR SELECT TO authenticated USING (((public.fn_mi_rol_id() = 1) AND (condominio_id = public.fn_mi_condominio_id())));
-
-
---
--- Name: movimientos_saldo_favor msf_residente_select; Type: POLICY; Schema: public; Owner: postgres
---
-
-CREATE POLICY msf_residente_select ON public.movimientos_saldo_favor FOR SELECT TO authenticated USING (public.fn_soy_titular_vivienda(vivienda_id));
-
-
---
 -- Name: notificaciones; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
 
@@ -9641,24 +9657,10 @@ ALTER TABLE public.notificaciones_bitacora ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pagos ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: pagos pagos_admin_select; Type: POLICY; Schema: public; Owner: postgres
---
-
-CREATE POLICY pagos_admin_select ON public.pagos FOR SELECT TO authenticated USING (((public.fn_mi_rol_id() = 1) AND (condominio_id = public.fn_mi_condominio_id())));
-
-
---
 -- Name: pagos_bitacora; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
 
 ALTER TABLE public.pagos_bitacora ENABLE ROW LEVEL SECURITY;
-
---
--- Name: pagos pagos_residente_select; Type: POLICY; Schema: public; Owner: postgres
---
-
-CREATE POLICY pagos_residente_select ON public.pagos FOR SELECT TO authenticated USING (public.fn_soy_titular_vivienda(vivienda_id));
-
 
 --
 -- Name: paquetes; Type: ROW SECURITY; Schema: public; Owner: postgres
@@ -9679,24 +9681,10 @@ ALTER TABLE public.paquetes_bitacora ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.plantillas_cargo ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: plantillas_cargo plantillas_cargo_admin_select; Type: POLICY; Schema: public; Owner: postgres
---
-
-CREATE POLICY plantillas_cargo_admin_select ON public.plantillas_cargo FOR SELECT TO authenticated USING (((public.fn_mi_rol_id() = 1) AND (condominio_id = public.fn_mi_condominio_id())));
-
-
---
 -- Name: plantillas_cargo_bitacora; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
 
 ALTER TABLE public.plantillas_cargo_bitacora ENABLE ROW LEVEL SECURITY;
-
---
--- Name: plantillas_cargo plantillas_cargo_residente_select; Type: POLICY; Schema: public; Owner: postgres
---
-
-CREATE POLICY plantillas_cargo_residente_select ON public.plantillas_cargo FOR SELECT TO authenticated USING (public.fn_soy_titular_vivienda(vivienda_id));
-
 
 --
 -- Name: reservas; Type: ROW SECURITY; Schema: public; Owner: postgres
@@ -9837,6 +9825,14 @@ GRANT ALL ON FUNCTION public._proyectar_paquete_dto(p_paquete_id uuid) TO servic
 --
 
 GRANT ALL ON FUNCTION public._proyectar_visita_dto(p_visita_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION _recalcular_estado_cargo(p_cargo_id uuid); Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON FUNCTION public._recalcular_estado_cargo(p_cargo_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public._recalcular_estado_cargo(p_cargo_id uuid) TO authenticated;
 
 
 --
@@ -10054,6 +10050,7 @@ GRANT ALL ON FUNCTION public.cambio_vivienda(p_id integer, p_numero_casa text, p
 -- Name: FUNCTION cancelar_invitacion_subusuario(p_id uuid, p_invitacion_id uuid); Type: ACL; Schema: public; Owner: postgres
 --
 
+REVOKE ALL ON FUNCTION public.cancelar_invitacion_subusuario(p_id uuid, p_invitacion_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.cancelar_invitacion_subusuario(p_id uuid, p_invitacion_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.cancelar_invitacion_subusuario(p_id uuid, p_invitacion_id uuid) TO authenticated;
 
@@ -10136,6 +10133,14 @@ GRANT ALL ON FUNCTION public.fn_auditoria() TO service_role;
 
 
 --
+-- Name: FUNCTION fn_generar_codigo_invitacion_subusuario(); Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON FUNCTION public.fn_generar_codigo_invitacion_subusuario() TO service_role;
+GRANT ALL ON FUNCTION public.fn_generar_codigo_invitacion_subusuario() TO authenticated;
+
+
+--
 -- Name: FUNCTION fn_mi_condominio_id(); Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -10203,11 +10208,60 @@ GRANT ALL ON FUNCTION public.handle_user_metadata_update() TO service_role;
 
 
 --
--- Name: FUNCTION invitar_subusuario(p_vivienda_id integer, p_email_invitado text, p_parentesco character varying); Type: ACL; Schema: public; Owner: postgres
+-- Name: TABLE condominios; Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT ALL ON FUNCTION public.invitar_subusuario(p_vivienda_id integer, p_email_invitado text, p_parentesco character varying) TO service_role;
-GRANT ALL ON FUNCTION public.invitar_subusuario(p_vivienda_id integer, p_email_invitado text, p_parentesco character varying) TO authenticated;
+GRANT ALL ON TABLE public.condominios TO service_role;
+GRANT SELECT ON TABLE public.condominios TO authenticated;
+
+
+--
+-- Name: TABLE invitaciones_subusuarios; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.invitaciones_subusuarios TO service_role;
+
+
+--
+-- Name: TABLE usuarios; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.usuarios TO service_role;
+GRANT SELECT ON TABLE public.usuarios TO authenticated;
+
+
+--
+-- Name: TABLE viviendas; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.viviendas TO service_role;
+GRANT SELECT ON TABLE public.viviendas TO authenticated;
+
+
+--
+-- Name: TABLE vw_invitaciones_subusuarios; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.vw_invitaciones_subusuarios TO service_role;
+GRANT SELECT,MAINTAIN ON TABLE public.vw_invitaciones_subusuarios TO authenticated;
+
+
+--
+-- Name: FUNCTION invitar_subusuario(p_vivienda_id integer, p_email character varying, p_parentesco character varying, p_creado_por uuid); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.invitar_subusuario(p_vivienda_id integer, p_email character varying, p_parentesco character varying, p_creado_por uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.invitar_subusuario(p_vivienda_id integer, p_email character varying, p_parentesco character varying, p_creado_por uuid) TO service_role;
+GRANT ALL ON FUNCTION public.invitar_subusuario(p_vivienda_id integer, p_email character varying, p_parentesco character varying, p_creado_por uuid) TO authenticated;
+
+
+--
+-- Name: FUNCTION invitar_subusuario_por_email(p_vivienda_id integer, p_email character varying, p_parentesco character varying, p_creado_por uuid); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.invitar_subusuario_por_email(p_vivienda_id integer, p_email character varying, p_parentesco character varying, p_creado_por uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.invitar_subusuario_por_email(p_vivienda_id integer, p_email character varying, p_parentesco character varying, p_creado_por uuid) TO service_role;
+GRANT ALL ON FUNCTION public.invitar_subusuario_por_email(p_vivienda_id integer, p_email character varying, p_parentesco character varying, p_creado_por uuid) TO authenticated;
 
 
 --
@@ -10332,6 +10386,15 @@ GRANT ALL ON FUNCTION public.redimir_codigo_condominio(p_codigo text, p_usuario_
 
 
 --
+-- Name: FUNCTION redimir_codigo_subusuario(p_codigo character varying, p_usuario_id uuid); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.redimir_codigo_subusuario(p_codigo character varying, p_usuario_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.redimir_codigo_subusuario(p_codigo character varying, p_usuario_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.redimir_codigo_subusuario(p_codigo character varying, p_usuario_id uuid) TO authenticated;
+
+
+--
 -- Name: FUNCTION redimir_codigo_vivienda(p_codigo text, p_usuario_id uuid); Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -10353,11 +10416,12 @@ GRANT ALL ON FUNCTION public.registrar_salida_visita(p_visita_id uuid, p_actor_i
 
 
 --
--- Name: FUNCTION responder_invitacion_subusuario(p_invitacion_id uuid, p_respuesta character varying); Type: ACL; Schema: public; Owner: postgres
+-- Name: FUNCTION responder_invitacion_subusuario(p_invitacion_id uuid, p_usuario_id uuid, p_respuesta character varying); Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT ALL ON FUNCTION public.responder_invitacion_subusuario(p_invitacion_id uuid, p_respuesta character varying) TO service_role;
-GRANT ALL ON FUNCTION public.responder_invitacion_subusuario(p_invitacion_id uuid, p_respuesta character varying) TO authenticated;
+REVOKE ALL ON FUNCTION public.responder_invitacion_subusuario(p_invitacion_id uuid, p_usuario_id uuid, p_respuesta character varying) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.responder_invitacion_subusuario(p_invitacion_id uuid, p_usuario_id uuid, p_respuesta character varying) TO service_role;
+GRANT ALL ON FUNCTION public.responder_invitacion_subusuario(p_invitacion_id uuid, p_usuario_id uuid, p_respuesta character varying) TO authenticated;
 
 
 --
@@ -10376,17 +10440,19 @@ GRANT ALL ON FUNCTION public.rls_auto_enable() TO service_role;
 
 
 --
--- Name: FUNCTION rpc_anular_pago(p_pago_id uuid, p_motivo text, p_admin_id uuid); Type: ACL; Schema: public; Owner: postgres
+-- Name: FUNCTION rpc_anular_pago(p_pago_id uuid, p_motivo text, p_actor_id uuid); Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT ALL ON FUNCTION public.rpc_anular_pago(p_pago_id uuid, p_motivo text, p_admin_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_anular_pago(p_pago_id uuid, p_motivo text, p_actor_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_anular_pago(p_pago_id uuid, p_motivo text, p_actor_id uuid) TO authenticated;
 
 
 --
--- Name: FUNCTION rpc_aplicar_saldo_favor(p_vivienda_id integer, p_cargo_id uuid, p_monto numeric, p_actor_id uuid); Type: ACL; Schema: public; Owner: postgres
+-- Name: FUNCTION rpc_aplicar_saldo_favor(p_cargo_id uuid, p_monto numeric, p_actor_id uuid); Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT ALL ON FUNCTION public.rpc_aplicar_saldo_favor(p_vivienda_id integer, p_cargo_id uuid, p_monto numeric, p_actor_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_aplicar_saldo_favor(p_cargo_id uuid, p_monto numeric, p_actor_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_aplicar_saldo_favor(p_cargo_id uuid, p_monto numeric, p_actor_id uuid) TO authenticated;
 
 
 --
@@ -10394,19 +10460,22 @@ GRANT ALL ON FUNCTION public.rpc_aplicar_saldo_favor(p_vivienda_id integer, p_ca
 --
 
 GRANT ALL ON FUNCTION public.rpc_cancelar_cargo(p_cargo_id uuid, p_motivo text, p_actor_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_cancelar_cargo(p_cargo_id uuid, p_motivo text, p_actor_id uuid) TO authenticated;
 
 
 --
--- Name: FUNCTION rpc_confirmar_pago(p_pago_id uuid, p_admin_id uuid); Type: ACL; Schema: public; Owner: postgres
+-- Name: FUNCTION rpc_confirmar_pago(p_pago_id uuid, p_actor_id uuid); Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT ALL ON FUNCTION public.rpc_confirmar_pago(p_pago_id uuid, p_admin_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_confirmar_pago(p_pago_id uuid, p_actor_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_confirmar_pago(p_pago_id uuid, p_actor_id uuid) TO authenticated;
 
 
 --
 -- Name: FUNCTION rpc_depurar_comprobantes_antiguos(p_dias_confirmados integer, p_dias_rechazados integer); Type: ACL; Schema: public; Owner: postgres
 --
 
+REVOKE ALL ON FUNCTION public.rpc_depurar_comprobantes_antiguos(p_dias_confirmados integer, p_dias_rechazados integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.rpc_depurar_comprobantes_antiguos(p_dias_confirmados integer, p_dias_rechazados integer) TO service_role;
 
 
@@ -10414,35 +10483,32 @@ GRANT ALL ON FUNCTION public.rpc_depurar_comprobantes_antiguos(p_dias_confirmado
 -- Name: FUNCTION rpc_generar_cargos_mensuales(p_periodo date, p_condominio_id uuid, p_creado_por uuid); Type: ACL; Schema: public; Owner: postgres
 --
 
+REVOKE ALL ON FUNCTION public.rpc_generar_cargos_mensuales(p_periodo date, p_condominio_id uuid, p_creado_por uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.rpc_generar_cargos_mensuales(p_periodo date, p_condominio_id uuid, p_creado_por uuid) TO service_role;
 
 
 --
--- Name: FUNCTION rpc_rechazar_pago(p_pago_id uuid, p_motivo text, p_admin_id uuid); Type: ACL; Schema: public; Owner: postgres
+-- Name: FUNCTION rpc_rechazar_pago(p_pago_id uuid, p_motivo text, p_actor_id uuid); Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT ALL ON FUNCTION public.rpc_rechazar_pago(p_pago_id uuid, p_motivo text, p_admin_id uuid) TO service_role;
-
-
---
--- Name: FUNCTION rpc_registrar_pago_admin(p_cargo_id uuid, p_monto numeric, p_fecha_pago date, p_metodo character varying, p_referencia character varying, p_banco_origen character varying, p_comprobante_ruta text, p_comprobante_hash character, p_admin_id uuid); Type: ACL; Schema: public; Owner: postgres
---
-
-GRANT ALL ON FUNCTION public.rpc_registrar_pago_admin(p_cargo_id uuid, p_monto numeric, p_fecha_pago date, p_metodo character varying, p_referencia character varying, p_banco_origen character varying, p_comprobante_ruta text, p_comprobante_hash character, p_admin_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_rechazar_pago(p_pago_id uuid, p_motivo text, p_actor_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_rechazar_pago(p_pago_id uuid, p_motivo text, p_actor_id uuid) TO authenticated;
 
 
 --
--- Name: FUNCTION rpc_reportar_pago(p_cargo_id uuid, p_monto numeric, p_fecha_pago date, p_metodo character varying, p_referencia character varying, p_banco_origen character varying, p_comprobante_ruta text, p_comprobante_hash character, p_registrado_por uuid); Type: ACL; Schema: public; Owner: postgres
+-- Name: FUNCTION rpc_registrar_pago(p_cargo_id uuid, p_monto numeric, p_fecha_pago date, p_metodo text, p_origen text, p_estado text, p_referencia text, p_banco_origen text, p_comprobante_ruta text, p_comprobante_hash text, p_actor_id uuid); Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT ALL ON FUNCTION public.rpc_reportar_pago(p_cargo_id uuid, p_monto numeric, p_fecha_pago date, p_metodo character varying, p_referencia character varying, p_banco_origen character varying, p_comprobante_ruta text, p_comprobante_hash character, p_registrado_por uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_registrar_pago(p_cargo_id uuid, p_monto numeric, p_fecha_pago date, p_metodo text, p_origen text, p_estado text, p_referencia text, p_banco_origen text, p_comprobante_ruta text, p_comprobante_hash text, p_actor_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_registrar_pago(p_cargo_id uuid, p_monto numeric, p_fecha_pago date, p_metodo text, p_origen text, p_estado text, p_referencia text, p_banco_origen text, p_comprobante_ruta text, p_comprobante_hash text, p_actor_id uuid) TO authenticated;
 
 
 --
--- Name: FUNCTION rpc_revertir_aplicacion_saldo(p_movimiento_id uuid, p_motivo text, p_admin_id uuid); Type: ACL; Schema: public; Owner: postgres
+-- Name: FUNCTION rpc_revertir_aplicacion_saldo(p_movimiento_id uuid, p_motivo text, p_actor_id uuid); Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT ALL ON FUNCTION public.rpc_revertir_aplicacion_saldo(p_movimiento_id uuid, p_motivo text, p_admin_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_revertir_aplicacion_saldo(p_movimiento_id uuid, p_motivo text, p_actor_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_revertir_aplicacion_saldo(p_movimiento_id uuid, p_motivo text, p_actor_id uuid) TO authenticated;
 
 
 --
@@ -10508,7 +10574,6 @@ GRANT ALL ON SEQUENCE public.avisos_bitacora_id_seq TO service_role;
 --
 
 GRANT ALL ON TABLE public.cargos TO service_role;
-GRANT SELECT ON TABLE public.cargos TO authenticated;
 
 
 --
@@ -10568,14 +10633,6 @@ GRANT ALL ON SEQUENCE public.codigos_vivienda_bitacora_id_seq TO service_role;
 
 
 --
--- Name: TABLE condominios; Type: ACL; Schema: public; Owner: postgres
---
-
-GRANT ALL ON TABLE public.condominios TO service_role;
-GRANT SELECT ON TABLE public.condominios TO authenticated;
-
-
---
 -- Name: TABLE condominios_bitacora; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -10587,14 +10644,6 @@ GRANT ALL ON TABLE public.condominios_bitacora TO service_role;
 --
 
 GRANT ALL ON SEQUENCE public.condominios_bitacora_id_seq TO service_role;
-
-
---
--- Name: TABLE invitaciones_subusuarios; Type: ACL; Schema: public; Owner: postgres
---
-
-GRANT ALL ON TABLE public.invitaciones_subusuarios TO service_role;
-GRANT SELECT ON TABLE public.invitaciones_subusuarios TO authenticated;
 
 
 --
@@ -10616,7 +10665,6 @@ GRANT ALL ON SEQUENCE public.invitaciones_subusuarios_bitacora_id_seq TO service
 --
 
 GRANT ALL ON TABLE public.movimientos_saldo_favor TO service_role;
-GRANT SELECT ON TABLE public.movimientos_saldo_favor TO authenticated;
 
 
 --
@@ -10660,7 +10708,6 @@ GRANT ALL ON SEQUENCE public.notificaciones_bitacora_id_seq TO service_role;
 --
 
 GRANT ALL ON TABLE public.pagos TO service_role;
-GRANT SELECT ON TABLE public.pagos TO authenticated;
 
 
 --
@@ -10704,7 +10751,6 @@ GRANT ALL ON SEQUENCE public.paquetes_bitacora_id_seq TO service_role;
 --
 
 GRANT ALL ON TABLE public.plantillas_cargo TO service_role;
-GRANT SELECT ON TABLE public.plantillas_cargo TO authenticated;
 
 
 --
@@ -10796,14 +10842,6 @@ GRANT ALL ON SEQUENCE public.servicios_paqueteria_id_seq TO service_role;
 
 
 --
--- Name: TABLE usuarios; Type: ACL; Schema: public; Owner: postgres
---
-
-GRANT ALL ON TABLE public.usuarios TO service_role;
-GRANT SELECT ON TABLE public.usuarios TO authenticated;
-
-
---
 -- Name: TABLE usuarios_bitacora; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -10818,11 +10856,11 @@ GRANT ALL ON SEQUENCE public.usuarios_bitacora_id_seq TO service_role;
 
 
 --
--- Name: TABLE viviendas; Type: ACL; Schema: public; Owner: postgres
+-- Name: TABLE vw_cargos; Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT ALL ON TABLE public.viviendas TO service_role;
-GRANT SELECT ON TABLE public.viviendas TO authenticated;
+GRANT ALL ON TABLE public.vw_cargos TO service_role;
+GRANT SELECT,MAINTAIN ON TABLE public.vw_cargos TO authenticated;
 
 
 --
@@ -10830,7 +10868,7 @@ GRANT SELECT ON TABLE public.viviendas TO authenticated;
 --
 
 GRANT ALL ON TABLE public.v_saldo_vivienda TO service_role;
-GRANT SELECT ON TABLE public.v_saldo_vivienda TO authenticated;
+GRANT SELECT,MAINTAIN ON TABLE public.v_saldo_vivienda TO authenticated;
 
 
 --
@@ -10998,27 +11036,11 @@ GRANT SELECT ON TABLE public.vw_calendario_reservas_limitado TO authenticated;
 
 
 --
--- Name: TABLE vw_cargos; Type: ACL; Schema: public; Owner: postgres
---
-
-GRANT ALL ON TABLE public.vw_cargos TO service_role;
-GRANT SELECT ON TABLE public.vw_cargos TO authenticated;
-
-
---
 -- Name: TABLE vw_condominios; Type: ACL; Schema: public; Owner: postgres
 --
 
 GRANT ALL ON TABLE public.vw_condominios TO service_role;
 GRANT SELECT ON TABLE public.vw_condominios TO authenticated;
-
-
---
--- Name: TABLE vw_invitaciones_subusuarios; Type: ACL; Schema: public; Owner: postgres
---
-
-GRANT ALL ON TABLE public.vw_invitaciones_subusuarios TO service_role;
-GRANT SELECT ON TABLE public.vw_invitaciones_subusuarios TO authenticated;
 
 
 --
@@ -11050,7 +11072,7 @@ GRANT SELECT ON TABLE public.vw_mis_viviendas TO authenticated;
 --
 
 GRANT ALL ON TABLE public.vw_movimientos_saldo_favor TO service_role;
-GRANT SELECT ON TABLE public.vw_movimientos_saldo_favor TO authenticated;
+GRANT SELECT,MAINTAIN ON TABLE public.vw_movimientos_saldo_favor TO authenticated;
 
 
 --
@@ -11074,7 +11096,7 @@ GRANT SELECT ON TABLE public.vw_notificaciones TO authenticated;
 --
 
 GRANT ALL ON TABLE public.vw_pagos TO service_role;
-GRANT SELECT ON TABLE public.vw_pagos TO authenticated;
+GRANT SELECT,MAINTAIN ON TABLE public.vw_pagos TO authenticated;
 
 
 --
@@ -11106,7 +11128,7 @@ GRANT SELECT ON TABLE public.vw_paquetes_residente TO authenticated;
 --
 
 GRANT ALL ON TABLE public.vw_plantillas_cargo TO service_role;
-GRANT SELECT ON TABLE public.vw_plantillas_cargo TO authenticated;
+GRANT SELECT,MAINTAIN ON TABLE public.vw_plantillas_cargo TO authenticated;
 
 
 --
@@ -11268,7 +11290,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES 
 
 
 
--- 2.1 Permisos exactos sin importar los privilegios por defecto del proyecto:
+-- 2.2 Permisos exactos sin importar los privilegios por defecto del proyecto:
 --     se quita todo a anon/authenticated y se vuelven a aplicar solo los GRANT del esquema.
 REVOKE ALL ON ALL TABLES    IN SCHEMA public FROM anon, authenticated;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated;
@@ -11276,6 +11298,8 @@ REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM anon, authenticated;
 GRANT ALL ON FUNCTION public._insertar_notificacion_reserva(p_usuario_id uuid, p_tipo_evento character varying, p_titulo character varying, p_mensaje text, p_url_redireccion text, p_reserva_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public._proyectar_paquete_dto(p_paquete_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public._proyectar_visita_dto(p_visita_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public._recalcular_estado_cargo(p_cargo_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public._recalcular_estado_cargo(p_cargo_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.actualizar_bloqueo_area(p_actor_id uuid, p_bloqueo_id uuid, p_inicio timestamp with time zone, p_fin timestamp with time zone, p_motivo text) TO service_role;
 GRANT ALL ON FUNCTION public.alta_area_comun(p_actor_id uuid, p_condominio_id uuid, p_nombre text, p_descripcion text, p_hora_apertura time without time zone, p_hora_cierre time without time zone) TO service_role;
 GRANT ALL ON FUNCTION public.alta_aviso(p_actor_id uuid, p_titulo text, p_contenido text, p_duracion_dias integer, p_fecha_expiracion timestamp with time zone, p_prioridad text) TO service_role;
@@ -11313,6 +11337,7 @@ GRANT ALL ON FUNCTION public.cambio_usuario(p_id uuid, p_nombre text, p_apellido
 GRANT ALL ON FUNCTION public.cambio_usuario(p_id uuid, p_nombre text, p_apellidos text, p_telefono text, p_rol_id integer, p_condominio_id uuid, p_debe_cambiar_password boolean) TO authenticated;
 GRANT ALL ON FUNCTION public.cambio_visita(p_id uuid, p_actor_id uuid, p_nombre_visitante character varying, p_apellidos_visitante character varying, p_telefono_visitante character varying, p_motivo character varying, p_num_acompanantes integer, p_vehiculo_placas character varying, p_notas text, p_fecha_llegada timestamp with time zone, p_horas_vigencia integer) TO service_role;
 GRANT ALL ON FUNCTION public.cambio_vivienda(p_id integer, p_numero_casa text, p_tipo text, p_activo boolean) TO service_role;
+REVOKE ALL ON FUNCTION public.cancelar_invitacion_subusuario(p_id uuid, p_invitacion_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.cancelar_invitacion_subusuario(p_id uuid, p_invitacion_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.cancelar_invitacion_subusuario(p_id uuid, p_invitacion_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.cancelar_paquete_esperado(p_id uuid, p_actor_id uuid, p_motivo text) TO service_role;
@@ -11326,6 +11351,8 @@ GRANT ALL ON FUNCTION public.desasignar_residente(p_vivienda_id integer, p_usuar
 GRANT ALL ON FUNCTION public.eliminar_bloqueo_area(p_actor_id uuid, p_bloqueo_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.entregar_paquete_residente(p_paquete_id uuid, p_entregado_a_nombre text, p_foto_url text, p_actor_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.fn_auditoria() TO service_role;
+GRANT ALL ON FUNCTION public.fn_generar_codigo_invitacion_subusuario() TO service_role;
+GRANT ALL ON FUNCTION public.fn_generar_codigo_invitacion_subusuario() TO authenticated;
 GRANT ALL ON FUNCTION public.fn_mi_condominio_id() TO service_role;
 GRANT ALL ON FUNCTION public.fn_mi_condominio_id() TO authenticated;
 GRANT ALL ON FUNCTION public.fn_mi_rol_id() TO service_role;
@@ -11339,8 +11366,21 @@ GRANT ALL ON FUNCTION public.generar_codigo_condominio(p_condominio_id uuid, p_m
 GRANT ALL ON FUNCTION public.generar_codigo_vivienda(p_vivienda_id integer, p_minutos_vigencia integer) TO service_role;
 GRANT ALL ON FUNCTION public.handle_new_user() TO service_role;
 GRANT ALL ON FUNCTION public.handle_user_metadata_update() TO service_role;
-GRANT ALL ON FUNCTION public.invitar_subusuario(p_vivienda_id integer, p_email_invitado text, p_parentesco character varying) TO service_role;
-GRANT ALL ON FUNCTION public.invitar_subusuario(p_vivienda_id integer, p_email_invitado text, p_parentesco character varying) TO authenticated;
+GRANT ALL ON TABLE public.condominios TO service_role;
+GRANT SELECT ON TABLE public.condominios TO authenticated;
+GRANT ALL ON TABLE public.invitaciones_subusuarios TO service_role;
+GRANT ALL ON TABLE public.usuarios TO service_role;
+GRANT SELECT ON TABLE public.usuarios TO authenticated;
+GRANT ALL ON TABLE public.viviendas TO service_role;
+GRANT SELECT ON TABLE public.viviendas TO authenticated;
+GRANT ALL ON TABLE public.vw_invitaciones_subusuarios TO service_role;
+GRANT SELECT,MAINTAIN ON TABLE public.vw_invitaciones_subusuarios TO authenticated;
+REVOKE ALL ON FUNCTION public.invitar_subusuario(p_vivienda_id integer, p_email character varying, p_parentesco character varying, p_creado_por uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.invitar_subusuario(p_vivienda_id integer, p_email character varying, p_parentesco character varying, p_creado_por uuid) TO service_role;
+GRANT ALL ON FUNCTION public.invitar_subusuario(p_vivienda_id integer, p_email character varying, p_parentesco character varying, p_creado_por uuid) TO authenticated;
+REVOKE ALL ON FUNCTION public.invitar_subusuario_por_email(p_vivienda_id integer, p_email character varying, p_parentesco character varying, p_creado_por uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.invitar_subusuario_por_email(p_vivienda_id integer, p_email character varying, p_parentesco character varying, p_creado_por uuid) TO service_role;
+GRANT ALL ON FUNCTION public.invitar_subusuario_por_email(p_vivienda_id integer, p_email character varying, p_parentesco character varying, p_creado_por uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.liberar_notificacion_push(p_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.marcar_notificacion_leida(p_notificacion_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.marcar_notificacion_leida(p_notificacion_id uuid) TO authenticated;
@@ -11366,24 +11406,36 @@ GRANT ALL ON FUNCTION public.rechazar_reserva_titular(p_actor_id uuid, p_reserva
 GRANT ALL ON FUNCTION public.recibir_paquete_caseta(p_paquete_id uuid, p_vivienda_id integer, p_destinatario_nombre text, p_servicio_id integer, p_servicio_nombre text, p_numero_guia text, p_descripcion text, p_ubicacion_almacen text, p_actor_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.reclamar_notificaciones_push_reservas(p_limite integer) TO service_role;
 GRANT ALL ON FUNCTION public.redimir_codigo_condominio(p_codigo text, p_usuario_id uuid) TO service_role;
+REVOKE ALL ON FUNCTION public.redimir_codigo_subusuario(p_codigo character varying, p_usuario_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.redimir_codigo_subusuario(p_codigo character varying, p_usuario_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.redimir_codigo_subusuario(p_codigo character varying, p_usuario_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.redimir_codigo_vivienda(p_codigo text, p_usuario_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.registrar_entrada_visita(p_visita_id uuid, p_actor_id uuid, p_vehiculo_placas character varying) TO service_role;
 GRANT ALL ON FUNCTION public.registrar_salida_visita(p_visita_id uuid, p_actor_id uuid) TO service_role;
-GRANT ALL ON FUNCTION public.responder_invitacion_subusuario(p_invitacion_id uuid, p_respuesta character varying) TO service_role;
-GRANT ALL ON FUNCTION public.responder_invitacion_subusuario(p_invitacion_id uuid, p_respuesta character varying) TO authenticated;
+REVOKE ALL ON FUNCTION public.responder_invitacion_subusuario(p_invitacion_id uuid, p_usuario_id uuid, p_respuesta character varying) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.responder_invitacion_subusuario(p_invitacion_id uuid, p_usuario_id uuid, p_respuesta character varying) TO service_role;
+GRANT ALL ON FUNCTION public.responder_invitacion_subusuario(p_invitacion_id uuid, p_usuario_id uuid, p_respuesta character varying) TO authenticated;
 GRANT ALL ON FUNCTION public.revocar_subusuario(p_vivienda_id integer, p_subusuario_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.revocar_subusuario(p_vivienda_id integer, p_subusuario_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.rls_auto_enable() TO service_role;
-GRANT ALL ON FUNCTION public.rpc_anular_pago(p_pago_id uuid, p_motivo text, p_admin_id uuid) TO service_role;
-GRANT ALL ON FUNCTION public.rpc_aplicar_saldo_favor(p_vivienda_id integer, p_cargo_id uuid, p_monto numeric, p_actor_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_anular_pago(p_pago_id uuid, p_motivo text, p_actor_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_anular_pago(p_pago_id uuid, p_motivo text, p_actor_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.rpc_aplicar_saldo_favor(p_cargo_id uuid, p_monto numeric, p_actor_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_aplicar_saldo_favor(p_cargo_id uuid, p_monto numeric, p_actor_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.rpc_cancelar_cargo(p_cargo_id uuid, p_motivo text, p_actor_id uuid) TO service_role;
-GRANT ALL ON FUNCTION public.rpc_confirmar_pago(p_pago_id uuid, p_admin_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_cancelar_cargo(p_cargo_id uuid, p_motivo text, p_actor_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.rpc_confirmar_pago(p_pago_id uuid, p_actor_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_confirmar_pago(p_pago_id uuid, p_actor_id uuid) TO authenticated;
+REVOKE ALL ON FUNCTION public.rpc_depurar_comprobantes_antiguos(p_dias_confirmados integer, p_dias_rechazados integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.rpc_depurar_comprobantes_antiguos(p_dias_confirmados integer, p_dias_rechazados integer) TO service_role;
+REVOKE ALL ON FUNCTION public.rpc_generar_cargos_mensuales(p_periodo date, p_condominio_id uuid, p_creado_por uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.rpc_generar_cargos_mensuales(p_periodo date, p_condominio_id uuid, p_creado_por uuid) TO service_role;
-GRANT ALL ON FUNCTION public.rpc_rechazar_pago(p_pago_id uuid, p_motivo text, p_admin_id uuid) TO service_role;
-GRANT ALL ON FUNCTION public.rpc_registrar_pago_admin(p_cargo_id uuid, p_monto numeric, p_fecha_pago date, p_metodo character varying, p_referencia character varying, p_banco_origen character varying, p_comprobante_ruta text, p_comprobante_hash character, p_admin_id uuid) TO service_role;
-GRANT ALL ON FUNCTION public.rpc_reportar_pago(p_cargo_id uuid, p_monto numeric, p_fecha_pago date, p_metodo character varying, p_referencia character varying, p_banco_origen character varying, p_comprobante_ruta text, p_comprobante_hash character, p_registrado_por uuid) TO service_role;
-GRANT ALL ON FUNCTION public.rpc_revertir_aplicacion_saldo(p_movimiento_id uuid, p_motivo text, p_admin_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_rechazar_pago(p_pago_id uuid, p_motivo text, p_actor_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_rechazar_pago(p_pago_id uuid, p_motivo text, p_actor_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.rpc_registrar_pago(p_cargo_id uuid, p_monto numeric, p_fecha_pago date, p_metodo text, p_origen text, p_estado text, p_referencia text, p_banco_origen text, p_comprobante_ruta text, p_comprobante_hash text, p_actor_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_registrar_pago(p_cargo_id uuid, p_monto numeric, p_fecha_pago date, p_metodo text, p_origen text, p_estado text, p_referencia text, p_banco_origen text, p_comprobante_ruta text, p_comprobante_hash text, p_actor_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.rpc_revertir_aplicacion_saldo(p_movimiento_id uuid, p_motivo text, p_actor_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.rpc_revertir_aplicacion_saldo(p_movimiento_id uuid, p_motivo text, p_actor_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.solicitar_reserva(p_actor_id uuid, p_area_id uuid, p_inicio timestamp with time zone, p_fin timestamp with time zone) TO service_role;
 GRANT ALL ON FUNCTION public.validar_codigo_visita(p_codigo character varying, p_actor_id uuid) TO service_role;
 GRANT ALL ON TABLE public.areas_comunes TO service_role;
@@ -11395,7 +11447,6 @@ GRANT SELECT ON TABLE public.avisos TO authenticated;
 GRANT ALL ON TABLE public.avisos_bitacora TO service_role;
 GRANT ALL ON SEQUENCE public.avisos_bitacora_id_seq TO service_role;
 GRANT ALL ON TABLE public.cargos TO service_role;
-GRANT SELECT ON TABLE public.cargos TO authenticated;
 GRANT ALL ON TABLE public.cargos_bitacora TO service_role;
 GRANT ALL ON SEQUENCE public.cargos_bitacora_id_seq TO service_role;
 GRANT ALL ON TABLE public.codigos_condominio TO service_role;
@@ -11404,16 +11455,11 @@ GRANT ALL ON SEQUENCE public.codigos_condominio_bitacora_id_seq TO service_role;
 GRANT ALL ON TABLE public.codigos_vivienda TO service_role;
 GRANT ALL ON TABLE public.codigos_vivienda_bitacora TO service_role;
 GRANT ALL ON SEQUENCE public.codigos_vivienda_bitacora_id_seq TO service_role;
-GRANT ALL ON TABLE public.condominios TO service_role;
-GRANT SELECT ON TABLE public.condominios TO authenticated;
 GRANT ALL ON TABLE public.condominios_bitacora TO service_role;
 GRANT ALL ON SEQUENCE public.condominios_bitacora_id_seq TO service_role;
-GRANT ALL ON TABLE public.invitaciones_subusuarios TO service_role;
-GRANT SELECT ON TABLE public.invitaciones_subusuarios TO authenticated;
 GRANT ALL ON TABLE public.invitaciones_subusuarios_bitacora TO service_role;
 GRANT ALL ON SEQUENCE public.invitaciones_subusuarios_bitacora_id_seq TO service_role;
 GRANT ALL ON TABLE public.movimientos_saldo_favor TO service_role;
-GRANT SELECT ON TABLE public.movimientos_saldo_favor TO authenticated;
 GRANT ALL ON TABLE public.movimientos_saldo_favor_bitacora TO service_role;
 GRANT ALL ON SEQUENCE public.movimientos_saldo_favor_bitacora_id_seq TO service_role;
 GRANT ALL ON TABLE public.notificaciones TO service_role;
@@ -11421,7 +11467,6 @@ GRANT SELECT ON TABLE public.notificaciones TO authenticated;
 GRANT ALL ON TABLE public.notificaciones_bitacora TO service_role;
 GRANT ALL ON SEQUENCE public.notificaciones_bitacora_id_seq TO service_role;
 GRANT ALL ON TABLE public.pagos TO service_role;
-GRANT SELECT ON TABLE public.pagos TO authenticated;
 GRANT ALL ON TABLE public.pagos_bitacora TO service_role;
 GRANT ALL ON SEQUENCE public.pagos_bitacora_id_seq TO service_role;
 GRANT ALL ON TABLE public.paquetes TO service_role;
@@ -11429,7 +11474,6 @@ GRANT SELECT ON TABLE public.paquetes TO authenticated;
 GRANT ALL ON TABLE public.paquetes_bitacora TO service_role;
 GRANT ALL ON SEQUENCE public.paquetes_bitacora_id_seq TO service_role;
 GRANT ALL ON TABLE public.plantillas_cargo TO service_role;
-GRANT SELECT ON TABLE public.plantillas_cargo TO authenticated;
 GRANT ALL ON TABLE public.plantillas_cargo_bitacora TO service_role;
 GRANT ALL ON SEQUENCE public.plantillas_cargo_bitacora_id_seq TO service_role;
 GRANT ALL ON TABLE public.reservas TO service_role;
@@ -11446,14 +11490,12 @@ GRANT SELECT ON TABLE public.servicios_paqueteria TO authenticated;
 GRANT ALL ON TABLE public.servicios_paqueteria_bitacora TO service_role;
 GRANT ALL ON SEQUENCE public.servicios_paqueteria_bitacora_id_seq TO service_role;
 GRANT ALL ON SEQUENCE public.servicios_paqueteria_id_seq TO service_role;
-GRANT ALL ON TABLE public.usuarios TO service_role;
-GRANT SELECT ON TABLE public.usuarios TO authenticated;
 GRANT ALL ON TABLE public.usuarios_bitacora TO service_role;
 GRANT ALL ON SEQUENCE public.usuarios_bitacora_id_seq TO service_role;
-GRANT ALL ON TABLE public.viviendas TO service_role;
-GRANT SELECT ON TABLE public.viviendas TO authenticated;
+GRANT ALL ON TABLE public.vw_cargos TO service_role;
+GRANT SELECT,MAINTAIN ON TABLE public.vw_cargos TO authenticated;
 GRANT ALL ON TABLE public.v_saldo_vivienda TO service_role;
-GRANT SELECT ON TABLE public.v_saldo_vivienda TO authenticated;
+GRANT SELECT,MAINTAIN ON TABLE public.v_saldo_vivienda TO authenticated;
 GRANT ALL ON TABLE public.version TO service_role;
 GRANT SELECT ON TABLE public.version TO anon;
 GRANT SELECT ON TABLE public.version TO authenticated;
@@ -11486,12 +11528,8 @@ GRANT ALL ON TABLE public.vw_calendario_reservas TO service_role;
 GRANT SELECT ON TABLE public.vw_calendario_reservas TO authenticated;
 GRANT ALL ON TABLE public.vw_calendario_reservas_limitado TO service_role;
 GRANT SELECT ON TABLE public.vw_calendario_reservas_limitado TO authenticated;
-GRANT ALL ON TABLE public.vw_cargos TO service_role;
-GRANT SELECT ON TABLE public.vw_cargos TO authenticated;
 GRANT ALL ON TABLE public.vw_condominios TO service_role;
 GRANT SELECT ON TABLE public.vw_condominios TO authenticated;
-GRANT ALL ON TABLE public.vw_invitaciones_subusuarios TO service_role;
-GRANT SELECT ON TABLE public.vw_invitaciones_subusuarios TO authenticated;
 GRANT ALL ON TABLE public.vw_mis_paquetes TO service_role;
 GRANT SELECT ON TABLE public.vw_mis_paquetes TO authenticated;
 GRANT ALL ON TABLE public.vw_mis_visitas TO service_role;
@@ -11499,13 +11537,13 @@ GRANT SELECT ON TABLE public.vw_mis_visitas TO authenticated;
 GRANT ALL ON TABLE public.vw_mis_viviendas TO service_role;
 GRANT SELECT ON TABLE public.vw_mis_viviendas TO authenticated;
 GRANT ALL ON TABLE public.vw_movimientos_saldo_favor TO service_role;
-GRANT SELECT ON TABLE public.vw_movimientos_saldo_favor TO authenticated;
+GRANT SELECT,MAINTAIN ON TABLE public.vw_movimientos_saldo_favor TO authenticated;
 GRANT ALL ON TABLE public.vw_no_shows TO service_role;
 GRANT SELECT ON TABLE public.vw_no_shows TO authenticated;
 GRANT ALL ON TABLE public.vw_notificaciones TO service_role;
 GRANT SELECT ON TABLE public.vw_notificaciones TO authenticated;
 GRANT ALL ON TABLE public.vw_pagos TO service_role;
-GRANT SELECT ON TABLE public.vw_pagos TO authenticated;
+GRANT SELECT,MAINTAIN ON TABLE public.vw_pagos TO authenticated;
 GRANT ALL ON TABLE public.vw_paquetes_caseta TO service_role;
 GRANT SELECT ON TABLE public.vw_paquetes_caseta TO authenticated;
 GRANT ALL ON TABLE public.vw_paquetes_historico TO service_role;
@@ -11513,7 +11551,7 @@ GRANT SELECT ON TABLE public.vw_paquetes_historico TO authenticated;
 GRANT ALL ON TABLE public.vw_paquetes_residente TO service_role;
 GRANT SELECT ON TABLE public.vw_paquetes_residente TO authenticated;
 GRANT ALL ON TABLE public.vw_plantillas_cargo TO service_role;
-GRANT SELECT ON TABLE public.vw_plantillas_cargo TO authenticated;
+GRANT SELECT,MAINTAIN ON TABLE public.vw_plantillas_cargo TO authenticated;
 GRANT ALL ON TABLE public.vw_reservas_admin TO service_role;
 GRANT SELECT ON TABLE public.vw_reservas_admin TO authenticated;
 GRANT ALL ON TABLE public.vw_reservas_pendientes_titular TO service_role;
@@ -11548,612 +11586,14 @@ GRANT SELECT ON TABLE public.vw_viviendas_con_residentes TO authenticated;
 GRANT ALL ON TABLE public.vw_viviendas_residentes TO service_role;
 GRANT SELECT ON TABLE public.vw_viviendas_residentes TO authenticated;
 
--- ------------------------------------------------------------------------------
--- 3. Datos semilla (triggers y llaves foraneas en pausa durante la carga)
--- ------------------------------------------------------------------------------
-SET session_replication_role = replica;
-
--- 3.1 Cuentas de autenticacion
---
--- PostgreSQL database dump
---
-
-
--- Dumped from database version 17.6
--- Dumped by pg_dump version 17.11 (Debian 17.11-1.pgdg13+2)
-
-
---
--- Data for Name: users; Type: TABLE DATA; Schema: auth; Owner: supabase_auth_admin
---
-
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, invited_at, confirmation_token, confirmation_sent_at, recovery_token, recovery_sent_at, email_change_token_new, email_change, email_change_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at, phone, phone_confirmed_at, phone_change, phone_change_token, phone_change_sent_at, email_change_token_current, email_change_confirm_status, banned_until, reauthentication_token, reauthentication_sent_at, is_sso_user, deleted_at, is_anonymous) VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'vigilante@haven.com', '$2a$06$qrLmuX02HPiw9PxkDZ5.wOTSbDjzn4MYc9C1RCLlMZGy1/D.Estu2', '2026-11-05 20:00:51.617216+00', NULL, '', NULL, '', NULL, '', '', NULL, NULL, '{"rol": "Vigilancia", "rol_id": 3, "provider": "email", "providers": ["email"], "condominio_id": "a0000000-0000-0000-0000-000000000001"}', '{"nombre": "Roberto", "telefono": "5550000002", "apellidos": "Guardia"}', NULL, '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, invited_at, confirmation_token, confirmation_sent_at, recovery_token, recovery_sent_at, email_change_token_new, email_change, email_change_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at, phone, phone_confirmed_at, phone_change, phone_change_token, phone_change_sent_at, email_change_token_current, email_change_confirm_status, banned_until, reauthentication_token, reauthentication_sent_at, is_sso_user, deleted_at, is_anonymous) VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'subusuario@haven.com', '$2a$06$qrLmuX02HPiw9PxkDZ5.wOTSbDjzn4MYc9C1RCLlMZGy1/D.Estu2', '2026-11-05 20:00:51.617216+00', NULL, '', NULL, '', NULL, '', '', NULL, NULL, '{"rol": "Residente", "rol_id": 2, "provider": "email", "providers": ["email"], "condominio_id": "a0000000-0000-0000-0000-000000000001"}', '{"nombre": "Luis", "telefono": "5550000004", "apellidos": "Familiar"}', NULL, '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, invited_at, confirmation_token, confirmation_sent_at, recovery_token, recovery_sent_at, email_change_token_new, email_change, email_change_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at, phone, phone_confirmed_at, phone_change, phone_change_token, phone_change_sent_at, email_change_token_current, email_change_confirm_status, banned_until, reauthentication_token, reauthentication_sent_at, is_sso_user, deleted_at, is_anonymous) VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'invitado@haven.com', '$2a$06$qrLmuX02HPiw9PxkDZ5.wOTSbDjzn4MYc9C1RCLlMZGy1/D.Estu2', '2026-11-05 20:00:51.617216+00', NULL, '', NULL, '', NULL, '', '', NULL, NULL, '{"rol": "Residente", "rol_id": 2, "provider": "email", "providers": ["email"], "condominio_id": "a0000000-0000-0000-0000-000000000001"}', '{"nombre": "Sofía", "telefono": "5550000005", "apellidos": "Invitada"}', NULL, '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, invited_at, confirmation_token, confirmation_sent_at, recovery_token, recovery_sent_at, email_change_token_new, email_change, email_change_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at, phone, phone_confirmed_at, phone_change, phone_change_token, phone_change_sent_at, email_change_token_current, email_change_confirm_status, banned_until, reauthentication_token, reauthentication_sent_at, is_sso_user, deleted_at, is_anonymous) VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'admin@haven.com', '$2a$06$kWorGt0tHGdnoHu7eOcY/OPMptz9n/HI7.cn5Ubb7k6H8HMBpadJ6', '2026-11-05 20:00:51.617216+00', NULL, '', NULL, '', NULL, '', '', NULL, '2026-11-05 21:09:47.374989+00', '{"rol": "Administrador", "rol_id": 1, "provider": "email", "providers": ["email"], "condominio_id": "a0000000-0000-0000-0000-000000000001"}', '{"nombre": "Carlos", "telefono": "5550000001", "apellidos": "Administrador"}', NULL, '2026-11-05 20:00:51.617216+00', '2026-11-05 21:09:47.386276+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, invited_at, confirmation_token, confirmation_sent_at, recovery_token, recovery_sent_at, email_change_token_new, email_change, email_change_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at, phone, phone_confirmed_at, phone_change, phone_change_token, phone_change_sent_at, email_change_token_current, email_change_confirm_status, banned_until, reauthentication_token, reauthentication_sent_at, is_sso_user, deleted_at, is_anonymous) VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'residente@haven.com', '$2a$06$qrLmuX02HPiw9PxkDZ5.wOTSbDjzn4MYc9C1RCLlMZGy1/D.Estu2', '2026-11-05 20:00:51.617216+00', NULL, '', NULL, '', NULL, '', '', NULL, '2026-11-05 21:09:47.779697+00', '{"rol": "Residente", "rol_id": 2, "provider": "email", "providers": ["email"], "condominio_id": "a0000000-0000-0000-0000-000000000001"}', '{"nombre": "Ana", "telefono": "5550000003", "apellidos": "Titular"}', NULL, '2026-11-05 20:00:51.617216+00', '2026-11-05 21:09:47.782703+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
-
-
---
--- Data for Name: identities; Type: TABLE DATA; Schema: auth; Owner: supabase_auth_admin
---
-
-INSERT INTO auth.identities (provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at, id) VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '{"sub": "00000000-0000-0000-0000-000000000001", "email": "admin@haven.com", "email_verified": true}', 'email', '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', '00000000-0000-0000-0000-000000000001');
-INSERT INTO auth.identities (provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at, id) VALUES ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000002', '{"sub": "00000000-0000-0000-0000-000000000002", "email": "vigilante@haven.com", "email_verified": true}', 'email', '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', '00000000-0000-0000-0000-000000000002');
-INSERT INTO auth.identities (provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at, id) VALUES ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000003', '{"sub": "00000000-0000-0000-0000-000000000003", "email": "residente@haven.com", "email_verified": true}', 'email', '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', '00000000-0000-0000-0000-000000000003');
-INSERT INTO auth.identities (provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at, id) VALUES ('00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000004', '{"sub": "00000000-0000-0000-0000-000000000004", "email": "subusuario@haven.com", "email_verified": true}', 'email', '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', '00000000-0000-0000-0000-000000000004');
-INSERT INTO auth.identities (provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at, id) VALUES ('00000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000005', '{"sub": "00000000-0000-0000-0000-000000000005", "email": "invitado@haven.com", "email_verified": true}', 'email', '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', '00000000-0000-0000-0000-000000000005');
-
-
---
--- PostgreSQL database dump complete
---
-
-
-
--- 3.2 Datos de public
---
--- PostgreSQL database dump
---
-
-
--- Dumped from database version 17.6
--- Dumped by pg_dump version 17.11 (Debian 17.11-1.pgdg13+2)
-
-
---
--- Data for Name: condominios; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.condominios (id, nombre, direccion, zona_horaria, activo, creado_en) VALUES ('a0000000-0000-0000-0000-000000000001', 'Residencial Los Pinos', 'Av. Paseo de los Pinos 100, CDMX', 'America/Mexico_City', true, '2026-11-05 20:00:51.617216+00');
-
-
---
--- Data for Name: areas_comunes; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.areas_comunes (id, condominio_id, nombre, descripcion, hora_apertura, hora_cierre, activo, creado_en) VALUES ('b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'Salón de Eventos', 'Salón climatizado con capacidad para 60 personas y cocina equipada.', '09:00:00', '23:00:00', true, '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.areas_comunes (id, condominio_id, nombre, descripcion, hora_apertura, hora_cierre, activo, creado_en) VALUES ('b0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'Terraza Grill', 'Terraza al aire libre con asador de gas, barra y mesas.', '10:00:00', '22:00:00', true, '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.areas_comunes (id, condominio_id, nombre, descripcion, hora_apertura, hora_cierre, activo, creado_en) VALUES ('b0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'Alberca Climatizada', 'Carril de nado y área recreativa familiar.', '07:00:00', '21:00:00', true, '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.areas_comunes (id, condominio_id, nombre, descripcion, hora_apertura, hora_cierre, activo, creado_en) VALUES ('b0000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', 'Cancha de Pádel', 'Cancha reglamentaria con iluminación nocturna.', '08:00:00', '22:00:00', true, '2026-11-05 20:00:51.617216+00');
-
-
---
--- Data for Name: areas_comunes_bitacora; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.areas_comunes_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (1, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "b0000000-0000-0000-0000-000000000001", "activo": true, "nombre": "Salón de Eventos", "creado_en": "2026-11-05T20:00:51.617216+00:00", "descripcion": "Salón climatizado con capacidad para 60 personas y cocina equipada.", "hora_cierre": "23:00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "hora_apertura": "09:00:00"}');
-INSERT INTO public.areas_comunes_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (2, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "b0000000-0000-0000-0000-000000000002", "activo": true, "nombre": "Terraza Grill", "creado_en": "2026-11-05T20:00:51.617216+00:00", "descripcion": "Terraza al aire libre con asador de gas, barra y mesas.", "hora_cierre": "22:00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "hora_apertura": "10:00:00"}');
-INSERT INTO public.areas_comunes_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (3, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "b0000000-0000-0000-0000-000000000003", "activo": true, "nombre": "Alberca Climatizada", "creado_en": "2026-11-05T20:00:51.617216+00:00", "descripcion": "Carril de nado y área recreativa familiar.", "hora_cierre": "21:00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "hora_apertura": "07:00:00"}');
-INSERT INTO public.areas_comunes_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (4, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "b0000000-0000-0000-0000-000000000004", "activo": true, "nombre": "Cancha de Pádel", "creado_en": "2026-11-05T20:00:51.617216+00:00", "descripcion": "Cancha reglamentaria con iluminación nocturna.", "hora_cierre": "22:00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "hora_apertura": "08:00:00"}');
-
-
---
--- Data for Name: roles; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.roles (id, nombre, descripcion) VALUES (1, 'Administrador', 'Control total del sistema y condominio');
-INSERT INTO public.roles (id, nombre, descripcion) VALUES (2, 'Residente', 'Usuario estándar que habita en el condominio');
-INSERT INTO public.roles (id, nombre, descripcion) VALUES (3, 'Vigilancia', 'Personal de seguridad y control de accesos en caseta');
-INSERT INTO public.roles (id, nombre, descripcion) VALUES (4, 'Mantenimiento', 'Personal encargado de reparaciones y áreas comunes');
-
-
---
--- Data for Name: usuarios; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.usuarios (id, rol_id, condominio_id, email, nombre, apellidos, telefono, activo, debe_cambiar_password, creado_en) VALUES ('00000000-0000-0000-0000-000000000002', 3, 'a0000000-0000-0000-0000-000000000001', 'vigilante@haven.com', 'Roberto', 'Guardia', '5550000002', true, false, '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.usuarios (id, rol_id, condominio_id, email, nombre, apellidos, telefono, activo, debe_cambiar_password, creado_en) VALUES ('00000000-0000-0000-0000-000000000003', 2, 'a0000000-0000-0000-0000-000000000001', 'residente@haven.com', 'Ana', 'Titular', '5550000003', true, false, '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.usuarios (id, rol_id, condominio_id, email, nombre, apellidos, telefono, activo, debe_cambiar_password, creado_en) VALUES ('00000000-0000-0000-0000-000000000004', 2, 'a0000000-0000-0000-0000-000000000001', 'subusuario@haven.com', 'Luis', 'Familiar', '5550000004', true, false, '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.usuarios (id, rol_id, condominio_id, email, nombre, apellidos, telefono, activo, debe_cambiar_password, creado_en) VALUES ('00000000-0000-0000-0000-000000000005', 2, 'a0000000-0000-0000-0000-000000000001', 'invitado@haven.com', 'Sofía', 'Invitada', '5550000005', true, false, '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.usuarios (id, rol_id, condominio_id, email, nombre, apellidos, telefono, activo, debe_cambiar_password, creado_en) VALUES ('00000000-0000-0000-0000-000000000001', 1, 'a0000000-0000-0000-0000-000000000001', 'admin@haven.com', 'Carlos', 'Administrador', '5550000001', true, false, '2026-11-05 20:00:51.617216+00');
-
-
---
--- Data for Name: avisos; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.avisos (id, condominio_id, titulo, contenido, prioridad, duracion_dias, fecha_expiracion_manual, fecha_publicacion, activo, creado_por, creado_en) VALUES ('083bda78-e816-4266-9b63-88b7f3712c25', 'a0000000-0000-0000-0000-000000000001', 'Mantenimiento de alberca y áreas comunes', 'Se informa a todos los residentes que este jueves se realizará limpieza profunda en el área común.', 'alta', 7, NULL, '2026-11-05 20:00:51.617216+00', true, '00000000-0000-0000-0000-000000000001', '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.avisos (id, condominio_id, titulo, contenido, prioridad, duracion_dias, fecha_expiracion_manual, fecha_publicacion, activo, creado_por, creado_en) VALUES ('1a6606e3-4fa4-4f25-b413-474918be3e5f', 'a0000000-0000-0000-0000-000000000001', 'Actualización de reglamento de visitas y paquetería', 'Recuerden registrar sus visitas y paquetes esperados desde la app para agilizar el acceso en caseta.', 'normal', 15, NULL, '2026-11-05 20:00:51.617216+00', true, '00000000-0000-0000-0000-000000000001', '2026-11-05 20:00:51.617216+00');
-
-
---
--- Data for Name: avisos_bitacora; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.avisos_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (1, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "083bda78-e816-4266-9b63-88b7f3712c25", "activo": true, "titulo": "Mantenimiento de alberca y áreas comunes", "contenido": "Se informa a todos los residentes que este jueves se realizará limpieza profunda en el área común.", "creado_en": "2026-11-05T20:00:51.617216+00:00", "prioridad": "alta", "creado_por": "00000000-0000-0000-0000-000000000001", "condominio_id": "a0000000-0000-0000-0000-000000000001", "duracion_dias": 7, "fecha_publicacion": "2026-11-05T20:00:51.617216+00:00", "fecha_expiracion_manual": null}');
-INSERT INTO public.avisos_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (2, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "1a6606e3-4fa4-4f25-b413-474918be3e5f", "activo": true, "titulo": "Actualización de reglamento de visitas y paquetería", "contenido": "Recuerden registrar sus visitas y paquetes esperados desde la app para agilizar el acceso en caseta.", "creado_en": "2026-11-05T20:00:51.617216+00:00", "prioridad": "normal", "creado_por": "00000000-0000-0000-0000-000000000001", "condominio_id": "a0000000-0000-0000-0000-000000000001", "duracion_dias": 15, "fecha_publicacion": "2026-11-05T20:00:51.617216+00:00", "fecha_expiracion_manual": null}');
-
-
---
--- Data for Name: viviendas; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.viviendas (id, condominio_id, numero_casa, tipo, activo, creado_en) VALUES (1, 'a0000000-0000-0000-0000-000000000001', '101', 'Casa', true, '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.viviendas (id, condominio_id, numero_casa, tipo, activo, creado_en) VALUES (2, 'a0000000-0000-0000-0000-000000000001', '102', 'Departamento', true, '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.viviendas (id, condominio_id, numero_casa, tipo, activo, creado_en) VALUES (3, 'a0000000-0000-0000-0000-000000000001', '103', 'Casa', true, '2026-11-05 20:00:51.617216+00');
-
-
---
--- Data for Name: plantillas_cargo; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.plantillas_cargo (id, condominio_id, vivienda_id, tipo, concepto, monto, dia_vencimiento, vigencia_inicio, vigencia_fin, responsable_pago, activa, creado_por, creado_en, modificado_por, modificado_en) VALUES ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 1, 'Mantenimiento', 'Cuota de Mantenimiento Mensual', 1800.00, 10, '2026-11-01', NULL, 'Residente', true, '00000000-0000-0000-0000-000000000001', '2026-11-05 20:00:51.617216+00', NULL, NULL);
-
-
---
--- Data for Name: cargos; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.cargos (id, condominio_id, vivienda_id, plantilla_id, periodo, tipo, concepto, monto, monto_pagado_confirmado, estado, fecha_vencimiento, responsable_pago, motivo_cancelacion, cancelado_por, cancelado_en, creado_por, creado_en) VALUES ('d0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 1, NULL, NULL, 'Extraordinario', 'Aportación para modernización de portón eléctrico', 950.00, 0.00, 'Pendiente', '2026-11-20', 'Residente', NULL, NULL, NULL, '00000000-0000-0000-0000-000000000001', '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.cargos (id, condominio_id, vivienda_id, plantilla_id, periodo, tipo, concepto, monto, monto_pagado_confirmado, estado, fecha_vencimiento, responsable_pago, motivo_cancelacion, cancelado_por, cancelado_en, creado_por, creado_en) VALUES ('d0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 1, 'c0000000-0000-0000-0000-000000000001', '2026-11-01', 'Mantenimiento', 'Cuota de Mantenimiento Mensual', 1800.00, 1800.00, 'Pagado', '2026-11-10', 'Residente', NULL, NULL, NULL, '00000000-0000-0000-0000-000000000001', '2026-11-05 20:00:51.617216+00');
-
-
---
--- Data for Name: cargos_bitacora; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.cargos_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (1, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "d0000000-0000-0000-0000-000000000001", "tipo": "Mantenimiento", "monto": 1800.00, "estado": "Pendiente", "periodo": "2026-11-01", "concepto": "Cuota de Mantenimiento Mensual", "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000001", "vivienda_id": 1, "cancelado_en": null, "plantilla_id": "c0000000-0000-0000-0000-000000000001", "cancelado_por": null, "condominio_id": "a0000000-0000-0000-0000-000000000001", "saldo_pendiente": 1800.00, "responsable_pago": "Residente", "fecha_vencimiento": "2026-11-10", "motivo_cancelacion": null, "monto_pagado_confirmado": 0.00}');
-INSERT INTO public.cargos_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (2, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "d0000000-0000-0000-0000-000000000002", "tipo": "Extraordinario", "monto": 950.00, "estado": "Pendiente", "periodo": null, "concepto": "Aportación para modernización de portón eléctrico", "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000001", "vivienda_id": 1, "cancelado_en": null, "plantilla_id": null, "cancelado_por": null, "condominio_id": "a0000000-0000-0000-0000-000000000001", "saldo_pendiente": 950.00, "responsable_pago": "Residente", "fecha_vencimiento": "2026-11-20", "motivo_cancelacion": null, "monto_pagado_confirmado": 0.00}');
-INSERT INTO public.cargos_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (3, 'UPDATE', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, '{"id": "d0000000-0000-0000-0000-000000000001", "tipo": "Mantenimiento", "monto": 1800.00, "estado": "Pendiente", "periodo": "2026-11-01", "concepto": "Cuota de Mantenimiento Mensual", "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000001", "vivienda_id": 1, "cancelado_en": null, "plantilla_id": "c0000000-0000-0000-0000-000000000001", "cancelado_por": null, "condominio_id": "a0000000-0000-0000-0000-000000000001", "saldo_pendiente": 1800.00, "responsable_pago": "Residente", "fecha_vencimiento": "2026-11-10", "motivo_cancelacion": null, "monto_pagado_confirmado": 0.00}', '{"id": "d0000000-0000-0000-0000-000000000001", "tipo": "Mantenimiento", "monto": 1800.00, "estado": "Pagado", "periodo": "2026-11-01", "concepto": "Cuota de Mantenimiento Mensual", "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000001", "vivienda_id": 1, "cancelado_en": null, "plantilla_id": "c0000000-0000-0000-0000-000000000001", "cancelado_por": null, "condominio_id": "a0000000-0000-0000-0000-000000000001", "saldo_pendiente": 0.00, "responsable_pago": "Residente", "fecha_vencimiento": "2026-11-10", "motivo_cancelacion": null, "monto_pagado_confirmado": 1800.00}');
-
-
---
--- Data for Name: codigos_condominio; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-
-
---
--- Data for Name: codigos_condominio_bitacora; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-
-
---
--- Data for Name: codigos_vivienda; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-
-
---
--- Data for Name: codigos_vivienda_bitacora; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-
-
---
--- Data for Name: condominios_bitacora; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.condominios_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (1, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "a0000000-0000-0000-0000-000000000001", "activo": true, "nombre": "Residencial Los Pinos", "creado_en": "2026-11-05T20:00:51.617216+00:00", "direccion": "Av. Paseo de los Pinos 100, CDMX", "zona_horaria": "America/Mexico_City"}');
-
-
---
--- Data for Name: invitaciones_subusuarios; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.invitaciones_subusuarios (id, vivienda_id, titular_id, invitado_id, parentesco, estado, creado_en, actualizado_en) VALUES ('93f8113b-4428-482d-a06e-67a2ee5ce694', 1, '00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000005', 'Pareja', 'PENDIENTE', '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00');
-
-
---
--- Data for Name: invitaciones_subusuarios_bitacora; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.invitaciones_subusuarios_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (1, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "93f8113b-4428-482d-a06e-67a2ee5ce694", "estado": "PENDIENTE", "creado_en": "2026-11-05T20:00:51.617216+00:00", "parentesco": "Pareja", "titular_id": "00000000-0000-0000-0000-000000000003", "invitado_id": "00000000-0000-0000-0000-000000000005", "vivienda_id": 1, "actualizado_en": "2026-11-05T20:00:51.617216+00:00"}');
-
-
---
--- Data for Name: pagos; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.pagos (id, cargo_id, condominio_id, vivienda_id, monto, monto_cubierto, monto_excedente, fecha_pago, metodo, referencia, banco_origen, comprobante_ruta, comprobante_hash, estado, origen, es_reversa, pago_original_id, motivo_rechazo, motivo_anulacion, registrado_por, creado_en, confirmado_por, confirmado_en, rechazado_por, rechazado_en, anulado_por, anulado_en) VALUES ('2d62e14d-2f1f-47be-bcaf-0691bed1013a', 'd0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 1, 1800.00, 1800.00, 0.00, '2026-11-05', 'Transferencia', 'SPEI-101-001', 'BBVA', NULL, NULL, 'Confirmado', 'Residente', false, NULL, NULL, NULL, '00000000-0000-0000-0000-000000000003', '2026-11-05 20:00:51.617216+00', '00000000-0000-0000-0000-000000000001', '2026-11-05 20:00:51.617216+00', NULL, NULL, NULL, NULL);
-
-
---
--- Data for Name: movimientos_saldo_favor; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-
-
---
--- Data for Name: movimientos_saldo_favor_bitacora; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-
-
---
--- Data for Name: notificaciones; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.notificaciones (id, usuario_id, tipo_evento, titulo, mensaje, url_redireccion, leida, reserva_id, push_enviado, push_reclamado_en, creado_en) VALUES ('d0b357e8-73e6-4140-82ff-d53a13171680', '00000000-0000-0000-0000-000000000003', 'llegada_visita', 'Tu visita ha llegado', 'Jorge Plomero ha ingresado al condominio hacia la vivienda 101.', '/mis-visitas', false, NULL, false, NULL, '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.notificaciones (id, usuario_id, tipo_evento, titulo, mensaje, url_redireccion, leida, reserva_id, push_enviado, push_reclamado_en, creado_en) VALUES ('1e818c75-d609-48fe-851f-c37a2b31cccf', '00000000-0000-0000-0000-000000000004', 'llegada_visita', 'Tu visita ha llegado', 'Laura Gómez ha ingresado al condominio hacia la vivienda 101.', '/mis-visitas', false, NULL, false, NULL, '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.notificaciones (id, usuario_id, tipo_evento, titulo, mensaje, url_redireccion, leida, reserva_id, push_enviado, push_reclamado_en, creado_en) VALUES ('e4e44f9c-50ef-4801-b2d0-e4867dbd503c', '00000000-0000-0000-0000-000000000004', 'paquete_entregado', 'Paquete entregado', 'El paquete de DHL para Luis Familiar ha sido entregado a Luis Familiar.', '/paqueteria', false, NULL, false, NULL, '2026-11-05 20:00:51.617216+00');
-
-
---
--- Data for Name: notificaciones_bitacora; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.notificaciones_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (1, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "d0b357e8-73e6-4140-82ff-d53a13171680", "leida": false, "titulo": "Tu visita ha llegado", "mensaje": "Jorge Plomero ha ingresado al condominio hacia la vivienda 101.", "creado_en": "2026-11-05T20:00:51.617216+00:00", "reserva_id": null, "usuario_id": "00000000-0000-0000-0000-000000000003", "tipo_evento": "llegada_visita", "push_enviado": false, "url_redireccion": "/mis-visitas", "push_reclamado_en": null}');
-INSERT INTO public.notificaciones_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (2, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "1e818c75-d609-48fe-851f-c37a2b31cccf", "leida": false, "titulo": "Tu visita ha llegado", "mensaje": "Laura Gómez ha ingresado al condominio hacia la vivienda 101.", "creado_en": "2026-11-05T20:00:51.617216+00:00", "reserva_id": null, "usuario_id": "00000000-0000-0000-0000-000000000004", "tipo_evento": "llegada_visita", "push_enviado": false, "url_redireccion": "/mis-visitas", "push_reclamado_en": null}');
-INSERT INTO public.notificaciones_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (3, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "e4e44f9c-50ef-4801-b2d0-e4867dbd503c", "leida": false, "titulo": "Paquete entregado", "mensaje": "El paquete de DHL para Luis Familiar ha sido entregado a Luis Familiar.", "creado_en": "2026-11-05T20:00:51.617216+00:00", "reserva_id": null, "usuario_id": "00000000-0000-0000-0000-000000000004", "tipo_evento": "paquete_entregado", "push_enviado": false, "url_redireccion": "/paqueteria", "push_reclamado_en": null}');
-
-
---
--- Data for Name: pagos_bitacora; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.pagos_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (1, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "2d62e14d-2f1f-47be-bcaf-0691bed1013a", "monto": 1800.00, "estado": "PendienteConfirmacion", "metodo": "Transferencia", "origen": "Residente", "cargo_id": "d0000000-0000-0000-0000-000000000001", "creado_en": "2026-11-05T20:00:51.617216+00:00", "anulado_en": null, "es_reversa": false, "fecha_pago": "2026-11-05", "referencia": "SPEI-101-001", "anulado_por": null, "vivienda_id": 1, "banco_origen": "BBVA", "rechazado_en": null, "condominio_id": "a0000000-0000-0000-0000-000000000001", "confirmado_en": null, "rechazado_por": null, "confirmado_por": null, "monto_cubierto": 1800.00, "motivo_rechazo": null, "registrado_por": "00000000-0000-0000-0000-000000000003", "monto_excedente": 0.00, "comprobante_hash": null, "comprobante_ruta": null, "motivo_anulacion": null, "pago_original_id": null}');
-INSERT INTO public.pagos_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (2, 'UPDATE', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, '{"id": "2d62e14d-2f1f-47be-bcaf-0691bed1013a", "monto": 1800.00, "estado": "PendienteConfirmacion", "metodo": "Transferencia", "origen": "Residente", "cargo_id": "d0000000-0000-0000-0000-000000000001", "creado_en": "2026-11-05T20:00:51.617216+00:00", "anulado_en": null, "es_reversa": false, "fecha_pago": "2026-11-05", "referencia": "SPEI-101-001", "anulado_por": null, "vivienda_id": 1, "banco_origen": "BBVA", "rechazado_en": null, "condominio_id": "a0000000-0000-0000-0000-000000000001", "confirmado_en": null, "rechazado_por": null, "confirmado_por": null, "monto_cubierto": 1800.00, "motivo_rechazo": null, "registrado_por": "00000000-0000-0000-0000-000000000003", "monto_excedente": 0.00, "comprobante_hash": null, "comprobante_ruta": null, "motivo_anulacion": null, "pago_original_id": null}', '{"id": "2d62e14d-2f1f-47be-bcaf-0691bed1013a", "monto": 1800.00, "estado": "Confirmado", "metodo": "Transferencia", "origen": "Residente", "cargo_id": "d0000000-0000-0000-0000-000000000001", "creado_en": "2026-11-05T20:00:51.617216+00:00", "anulado_en": null, "es_reversa": false, "fecha_pago": "2026-11-05", "referencia": "SPEI-101-001", "anulado_por": null, "vivienda_id": 1, "banco_origen": "BBVA", "rechazado_en": null, "condominio_id": "a0000000-0000-0000-0000-000000000001", "confirmado_en": "2026-11-05T20:00:51.617216+00:00", "rechazado_por": null, "confirmado_por": "00000000-0000-0000-0000-000000000001", "monto_cubierto": 1800.00, "motivo_rechazo": null, "registrado_por": "00000000-0000-0000-0000-000000000003", "monto_excedente": 0.00, "comprobante_hash": null, "comprobante_ruta": null, "motivo_anulacion": null, "pago_original_id": null}');
-
-
---
--- Data for Name: servicios_paqueteria; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.servicios_paqueteria (id, condominio_id, nombre, icono_url, es_sistema, activo, creado_por, creado_en) VALUES (1, NULL, 'Amazon', NULL, true, true, NULL, '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.servicios_paqueteria (id, condominio_id, nombre, icono_url, es_sistema, activo, creado_por, creado_en) VALUES (2, NULL, 'Mercado Libre', NULL, true, true, NULL, '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.servicios_paqueteria (id, condominio_id, nombre, icono_url, es_sistema, activo, creado_por, creado_en) VALUES (3, NULL, 'DHL', NULL, true, true, NULL, '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.servicios_paqueteria (id, condominio_id, nombre, icono_url, es_sistema, activo, creado_por, creado_en) VALUES (4, NULL, 'FedEx', NULL, true, true, NULL, '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.servicios_paqueteria (id, condominio_id, nombre, icono_url, es_sistema, activo, creado_por, creado_en) VALUES (5, NULL, 'Estafeta', NULL, true, true, NULL, '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.servicios_paqueteria (id, condominio_id, nombre, icono_url, es_sistema, activo, creado_por, creado_en) VALUES (6, NULL, 'UPS', NULL, true, true, NULL, '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.servicios_paqueteria (id, condominio_id, nombre, icono_url, es_sistema, activo, creado_por, creado_en) VALUES (7, NULL, 'Paquetexpress', NULL, true, true, NULL, '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.servicios_paqueteria (id, condominio_id, nombre, icono_url, es_sistema, activo, creado_por, creado_en) VALUES (8, NULL, 'Correos de México', NULL, true, true, NULL, '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.servicios_paqueteria (id, condominio_id, nombre, icono_url, es_sistema, activo, creado_por, creado_en) VALUES (9, NULL, 'Otro', NULL, true, true, NULL, '2026-11-05 20:00:51.617216+00');
-
-
---
--- Data for Name: paquetes; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.paquetes (id, condominio_id, vivienda_id, servicio_id, servicio_nombre, empresa_paqueteria, destinatario_nombre, numero_guia, descripcion, notas, fecha_esperada, fecha_esperada_desde, fecha_esperada_hasta, estado, es_inesperado, ubicacion_almacen, recibido_en, recibido_por, entregado_en, entregado_por, entregado_a, entregado_a_nombre, foto_url, motivo_cancelacion, creado_por, creado_en, actualizado_en) VALUES ('48f992a0-d705-4c6e-a263-a70c6315ef20', 'a0000000-0000-0000-0000-000000000001', 1, 1, 'Amazon', 'Amazon', 'Ana Titular', 'AMZ-900100', 'Caja mediana con artículos de oficina', 'Dejar en caseta principal', '2026-11-05', '2026-11-05 20:00:51.617216+00', '2026-11-10 20:00:51.617216+00', 'esperado', false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '00000000-0000-0000-0000-000000000003', '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.paquetes (id, condominio_id, vivienda_id, servicio_id, servicio_nombre, empresa_paqueteria, destinatario_nombre, numero_guia, descripcion, notas, fecha_esperada, fecha_esperada_desde, fecha_esperada_hasta, estado, es_inesperado, ubicacion_almacen, recibido_en, recibido_por, entregado_en, entregado_por, entregado_a, entregado_a_nombre, foto_url, motivo_cancelacion, creado_por, creado_en, actualizado_en) VALUES ('7f193fe7-e45f-4849-b56c-99830c68e43b', 'a0000000-0000-0000-0000-000000000001', 1, 2, 'Mercado Libre', 'Mercado Libre', 'Ana Titular', 'MELI-800200', 'Sobre amarillo acolchado', 'Frágil', '2026-11-04', '2026-11-04 20:00:51.617216+00', '2026-11-08 20:00:51.617216+00', 'recibido', false, 'Estante A-2', '2026-11-05 20:00:51.617216+00', '00000000-0000-0000-0000-000000000002', NULL, NULL, NULL, NULL, NULL, NULL, '00000000-0000-0000-0000-000000000003', '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.paquetes (id, condominio_id, vivienda_id, servicio_id, servicio_nombre, empresa_paqueteria, destinatario_nombre, numero_guia, descripcion, notas, fecha_esperada, fecha_esperada_desde, fecha_esperada_hasta, estado, es_inesperado, ubicacion_almacen, recibido_en, recibido_por, entregado_en, entregado_por, entregado_a, entregado_a_nombre, foto_url, motivo_cancelacion, creado_por, creado_en, actualizado_en) VALUES ('a7a6b371-da0a-4c78-bfba-2f6226ebb565', 'a0000000-0000-0000-0000-000000000001', 1, 3, 'DHL', 'DHL', 'Luis Familiar', 'DHL-700300', 'Paquete internacional', NULL, '2026-11-03', '2026-11-03 20:00:51.617216+00', '2026-11-07 20:00:51.617216+00', 'entregado', false, 'Estante B-1', '2026-11-05 20:00:51.617216+00', '00000000-0000-0000-0000-000000000002', '2026-11-05 20:00:51.617216+00', '00000000-0000-0000-0000-000000000002', NULL, 'Luis Familiar', 'https://placehold.co/600x400?text=Evidencia+Entrega', NULL, '00000000-0000-0000-0000-000000000004', '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00');
-
-
---
--- Data for Name: paquetes_bitacora; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.paquetes_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (1, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "48f992a0-d705-4c6e-a263-a70c6315ef20", "notas": "Dejar en caseta principal", "estado": "esperado", "foto_url": null, "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000003", "descripcion": "Caja mediana con artículos de oficina", "entregado_a": null, "numero_guia": "AMZ-900100", "recibido_en": null, "servicio_id": 1, "vivienda_id": 1, "entregado_en": null, "recibido_por": null, "condominio_id": "a0000000-0000-0000-0000-000000000001", "entregado_por": null, "es_inesperado": false, "actualizado_en": "2026-11-05T20:00:51.617216+00:00", "fecha_esperada": "2026-11-05", "servicio_nombre": "Amazon", "ubicacion_almacen": null, "empresa_paqueteria": "Amazon", "entregado_a_nombre": null, "motivo_cancelacion": null, "destinatario_nombre": "Ana Titular", "fecha_esperada_desde": "2026-11-05T20:00:51.617216+00:00", "fecha_esperada_hasta": "2026-11-10T20:00:51.617216+00:00"}');
-INSERT INTO public.paquetes_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (2, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "7f193fe7-e45f-4849-b56c-99830c68e43b", "notas": "Frágil", "estado": "esperado", "foto_url": null, "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000003", "descripcion": "Sobre amarillo acolchado", "entregado_a": null, "numero_guia": "MELI-800200", "recibido_en": null, "servicio_id": 2, "vivienda_id": 1, "entregado_en": null, "recibido_por": null, "condominio_id": "a0000000-0000-0000-0000-000000000001", "entregado_por": null, "es_inesperado": false, "actualizado_en": "2026-11-05T20:00:51.617216+00:00", "fecha_esperada": "2026-11-04", "servicio_nombre": "Mercado Libre", "ubicacion_almacen": null, "empresa_paqueteria": "Mercado Libre", "entregado_a_nombre": null, "motivo_cancelacion": null, "destinatario_nombre": "Ana Titular", "fecha_esperada_desde": "2026-11-04T20:00:51.617216+00:00", "fecha_esperada_hasta": "2026-11-08T20:00:51.617216+00:00"}');
-INSERT INTO public.paquetes_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (3, 'UPDATE', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, '{"id": "7f193fe7-e45f-4849-b56c-99830c68e43b", "notas": "Frágil", "estado": "esperado", "foto_url": null, "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000003", "descripcion": "Sobre amarillo acolchado", "entregado_a": null, "numero_guia": "MELI-800200", "recibido_en": null, "servicio_id": 2, "vivienda_id": 1, "entregado_en": null, "recibido_por": null, "condominio_id": "a0000000-0000-0000-0000-000000000001", "entregado_por": null, "es_inesperado": false, "actualizado_en": "2026-11-05T20:00:51.617216+00:00", "fecha_esperada": "2026-11-04", "servicio_nombre": "Mercado Libre", "ubicacion_almacen": null, "empresa_paqueteria": "Mercado Libre", "entregado_a_nombre": null, "motivo_cancelacion": null, "destinatario_nombre": "Ana Titular", "fecha_esperada_desde": "2026-11-04T20:00:51.617216+00:00", "fecha_esperada_hasta": "2026-11-08T20:00:51.617216+00:00"}', '{"id": "7f193fe7-e45f-4849-b56c-99830c68e43b", "notas": "Frágil", "estado": "recibido", "foto_url": null, "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000003", "descripcion": "Sobre amarillo acolchado", "entregado_a": null, "numero_guia": "MELI-800200", "recibido_en": "2026-11-05T20:00:51.617216+00:00", "servicio_id": 2, "vivienda_id": 1, "entregado_en": null, "recibido_por": "00000000-0000-0000-0000-000000000002", "condominio_id": "a0000000-0000-0000-0000-000000000001", "entregado_por": null, "es_inesperado": false, "actualizado_en": "2026-11-05T20:00:51.617216+00:00", "fecha_esperada": "2026-11-04", "servicio_nombre": "Mercado Libre", "ubicacion_almacen": "Estante A-2", "empresa_paqueteria": "Mercado Libre", "entregado_a_nombre": null, "motivo_cancelacion": null, "destinatario_nombre": "Ana Titular", "fecha_esperada_desde": "2026-11-04T20:00:51.617216+00:00", "fecha_esperada_hasta": "2026-11-08T20:00:51.617216+00:00"}');
-INSERT INTO public.paquetes_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (4, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "a7a6b371-da0a-4c78-bfba-2f6226ebb565", "notas": null, "estado": "esperado", "foto_url": null, "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000004", "descripcion": "Paquete internacional", "entregado_a": null, "numero_guia": "DHL-700300", "recibido_en": null, "servicio_id": 3, "vivienda_id": 1, "entregado_en": null, "recibido_por": null, "condominio_id": "a0000000-0000-0000-0000-000000000001", "entregado_por": null, "es_inesperado": false, "actualizado_en": "2026-11-05T20:00:51.617216+00:00", "fecha_esperada": "2026-11-03", "servicio_nombre": "DHL", "ubicacion_almacen": null, "empresa_paqueteria": "DHL", "entregado_a_nombre": null, "motivo_cancelacion": null, "destinatario_nombre": "Luis Familiar", "fecha_esperada_desde": "2026-11-03T20:00:51.617216+00:00", "fecha_esperada_hasta": "2026-11-07T20:00:51.617216+00:00"}');
-INSERT INTO public.paquetes_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (5, 'UPDATE', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, '{"id": "a7a6b371-da0a-4c78-bfba-2f6226ebb565", "notas": null, "estado": "esperado", "foto_url": null, "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000004", "descripcion": "Paquete internacional", "entregado_a": null, "numero_guia": "DHL-700300", "recibido_en": null, "servicio_id": 3, "vivienda_id": 1, "entregado_en": null, "recibido_por": null, "condominio_id": "a0000000-0000-0000-0000-000000000001", "entregado_por": null, "es_inesperado": false, "actualizado_en": "2026-11-05T20:00:51.617216+00:00", "fecha_esperada": "2026-11-03", "servicio_nombre": "DHL", "ubicacion_almacen": null, "empresa_paqueteria": "DHL", "entregado_a_nombre": null, "motivo_cancelacion": null, "destinatario_nombre": "Luis Familiar", "fecha_esperada_desde": "2026-11-03T20:00:51.617216+00:00", "fecha_esperada_hasta": "2026-11-07T20:00:51.617216+00:00"}', '{"id": "a7a6b371-da0a-4c78-bfba-2f6226ebb565", "notas": null, "estado": "recibido", "foto_url": null, "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000004", "descripcion": "Paquete internacional", "entregado_a": null, "numero_guia": "DHL-700300", "recibido_en": "2026-11-05T20:00:51.617216+00:00", "servicio_id": 3, "vivienda_id": 1, "entregado_en": null, "recibido_por": "00000000-0000-0000-0000-000000000002", "condominio_id": "a0000000-0000-0000-0000-000000000001", "entregado_por": null, "es_inesperado": false, "actualizado_en": "2026-11-05T20:00:51.617216+00:00", "fecha_esperada": "2026-11-03", "servicio_nombre": "DHL", "ubicacion_almacen": "Estante B-1", "empresa_paqueteria": "DHL", "entregado_a_nombre": null, "motivo_cancelacion": null, "destinatario_nombre": "Luis Familiar", "fecha_esperada_desde": "2026-11-03T20:00:51.617216+00:00", "fecha_esperada_hasta": "2026-11-07T20:00:51.617216+00:00"}');
-INSERT INTO public.paquetes_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (6, 'UPDATE', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, '{"id": "a7a6b371-da0a-4c78-bfba-2f6226ebb565", "notas": null, "estado": "recibido", "foto_url": null, "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000004", "descripcion": "Paquete internacional", "entregado_a": null, "numero_guia": "DHL-700300", "recibido_en": "2026-11-05T20:00:51.617216+00:00", "servicio_id": 3, "vivienda_id": 1, "entregado_en": null, "recibido_por": "00000000-0000-0000-0000-000000000002", "condominio_id": "a0000000-0000-0000-0000-000000000001", "entregado_por": null, "es_inesperado": false, "actualizado_en": "2026-11-05T20:00:51.617216+00:00", "fecha_esperada": "2026-11-03", "servicio_nombre": "DHL", "ubicacion_almacen": "Estante B-1", "empresa_paqueteria": "DHL", "entregado_a_nombre": null, "motivo_cancelacion": null, "destinatario_nombre": "Luis Familiar", "fecha_esperada_desde": "2026-11-03T20:00:51.617216+00:00", "fecha_esperada_hasta": "2026-11-07T20:00:51.617216+00:00"}', '{"id": "a7a6b371-da0a-4c78-bfba-2f6226ebb565", "notas": null, "estado": "entregado", "foto_url": "https://placehold.co/600x400?text=Evidencia+Entrega", "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000004", "descripcion": "Paquete internacional", "entregado_a": null, "numero_guia": "DHL-700300", "recibido_en": "2026-11-05T20:00:51.617216+00:00", "servicio_id": 3, "vivienda_id": 1, "entregado_en": "2026-11-05T20:00:51.617216+00:00", "recibido_por": "00000000-0000-0000-0000-000000000002", "condominio_id": "a0000000-0000-0000-0000-000000000001", "entregado_por": "00000000-0000-0000-0000-000000000002", "es_inesperado": false, "actualizado_en": "2026-11-05T20:00:51.617216+00:00", "fecha_esperada": "2026-11-03", "servicio_nombre": "DHL", "ubicacion_almacen": "Estante B-1", "empresa_paqueteria": "DHL", "entregado_a_nombre": "Luis Familiar", "motivo_cancelacion": null, "destinatario_nombre": "Luis Familiar", "fecha_esperada_desde": "2026-11-03T20:00:51.617216+00:00", "fecha_esperada_hasta": "2026-11-07T20:00:51.617216+00:00"}');
-
-
---
--- Data for Name: plantillas_cargo_bitacora; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.plantillas_cargo_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (1, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "c0000000-0000-0000-0000-000000000001", "tipo": "Mantenimiento", "monto": 1800.00, "activa": true, "concepto": "Cuota de Mantenimiento Mensual", "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000001", "vivienda_id": 1, "vigencia_fin": null, "condominio_id": "a0000000-0000-0000-0000-000000000001", "modificado_en": null, "modificado_por": null, "dia_vencimiento": 10, "vigencia_inicio": "2026-11-01", "responsable_pago": "Residente"}');
-
-
---
--- Data for Name: reservas; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.reservas (id, area_id, condominio_id, titular_id, vivienda_id, solicitante_id, aprobador_id, tipo, inicio, fin, estado, motivo, confirmada_en, recordatorio_24h_enviado, creado_en, actualizado_en) VALUES ('b288f9ca-2ee8-450b-b720-83ceb26f44f1', 'b0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000003', 1, '00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'RESERVA', '2026-11-08 20:00:00+00', '2026-11-09 00:00:00+00', 'CONFIRMADA', NULL, '2026-11-05 20:00:51.617216+00', false, '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00');
-
-
---
--- Data for Name: reservas_bitacora; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.reservas_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (1, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "b288f9ca-2ee8-450b-b720-83ceb26f44f1", "fin": "2026-11-09T00:00:00+00:00", "tipo": "RESERVA", "estado": "CONFIRMADA", "inicio": "2026-11-08T20:00:00+00:00", "motivo": null, "area_id": "b0000000-0000-0000-0000-000000000002", "creado_en": "2026-11-05T20:00:51.617216+00:00", "titular_id": "00000000-0000-0000-0000-000000000003", "vivienda_id": 1, "aprobador_id": "00000000-0000-0000-0000-000000000001", "condominio_id": "a0000000-0000-0000-0000-000000000001", "confirmada_en": "2026-11-05T20:00:51.617216+00:00", "actualizado_en": "2026-11-05T20:00:51.617216+00:00", "solicitante_id": "00000000-0000-0000-0000-000000000003", "recordatorio_24h_enviado": false}');
-
-
---
--- Data for Name: roles_bitacora; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.roles_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (1, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": 1, "nombre": "Administrador", "descripcion": "Control total del sistema y condominio"}');
-INSERT INTO public.roles_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (2, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": 2, "nombre": "Residente", "descripcion": "Usuario estándar que habita en el condominio"}');
-INSERT INTO public.roles_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (3, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": 3, "nombre": "Vigilancia", "descripcion": "Personal de seguridad y control de accesos en caseta"}');
-INSERT INTO public.roles_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (4, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": 4, "nombre": "Mantenimiento", "descripcion": "Personal encargado de reparaciones y áreas comunes"}');
-
-
---
--- Data for Name: servicios_paqueteria_bitacora; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.servicios_paqueteria_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (1, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": 1, "activo": true, "nombre": "Amazon", "creado_en": "2026-11-05T20:00:51.617216+00:00", "icono_url": null, "creado_por": null, "es_sistema": true, "condominio_id": null}');
-INSERT INTO public.servicios_paqueteria_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (2, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": 2, "activo": true, "nombre": "Mercado Libre", "creado_en": "2026-11-05T20:00:51.617216+00:00", "icono_url": null, "creado_por": null, "es_sistema": true, "condominio_id": null}');
-INSERT INTO public.servicios_paqueteria_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (3, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": 3, "activo": true, "nombre": "DHL", "creado_en": "2026-11-05T20:00:51.617216+00:00", "icono_url": null, "creado_por": null, "es_sistema": true, "condominio_id": null}');
-INSERT INTO public.servicios_paqueteria_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (4, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": 4, "activo": true, "nombre": "FedEx", "creado_en": "2026-11-05T20:00:51.617216+00:00", "icono_url": null, "creado_por": null, "es_sistema": true, "condominio_id": null}');
-INSERT INTO public.servicios_paqueteria_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (5, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": 5, "activo": true, "nombre": "Estafeta", "creado_en": "2026-11-05T20:00:51.617216+00:00", "icono_url": null, "creado_por": null, "es_sistema": true, "condominio_id": null}');
-INSERT INTO public.servicios_paqueteria_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (6, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": 6, "activo": true, "nombre": "UPS", "creado_en": "2026-11-05T20:00:51.617216+00:00", "icono_url": null, "creado_por": null, "es_sistema": true, "condominio_id": null}');
-INSERT INTO public.servicios_paqueteria_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (7, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": 7, "activo": true, "nombre": "Paquetexpress", "creado_en": "2026-11-05T20:00:51.617216+00:00", "icono_url": null, "creado_por": null, "es_sistema": true, "condominio_id": null}');
-INSERT INTO public.servicios_paqueteria_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (8, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": 8, "activo": true, "nombre": "Correos de México", "creado_en": "2026-11-05T20:00:51.617216+00:00", "icono_url": null, "creado_por": null, "es_sistema": true, "condominio_id": null}');
-INSERT INTO public.servicios_paqueteria_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (9, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": 9, "activo": true, "nombre": "Otro", "creado_en": "2026-11-05T20:00:51.617216+00:00", "icono_url": null, "creado_por": null, "es_sistema": true, "condominio_id": null}');
-
-
---
--- Data for Name: usuarios_bitacora; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.usuarios_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (1, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "00000000-0000-0000-0000-000000000001", "email": "admin@haven.com", "activo": true, "nombre": "Carlos", "rol_id": 1, "telefono": "5550000001", "apellidos": "Administrador", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}');
-INSERT INTO public.usuarios_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (2, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "00000000-0000-0000-0000-000000000002", "email": "vigilante@haven.com", "activo": true, "nombre": "Roberto", "rol_id": 3, "telefono": "5550000002", "apellidos": "Guardia", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}');
-INSERT INTO public.usuarios_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (3, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "00000000-0000-0000-0000-000000000003", "email": "residente@haven.com", "activo": true, "nombre": "Ana", "rol_id": 2, "telefono": "5550000003", "apellidos": "Titular", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}');
-INSERT INTO public.usuarios_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (4, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "00000000-0000-0000-0000-000000000004", "email": "subusuario@haven.com", "activo": true, "nombre": "Luis", "rol_id": 2, "telefono": "5550000004", "apellidos": "Familiar", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}');
-INSERT INTO public.usuarios_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (5, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "00000000-0000-0000-0000-000000000005", "email": "invitado@haven.com", "activo": true, "nombre": "Sofía", "rol_id": 2, "telefono": "5550000005", "apellidos": "Invitada", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}');
-INSERT INTO public.usuarios_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (7, 'UPDATE', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, '{"id": "00000000-0000-0000-0000-000000000001", "email": "admin@haven.com", "activo": true, "nombre": "Carlos", "rol_id": 1, "telefono": "5550000001", "apellidos": "Administrador", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}', '{"id": "00000000-0000-0000-0000-000000000001", "email": "admin@haven.com", "activo": true, "nombre": "Carlos", "rol_id": 1, "telefono": "5550000001", "apellidos": "Administrador", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}');
-INSERT INTO public.usuarios_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (8, 'UPDATE', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, '{"id": "00000000-0000-0000-0000-000000000002", "email": "vigilante@haven.com", "activo": true, "nombre": "Roberto", "rol_id": 3, "telefono": "5550000002", "apellidos": "Guardia", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}', '{"id": "00000000-0000-0000-0000-000000000002", "email": "vigilante@haven.com", "activo": true, "nombre": "Roberto", "rol_id": 3, "telefono": "5550000002", "apellidos": "Guardia", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}');
-INSERT INTO public.usuarios_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (9, 'UPDATE', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, '{"id": "00000000-0000-0000-0000-000000000003", "email": "residente@haven.com", "activo": true, "nombre": "Ana", "rol_id": 2, "telefono": "5550000003", "apellidos": "Titular", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}', '{"id": "00000000-0000-0000-0000-000000000003", "email": "residente@haven.com", "activo": true, "nombre": "Ana", "rol_id": 2, "telefono": "5550000003", "apellidos": "Titular", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}');
-INSERT INTO public.usuarios_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (10, 'UPDATE', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, '{"id": "00000000-0000-0000-0000-000000000004", "email": "subusuario@haven.com", "activo": true, "nombre": "Luis", "rol_id": 2, "telefono": "5550000004", "apellidos": "Familiar", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}', '{"id": "00000000-0000-0000-0000-000000000004", "email": "subusuario@haven.com", "activo": true, "nombre": "Luis", "rol_id": 2, "telefono": "5550000004", "apellidos": "Familiar", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}');
-INSERT INTO public.usuarios_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (11, 'UPDATE', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, '{"id": "00000000-0000-0000-0000-000000000005", "email": "invitado@haven.com", "activo": true, "nombre": "Sofía", "rol_id": 2, "telefono": "5550000005", "apellidos": "Invitada", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}', '{"id": "00000000-0000-0000-0000-000000000005", "email": "invitado@haven.com", "activo": true, "nombre": "Sofía", "rol_id": 2, "telefono": "5550000005", "apellidos": "Invitada", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}');
-INSERT INTO public.usuarios_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (13, 'UPDATE', '2026-11-05 20:43:36.972139+00', 'postgres', NULL, '{"id": "00000000-0000-0000-0000-000000000001", "email": "admin@haven.com", "activo": true, "nombre": "Carlos", "rol_id": 1, "telefono": "5550000001", "apellidos": "Administrador", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}', '{"id": "00000000-0000-0000-0000-000000000001", "email": "admin@haven.com", "activo": true, "nombre": "Carlos", "rol_id": 1, "telefono": "5550000001", "apellidos": "Administrador", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}');
-
-
---
--- Data for Name: version; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.version (id, numero_version, descripcion, aplicado_en) VALUES (1, '2.0.0', 'Esquema reconstruido completo con todos los módulos HAVEN', '2026-11-05 20:00:51.617216+00');
-
-
---
--- Data for Name: version_bitacora; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.version_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (1, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": 1, "aplicado_en": "2026-11-05T20:00:51.617216+00:00", "descripcion": "Esquema reconstruido completo con todos los módulos HAVEN", "numero_version": "2.0.0"}');
-
-
---
--- Data for Name: visitas; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.visitas (id, vivienda_id, condominio_id, nombre_visitante, apellidos_visitante, telefono_visitante, motivo, num_acompanantes, vehiculo_placas, notas, fecha_llegada_esperada, fecha_expiracion, codigo_acceso, estado, hora_entrada, hora_salida, registrado_entrada_por, registrado_salida_por, creado_por, creado_en) VALUES ('023b8074-042d-4e15-9b8a-5878aa0e216c', 1, 'a0000000-0000-0000-0000-000000000001', 'Miguel', 'Hernández', '5559990001', 'familiar', 2, 'ABC-123-A', 'Viene a cenar con la familia', '2026-11-05 22:00:51.617216+00', '2026-11-06 22:00:51.617216+00', 'VIS-2E9522', 'programada', NULL, NULL, NULL, NULL, '00000000-0000-0000-0000-000000000003', '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.visitas (id, vivienda_id, condominio_id, nombre_visitante, apellidos_visitante, telefono_visitante, motivo, num_acompanantes, vehiculo_placas, notas, fecha_llegada_esperada, fecha_expiracion, codigo_acceso, estado, hora_entrada, hora_salida, registrado_entrada_por, registrado_salida_por, creado_por, creado_en) VALUES ('56c1f633-94ed-4e91-8128-226b798616aa', 1, 'a0000000-0000-0000-0000-000000000001', 'Jorge', 'Plomero', '5559990002', 'servicio', 1, 'SRV-998-B', 'Reparación de tubería en cocina', '2026-11-05 19:00:51.617216+00', '2026-11-06 07:00:51.617216+00', 'VIS-286D9F', 'en_curso', '2026-11-05 20:00:51.617216+00', NULL, '00000000-0000-0000-0000-000000000002', NULL, '00000000-0000-0000-0000-000000000003', '2026-11-05 20:00:51.617216+00');
-INSERT INTO public.visitas (id, vivienda_id, condominio_id, nombre_visitante, apellidos_visitante, telefono_visitante, motivo, num_acompanantes, vehiculo_placas, notas, fecha_llegada_esperada, fecha_expiracion, codigo_acceso, estado, hora_entrada, hora_salida, registrado_entrada_por, registrado_salida_por, creado_por, creado_en) VALUES ('e1643e0a-b362-40a5-aa77-3677ca43ad4f', 1, 'a0000000-0000-0000-0000-000000000001', 'Laura', 'Gómez', '5559990003', 'personal', 0, NULL, 'Visita rápida', '2026-11-05 16:00:51.617216+00', '2026-11-06 04:00:51.617216+00', 'VIS-9DFDC5', 'finalizada', '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000004', '2026-11-05 20:00:51.617216+00');
-
-
---
--- Data for Name: visitas_bitacora; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.visitas_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (1, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "023b8074-042d-4e15-9b8a-5878aa0e216c", "notas": "Viene a cenar con la familia", "estado": "programada", "motivo": "familiar", "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000003", "hora_salida": null, "vivienda_id": 1, "hora_entrada": null, "codigo_acceso": "VIS-2E9522", "condominio_id": "a0000000-0000-0000-0000-000000000001", "vehiculo_placas": "ABC-123-A", "fecha_expiracion": "2026-11-06T22:00:51.617216+00:00", "nombre_visitante": "Miguel", "num_acompanantes": 2, "telefono_visitante": "5559990001", "apellidos_visitante": "Hernández", "registrado_salida_por": null, "fecha_llegada_esperada": "2026-11-05T22:00:51.617216+00:00", "registrado_entrada_por": null}');
-INSERT INTO public.visitas_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (2, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "56c1f633-94ed-4e91-8128-226b798616aa", "notas": "Reparación de tubería en cocina", "estado": "programada", "motivo": "servicio", "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000003", "hora_salida": null, "vivienda_id": 1, "hora_entrada": null, "codigo_acceso": "VIS-286D9F", "condominio_id": "a0000000-0000-0000-0000-000000000001", "vehiculo_placas": "SRV-998-B", "fecha_expiracion": "2026-11-06T07:00:51.617216+00:00", "nombre_visitante": "Jorge", "num_acompanantes": 1, "telefono_visitante": "5559990002", "apellidos_visitante": "Plomero", "registrado_salida_por": null, "fecha_llegada_esperada": "2026-11-05T19:00:51.617216+00:00", "registrado_entrada_por": null}');
-INSERT INTO public.visitas_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (3, 'UPDATE', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, '{"id": "56c1f633-94ed-4e91-8128-226b798616aa", "notas": "Reparación de tubería en cocina", "estado": "programada", "motivo": "servicio", "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000003", "hora_salida": null, "vivienda_id": 1, "hora_entrada": null, "codigo_acceso": "VIS-286D9F", "condominio_id": "a0000000-0000-0000-0000-000000000001", "vehiculo_placas": "SRV-998-B", "fecha_expiracion": "2026-11-06T07:00:51.617216+00:00", "nombre_visitante": "Jorge", "num_acompanantes": 1, "telefono_visitante": "5559990002", "apellidos_visitante": "Plomero", "registrado_salida_por": null, "fecha_llegada_esperada": "2026-11-05T19:00:51.617216+00:00", "registrado_entrada_por": null}', '{"id": "56c1f633-94ed-4e91-8128-226b798616aa", "notas": "Reparación de tubería en cocina", "estado": "en_curso", "motivo": "servicio", "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000003", "hora_salida": null, "vivienda_id": 1, "hora_entrada": "2026-11-05T20:00:51.617216+00:00", "codigo_acceso": "VIS-286D9F", "condominio_id": "a0000000-0000-0000-0000-000000000001", "vehiculo_placas": "SRV-998-B", "fecha_expiracion": "2026-11-06T07:00:51.617216+00:00", "nombre_visitante": "Jorge", "num_acompanantes": 1, "telefono_visitante": "5559990002", "apellidos_visitante": "Plomero", "registrado_salida_por": null, "fecha_llegada_esperada": "2026-11-05T19:00:51.617216+00:00", "registrado_entrada_por": "00000000-0000-0000-0000-000000000002"}');
-INSERT INTO public.visitas_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (4, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "e1643e0a-b362-40a5-aa77-3677ca43ad4f", "notas": "Visita rápida", "estado": "programada", "motivo": "personal", "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000004", "hora_salida": null, "vivienda_id": 1, "hora_entrada": null, "codigo_acceso": "VIS-9DFDC5", "condominio_id": "a0000000-0000-0000-0000-000000000001", "vehiculo_placas": null, "fecha_expiracion": "2026-11-06T04:00:51.617216+00:00", "nombre_visitante": "Laura", "num_acompanantes": 0, "telefono_visitante": "5559990003", "apellidos_visitante": "Gómez", "registrado_salida_por": null, "fecha_llegada_esperada": "2026-11-05T16:00:51.617216+00:00", "registrado_entrada_por": null}');
-INSERT INTO public.visitas_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (5, 'UPDATE', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, '{"id": "e1643e0a-b362-40a5-aa77-3677ca43ad4f", "notas": "Visita rápida", "estado": "programada", "motivo": "personal", "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000004", "hora_salida": null, "vivienda_id": 1, "hora_entrada": null, "codigo_acceso": "VIS-9DFDC5", "condominio_id": "a0000000-0000-0000-0000-000000000001", "vehiculo_placas": null, "fecha_expiracion": "2026-11-06T04:00:51.617216+00:00", "nombre_visitante": "Laura", "num_acompanantes": 0, "telefono_visitante": "5559990003", "apellidos_visitante": "Gómez", "registrado_salida_por": null, "fecha_llegada_esperada": "2026-11-05T16:00:51.617216+00:00", "registrado_entrada_por": null}', '{"id": "e1643e0a-b362-40a5-aa77-3677ca43ad4f", "notas": "Visita rápida", "estado": "en_curso", "motivo": "personal", "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000004", "hora_salida": null, "vivienda_id": 1, "hora_entrada": "2026-11-05T20:00:51.617216+00:00", "codigo_acceso": "VIS-9DFDC5", "condominio_id": "a0000000-0000-0000-0000-000000000001", "vehiculo_placas": null, "fecha_expiracion": "2026-11-06T04:00:51.617216+00:00", "nombre_visitante": "Laura", "num_acompanantes": 0, "telefono_visitante": "5559990003", "apellidos_visitante": "Gómez", "registrado_salida_por": null, "fecha_llegada_esperada": "2026-11-05T16:00:51.617216+00:00", "registrado_entrada_por": "00000000-0000-0000-0000-000000000002"}');
-INSERT INTO public.visitas_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (6, 'UPDATE', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, '{"id": "e1643e0a-b362-40a5-aa77-3677ca43ad4f", "notas": "Visita rápida", "estado": "en_curso", "motivo": "personal", "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000004", "hora_salida": null, "vivienda_id": 1, "hora_entrada": "2026-11-05T20:00:51.617216+00:00", "codigo_acceso": "VIS-9DFDC5", "condominio_id": "a0000000-0000-0000-0000-000000000001", "vehiculo_placas": null, "fecha_expiracion": "2026-11-06T04:00:51.617216+00:00", "nombre_visitante": "Laura", "num_acompanantes": 0, "telefono_visitante": "5559990003", "apellidos_visitante": "Gómez", "registrado_salida_por": null, "fecha_llegada_esperada": "2026-11-05T16:00:51.617216+00:00", "registrado_entrada_por": "00000000-0000-0000-0000-000000000002"}', '{"id": "e1643e0a-b362-40a5-aa77-3677ca43ad4f", "notas": "Visita rápida", "estado": "finalizada", "motivo": "personal", "creado_en": "2026-11-05T20:00:51.617216+00:00", "creado_por": "00000000-0000-0000-0000-000000000004", "hora_salida": "2026-11-05T20:00:51.617216+00:00", "vivienda_id": 1, "hora_entrada": "2026-11-05T20:00:51.617216+00:00", "codigo_acceso": "VIS-9DFDC5", "condominio_id": "a0000000-0000-0000-0000-000000000001", "vehiculo_placas": null, "fecha_expiracion": "2026-11-06T04:00:51.617216+00:00", "nombre_visitante": "Laura", "num_acompanantes": 0, "telefono_visitante": "5559990003", "apellidos_visitante": "Gómez", "registrado_salida_por": "00000000-0000-0000-0000-000000000002", "fecha_llegada_esperada": "2026-11-05T16:00:51.617216+00:00", "registrado_entrada_por": "00000000-0000-0000-0000-000000000002"}');
-
-
---
--- Data for Name: vivienda_residente; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.vivienda_residente (id, vivienda_id, usuario_id, es_propietario, fecha_ingreso) VALUES (1, 1, '00000000-0000-0000-0000-000000000003', true, '2026-11-05 20:00:51.617216+00');
-
-
---
--- Data for Name: vivienda_residente_bitacora; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.vivienda_residente_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (1, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": 1, "usuario_id": "00000000-0000-0000-0000-000000000003", "vivienda_id": 1, "fecha_ingreso": "2026-11-05T20:00:51.617216+00:00", "es_propietario": true}');
-
-
---
--- Data for Name: vivienda_subusuarios; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.vivienda_subusuarios (id, vivienda_id, usuario_id, titular_id, parentesco, activo, creado_en, actualizado_en) VALUES ('2a33f6e6-83f7-4bd7-9fea-1a346d978633', 1, '00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000003', 'Hermano', true, '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00');
-
-
---
--- Data for Name: vivienda_subusuarios_bitacora; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.vivienda_subusuarios_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (1, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": "2a33f6e6-83f7-4bd7-9fea-1a346d978633", "activo": true, "creado_en": "2026-11-05T20:00:51.617216+00:00", "parentesco": "Hermano", "titular_id": "00000000-0000-0000-0000-000000000003", "usuario_id": "00000000-0000-0000-0000-000000000004", "vivienda_id": 1, "actualizado_en": "2026-11-05T20:00:51.617216+00:00"}');
-
-
---
--- Data for Name: viviendas_bitacora; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO public.viviendas_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (1, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": 1, "tipo": "Casa", "activo": true, "creado_en": "2026-11-05T20:00:51.617216+00:00", "numero_casa": "101", "condominio_id": "a0000000-0000-0000-0000-000000000001"}');
-INSERT INTO public.viviendas_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (2, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": 2, "tipo": "Departamento", "activo": true, "creado_en": "2026-11-05T20:00:51.617216+00:00", "numero_casa": "102", "condominio_id": "a0000000-0000-0000-0000-000000000001"}');
-INSERT INTO public.viviendas_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (3, 'INSERT', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, NULL, '{"id": 3, "tipo": "Casa", "activo": true, "creado_en": "2026-11-05T20:00:51.617216+00:00", "numero_casa": "103", "condominio_id": "a0000000-0000-0000-0000-000000000001"}');
-
-
---
--- Name: areas_comunes_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.areas_comunes_bitacora_id_seq', 4, true);
-
-
---
--- Name: avisos_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.avisos_bitacora_id_seq', 2, true);
-
-
---
--- Name: cargos_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.cargos_bitacora_id_seq', 3, true);
-
-
---
--- Name: codigos_condominio_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.codigos_condominio_bitacora_id_seq', 1, false);
-
-
---
--- Name: codigos_vivienda_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.codigos_vivienda_bitacora_id_seq', 1, false);
-
-
---
--- Name: condominios_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.condominios_bitacora_id_seq', 1, true);
-
-
---
--- Name: invitaciones_subusuarios_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.invitaciones_subusuarios_bitacora_id_seq', 1, true);
-
-
---
--- Name: movimientos_saldo_favor_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.movimientos_saldo_favor_bitacora_id_seq', 1, false);
-
-
---
--- Name: notificaciones_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.notificaciones_bitacora_id_seq', 3, true);
-
-
---
--- Name: pagos_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.pagos_bitacora_id_seq', 2, true);
-
-
---
--- Name: paquetes_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.paquetes_bitacora_id_seq', 6, true);
-
-
---
--- Name: plantillas_cargo_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.plantillas_cargo_bitacora_id_seq', 1, true);
-
-
---
--- Name: reservas_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.reservas_bitacora_id_seq', 1, true);
-
-
---
--- Name: roles_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.roles_bitacora_id_seq', 4, true);
-
-
---
--- Name: servicios_paqueteria_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.servicios_paqueteria_bitacora_id_seq', 9, true);
-
-
---
--- Name: servicios_paqueteria_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.servicios_paqueteria_id_seq', 9, true);
-
-
---
--- Name: usuarios_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.usuarios_bitacora_id_seq', 13, true);
-
-
---
--- Name: version_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.version_bitacora_id_seq', 1, true);
-
-
---
--- Name: version_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.version_id_seq', 1, true);
-
-
---
--- Name: visitas_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.visitas_bitacora_id_seq', 6, true);
-
-
---
--- Name: vivienda_residente_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.vivienda_residente_bitacora_id_seq', 1, true);
-
-
---
--- Name: vivienda_residente_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.vivienda_residente_id_seq', 1, true);
-
-
---
--- Name: vivienda_subusuarios_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.vivienda_subusuarios_bitacora_id_seq', 1, true);
-
-
---
--- Name: viviendas_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.viviendas_bitacora_id_seq', 3, true);
-
-
---
--- Name: viviendas_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.viviendas_id_seq', 3, true);
-
-
---
--- PostgreSQL database dump complete
---
-
-
-
-SET session_replication_role = origin;
-
--- ------------------------------------------------------------------------------
--- 4. Objetos fuera de public que dependen de public
--- ------------------------------------------------------------------------------
-
--- 4.1 Triggers sobre auth.users
+-- 2.3 Triggers sobre auth.users
 CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 CREATE TRIGGER on_auth_user_metadata_updated AFTER UPDATE ON auth.users FOR EACH ROW EXECUTE FUNCTION public.handle_user_metadata_update();
 
--- 4.2 Buckets de storage
+-- 2.4 Buckets de storage
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) VALUES ('comprobantes', 'comprobantes', 'f', 5242880, '{image/jpeg,image/png,image/webp,application/pdf}') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, public = EXCLUDED.public, file_size_limit = EXCLUDED.file_size_limit, allowed_mime_types = EXCLUDED.allowed_mime_types;
 
--- 4.3 Politicas de storage
+-- 2.5 Politicas de storage
 CREATE POLICY comprobantes_admin_insert ON storage.objects AS PERMISSIVE FOR INSERT TO authenticated WITH CHECK (((bucket_id = 'comprobantes'::text) AND (public.fn_mi_rol_id() = 1) AND ((storage.foldername(name))[1] = (public.fn_mi_condominio_id())::text)));
 CREATE POLICY comprobantes_admin_select ON storage.objects AS PERMISSIVE FOR SELECT TO authenticated USING (((bucket_id = 'comprobantes'::text) AND (public.fn_mi_rol_id() = 1) AND ((storage.foldername(name))[1] = (public.fn_mi_condominio_id())::text)));
 CREATE POLICY comprobantes_residente_insert ON storage.objects AS PERMISSIVE FOR INSERT TO authenticated WITH CHECK (((bucket_id = 'comprobantes'::text) AND ((storage.foldername(name))[1] = (public.fn_mi_condominio_id())::text) AND (EXISTS ( SELECT 1
@@ -12163,12 +11603,12 @@ CREATE POLICY comprobantes_residente_select ON storage.objects AS PERMISSIVE FOR
    FROM public.vivienda_residente vr
   WHERE ((vr.usuario_id = ( SELECT auth.uid() AS uid)) AND ((vr.vivienda_id)::text = (storage.foldername(objects.name))[2]))))));
 
--- 4.4 Event trigger: activa RLS en cada tabla nueva de public
+-- 2.6 Event trigger: activa RLS en cada tabla nueva de public
 CREATE EVENT TRIGGER ensure_rls ON ddl_command_end
   WHEN TAG IN ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
   EXECUTE FUNCTION public.rls_auto_enable();
 
--- 4.5 Cron jobs
+-- 2.7 Cron jobs
 SELECT cron.schedule('expirar_reservas_pendientes', '*/15 * * * *', 'SELECT public.cron_expirar_reservas_pendientes();');
 SELECT cron.schedule('expirar_reservas_sin_confirmar', '*/15 * * * *', 'SELECT public.cron_expirar_reservas_sin_confirmar();');
 SELECT cron.schedule('notificaciones_confirmacion_reservas', '*/30 * * * *', 'SELECT public.cron_notificaciones_confirmacion();');
@@ -12176,77 +11616,4 @@ SELECT cron.schedule('reservas_transiciones_minuto', '* * * * *', 'SELECT public
 SELECT cron.schedule('pagos-generar-cargos-mensuales', '5 6 1 * *', 'SELECT public.rpc_generar_cargos_mensuales(date_trunc(''month'', CURRENT_DATE)::DATE, NULL, NULL);');
 SELECT cron.schedule('pagos-depurar-comprobantes-antiguos', '0 9 * * *', 'SELECT public.rpc_depurar_comprobantes_antiguos(90, 30);');
 
--- ------------------------------------------------------------------------------
--- 5. Cuenta de administrador garantizada: admin@haven.com / AdminPassword1
--- ------------------------------------------------------------------------------
-INSERT INTO auth.users (
-  instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
-  raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
-  confirmation_token, recovery_token, email_change, email_change_token_new,
-  email_change_token_current, phone_change, phone_change_token, reauthentication_token
-) VALUES (
-  '00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000001',
-  'authenticated', 'authenticated', 'admin@haven.com',
-  extensions.crypt('AdminPassword1', extensions.gen_salt('bf')), now(),
-  '{"provider":"email","providers":["email"]}', '{}', now(), now(),
-  '', '', '', '', '', '', '', ''
-)
-ON CONFLICT (id) DO UPDATE
-SET email              = EXCLUDED.email,
-    encrypted_password = EXCLUDED.encrypted_password,
-    email_confirmed_at = COALESCE(auth.users.email_confirmed_at, now()),
-    banned_until       = NULL,
-    deleted_at         = NULL,
-    updated_at         = now()
--- Solo se toca si algo no cuadra, para no generar cambios ni bitacora en cada corrida
-WHERE auth.users.email IS DISTINCT FROM EXCLUDED.email
-   OR auth.users.encrypted_password IS DISTINCT FROM extensions.crypt('AdminPassword1', auth.users.encrypted_password)
-   OR auth.users.email_confirmed_at IS NULL
-   OR auth.users.banned_until IS NOT NULL
-   OR auth.users.deleted_at IS NOT NULL;
-
-INSERT INTO auth.identities (provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
-SELECT u.id::text, u.id,
-       jsonb_build_object('sub', u.id::text, 'email', u.email, 'email_verified', true, 'phone_verified', false),
-       'email', now(), now(), now()
-FROM auth.users u
-WHERE u.id = '00000000-0000-0000-0000-000000000001'
-  AND NOT EXISTS (SELECT 1 FROM auth.identities i WHERE i.user_id = u.id AND i.provider = 'email');
-
-UPDATE public.usuarios
-SET rol_id = 1, activo = true
-WHERE id = '00000000-0000-0000-0000-000000000001'
-  AND (rol_id IS DISTINCT FROM 1 OR activo IS DISTINCT FROM true);
-
--- ------------------------------------------------------------------------------
--- 6. Verificacion final (si algo no cuadra, se revierte todo)
--- ------------------------------------------------------------------------------
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM auth.users a
-    JOIN public.usuarios u ON u.id = a.id
-    WHERE a.email = 'admin@haven.com'
-      AND a.encrypted_password = extensions.crypt('AdminPassword1', a.encrypted_password)
-      AND a.email_confirmed_at IS NOT NULL
-      AND u.rol_id = 1 AND u.activo
-  ) THEN
-    RAISE EXCEPTION 'reset_full: la cuenta admin@haven.com no quedo lista';
-  END IF;
-  RAISE NOTICE 'reset_full: base reconstruida correctamente';
-END
-$$;
-
 COMMIT;
-
--- Resumen de lo que quedo construido
-SELECT
-  (SELECT count(*) FROM pg_tables WHERE schemaname = 'public')                           AS tablas,
-  (SELECT count(*) FROM pg_views  WHERE schemaname = 'public')                           AS vistas,
-  (SELECT count(*) FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace
-     AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')) AS funciones,
-  (SELECT count(*) FROM pg_policies WHERE schemaname IN ('public', 'storage'))            AS politicas_rls,
-  (SELECT count(*) FROM auth.users)                                                      AS cuentas,
-  (SELECT count(*) FROM cron.job)                                                        AS cron_jobs,
-  (SELECT string_agg(email, ', ' ORDER BY email) FROM auth.users)                        AS correos;
