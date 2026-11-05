@@ -542,6 +542,76 @@ $$;
 ALTER FUNCTION public.alta_condominio(p_nombre text, p_direccion text, p_zona_horaria text) OWNER TO postgres;
 
 --
+-- Name: alta_notificacion(uuid, character varying, character varying, text, text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.alta_notificacion(p_usuario_id uuid, p_tipo_evento character varying, p_titulo character varying, p_mensaje text, p_url_redireccion text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+    v_usuario RECORD;
+    v_id UUID;
+    v_resultado JSONB;
+BEGIN
+    -- Validar existencia del usuario destinatario
+    SELECT id, activo
+    INTO v_usuario
+    FROM public.usuarios
+    WHERE id = p_usuario_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'El usuario destinatario con ID % no existe.', p_usuario_id USING ERRCODE = 'NT001';
+    END IF;
+
+    IF NOT v_usuario.activo THEN
+        RAISE EXCEPTION 'No se pueden enviar notificaciones a un usuario inactivo.' USING ERRCODE = 'NT002';
+    END IF;
+
+    -- Validaciones de cadenas
+    IF NULLIF(TRIM(p_tipo_evento), '') IS NULL THEN
+        RAISE EXCEPTION 'El tipo de evento no puede estar vacío.' USING ERRCODE = 'NT003';
+    END IF;
+
+    IF NULLIF(TRIM(p_titulo), '') IS NULL THEN
+        RAISE EXCEPTION 'El título de la notificación no puede estar vacío.' USING ERRCODE = 'NT004';
+    END IF;
+
+    IF NULLIF(TRIM(p_mensaje), '') IS NULL THEN
+        RAISE EXCEPTION 'El mensaje de la notificación no puede estar vacío.' USING ERRCODE = 'NT005';
+    END IF;
+
+    -- Inserción
+    INSERT INTO public.notificaciones (
+        usuario_id,
+        tipo_evento,
+        titulo,
+        mensaje,
+        url_redireccion
+    )
+    VALUES (
+        p_usuario_id,
+        TRIM(p_tipo_evento),
+        TRIM(p_titulo),
+        TRIM(p_mensaje),
+        NULLIF(TRIM(p_url_redireccion), '')
+    )
+    RETURNING id INTO v_id;
+
+    -- Retornar el registro armado
+    SELECT to_jsonb(vn.*)
+    INTO v_resultado
+    FROM public.vw_notificaciones vn
+    WHERE vn.id = v_id;
+
+    RETURN v_resultado;
+END;
+$$;
+
+
+ALTER FUNCTION public.alta_notificacion(p_usuario_id uuid, p_tipo_evento character varying, p_titulo character varying, p_mensaje text, p_url_redireccion text) OWNER TO postgres;
+
+--
 -- Name: alta_paquete_esperado(uuid, integer, text, integer, text, text, text, text, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -1147,6 +1217,79 @@ $$;
 ALTER FUNCTION public.asignar_residente(p_vivienda_id integer, p_usuario_id uuid, p_es_propietario boolean) OWNER TO postgres;
 
 --
+-- Name: asignar_residente_vivienda(integer, uuid); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.asignar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+    v_vivienda RECORD;
+    v_usuario RECORD;
+    v_resultado JSONB;
+BEGIN
+    -- 1. Validar que la vivienda exista y esté activa
+    SELECT id, condominio_id, activo
+    INTO v_vivienda
+    FROM public.viviendas
+    WHERE id = p_vivienda_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'La vivienda con ID % no existe.', p_vivienda_id USING ERRCODE = 'P0002';
+    END IF;
+
+    IF NOT v_vivienda.activo THEN
+        RAISE EXCEPTION 'La vivienda con ID % se encuentra inactiva.', p_vivienda_id USING ERRCODE = 'P0003';
+    END IF;
+
+    -- 2. Validar que el usuario exista, esté activo y tenga rol_id = 2 (Residente)
+    SELECT id, rol_id, activo
+    INTO v_usuario
+    FROM public.usuarios
+    WHERE id = p_usuario_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'El usuario con ID % no existe.', p_usuario_id USING ERRCODE = 'P0002';
+    END IF;
+
+    IF NOT v_usuario.activo THEN
+        RAISE EXCEPTION 'El usuario con ID % se encuentra inactivo.', p_usuario_id USING ERRCODE = 'P0003';
+    END IF;
+
+    IF v_usuario.rol_id != 2 THEN
+        RAISE EXCEPTION 'El usuario debe tener rol de Residente (rol_id = 2).' USING ERRCODE = 'P0001';
+    END IF;
+
+    -- 3. Insertar el vínculo en vivienda_residente (control de duplicados 23505 -> HTTP 409)
+    BEGIN
+        INSERT INTO public.vivienda_residente (vivienda_id, usuario_id)
+        VALUES (p_vivienda_id, p_usuario_id);
+    EXCEPTION WHEN unique_violation THEN
+        RAISE EXCEPTION 'El residente ya está vinculado a esta vivienda.' USING ERRCODE = '23505';
+    END;
+
+    -- 4. Sincronizar el condominio_id de la vivienda en el perfil del usuario
+    UPDATE public.usuarios
+    SET condominio_id = v_vivienda.condominio_id
+    WHERE id = p_usuario_id;
+
+    -- 5. Armar objeto JSON compuesto de retorno
+    SELECT jsonb_build_object(
+        'vivienda', row_to_json(vw_v),
+        'residente', row_to_json(vw_u)
+    ) INTO v_resultado
+    FROM public.vw_viviendas vw_v, public.vw_usuarios vw_u
+    WHERE vw_v.id = p_vivienda_id AND vw_u.id = p_usuario_id;
+
+    RETURN v_resultado;
+END;
+$$;
+
+
+ALTER FUNCTION public.asignar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) OWNER TO postgres;
+
+--
 -- Name: baja_area_comun(uuid, uuid); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -1313,6 +1456,41 @@ $$;
 
 
 ALTER FUNCTION public.baja_servicio_paqueteria(p_id integer, p_actor_id uuid) OWNER TO postgres;
+
+--
+-- Name: baja_subusuario(integer, uuid); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.baja_subusuario(p_vivienda_id integer, p_usuario_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+    v_filas INTEGER;
+BEGIN
+    -- Desactivar el vínculo activo (baja lógica)
+    UPDATE public.vivienda_subusuarios
+    SET activo = false
+    WHERE vivienda_id = p_vivienda_id 
+      AND usuario_id = p_usuario_id
+      AND activo = true;
+
+    GET DIAGNOSTICS v_filas = ROW_COUNT;
+
+    -- Fallback: si no estaba con activo=true, verificar eliminación directa
+    IF v_filas = 0 THEN
+        DELETE FROM public.vivienda_subusuarios
+        WHERE vivienda_id = p_vivienda_id 
+          AND usuario_id = p_usuario_id;
+        GET DIAGNOSTICS v_filas = ROW_COUNT;
+    END IF;
+
+    RETURN v_filas > 0;
+END;
+$$;
+
+
+ALTER FUNCTION public.baja_subusuario(p_vivienda_id integer, p_usuario_id uuid) OWNER TO postgres;
 
 --
 -- Name: baja_usuario(uuid); Type: FUNCTION; Schema: public; Owner: postgres
@@ -1600,10 +1778,10 @@ $$;
 ALTER FUNCTION public.cambio_paquete_esperado(p_id uuid, p_actor_id uuid, p_destinatario_nombre text, p_servicio_id integer, p_servicio_nombre text, p_numero_guia text, p_descripcion text, p_notas text, p_fecha_esperada_desde timestamp with time zone, p_fecha_esperada_hasta timestamp with time zone) OWNER TO postgres;
 
 --
--- Name: cambio_usuario(uuid, text, text, text, integer, uuid); Type: FUNCTION; Schema: public; Owner: postgres
+-- Name: cambio_usuario(uuid, text, text, text, integer, uuid, boolean); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.cambio_usuario(p_id uuid, p_nombre text DEFAULT NULL::text, p_apellidos text DEFAULT NULL::text, p_telefono text DEFAULT NULL::text, p_rol_id integer DEFAULT NULL::integer, p_condominio_id uuid DEFAULT NULL::uuid) RETURNS jsonb
+CREATE FUNCTION public.cambio_usuario(p_id uuid, p_nombre text DEFAULT NULL::text, p_apellidos text DEFAULT NULL::text, p_telefono text DEFAULT NULL::text, p_rol_id integer DEFAULT NULL::integer, p_condominio_id uuid DEFAULT NULL::uuid, p_debe_cambiar_password boolean DEFAULT NULL::boolean) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -1634,7 +1812,8 @@ BEGIN
         apellidos = COALESCE(p_apellidos, apellidos),
         telefono = COALESCE(p_telefono, telefono),
         rol_id = v_rol_final,
-        condominio_id = v_condominio_final
+        condominio_id = v_condominio_final,
+        debe_cambiar_password = COALESCE(p_debe_cambiar_password, debe_cambiar_password)
     WHERE id = p_id AND activo = true
     RETURNING * INTO v_usuario;
 
@@ -1643,7 +1822,7 @@ END;
 $$;
 
 
-ALTER FUNCTION public.cambio_usuario(p_id uuid, p_nombre text, p_apellidos text, p_telefono text, p_rol_id integer, p_condominio_id uuid) OWNER TO postgres;
+ALTER FUNCTION public.cambio_usuario(p_id uuid, p_nombre text, p_apellidos text, p_telefono text, p_rol_id integer, p_condominio_id uuid, p_debe_cambiar_password boolean) OWNER TO postgres;
 
 --
 -- Name: cambio_visita(uuid, uuid, character varying, character varying, character varying, character varying, integer, character varying, text, timestamp with time zone, integer); Type: FUNCTION; Schema: public; Owner: postgres
@@ -2953,6 +3132,31 @@ $$;
 ALTER FUNCTION public.marcar_notificacion_leida(p_notificacion_id uuid) OWNER TO postgres;
 
 --
+-- Name: marcar_notificacion_leida(uuid, uuid); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.marcar_notificacion_leida(p_id uuid, p_usuario_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+    v_afectados INTEGER;
+BEGIN
+    UPDATE public.notificaciones
+    SET leida = true
+    WHERE id = p_id 
+      AND usuario_id = p_usuario_id
+      AND leida = false;
+
+    GET DIAGNOSTICS v_afectados = ROW_COUNT;
+    RETURN v_afectados > 0;
+END;
+$$;
+
+
+ALTER FUNCTION public.marcar_notificacion_leida(p_id uuid, p_usuario_id uuid) OWNER TO postgres;
+
+--
 -- Name: marcar_notificacion_push_enviada(uuid); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -3080,6 +3284,30 @@ $$;
 
 
 ALTER FUNCTION public.marcar_todas_notificaciones_leidas() OWNER TO postgres;
+
+--
+-- Name: marcar_todas_notificaciones_leidas(uuid); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.marcar_todas_notificaciones_leidas(p_usuario_id uuid) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+    v_afectados INTEGER;
+BEGIN
+    UPDATE public.notificaciones
+    SET leida = true
+    WHERE usuario_id = p_usuario_id 
+      AND leida = false;
+
+    GET DIAGNOSTICS v_afectados = ROW_COUNT;
+    RETURN v_afectados;
+END;
+$$;
+
+
+ALTER FUNCTION public.marcar_todas_notificaciones_leidas(p_usuario_id uuid) OWNER TO postgres;
 
 --
 -- Name: procesar_transiciones_reservas(); Type: FUNCTION; Schema: public; Owner: postgres
@@ -3216,6 +3444,28 @@ $$;
 
 
 ALTER FUNCTION public.procesar_transiciones_reservas() OWNER TO postgres;
+
+--
+-- Name: quitar_residente_vivienda(integer, uuid); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.quitar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+    v_filas_afectadas INTEGER;
+BEGIN
+    DELETE FROM public.vivienda_residente 
+    WHERE vivienda_id = p_vivienda_id AND usuario_id = p_usuario_id;
+
+    GET DIAGNOSTICS v_filas_afectadas = ROW_COUNT;
+    RETURN v_filas_afectadas > 0;
+END;
+$$;
+
+
+ALTER FUNCTION public.quitar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) OWNER TO postgres;
 
 --
 -- Name: reactivar_area_comun(uuid, uuid); Type: FUNCTION; Schema: public; Owner: postgres
@@ -9618,6 +9868,15 @@ GRANT ALL ON FUNCTION public.alta_condominio(p_nombre text, p_direccion text, p_
 
 
 --
+-- Name: FUNCTION alta_notificacion(p_usuario_id uuid, p_tipo_evento character varying, p_titulo character varying, p_mensaje text, p_url_redireccion text); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.alta_notificacion(p_usuario_id uuid, p_tipo_evento character varying, p_titulo character varying, p_mensaje text, p_url_redireccion text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.alta_notificacion(p_usuario_id uuid, p_tipo_evento character varying, p_titulo character varying, p_mensaje text, p_url_redireccion text) TO service_role;
+GRANT ALL ON FUNCTION public.alta_notificacion(p_usuario_id uuid, p_tipo_evento character varying, p_titulo character varying, p_mensaje text, p_url_redireccion text) TO authenticated;
+
+
+--
 -- Name: FUNCTION alta_paquete_esperado(p_actor_id uuid, p_vivienda_id integer, p_destinatario_nombre text, p_servicio_id integer, p_servicio_nombre text, p_numero_guia text, p_descripcion text, p_notas text, p_fecha_esperada_desde timestamp with time zone, p_fecha_esperada_hasta timestamp with time zone); Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -9681,6 +9940,15 @@ GRANT ALL ON FUNCTION public.asignar_residente(p_vivienda_id integer, p_usuario_
 
 
 --
+-- Name: FUNCTION asignar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.asignar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.asignar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.asignar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) TO authenticated;
+
+
+--
 -- Name: FUNCTION baja_area_comun(p_actor_id uuid, p_area_id uuid); Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -9706,6 +9974,15 @@ GRANT ALL ON FUNCTION public.baja_condominio(p_id uuid) TO service_role;
 --
 
 GRANT ALL ON FUNCTION public.baja_servicio_paqueteria(p_id integer, p_actor_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION baja_subusuario(p_vivienda_id integer, p_usuario_id uuid); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.baja_subusuario(p_vivienda_id integer, p_usuario_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.baja_subusuario(p_vivienda_id integer, p_usuario_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.baja_subusuario(p_vivienda_id integer, p_usuario_id uuid) TO authenticated;
 
 
 --
@@ -9752,11 +10029,11 @@ GRANT ALL ON FUNCTION public.cambio_paquete_esperado(p_id uuid, p_actor_id uuid,
 
 
 --
--- Name: FUNCTION cambio_usuario(p_id uuid, p_nombre text, p_apellidos text, p_telefono text, p_rol_id integer, p_condominio_id uuid); Type: ACL; Schema: public; Owner: postgres
+-- Name: FUNCTION cambio_usuario(p_id uuid, p_nombre text, p_apellidos text, p_telefono text, p_rol_id integer, p_condominio_id uuid, p_debe_cambiar_password boolean); Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT ALL ON FUNCTION public.cambio_usuario(p_id uuid, p_nombre text, p_apellidos text, p_telefono text, p_rol_id integer, p_condominio_id uuid) TO service_role;
-GRANT ALL ON FUNCTION public.cambio_usuario(p_id uuid, p_nombre text, p_apellidos text, p_telefono text, p_rol_id integer, p_condominio_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.cambio_usuario(p_id uuid, p_nombre text, p_apellidos text, p_telefono text, p_rol_id integer, p_condominio_id uuid, p_debe_cambiar_password boolean) TO service_role;
+GRANT ALL ON FUNCTION public.cambio_usuario(p_id uuid, p_nombre text, p_apellidos text, p_telefono text, p_rol_id integer, p_condominio_id uuid, p_debe_cambiar_password boolean) TO authenticated;
 
 
 --
@@ -9949,6 +10226,15 @@ GRANT ALL ON FUNCTION public.marcar_notificacion_leida(p_notificacion_id uuid) T
 
 
 --
+-- Name: FUNCTION marcar_notificacion_leida(p_id uuid, p_usuario_id uuid); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.marcar_notificacion_leida(p_id uuid, p_usuario_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.marcar_notificacion_leida(p_id uuid, p_usuario_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.marcar_notificacion_leida(p_id uuid, p_usuario_id uuid) TO authenticated;
+
+
+--
 -- Name: FUNCTION marcar_notificacion_push_enviada(p_id uuid); Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -9971,10 +10257,28 @@ GRANT ALL ON FUNCTION public.marcar_todas_notificaciones_leidas() TO authenticat
 
 
 --
+-- Name: FUNCTION marcar_todas_notificaciones_leidas(p_usuario_id uuid); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.marcar_todas_notificaciones_leidas(p_usuario_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.marcar_todas_notificaciones_leidas(p_usuario_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.marcar_todas_notificaciones_leidas(p_usuario_id uuid) TO authenticated;
+
+
+--
 -- Name: FUNCTION procesar_transiciones_reservas(); Type: ACL; Schema: public; Owner: postgres
 --
 
 GRANT ALL ON FUNCTION public.procesar_transiciones_reservas() TO service_role;
+
+
+--
+-- Name: FUNCTION quitar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.quitar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.quitar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.quitar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) TO authenticated;
 
 
 --
@@ -10976,6 +11280,9 @@ GRANT ALL ON FUNCTION public.actualizar_bloqueo_area(p_actor_id uuid, p_bloqueo_
 GRANT ALL ON FUNCTION public.alta_area_comun(p_actor_id uuid, p_condominio_id uuid, p_nombre text, p_descripcion text, p_hora_apertura time without time zone, p_hora_cierre time without time zone) TO service_role;
 GRANT ALL ON FUNCTION public.alta_aviso(p_actor_id uuid, p_titulo text, p_contenido text, p_duracion_dias integer, p_fecha_expiracion timestamp with time zone, p_prioridad text) TO service_role;
 GRANT ALL ON FUNCTION public.alta_condominio(p_nombre text, p_direccion text, p_zona_horaria text) TO service_role;
+REVOKE ALL ON FUNCTION public.alta_notificacion(p_usuario_id uuid, p_tipo_evento character varying, p_titulo character varying, p_mensaje text, p_url_redireccion text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.alta_notificacion(p_usuario_id uuid, p_tipo_evento character varying, p_titulo character varying, p_mensaje text, p_url_redireccion text) TO service_role;
+GRANT ALL ON FUNCTION public.alta_notificacion(p_usuario_id uuid, p_tipo_evento character varying, p_titulo character varying, p_mensaje text, p_url_redireccion text) TO authenticated;
 GRANT ALL ON FUNCTION public.alta_paquete_esperado(p_actor_id uuid, p_vivienda_id integer, p_destinatario_nombre text, p_servicio_id integer, p_servicio_nombre text, p_numero_guia text, p_descripcion text, p_notas text, p_fecha_esperada_desde timestamp with time zone, p_fecha_esperada_hasta timestamp with time zone) TO service_role;
 GRANT ALL ON FUNCTION public.alta_servicio_paqueteria(p_condominio_id uuid, p_nombre text, p_icono_url text, p_actor_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.alta_usuario(p_id uuid, p_email text, p_nombre text, p_apellidos text, p_telefono text, p_rol_id integer, p_condominio_id uuid) TO service_role;
@@ -10985,10 +11292,16 @@ GRANT ALL ON FUNCTION public.aprobar_reserva_admin(p_actor_id uuid, p_reserva_id
 GRANT ALL ON FUNCTION public.aprobar_reserva_titular(p_actor_id uuid, p_reserva_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.asignar_condominio_admin(p_usuario_id uuid, p_condominio_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.asignar_residente(p_vivienda_id integer, p_usuario_id uuid, p_es_propietario boolean) TO service_role;
+REVOKE ALL ON FUNCTION public.asignar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.asignar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.asignar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.baja_area_comun(p_actor_id uuid, p_area_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.baja_aviso(p_id uuid, p_actor_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.baja_condominio(p_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.baja_servicio_paqueteria(p_id integer, p_actor_id uuid) TO service_role;
+REVOKE ALL ON FUNCTION public.baja_subusuario(p_vivienda_id integer, p_usuario_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.baja_subusuario(p_vivienda_id integer, p_usuario_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.baja_subusuario(p_vivienda_id integer, p_usuario_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.baja_usuario(p_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.baja_usuario(p_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.baja_vivienda(p_id integer) TO service_role;
@@ -10996,8 +11309,8 @@ GRANT ALL ON FUNCTION public.cambio_area_comun(p_actor_id uuid, p_area_id uuid, 
 GRANT ALL ON FUNCTION public.cambio_aviso(p_id uuid, p_actor_id uuid, p_titulo text, p_contenido text, p_duracion_dias integer, p_fecha_expiracion timestamp with time zone, p_prioridad text) TO service_role;
 GRANT ALL ON FUNCTION public.cambio_condominio(p_id uuid, p_nombre text, p_direccion text, p_activo boolean, p_zona_horaria text) TO service_role;
 GRANT ALL ON FUNCTION public.cambio_paquete_esperado(p_id uuid, p_actor_id uuid, p_destinatario_nombre text, p_servicio_id integer, p_servicio_nombre text, p_numero_guia text, p_descripcion text, p_notas text, p_fecha_esperada_desde timestamp with time zone, p_fecha_esperada_hasta timestamp with time zone) TO service_role;
-GRANT ALL ON FUNCTION public.cambio_usuario(p_id uuid, p_nombre text, p_apellidos text, p_telefono text, p_rol_id integer, p_condominio_id uuid) TO service_role;
-GRANT ALL ON FUNCTION public.cambio_usuario(p_id uuid, p_nombre text, p_apellidos text, p_telefono text, p_rol_id integer, p_condominio_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.cambio_usuario(p_id uuid, p_nombre text, p_apellidos text, p_telefono text, p_rol_id integer, p_condominio_id uuid, p_debe_cambiar_password boolean) TO service_role;
+GRANT ALL ON FUNCTION public.cambio_usuario(p_id uuid, p_nombre text, p_apellidos text, p_telefono text, p_rol_id integer, p_condominio_id uuid, p_debe_cambiar_password boolean) TO authenticated;
 GRANT ALL ON FUNCTION public.cambio_visita(p_id uuid, p_actor_id uuid, p_nombre_visitante character varying, p_apellidos_visitante character varying, p_telefono_visitante character varying, p_motivo character varying, p_num_acompanantes integer, p_vehiculo_placas character varying, p_notas text, p_fecha_llegada timestamp with time zone, p_horas_vigencia integer) TO service_role;
 GRANT ALL ON FUNCTION public.cambio_vivienda(p_id integer, p_numero_casa text, p_tipo text, p_activo boolean) TO service_role;
 GRANT ALL ON FUNCTION public.cancelar_invitacion_subusuario(p_id uuid, p_invitacion_id uuid) TO service_role;
@@ -11031,11 +11344,20 @@ GRANT ALL ON FUNCTION public.invitar_subusuario(p_vivienda_id integer, p_email_i
 GRANT ALL ON FUNCTION public.liberar_notificacion_push(p_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.marcar_notificacion_leida(p_notificacion_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.marcar_notificacion_leida(p_notificacion_id uuid) TO authenticated;
+REVOKE ALL ON FUNCTION public.marcar_notificacion_leida(p_id uuid, p_usuario_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.marcar_notificacion_leida(p_id uuid, p_usuario_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.marcar_notificacion_leida(p_id uuid, p_usuario_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.marcar_notificacion_push_enviada(p_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.marcar_reserva_no_utilizada(p_actor_id uuid, p_reserva_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.marcar_todas_notificaciones_leidas() TO service_role;
 GRANT ALL ON FUNCTION public.marcar_todas_notificaciones_leidas() TO authenticated;
+REVOKE ALL ON FUNCTION public.marcar_todas_notificaciones_leidas(p_usuario_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.marcar_todas_notificaciones_leidas(p_usuario_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.marcar_todas_notificaciones_leidas(p_usuario_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.procesar_transiciones_reservas() TO service_role;
+REVOKE ALL ON FUNCTION public.quitar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.quitar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.quitar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.reactivar_area_comun(p_actor_id uuid, p_area_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.reactivar_usuario(p_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.reactivar_usuario(p_id uuid) TO authenticated;
@@ -11246,10 +11568,10 @@ SET session_replication_role = replica;
 --
 
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, invited_at, confirmation_token, confirmation_sent_at, recovery_token, recovery_sent_at, email_change_token_new, email_change, email_change_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at, phone, phone_confirmed_at, phone_change, phone_change_token, phone_change_sent_at, email_change_token_current, email_change_confirm_status, banned_until, reauthentication_token, reauthentication_sent_at, is_sso_user, deleted_at, is_anonymous) VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'vigilante@haven.com', '$2a$06$qrLmuX02HPiw9PxkDZ5.wOTSbDjzn4MYc9C1RCLlMZGy1/D.Estu2', '2026-11-05 20:00:51.617216+00', NULL, '', NULL, '', NULL, '', '', NULL, NULL, '{"rol": "Vigilancia", "rol_id": 3, "provider": "email", "providers": ["email"], "condominio_id": "a0000000-0000-0000-0000-000000000001"}', '{"nombre": "Roberto", "telefono": "5550000002", "apellidos": "Guardia"}', NULL, '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, invited_at, confirmation_token, confirmation_sent_at, recovery_token, recovery_sent_at, email_change_token_new, email_change, email_change_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at, phone, phone_confirmed_at, phone_change, phone_change_token, phone_change_sent_at, email_change_token_current, email_change_confirm_status, banned_until, reauthentication_token, reauthentication_sent_at, is_sso_user, deleted_at, is_anonymous) VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'residente@haven.com', '$2a$06$qrLmuX02HPiw9PxkDZ5.wOTSbDjzn4MYc9C1RCLlMZGy1/D.Estu2', '2026-11-05 20:00:51.617216+00', NULL, '', NULL, '', NULL, '', '', NULL, NULL, '{"rol": "Residente", "rol_id": 2, "provider": "email", "providers": ["email"], "condominio_id": "a0000000-0000-0000-0000-000000000001"}', '{"nombre": "Ana", "telefono": "5550000003", "apellidos": "Titular"}', NULL, '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, invited_at, confirmation_token, confirmation_sent_at, recovery_token, recovery_sent_at, email_change_token_new, email_change, email_change_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at, phone, phone_confirmed_at, phone_change, phone_change_token, phone_change_sent_at, email_change_token_current, email_change_confirm_status, banned_until, reauthentication_token, reauthentication_sent_at, is_sso_user, deleted_at, is_anonymous) VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'subusuario@haven.com', '$2a$06$qrLmuX02HPiw9PxkDZ5.wOTSbDjzn4MYc9C1RCLlMZGy1/D.Estu2', '2026-11-05 20:00:51.617216+00', NULL, '', NULL, '', NULL, '', '', NULL, NULL, '{"rol": "Residente", "rol_id": 2, "provider": "email", "providers": ["email"], "condominio_id": "a0000000-0000-0000-0000-000000000001"}', '{"nombre": "Luis", "telefono": "5550000004", "apellidos": "Familiar"}', NULL, '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, invited_at, confirmation_token, confirmation_sent_at, recovery_token, recovery_sent_at, email_change_token_new, email_change, email_change_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at, phone, phone_confirmed_at, phone_change, phone_change_token, phone_change_sent_at, email_change_token_current, email_change_confirm_status, banned_until, reauthentication_token, reauthentication_sent_at, is_sso_user, deleted_at, is_anonymous) VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'invitado@haven.com', '$2a$06$qrLmuX02HPiw9PxkDZ5.wOTSbDjzn4MYc9C1RCLlMZGy1/D.Estu2', '2026-11-05 20:00:51.617216+00', NULL, '', NULL, '', NULL, '', '', NULL, NULL, '{"rol": "Residente", "rol_id": 2, "provider": "email", "providers": ["email"], "condominio_id": "a0000000-0000-0000-0000-000000000001"}', '{"nombre": "Sofía", "telefono": "5550000005", "apellidos": "Invitada"}', NULL, '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, invited_at, confirmation_token, confirmation_sent_at, recovery_token, recovery_sent_at, email_change_token_new, email_change, email_change_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at, phone, phone_confirmed_at, phone_change, phone_change_token, phone_change_sent_at, email_change_token_current, email_change_confirm_status, banned_until, reauthentication_token, reauthentication_sent_at, is_sso_user, deleted_at, is_anonymous) VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'admin@haven.com', '$2a$06$kWorGt0tHGdnoHu7eOcY/OPMptz9n/HI7.cn5Ubb7k6H8HMBpadJ6', '2026-11-05 20:00:51.617216+00', NULL, '', NULL, '', NULL, '', '', NULL, '2026-11-05 20:50:39.035438+00', '{"rol": "Administrador", "rol_id": 1, "provider": "email", "providers": ["email"], "condominio_id": "a0000000-0000-0000-0000-000000000001"}', '{"nombre": "Carlos", "telefono": "5550000001", "apellidos": "Administrador"}', NULL, '2026-11-05 20:00:51.617216+00', '2026-11-05 20:50:39.040668+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
+INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, invited_at, confirmation_token, confirmation_sent_at, recovery_token, recovery_sent_at, email_change_token_new, email_change, email_change_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at, phone, phone_confirmed_at, phone_change, phone_change_token, phone_change_sent_at, email_change_token_current, email_change_confirm_status, banned_until, reauthentication_token, reauthentication_sent_at, is_sso_user, deleted_at, is_anonymous) VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'admin@haven.com', '$2a$06$kWorGt0tHGdnoHu7eOcY/OPMptz9n/HI7.cn5Ubb7k6H8HMBpadJ6', '2026-11-05 20:00:51.617216+00', NULL, '', NULL, '', NULL, '', '', NULL, '2026-11-05 21:09:47.374989+00', '{"rol": "Administrador", "rol_id": 1, "provider": "email", "providers": ["email"], "condominio_id": "a0000000-0000-0000-0000-000000000001"}', '{"nombre": "Carlos", "telefono": "5550000001", "apellidos": "Administrador"}', NULL, '2026-11-05 20:00:51.617216+00', '2026-11-05 21:09:47.386276+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
+INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, invited_at, confirmation_token, confirmation_sent_at, recovery_token, recovery_sent_at, email_change_token_new, email_change, email_change_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at, phone, phone_confirmed_at, phone_change, phone_change_token, phone_change_sent_at, email_change_token_current, email_change_confirm_status, banned_until, reauthentication_token, reauthentication_sent_at, is_sso_user, deleted_at, is_anonymous) VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'residente@haven.com', '$2a$06$qrLmuX02HPiw9PxkDZ5.wOTSbDjzn4MYc9C1RCLlMZGy1/D.Estu2', '2026-11-05 20:00:51.617216+00', NULL, '', NULL, '', NULL, '', '', NULL, '2026-11-05 21:09:47.779697+00', '{"rol": "Residente", "rol_id": 2, "provider": "email", "providers": ["email"], "condominio_id": "a0000000-0000-0000-0000-000000000001"}', '{"nombre": "Ana", "telefono": "5550000003", "apellidos": "Titular"}', NULL, '2026-11-05 20:00:51.617216+00', '2026-11-05 21:09:47.782703+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
 
 
 --
