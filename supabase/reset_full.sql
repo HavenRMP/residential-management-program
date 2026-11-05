@@ -5263,10 +5263,10 @@ CREATE TABLE public.cargos (
     creado_por uuid NOT NULL,
     creado_en timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
     CONSTRAINT cargos_check CHECK (((monto_pagado_confirmado >= (0)::numeric) AND (monto_pagado_confirmado <= monto))),
-    CONSTRAINT cargos_estado_check CHECK (((estado)::text = ANY ((ARRAY['Pendiente'::character varying, 'PagoParcial'::character varying, 'Pagado'::character varying, 'Cancelado'::character varying])::text[]))),
+    CONSTRAINT cargos_estado_check CHECK (((estado)::text = ANY (ARRAY[('Pendiente'::character varying)::text, ('PagoParcial'::character varying)::text, ('Pagado'::character varying)::text, ('Cancelado'::character varying)::text]))),
     CONSTRAINT cargos_monto_check CHECK ((monto > (0)::numeric)),
-    CONSTRAINT cargos_responsable_pago_check CHECK (((responsable_pago)::text = ANY ((ARRAY['Propietario'::character varying, 'Inquilino'::character varying, 'Residente'::character varying])::text[]))),
-    CONSTRAINT cargos_tipo_check CHECK (((tipo)::text = ANY ((ARRAY['Mantenimiento'::character varying, 'Renta'::character varying, 'Extraordinario'::character varying, 'Multa'::character varying, 'Servicio'::character varying, 'Otro'::character varying])::text[]))),
+    CONSTRAINT cargos_responsable_pago_check CHECK (((responsable_pago)::text = ANY (ARRAY[('Propietario'::character varying)::text, ('Inquilino'::character varying)::text, ('Residente'::character varying)::text]))),
+    CONSTRAINT cargos_tipo_check CHECK (((tipo)::text = ANY (ARRAY[('Mantenimiento'::character varying)::text, ('Renta'::character varying)::text, ('Extraordinario'::character varying)::text, ('Multa'::character varying)::text, ('Servicio'::character varying)::text, ('Otro'::character varying)::text]))),
     CONSTRAINT chk_cargos_cancelacion_motivo CHECK ((((estado)::text <> 'Cancelado'::text) OR ((motivo_cancelacion IS NOT NULL) AND (length(btrim(motivo_cancelacion)) > 0)))),
     CONSTRAINT chk_cargos_periodo_primer_dia CHECK (((periodo IS NULL) OR (EXTRACT(day FROM periodo) = (1)::numeric)))
 );
@@ -5553,7 +5553,7 @@ CREATE TABLE public.movimientos_saldo_favor (
     creado_en timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
     CONSTRAINT chk_msf_coherencia_referencias CHECK (((((tipo)::text = 'AbonoExcedente'::text) AND (pago_id IS NOT NULL)) OR (((tipo)::text = 'AplicacionACargo'::text) AND (cargo_id IS NOT NULL)) OR (((tipo)::text = 'ReversoAbono'::text) AND (movimiento_origen_id IS NOT NULL) AND (motivo IS NOT NULL) AND (length(btrim(motivo)) > 0)) OR (((tipo)::text = 'ReversoAplicacion'::text) AND (movimiento_origen_id IS NOT NULL) AND (cargo_id IS NOT NULL) AND (motivo IS NOT NULL) AND (length(btrim(motivo)) > 0)))),
     CONSTRAINT movimientos_saldo_favor_monto_check CHECK ((monto > (0)::numeric)),
-    CONSTRAINT movimientos_saldo_favor_tipo_check CHECK (((tipo)::text = ANY ((ARRAY['AbonoExcedente'::character varying, 'AplicacionACargo'::character varying, 'ReversoAbono'::character varying, 'ReversoAplicacion'::character varying])::text[])))
+    CONSTRAINT movimientos_saldo_favor_tipo_check CHECK (((tipo)::text = ANY (ARRAY[('AbonoExcedente'::character varying)::text, ('AplicacionACargo'::character varying)::text, ('ReversoAbono'::character varying)::text, ('ReversoAplicacion'::character varying)::text])))
 );
 
 
@@ -5692,12 +5692,12 @@ CREATE TABLE public.pagos (
     CONSTRAINT chk_pagos_desglose CHECK (((es_reversa = true) OR ((monto_cubierto + monto_excedente) = monto))),
     CONSTRAINT chk_pagos_rechazo_motivo CHECK ((((estado)::text <> 'Rechazado'::text) OR ((motivo_rechazo IS NOT NULL) AND (length(btrim(motivo_rechazo)) > 0)))),
     CONSTRAINT chk_pagos_signo_reversa CHECK ((((es_reversa = false) AND (monto > (0)::numeric) AND (pago_original_id IS NULL)) OR ((es_reversa = true) AND (monto < (0)::numeric) AND (pago_original_id IS NOT NULL)))),
-    CONSTRAINT pagos_estado_check CHECK (((estado)::text = ANY ((ARRAY['PendienteConfirmacion'::character varying, 'Confirmado'::character varying, 'Rechazado'::character varying, 'Anulado'::character varying])::text[]))),
-    CONSTRAINT pagos_metodo_check CHECK (((metodo)::text = ANY ((ARRAY['Transferencia'::character varying, 'Deposito'::character varying, 'Efectivo'::character varying, 'Tarjeta'::character varying, 'Otro'::character varying])::text[]))),
+    CONSTRAINT pagos_estado_check CHECK (((estado)::text = ANY (ARRAY[('PendienteConfirmacion'::character varying)::text, ('Confirmado'::character varying)::text, ('Rechazado'::character varying)::text, ('Anulado'::character varying)::text]))),
+    CONSTRAINT pagos_metodo_check CHECK (((metodo)::text = ANY (ARRAY[('Transferencia'::character varying)::text, ('Deposito'::character varying)::text, ('Efectivo'::character varying)::text, ('Tarjeta'::character varying)::text, ('Otro'::character varying)::text]))),
     CONSTRAINT pagos_monto_check CHECK ((monto <> (0)::numeric)),
     CONSTRAINT pagos_monto_cubierto_check CHECK ((monto_cubierto >= (0)::numeric)),
     CONSTRAINT pagos_monto_excedente_check CHECK ((monto_excedente >= (0)::numeric)),
-    CONSTRAINT pagos_origen_check CHECK (((origen)::text = ANY ((ARRAY['Residente'::character varying, 'Admin'::character varying])::text[])))
+    CONSTRAINT pagos_origen_check CHECK (((origen)::text = ANY (ARRAY[('Residente'::character varying)::text, ('Admin'::character varying)::text])))
 );
 
 
@@ -5773,7 +5773,7 @@ CREATE TABLE public.paquetes (
     creado_por uuid,
     creado_en timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
     actualizado_en timestamp with time zone DEFAULT timezone('utc'::text, now()),
-    CONSTRAINT paquetes_estado_check CHECK (((estado)::text = ANY ((ARRAY['esperado'::character varying, 'recibido'::character varying, 'entregado'::character varying, 'cancelado'::character varying, 'vencido'::character varying, 'devuelto'::character varying, 'expirado'::character varying])::text[])))
+    CONSTRAINT paquetes_estado_check CHECK (((estado)::text = ANY (ARRAY[('esperado'::character varying)::text, ('recibido'::character varying)::text, ('entregado'::character varying)::text, ('cancelado'::character varying)::text, ('vencido'::character varying)::text, ('devuelto'::character varying)::text, ('expirado'::character varying)::text])))
 );
 
 
@@ -5840,8 +5840,8 @@ CREATE TABLE public.plantillas_cargo (
     CONSTRAINT chk_plantillas_vigencia CHECK (((vigencia_fin IS NULL) OR (vigencia_fin >= vigencia_inicio))),
     CONSTRAINT plantillas_cargo_dia_vencimiento_check CHECK (((dia_vencimiento >= 1) AND (dia_vencimiento <= 28))),
     CONSTRAINT plantillas_cargo_monto_check CHECK ((monto > (0)::numeric)),
-    CONSTRAINT plantillas_cargo_responsable_pago_check CHECK (((responsable_pago)::text = ANY ((ARRAY['Propietario'::character varying, 'Inquilino'::character varying, 'Residente'::character varying])::text[]))),
-    CONSTRAINT plantillas_cargo_tipo_check CHECK (((tipo)::text = ANY ((ARRAY['Mantenimiento'::character varying, 'Renta'::character varying, 'Extraordinario'::character varying, 'Multa'::character varying, 'Servicio'::character varying, 'Otro'::character varying])::text[])))
+    CONSTRAINT plantillas_cargo_responsable_pago_check CHECK (((responsable_pago)::text = ANY (ARRAY[('Propietario'::character varying)::text, ('Inquilino'::character varying)::text, ('Residente'::character varying)::text]))),
+    CONSTRAINT plantillas_cargo_tipo_check CHECK (((tipo)::text = ANY (ARRAY[('Mantenimiento'::character varying)::text, ('Renta'::character varying)::text, ('Extraordinario'::character varying)::text, ('Multa'::character varying)::text, ('Servicio'::character varying)::text, ('Otro'::character varying)::text])))
 );
 
 
@@ -5909,8 +5909,8 @@ CREATE TABLE public.reservas (
     CONSTRAINT chk_reservas_duracion CHECK ((((tipo)::text = 'BLOQUEO'::text) OR ((fin - inicio) <= '08:00:00'::interval))),
     CONSTRAINT chk_reservas_fechas CHECK (((fin > inicio) AND (EXTRACT(minute FROM (inicio AT TIME ZONE 'UTC'::text)) = (0)::numeric) AND (EXTRACT(second FROM (inicio AT TIME ZONE 'UTC'::text)) = (0)::numeric) AND (EXTRACT(minute FROM (fin AT TIME ZONE 'UTC'::text)) = (0)::numeric) AND (EXTRACT(second FROM (fin AT TIME ZONE 'UTC'::text)) = (0)::numeric))),
     CONSTRAINT chk_reservas_tipo_campos CHECK (((((tipo)::text = 'RESERVA'::text) AND (titular_id IS NOT NULL) AND (vivienda_id IS NOT NULL)) OR (((tipo)::text = 'BLOQUEO'::text) AND (titular_id IS NULL) AND (vivienda_id IS NULL) AND (motivo IS NOT NULL) AND (length(TRIM(BOTH FROM motivo)) > 0)))),
-    CONSTRAINT reservas_estado_check CHECK (((estado)::text = ANY ((ARRAY['PENDIENTE_TITULAR'::character varying, 'PENDIENTE_ADMIN'::character varying, 'APROBADA'::character varying, 'CONFIRMADA'::character varying, 'RECHAZADA_TITULAR'::character varying, 'RECHAZADA_ADMIN'::character varying, 'CANCELADA_USUARIO'::character varying, 'CANCELADA_ADMIN'::character varying, 'CANCELADA_EXPIRACION'::character varying, 'FINALIZADA'::character varying, 'NO_UTILIZADA'::character varying])::text[]))),
-    CONSTRAINT reservas_tipo_check CHECK (((tipo)::text = ANY ((ARRAY['RESERVA'::character varying, 'BLOQUEO'::character varying])::text[])))
+    CONSTRAINT reservas_estado_check CHECK (((estado)::text = ANY (ARRAY[('PENDIENTE_TITULAR'::character varying)::text, ('PENDIENTE_ADMIN'::character varying)::text, ('APROBADA'::character varying)::text, ('CONFIRMADA'::character varying)::text, ('RECHAZADA_TITULAR'::character varying)::text, ('RECHAZADA_ADMIN'::character varying)::text, ('CANCELADA_USUARIO'::character varying)::text, ('CANCELADA_ADMIN'::character varying)::text, ('CANCELADA_EXPIRACION'::character varying)::text, ('FINALIZADA'::character varying)::text, ('NO_UTILIZADA'::character varying)::text]))),
+    CONSTRAINT reservas_tipo_check CHECK (((tipo)::text = ANY (ARRAY[('RESERVA'::character varying)::text, ('BLOQUEO'::character varying)::text])))
 );
 
 
@@ -6168,16 +6168,16 @@ CREATE VIEW public.v_saldo_vivienda WITH (security_invoker='true') AS
     numero_casa,
     (COALESCE(( SELECT sum(c.saldo_pendiente) AS sum
            FROM public.cargos c
-          WHERE ((c.vivienda_id = v.id) AND ((c.estado)::text = ANY ((ARRAY['Pendiente'::character varying, 'PagoParcial'::character varying])::text[])))), (0)::numeric))::numeric(12,2) AS total_pendiente,
+          WHERE ((c.vivienda_id = v.id) AND ((c.estado)::text = ANY (ARRAY[('Pendiente'::character varying)::text, ('PagoParcial'::character varying)::text])))), (0)::numeric))::numeric(12,2) AS total_pendiente,
     (COALESCE(( SELECT sum(c.saldo_pendiente) AS sum
            FROM public.cargos c
-          WHERE ((c.vivienda_id = v.id) AND ((c.estado)::text = ANY ((ARRAY['Pendiente'::character varying, 'PagoParcial'::character varying])::text[])) AND (c.fecha_vencimiento < CURRENT_DATE))), (0)::numeric))::numeric(12,2) AS total_vencido,
+          WHERE ((c.vivienda_id = v.id) AND ((c.estado)::text = ANY (ARRAY[('Pendiente'::character varying)::text, ('PagoParcial'::character varying)::text])) AND (c.fecha_vencimiento < CURRENT_DATE))), (0)::numeric))::numeric(12,2) AS total_vencido,
     (COALESCE(( SELECT count(*) AS count
            FROM public.cargos c
-          WHERE ((c.vivienda_id = v.id) AND ((c.estado)::text = ANY ((ARRAY['Pendiente'::character varying, 'PagoParcial'::character varying])::text[])))), (0)::bigint))::integer AS total_cargos_abiertos,
+          WHERE ((c.vivienda_id = v.id) AND ((c.estado)::text = ANY (ARRAY[('Pendiente'::character varying)::text, ('PagoParcial'::character varying)::text])))), (0)::bigint))::integer AS total_cargos_abiertos,
     (COALESCE(( SELECT sum(
                 CASE
-                    WHEN ((m.tipo)::text = ANY ((ARRAY['AbonoExcedente'::character varying, 'ReversoAplicacion'::character varying])::text[])) THEN m.monto
+                    WHEN ((m.tipo)::text = ANY (ARRAY[('AbonoExcedente'::character varying)::text, ('ReversoAplicacion'::character varying)::text])) THEN m.monto
                     ELSE (- m.monto)
                 END) AS sum
            FROM public.movimientos_saldo_favor m
@@ -6288,8 +6288,8 @@ CREATE TABLE public.visitas (
     creado_por uuid NOT NULL,
     creado_en timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
     CONSTRAINT chk_visitas_fechas CHECK ((fecha_expiracion > fecha_llegada_esperada)),
-    CONSTRAINT visitas_estado_check CHECK (((estado)::text = ANY ((ARRAY['programada'::character varying, 'en_curso'::character varying, 'finalizada'::character varying, 'cancelada'::character varying])::text[]))),
-    CONSTRAINT visitas_motivo_check CHECK (((motivo)::text = ANY ((ARRAY['personal'::character varying, 'familiar'::character varying, 'proveedor'::character varying, 'paqueteria'::character varying, 'servicio'::character varying])::text[]))),
+    CONSTRAINT visitas_estado_check CHECK (((estado)::text = ANY (ARRAY[('programada'::character varying)::text, ('en_curso'::character varying)::text, ('finalizada'::character varying)::text, ('cancelada'::character varying)::text]))),
+    CONSTRAINT visitas_motivo_check CHECK (((motivo)::text = ANY (ARRAY[('personal'::character varying)::text, ('familiar'::character varying)::text, ('proveedor'::character varying)::text, ('paqueteria'::character varying)::text, ('servicio'::character varying)::text]))),
     CONSTRAINT visitas_num_acompanantes_check CHECK (((num_acompanantes >= 0) AND (num_acompanantes <= 20)))
 );
 
@@ -6683,7 +6683,7 @@ CREATE VIEW public.vw_cargos WITH (security_invoker='true') AS
     c.saldo_pendiente,
     c.estado,
     c.fecha_vencimiento,
-    (((c.estado)::text = ANY ((ARRAY['Pendiente'::character varying, 'PagoParcial'::character varying])::text[])) AND (c.fecha_vencimiento < CURRENT_DATE)) AS esta_vencido,
+    (((c.estado)::text = ANY (ARRAY[('Pendiente'::character varying)::text, ('PagoParcial'::character varying)::text])) AND (c.fecha_vencimiento < CURRENT_DATE)) AS esta_vencido,
     c.responsable_pago,
     c.motivo_cancelacion,
     c.cancelado_por,
@@ -6855,7 +6855,7 @@ CREATE VIEW public.vw_movimientos_saldo_favor WITH (security_invoker='true') AS
     tipo,
     monto,
         CASE
-            WHEN ((tipo)::text = ANY ((ARRAY['AbonoExcedente'::character varying, 'ReversoAplicacion'::character varying])::text[])) THEN monto
+            WHEN ((tipo)::text = ANY (ARRAY[('AbonoExcedente'::character varying)::text, ('ReversoAplicacion'::character varying)::text])) THEN monto
             ELSE (- monto)
         END AS monto_con_signo,
     pago_id,
@@ -7311,7 +7311,8 @@ CREATE VIEW public.vw_usuarios WITH (security_invoker='true') AS
     c.nombre AS condominio_nombre,
     u.activo,
     u.debe_cambiar_password,
-    u.creado_en
+    u.creado_en,
+    r.nombre AS rol_nombre
    FROM ((public.usuarios u
      JOIN public.roles r ON ((u.rol_id = r.id)))
      LEFT JOIN public.condominios c ON ((u.condominio_id = c.id)))
@@ -8279,14 +8280,14 @@ CREATE INDEX idx_notificaciones_usuario_leida ON public.notificaciones USING btr
 -- Name: idx_pagos_anti_duplicado_hash; Type: INDEX; Schema: public; Owner: postgres
 --
 
-CREATE UNIQUE INDEX idx_pagos_anti_duplicado_hash ON public.pagos USING btree (condominio_id, comprobante_hash) WHERE ((comprobante_hash IS NOT NULL) AND ((estado)::text = ANY ((ARRAY['PendienteConfirmacion'::character varying, 'Confirmado'::character varying])::text[])) AND (es_reversa = false));
+CREATE UNIQUE INDEX idx_pagos_anti_duplicado_hash ON public.pagos USING btree (condominio_id, comprobante_hash) WHERE ((comprobante_hash IS NOT NULL) AND ((estado)::text = ANY (ARRAY[('PendienteConfirmacion'::character varying)::text, ('Confirmado'::character varying)::text])) AND (es_reversa = false));
 
 
 --
 -- Name: idx_pagos_anti_duplicado_ref; Type: INDEX; Schema: public; Owner: postgres
 --
 
-CREATE UNIQUE INDEX idx_pagos_anti_duplicado_ref ON public.pagos USING btree (condominio_id, lower(btrim((referencia)::text)), monto, fecha_pago) WHERE ((referencia IS NOT NULL) AND ((estado)::text = ANY ((ARRAY['PendienteConfirmacion'::character varying, 'Confirmado'::character varying])::text[])) AND (es_reversa = false));
+CREATE UNIQUE INDEX idx_pagos_anti_duplicado_ref ON public.pagos USING btree (condominio_id, lower(btrim((referencia)::text)), monto, fecha_pago) WHERE ((referencia IS NOT NULL) AND ((estado)::text = ANY (ARRAY[('PendienteConfirmacion'::character varying)::text, ('Confirmado'::character varying)::text])) AND (es_reversa = false));
 
 
 --
@@ -11244,11 +11245,14 @@ SET session_replication_role = replica;
 -- Data for Name: users; Type: TABLE DATA; Schema: auth; Owner: supabase_auth_admin
 --
 
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, invited_at, confirmation_token, confirmation_sent_at, recovery_token, recovery_sent_at, email_change_token_new, email_change, email_change_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at, phone, phone_confirmed_at, phone_change, phone_change_token, phone_change_sent_at, email_change_token_current, email_change_confirm_status, banned_until, reauthentication_token, reauthentication_sent_at, is_sso_user, deleted_at, is_anonymous) VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'admin@haven.com', '$2a$06$iOqRo8.w1huId.Flt/.lGOktwWr4JpfpKk5FK4V7VzbJTfoqkRtLG', '2026-11-05 20:00:51.617216+00', NULL, '', NULL, '', NULL, '', '', NULL, '2026-11-05 20:20:52.046597+00', '{"rol": "Administrador", "rol_id": 1, "provider": "email", "providers": ["email"], "condominio_id": "a0000000-0000-0000-0000-000000000001"}', '{"nombre": "Carlos", "telefono": "5550000001", "apellidos": "Administrador"}', NULL, '2026-11-05 20:00:51.617216+00', '2026-11-05 20:20:52.058549+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, invited_at, confirmation_token, confirmation_sent_at, recovery_token, recovery_sent_at, email_change_token_new, email_change, email_change_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at, phone, phone_confirmed_at, phone_change, phone_change_token, phone_change_sent_at, email_change_token_current, email_change_confirm_status, banned_until, reauthentication_token, reauthentication_sent_at, is_sso_user, deleted_at, is_anonymous) VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'vigilante@haven.com', '$2a$06$qrLmuX02HPiw9PxkDZ5.wOTSbDjzn4MYc9C1RCLlMZGy1/D.Estu2', '2026-11-05 20:00:51.617216+00', NULL, '', NULL, '', NULL, '', '', NULL, NULL, '{"rol": "Vigilancia", "rol_id": 3, "provider": "email", "providers": ["email"], "condominio_id": "a0000000-0000-0000-0000-000000000001"}', '{"nombre": "Roberto", "telefono": "5550000002", "apellidos": "Guardia"}', NULL, '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, invited_at, confirmation_token, confirmation_sent_at, recovery_token, recovery_sent_at, email_change_token_new, email_change, email_change_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at, phone, phone_confirmed_at, phone_change, phone_change_token, phone_change_sent_at, email_change_token_current, email_change_confirm_status, banned_until, reauthentication_token, reauthentication_sent_at, is_sso_user, deleted_at, is_anonymous) VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'residente@haven.com', '$2a$06$qrLmuX02HPiw9PxkDZ5.wOTSbDjzn4MYc9C1RCLlMZGy1/D.Estu2', '2026-11-05 20:00:51.617216+00', NULL, '', NULL, '', NULL, '', '', NULL, NULL, '{"rol": "Residente", "rol_id": 2, "provider": "email", "providers": ["email"], "condominio_id": "a0000000-0000-0000-0000-000000000001"}', '{"nombre": "Ana", "telefono": "5550000003", "apellidos": "Titular"}', NULL, '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, invited_at, confirmation_token, confirmation_sent_at, recovery_token, recovery_sent_at, email_change_token_new, email_change, email_change_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at, phone, phone_confirmed_at, phone_change, phone_change_token, phone_change_sent_at, email_change_token_current, email_change_confirm_status, banned_until, reauthentication_token, reauthentication_sent_at, is_sso_user, deleted_at, is_anonymous) VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'subusuario@haven.com', '$2a$06$qrLmuX02HPiw9PxkDZ5.wOTSbDjzn4MYc9C1RCLlMZGy1/D.Estu2', '2026-11-05 20:00:51.617216+00', NULL, '', NULL, '', NULL, '', '', NULL, NULL, '{"rol": "Residente", "rol_id": 2, "provider": "email", "providers": ["email"], "condominio_id": "a0000000-0000-0000-0000-000000000001"}', '{"nombre": "Luis", "telefono": "5550000004", "apellidos": "Familiar"}', NULL, '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, invited_at, confirmation_token, confirmation_sent_at, recovery_token, recovery_sent_at, email_change_token_new, email_change, email_change_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at, phone, phone_confirmed_at, phone_change, phone_change_token, phone_change_sent_at, email_change_token_current, email_change_confirm_status, banned_until, reauthentication_token, reauthentication_sent_at, is_sso_user, deleted_at, is_anonymous) VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'invitado@haven.com', '$2a$06$qrLmuX02HPiw9PxkDZ5.wOTSbDjzn4MYc9C1RCLlMZGy1/D.Estu2', '2026-11-05 20:00:51.617216+00', NULL, '', NULL, '', NULL, '', '', NULL, NULL, '{"rol": "Residente", "rol_id": 2, "provider": "email", "providers": ["email"], "condominio_id": "a0000000-0000-0000-0000-000000000001"}', '{"nombre": "Sofía", "telefono": "5550000005", "apellidos": "Invitada"}', NULL, '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
+INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, invited_at, confirmation_token, confirmation_sent_at, recovery_token, recovery_sent_at, email_change_token_new, email_change, email_change_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at, phone, phone_confirmed_at, phone_change, phone_change_token, phone_change_sent_at, email_change_token_current, email_change_confirm_status, banned_until, reauthentication_token, reauthentication_sent_at, is_sso_user, deleted_at, is_anonymous) VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'admin@haven.com', '$2a$06$kWorGt0tHGdnoHu7eOcY/OPMptz9n/HI7.cn5Ubb7k6H8HMBpadJ6', '2026-11-05 20:00:51.617216+00', NULL, '', NULL, '', NULL, '', '', NULL, '2026-11-05 20:50:39.035438+00', '{"rol": "Administrador", "rol_id": 1, "provider": "email", "providers": ["email"], "condominio_id": "a0000000-0000-0000-0000-000000000001"}', '{"nombre": "Carlos", "telefono": "5550000001", "apellidos": "Administrador"}', NULL, '2026-11-05 20:00:51.617216+00', '2026-11-05 20:50:39.040668+00', NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL, false, NULL, false);
+
+
+--
 -- Data for Name: identities; Type: TABLE DATA; Schema: auth; Owner: supabase_auth_admin
 --
 
@@ -11257,6 +11261,9 @@ INSERT INTO auth.identities (provider_id, user_id, identity_data, provider, last
 INSERT INTO auth.identities (provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at, id) VALUES ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000003', '{"sub": "00000000-0000-0000-0000-000000000003", "email": "residente@haven.com", "email_verified": true}', 'email', '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', '00000000-0000-0000-0000-000000000003');
 INSERT INTO auth.identities (provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at, id) VALUES ('00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000004', '{"sub": "00000000-0000-0000-0000-000000000004", "email": "subusuario@haven.com", "email_verified": true}', 'email', '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', '00000000-0000-0000-0000-000000000004');
 INSERT INTO auth.identities (provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at, id) VALUES ('00000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000005', '{"sub": "00000000-0000-0000-0000-000000000005", "email": "invitado@haven.com", "email_verified": true}', 'email', '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', '2026-11-05 20:00:51.617216+00', '00000000-0000-0000-0000-000000000005');
+
+
+--
 -- PostgreSQL database dump complete
 --
 
@@ -11313,11 +11320,14 @@ INSERT INTO public.roles (id, nombre, descripcion) VALUES (4, 'Mantenimiento', '
 -- Data for Name: usuarios; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-INSERT INTO public.usuarios (id, rol_id, condominio_id, email, nombre, apellidos, telefono, activo, debe_cambiar_password, creado_en) VALUES ('00000000-0000-0000-0000-000000000001', 1, 'a0000000-0000-0000-0000-000000000001', 'admin@haven.com', 'Carlos', 'Administrador', '5550000001', true, false, '2026-11-05 20:00:51.617216+00');
 INSERT INTO public.usuarios (id, rol_id, condominio_id, email, nombre, apellidos, telefono, activo, debe_cambiar_password, creado_en) VALUES ('00000000-0000-0000-0000-000000000002', 3, 'a0000000-0000-0000-0000-000000000001', 'vigilante@haven.com', 'Roberto', 'Guardia', '5550000002', true, false, '2026-11-05 20:00:51.617216+00');
 INSERT INTO public.usuarios (id, rol_id, condominio_id, email, nombre, apellidos, telefono, activo, debe_cambiar_password, creado_en) VALUES ('00000000-0000-0000-0000-000000000003', 2, 'a0000000-0000-0000-0000-000000000001', 'residente@haven.com', 'Ana', 'Titular', '5550000003', true, false, '2026-11-05 20:00:51.617216+00');
 INSERT INTO public.usuarios (id, rol_id, condominio_id, email, nombre, apellidos, telefono, activo, debe_cambiar_password, creado_en) VALUES ('00000000-0000-0000-0000-000000000004', 2, 'a0000000-0000-0000-0000-000000000001', 'subusuario@haven.com', 'Luis', 'Familiar', '5550000004', true, false, '2026-11-05 20:00:51.617216+00');
 INSERT INTO public.usuarios (id, rol_id, condominio_id, email, nombre, apellidos, telefono, activo, debe_cambiar_password, creado_en) VALUES ('00000000-0000-0000-0000-000000000005', 2, 'a0000000-0000-0000-0000-000000000001', 'invitado@haven.com', 'Sofía', 'Invitada', '5550000005', true, false, '2026-11-05 20:00:51.617216+00');
+INSERT INTO public.usuarios (id, rol_id, condominio_id, email, nombre, apellidos, telefono, activo, debe_cambiar_password, creado_en) VALUES ('00000000-0000-0000-0000-000000000001', 1, 'a0000000-0000-0000-0000-000000000001', 'admin@haven.com', 'Carlos', 'Administrador', '5550000001', true, false, '2026-11-05 20:00:51.617216+00');
+
+
+--
 -- Data for Name: avisos; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
@@ -11552,6 +11562,10 @@ INSERT INTO public.usuarios_bitacora (id, operacion, fecha_hora, usuario_bd, usu
 INSERT INTO public.usuarios_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (9, 'UPDATE', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, '{"id": "00000000-0000-0000-0000-000000000003", "email": "residente@haven.com", "activo": true, "nombre": "Ana", "rol_id": 2, "telefono": "5550000003", "apellidos": "Titular", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}', '{"id": "00000000-0000-0000-0000-000000000003", "email": "residente@haven.com", "activo": true, "nombre": "Ana", "rol_id": 2, "telefono": "5550000003", "apellidos": "Titular", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}');
 INSERT INTO public.usuarios_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (10, 'UPDATE', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, '{"id": "00000000-0000-0000-0000-000000000004", "email": "subusuario@haven.com", "activo": true, "nombre": "Luis", "rol_id": 2, "telefono": "5550000004", "apellidos": "Familiar", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}', '{"id": "00000000-0000-0000-0000-000000000004", "email": "subusuario@haven.com", "activo": true, "nombre": "Luis", "rol_id": 2, "telefono": "5550000004", "apellidos": "Familiar", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}');
 INSERT INTO public.usuarios_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (11, 'UPDATE', '2026-11-05 20:00:51.617216+00', 'postgres', NULL, '{"id": "00000000-0000-0000-0000-000000000005", "email": "invitado@haven.com", "activo": true, "nombre": "Sofía", "rol_id": 2, "telefono": "5550000005", "apellidos": "Invitada", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}', '{"id": "00000000-0000-0000-0000-000000000005", "email": "invitado@haven.com", "activo": true, "nombre": "Sofía", "rol_id": 2, "telefono": "5550000005", "apellidos": "Invitada", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}');
+INSERT INTO public.usuarios_bitacora (id, operacion, fecha_hora, usuario_bd, usuario_id, datos_anteriores, datos_nuevos) VALUES (13, 'UPDATE', '2026-11-05 20:43:36.972139+00', 'postgres', NULL, '{"id": "00000000-0000-0000-0000-000000000001", "email": "admin@haven.com", "activo": true, "nombre": "Carlos", "rol_id": 1, "telefono": "5550000001", "apellidos": "Administrador", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}', '{"id": "00000000-0000-0000-0000-000000000001", "email": "admin@haven.com", "activo": true, "nombre": "Carlos", "rol_id": 1, "telefono": "5550000001", "apellidos": "Administrador", "creado_en": "2026-11-05T20:00:51.617216+00:00", "condominio_id": "a0000000-0000-0000-0000-000000000001", "debe_cambiar_password": false}');
+
+
+--
 -- Data for Name: version; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
@@ -11739,7 +11753,7 @@ SELECT pg_catalog.setval('public.servicios_paqueteria_id_seq', 9, true);
 -- Name: usuarios_bitacora_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.usuarios_bitacora_id_seq', 12, true);
+SELECT pg_catalog.setval('public.usuarios_bitacora_id_seq', 13, true);
 
 
 --
@@ -11861,7 +11875,13 @@ SET email              = EXCLUDED.email,
     email_confirmed_at = COALESCE(auth.users.email_confirmed_at, now()),
     banned_until       = NULL,
     deleted_at         = NULL,
-    updated_at         = now();
+    updated_at         = now()
+-- Solo se toca si algo no cuadra, para no generar cambios ni bitacora en cada corrida
+WHERE auth.users.email IS DISTINCT FROM EXCLUDED.email
+   OR auth.users.encrypted_password IS DISTINCT FROM extensions.crypt('AdminPassword1', auth.users.encrypted_password)
+   OR auth.users.email_confirmed_at IS NULL
+   OR auth.users.banned_until IS NOT NULL
+   OR auth.users.deleted_at IS NOT NULL;
 
 INSERT INTO auth.identities (provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
 SELECT u.id::text, u.id,
@@ -11873,7 +11893,8 @@ WHERE u.id = '00000000-0000-0000-0000-000000000001'
 
 UPDATE public.usuarios
 SET rol_id = 1, activo = true
-WHERE id = '00000000-0000-0000-0000-000000000001';
+WHERE id = '00000000-0000-0000-0000-000000000001'
+  AND (rol_id IS DISTINCT FROM 1 OR activo IS DISTINCT FROM true);
 
 -- ------------------------------------------------------------------------------
 -- 6. Verificacion final (si algo no cuadra, se revierte todo)
