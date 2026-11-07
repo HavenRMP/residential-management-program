@@ -434,7 +434,7 @@ ALTER FUNCTION public.alta_area_comun(p_actor_id uuid, p_condominio_id uuid, p_n
 -- Name: alta_aviso(uuid, text, text, integer, timestamp with time zone, text); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.alta_aviso(p_actor_id uuid, p_titulo text, p_contenido text, p_duracion_dias integer DEFAULT NULL::integer, p_fecha_expiracion timestamp with time zone DEFAULT NULL::timestamp with time zone, p_prioridad text DEFAULT 'normal'::text) RETURNS jsonb
+CREATE FUNCTION public.alta_aviso(p_creado_por uuid, p_titulo text, p_contenido text, p_duracion_dias integer DEFAULT NULL::integer, p_fecha_expiracion timestamp with time zone DEFAULT NULL::timestamp with time zone, p_prioridad text DEFAULT 'normal'::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -444,7 +444,7 @@ DECLARE
 BEGIN
     SELECT id, rol_id, condominio_id, activo INTO v_actor
     FROM public.usuarios
-    WHERE id = p_actor_id;
+    WHERE id = p_creado_por;
 
     IF NOT FOUND OR v_actor.activo = false THEN
         RAISE EXCEPTION 'Usuario actor no encontrado o inactivo' USING ERRCODE = 'AV001';
@@ -489,7 +489,7 @@ BEGIN
         COALESCE(p_prioridad, 'normal'),
         p_duracion_dias,
         p_fecha_expiracion,
-        p_actor_id,
+        p_creado_por,
         true
     )
     RETURNING * INTO v_aviso;
@@ -499,7 +499,7 @@ END;
 $$;
 
 
-ALTER FUNCTION public.alta_aviso(p_actor_id uuid, p_titulo text, p_contenido text, p_duracion_dias integer, p_fecha_expiracion timestamp with time zone, p_prioridad text) OWNER TO postgres;
+ALTER FUNCTION public.alta_aviso(p_creado_por uuid, p_titulo text, p_contenido text, p_duracion_dias integer, p_fecha_expiracion timestamp with time zone, p_prioridad text) OWNER TO postgres;
 
 --
 -- Name: alta_condominio(text, text, text); Type: FUNCTION; Schema: public; Owner: postgres
@@ -9850,10 +9850,10 @@ GRANT ALL ON FUNCTION public.alta_area_comun(p_actor_id uuid, p_condominio_id uu
 
 
 --
--- Name: FUNCTION alta_aviso(p_actor_id uuid, p_titulo text, p_contenido text, p_duracion_dias integer, p_fecha_expiracion timestamp with time zone, p_prioridad text); Type: ACL; Schema: public; Owner: postgres
+-- Name: FUNCTION alta_aviso(p_creado_por uuid, p_titulo text, p_contenido text, p_duracion_dias integer, p_fecha_expiracion timestamp with time zone, p_prioridad text); Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT ALL ON FUNCTION public.alta_aviso(p_actor_id uuid, p_titulo text, p_contenido text, p_duracion_dias integer, p_fecha_expiracion timestamp with time zone, p_prioridad text) TO service_role;
+GRANT ALL ON FUNCTION public.alta_aviso(p_creado_por uuid, p_titulo text, p_contenido text, p_duracion_dias integer, p_fecha_expiracion timestamp with time zone, p_prioridad text) TO service_role;
 
 
 --
@@ -11302,7 +11302,7 @@ GRANT ALL ON FUNCTION public._recalcular_estado_cargo(p_cargo_id uuid) TO servic
 GRANT ALL ON FUNCTION public._recalcular_estado_cargo(p_cargo_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.actualizar_bloqueo_area(p_actor_id uuid, p_bloqueo_id uuid, p_inicio timestamp with time zone, p_fin timestamp with time zone, p_motivo text) TO service_role;
 GRANT ALL ON FUNCTION public.alta_area_comun(p_actor_id uuid, p_condominio_id uuid, p_nombre text, p_descripcion text, p_hora_apertura time without time zone, p_hora_cierre time without time zone) TO service_role;
-GRANT ALL ON FUNCTION public.alta_aviso(p_actor_id uuid, p_titulo text, p_contenido text, p_duracion_dias integer, p_fecha_expiracion timestamp with time zone, p_prioridad text) TO service_role;
+GRANT ALL ON FUNCTION public.alta_aviso(p_creado_por uuid, p_titulo text, p_contenido text, p_duracion_dias integer, p_fecha_expiracion timestamp with time zone, p_prioridad text) TO service_role;
 GRANT ALL ON FUNCTION public.alta_condominio(p_nombre text, p_direccion text, p_zona_horaria text) TO service_role;
 REVOKE ALL ON FUNCTION public.alta_notificacion(p_usuario_id uuid, p_tipo_evento character varying, p_titulo character varying, p_mensaje text, p_url_redireccion text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.alta_notificacion(p_usuario_id uuid, p_tipo_evento character varying, p_titulo character varying, p_mensaje text, p_url_redireccion text) TO service_role;
