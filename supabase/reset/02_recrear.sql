@@ -265,7 +265,7 @@ BEGIN
     WHERE id = p_actor_id;
 
     IF NOT FOUND OR NOT v_actor.activo OR v_actor.rol_id <> 1 THEN
-        RAISE EXCEPTION 'Solo un administrador activo puede actualizar bloqueos.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'Solo un administrador activo puede actualizar bloqueos.' USING ERRCODE = 'RE003';
     END IF;
 
     SELECT * INTO v_bloqueo
@@ -274,15 +274,15 @@ BEGIN
     FOR UPDATE;
 
     IF NOT FOUND OR v_bloqueo.tipo <> 'BLOQUEO' THEN
-        RAISE EXCEPTION 'El bloqueo especificado no existe.' USING ERRCODE = 'RS009';
+        RAISE EXCEPTION 'El bloqueo especificado no existe.' USING ERRCODE = 'RE002';
     END IF;
 
     IF v_bloqueo.condominio_id IS DISTINCT FROM v_actor.condominio_id THEN
-        RAISE EXCEPTION 'No tienes permiso sobre bloqueos de otro condominio.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'No tienes permiso sobre bloqueos de otro condominio.' USING ERRCODE = 'RE014';
     END IF;
 
     IF v_bloqueo.estado <> 'CONFIRMADA' THEN
-        RAISE EXCEPTION 'Solo se pueden editar bloqueos activos (CONFIRMADA).' USING ERRCODE = 'RS009';
+        RAISE EXCEPTION 'Solo se pueden editar bloqueos activos (CONFIRMADA).' USING ERRCODE = 'RE004';
     END IF;
 
     SELECT a.*, c.zona_horaria INTO v_area
@@ -296,14 +296,14 @@ BEGIN
     v_motivo_final := COALESCE(NULLIF(trim(p_motivo), ''), v_bloqueo.motivo);
 
     IF v_fin_final <= v_inicio_final THEN
-        RAISE EXCEPTION 'La fecha/hora de fin del bloqueo debe ser posterior a la de inicio.' USING ERRCODE = 'RS005';
+        RAISE EXCEPTION 'La fecha/hora de fin del bloqueo debe ser posterior a la de inicio.' USING ERRCODE = '22023';
     END IF;
 
     IF EXTRACT(MINUTE FROM (v_inicio_final AT TIME ZONE v_zona_horaria)) <> 0
        OR EXTRACT(SECOND FROM (v_inicio_final AT TIME ZONE v_zona_horaria)) <> 0
        OR EXTRACT(MINUTE FROM (v_fin_final AT TIME ZONE v_zona_horaria)) <> 0
        OR EXTRACT(SECOND FROM (v_fin_final AT TIME ZONE v_zona_horaria)) <> 0 THEN
-        RAISE EXCEPTION 'Los bloqueos deben alinearse a horas exactas (:00:00).' USING ERRCODE = 'RS006';
+        RAISE EXCEPTION 'Los bloqueos deben alinearse a horas exactas (:00:00).' USING ERRCODE = '22023';
     END IF;
 
     IF EXISTS (
@@ -315,7 +315,7 @@ BEGIN
           AND r.estado = 'CONFIRMADA'
           AND tstzrange(r.inicio, r.fin, '[)') && tstzrange(v_inicio_final, v_fin_final, '[)')
     ) THEN
-        RAISE EXCEPTION 'El nuevo rango se traslapa con otro bloqueo activo.' USING ERRCODE = 'RS007';
+        RAISE EXCEPTION 'El nuevo rango se traslapa con otro bloqueo activo.' USING ERRCODE = 'RE009';
     END IF;
 
     FOR v_afectada IN
@@ -362,14 +362,14 @@ BEGIN
     WHERE id = p_bloqueo_id
     RETURNING * INTO v_bloqueo;
 
-    RETURN jsonb_build_object(
+    RETURN jsonb_build_array(jsonb_build_object(
         'bloqueo_id', v_bloqueo.id,
         'area_id', v_bloqueo.area_id,
         'inicio', v_bloqueo.inicio,
         'fin', v_bloqueo.fin,
         'motivo', v_bloqueo.motivo,
         'reservas_afectadas', v_canceladas_count
-    );
+    ));
 END;
 $$;
 
@@ -394,25 +394,25 @@ BEGIN
     WHERE id = p_actor_id;
 
     IF NOT FOUND OR NOT v_actor.activo OR v_actor.rol_id <> 1 THEN
-        RAISE EXCEPTION 'Solo un administrador activo puede dar de alta áreas comunes.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'Solo un administrador activo puede dar de alta áreas comunes.' USING ERRCODE = 'RE003';
     END IF;
 
     IF v_actor.condominio_id IS DISTINCT FROM p_condominio_id THEN
-        RAISE EXCEPTION 'El administrador no pertenece al condominio especificado.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'El administrador no pertenece al condominio especificado.' USING ERRCODE = 'RE014';
     END IF;
 
     v_nombre_limpio := trim(COALESCE(p_nombre, ''));
     IF length(v_nombre_limpio) = 0 OR length(v_nombre_limpio) > 100 THEN
-        RAISE EXCEPTION 'El nombre del área es obligatorio y no puede exceder 100 caracteres.' USING ERRCODE = 'RS005';
+        RAISE EXCEPTION 'El nombre del área es obligatorio y no puede exceder 100 caracteres.' USING ERRCODE = '22023';
     END IF;
 
     IF p_hora_cierre <= p_hora_apertura THEN
-        RAISE EXCEPTION 'La hora de cierre debe ser posterior a la hora de apertura.' USING ERRCODE = 'RS005';
+        RAISE EXCEPTION 'La hora de cierre debe ser posterior a la hora de apertura.' USING ERRCODE = 'RE005';
     END IF;
 
     IF EXTRACT(MINUTE FROM p_hora_apertura) <> 0 OR EXTRACT(SECOND FROM p_hora_apertura) <> 0
        OR EXTRACT(MINUTE FROM p_hora_cierre) <> 0 OR EXTRACT(SECOND FROM p_hora_cierre) <> 0 THEN
-        RAISE EXCEPTION 'Las horas de apertura y cierre deben ser horas en punto (:00:00).' USING ERRCODE = 'RS006';
+        RAISE EXCEPTION 'Las horas de apertura y cierre deben ser horas en punto (:00:00).' USING ERRCODE = 'RE005';
     END IF;
 
     INSERT INTO public.areas_comunes (
@@ -423,7 +423,7 @@ BEGIN
     )
     RETURNING * INTO v_area;
 
-    RETURN to_jsonb(v_area);
+    RETURN (SELECT to_jsonb(va.*) FROM public.vw_areas_comunes va WHERE va.id = v_area.id);
 END;
 $$;
 
@@ -912,7 +912,7 @@ BEGIN
     WHERE id = p_actor_id;
 
     IF NOT FOUND OR NOT v_actor.activo OR v_actor.rol_id <> 1 THEN
-        RAISE EXCEPTION 'Solo un administrador activo puede aprobar reservas.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'Solo un administrador activo puede aprobar reservas.' USING ERRCODE = 'RE003';
     END IF;
 
     SELECT * INTO v_reserva
@@ -921,20 +921,20 @@ BEGIN
     FOR UPDATE;
 
     IF NOT FOUND OR v_reserva.tipo <> 'RESERVA' THEN
-        RAISE EXCEPTION 'La reserva no existe.' USING ERRCODE = 'RS009';
+        RAISE EXCEPTION 'La reserva no existe.' USING ERRCODE = 'RE002';
     END IF;
 
     IF v_reserva.condominio_id IS DISTINCT FROM v_actor.condominio_id THEN
-        RAISE EXCEPTION 'No tienes permiso sobre reservas de otro condominio.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'No tienes permiso sobre reservas de otro condominio.' USING ERRCODE = 'RE014';
     END IF;
 
     IF v_reserva.estado <> 'PENDIENTE_ADMIN' THEN
         RAISE EXCEPTION 'La reserva no está en estado PENDIENTE_ADMIN (estado actual: %).', v_reserva.estado
-            USING ERRCODE = 'RS009';
+            USING ERRCODE = 'RE004';
     END IF;
 
     IF v_reserva.inicio <= now() THEN
-        RAISE EXCEPTION 'La fecha de inicio de la reserva ya ha vencido.' USING ERRCODE = 'RS010';
+        RAISE EXCEPTION 'La fecha de inicio de la reserva ya ha vencido.' USING ERRCODE = 'RE012';
     END IF;
 
     SELECT a.*, c.zona_horaria INTO v_area
@@ -943,7 +943,7 @@ BEGIN
     WHERE a.id = v_reserva.area_id;
 
     IF NOT v_area.activo THEN
-        RAISE EXCEPTION 'El área común está inactiva y no permite aprobar reservas.' USING ERRCODE = 'RS002';
+        RAISE EXCEPTION 'El área común está inactiva y no permite aprobar reservas.' USING ERRCODE = 'RE001';
     END IF;
 
     v_zona_horaria := v_area.zona_horaria;
@@ -955,7 +955,7 @@ BEGIN
           AND r.estado = 'CONFIRMADA'
           AND tstzrange(r.inicio, r.fin, '[)') && tstzrange(v_reserva.inicio, v_reserva.fin, '[)')
     ) THEN
-        RAISE EXCEPTION 'El horario ya fue ocupado por otra reserva confirmada o bloqueo.' USING ERRCODE = 'RS007';
+        RAISE EXCEPTION 'El horario ya fue ocupado por otra reserva confirmada o bloqueo.' USING ERRCODE = 'RE009';
     END IF;
 
     UPDATE public.reservas
@@ -968,7 +968,7 @@ BEGIN
         v_reserva.solicitante_id,
         'reserva_aprobada',
         'Reserva aprobada - Pendiente de confirmación',
-        format('Tu reserva de %s para el %s fue aprobada. Debes confirmarla antes de 24 horas previas al evento.',
+        format('Tu reserva de %s para el %s fue aprobada. Debes confirmarla entre 7 días y 72 horas antes del evento.',
             v_area.nombre,
             to_char(v_reserva.inicio AT TIME ZONE v_zona_horaria, 'DD/MM/YYYY HH24:MI')),
         '/reservas/mias',
@@ -1015,20 +1015,20 @@ BEGIN
     FOR UPDATE;
 
     IF NOT FOUND OR v_reserva.tipo <> 'RESERVA' THEN
-        RAISE EXCEPTION 'La reserva no existe.' USING ERRCODE = 'RS009';
+        RAISE EXCEPTION 'La reserva no existe.' USING ERRCODE = 'RE002';
     END IF;
 
     IF v_reserva.titular_id IS DISTINCT FROM p_actor_id THEN
-        RAISE EXCEPTION 'Solo el titular de la vivienda puede autorizar esta solicitud.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'Solo el titular de la vivienda puede autorizar esta solicitud.' USING ERRCODE = 'RE003';
     END IF;
 
     IF v_reserva.estado <> 'PENDIENTE_TITULAR' THEN
         RAISE EXCEPTION 'La reserva no se encuentra pendiente de autorización del titular (estado actual: %).', v_reserva.estado
-            USING ERRCODE = 'RS009';
+            USING ERRCODE = 'RE004';
     END IF;
 
     IF v_reserva.inicio <= now() THEN
-        RAISE EXCEPTION 'La fecha de inicio de la reserva ya ha vencido.' USING ERRCODE = 'RS010';
+        RAISE EXCEPTION 'La fecha de inicio de la reserva ya ha vencido.' USING ERRCODE = 'RE012';
     END IF;
 
     IF EXISTS (
@@ -1038,7 +1038,7 @@ BEGIN
           AND r.estado = 'CONFIRMADA'
           AND tstzrange(r.inicio, r.fin, '[)') && tstzrange(v_reserva.inicio, v_reserva.fin, '[)')
     ) THEN
-        RAISE EXCEPTION 'El horario ya fue ocupado por otra reserva confirmada o bloqueo.' USING ERRCODE = 'RS007';
+        RAISE EXCEPTION 'El horario ya fue ocupado por otra reserva confirmada o bloqueo.' USING ERRCODE = 'RE009';
     END IF;
 
     UPDATE public.reservas
@@ -1275,7 +1275,7 @@ ALTER FUNCTION public.asignar_residente_vivienda(p_vivienda_id integer, p_usuari
 -- Name: baja_area_comun(uuid, uuid); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.baja_area_comun(p_actor_id uuid, p_area_id uuid) RETURNS boolean
+CREATE FUNCTION public.baja_area_comun(p_actor_id uuid, p_id uuid) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -1288,20 +1288,20 @@ BEGIN
     WHERE id = p_actor_id;
 
     IF NOT FOUND OR NOT v_actor.activo OR v_actor.rol_id <> 1 THEN
-        RAISE EXCEPTION 'Solo un administrador activo puede desactivar áreas comunes.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'Solo un administrador activo puede desactivar áreas comunes.' USING ERRCODE = 'RE003';
     END IF;
 
     SELECT * INTO v_area
     FROM public.areas_comunes
-    WHERE id = p_area_id
+    WHERE id = p_id
     FOR UPDATE;
 
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'El área común no existe.' USING ERRCODE = 'RS001';
+        RAISE EXCEPTION 'El área común no existe.' USING ERRCODE = 'RE001';
     END IF;
 
     IF v_area.condominio_id IS DISTINCT FROM v_actor.condominio_id THEN
-        RAISE EXCEPTION 'No tienes permiso sobre áreas de otro condominio.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'No tienes permiso sobre áreas de otro condominio.' USING ERRCODE = 'RE014';
     END IF;
 
     IF NOT v_area.activo THEN
@@ -1310,14 +1310,14 @@ BEGIN
 
     UPDATE public.areas_comunes
     SET activo = false
-    WHERE id = p_area_id;
+    WHERE id = p_id;
 
     RETURN true;
 END;
 $$;
 
 
-ALTER FUNCTION public.baja_area_comun(p_actor_id uuid, p_area_id uuid) OWNER TO postgres;
+ALTER FUNCTION public.baja_area_comun(p_actor_id uuid, p_id uuid) OWNER TO postgres;
 
 --
 -- Name: baja_aviso(uuid, uuid); Type: FUNCTION; Schema: public; Owner: postgres
@@ -1518,7 +1518,7 @@ ALTER FUNCTION public.baja_vivienda(p_id integer) OWNER TO postgres;
 -- Name: cambio_area_comun(uuid, uuid, text, text, time without time zone, time without time zone); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.cambio_area_comun(p_actor_id uuid, p_area_id uuid, p_nombre text DEFAULT NULL::text, p_descripcion text DEFAULT NULL::text, p_hora_apertura time without time zone DEFAULT NULL::time without time zone, p_hora_cierre time without time zone DEFAULT NULL::time without time zone) RETURNS jsonb
+CREATE FUNCTION public.cambio_area_comun(p_actor_id uuid, p_id uuid, p_nombre text DEFAULT NULL::text, p_descripcion text DEFAULT NULL::text, p_hora_apertura time without time zone DEFAULT NULL::time without time zone, p_hora_cierre time without time zone DEFAULT NULL::time without time zone) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -1534,20 +1534,20 @@ BEGIN
     WHERE id = p_actor_id;
 
     IF NOT FOUND OR NOT v_actor.activo OR v_actor.rol_id <> 1 THEN
-        RAISE EXCEPTION 'Solo un administrador activo puede modificar áreas comunes.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'Solo un administrador activo puede modificar áreas comunes.' USING ERRCODE = 'RE003';
     END IF;
 
     SELECT * INTO v_area
     FROM public.areas_comunes
-    WHERE id = p_area_id
+    WHERE id = p_id
     FOR UPDATE;
 
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'El área común no existe.' USING ERRCODE = 'RS001';
+        RAISE EXCEPTION 'El área común no existe.' USING ERRCODE = 'RE001';
     END IF;
 
     IF v_area.condominio_id IS DISTINCT FROM v_actor.condominio_id THEN
-        RAISE EXCEPTION 'No tienes permiso sobre áreas de otro condominio.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'No tienes permiso sobre áreas de otro condominio.' USING ERRCODE = 'RE014';
     END IF;
 
     v_nombre_final := COALESCE(NULLIF(trim(p_nombre), ''), v_area.nombre);
@@ -1555,12 +1555,12 @@ BEGIN
     v_cierre_final := COALESCE(p_hora_cierre, v_area.hora_cierre);
 
     IF v_cierre_final <= v_apertura_final THEN
-        RAISE EXCEPTION 'La hora de cierre debe ser posterior a la hora de apertura.' USING ERRCODE = 'RS005';
+        RAISE EXCEPTION 'La hora de cierre debe ser posterior a la hora de apertura.' USING ERRCODE = 'RE005';
     END IF;
 
     IF EXTRACT(MINUTE FROM v_apertura_final) <> 0 OR EXTRACT(SECOND FROM v_apertura_final) <> 0
        OR EXTRACT(MINUTE FROM v_cierre_final) <> 0 OR EXTRACT(SECOND FROM v_cierre_final) <> 0 THEN
-        RAISE EXCEPTION 'Las horas de apertura y cierre deben ser horas en punto (:00:00).' USING ERRCODE = 'RS006';
+        RAISE EXCEPTION 'Las horas de apertura y cierre deben ser horas en punto (:00:00).' USING ERRCODE = 'RE005';
     END IF;
 
     UPDATE public.areas_comunes
@@ -1568,15 +1568,15 @@ BEGIN
         descripcion = COALESCE(p_descripcion, descripcion),
         hora_apertura = v_apertura_final,
         hora_cierre = v_cierre_final
-    WHERE id = p_area_id
+    WHERE id = p_id
     RETURNING * INTO v_area;
 
-    RETURN to_jsonb(v_area);
+    RETURN (SELECT to_jsonb(va.*) FROM public.vw_areas_comunes va WHERE va.id = v_area.id);
 END;
 $$;
 
 
-ALTER FUNCTION public.cambio_area_comun(p_actor_id uuid, p_area_id uuid, p_nombre text, p_descripcion text, p_hora_apertura time without time zone, p_hora_cierre time without time zone) OWNER TO postgres;
+ALTER FUNCTION public.cambio_area_comun(p_actor_id uuid, p_id uuid, p_nombre text, p_descripcion text, p_hora_apertura time without time zone, p_hora_cierre time without time zone) OWNER TO postgres;
 
 --
 -- Name: cambio_aviso(uuid, uuid, text, text, integer, timestamp with time zone, text); Type: FUNCTION; Schema: public; Owner: postgres
@@ -2017,12 +2017,12 @@ BEGIN
     WHERE id = p_actor_id;
 
     IF NOT FOUND OR NOT v_actor.activo OR v_actor.rol_id <> 1 THEN
-        RAISE EXCEPTION 'Solo un administrador activo puede cancelar reservas.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'Solo un administrador activo puede cancelar reservas.' USING ERRCODE = 'RE003';
     END IF;
 
     v_motivo_limpio := trim(COALESCE(p_motivo, ''));
     IF length(v_motivo_limpio) = 0 THEN
-        RAISE EXCEPTION 'El motivo de cancelación es obligatorio.' USING ERRCODE = 'RS009';
+        RAISE EXCEPTION 'El motivo de cancelación es obligatorio.' USING ERRCODE = 'RE010';
     END IF;
 
     SELECT * INTO v_reserva
@@ -2031,16 +2031,16 @@ BEGIN
     FOR UPDATE;
 
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'La reserva no existe.' USING ERRCODE = 'RS009';
+        RAISE EXCEPTION 'La reserva no existe.' USING ERRCODE = 'RE002';
     END IF;
 
     IF v_reserva.condominio_id IS DISTINCT FROM v_actor.condominio_id THEN
-        RAISE EXCEPTION 'No tienes permiso sobre reservas de otro condominio.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'No tienes permiso sobre reservas de otro condominio.' USING ERRCODE = 'RE014';
     END IF;
 
     IF v_reserva.estado NOT IN ('PENDIENTE_TITULAR', 'PENDIENTE_ADMIN', 'APROBADA', 'CONFIRMADA') THEN
         RAISE EXCEPTION 'El registro no se puede cancelar en su estado actual (%).', v_reserva.estado
-            USING ERRCODE = 'RS009';
+            USING ERRCODE = 'RE004';
     END IF;
 
     UPDATE public.reservas
@@ -2099,21 +2099,21 @@ BEGIN
     FOR UPDATE;
 
     IF NOT FOUND OR v_reserva.tipo <> 'RESERVA' THEN
-        RAISE EXCEPTION 'La reserva no existe.' USING ERRCODE = 'RS009';
+        RAISE EXCEPTION 'La reserva no existe.' USING ERRCODE = 'RE002';
     END IF;
 
     IF p_actor_id IS DISTINCT FROM v_reserva.solicitante_id
        AND p_actor_id IS DISTINCT FROM v_reserva.titular_id THEN
-        RAISE EXCEPTION 'No tienes permiso para cancelar esta reserva.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'No tienes permiso para cancelar esta reserva.' USING ERRCODE = 'RE003';
     END IF;
 
     IF v_reserva.estado NOT IN ('PENDIENTE_TITULAR', 'PENDIENTE_ADMIN', 'APROBADA', 'CONFIRMADA') THEN
         RAISE EXCEPTION 'La reserva no se puede cancelar en su estado actual (%).', v_reserva.estado
-            USING ERRCODE = 'RS009';
+            USING ERRCODE = 'RE004';
     END IF;
 
     IF v_reserva.inicio <= now() THEN
-        RAISE EXCEPTION 'No se puede cancelar una reserva que ya inició.' USING ERRCODE = 'RS010';
+        RAISE EXCEPTION 'No se puede cancelar una reserva que ya inició.' USING ERRCODE = 'RE012';
     END IF;
 
     UPDATE public.reservas
@@ -2150,6 +2150,20 @@ $$;
 
 
 ALTER FUNCTION public.cancelar_reserva_usuario(p_actor_id uuid, p_reserva_id uuid, p_motivo text) OWNER TO postgres;
+
+--
+-- Name: cancelar_reserva(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.cancelar_reserva(p_actor_id uuid, p_reserva_id uuid, p_motivo text DEFAULT NULL::text) RETURNS boolean
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+    SELECT public.cancelar_reserva_usuario(p_actor_id, p_reserva_id, p_motivo);
+$$;
+
+
+ALTER FUNCTION public.cancelar_reserva(p_actor_id uuid, p_reserva_id uuid, p_motivo text) OWNER TO postgres;
 
 --
 -- Name: cancelar_visita(uuid, uuid); Type: FUNCTION; Schema: public; Owner: postgres
@@ -2216,21 +2230,21 @@ BEGIN
     FOR UPDATE;
 
     IF NOT FOUND OR v_reserva.tipo <> 'RESERVA' THEN
-        RAISE EXCEPTION 'La reserva no existe.' USING ERRCODE = 'RS009';
+        RAISE EXCEPTION 'La reserva no existe.' USING ERRCODE = 'RE002';
     END IF;
 
     IF p_actor_id IS DISTINCT FROM v_reserva.solicitante_id
        AND p_actor_id IS DISTINCT FROM v_reserva.titular_id THEN
-        RAISE EXCEPTION 'Solo el solicitante o el titular pueden confirmar esta reserva.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'Solo el solicitante o el titular pueden confirmar esta reserva.' USING ERRCODE = 'RE003';
     END IF;
 
     IF v_reserva.estado <> 'APROBADA' THEN
         RAISE EXCEPTION 'Solo se pueden confirmar reservas en estado APROBADA (estado actual: %).', v_reserva.estado
-            USING ERRCODE = 'RS009';
+            USING ERRCODE = 'RE004';
     END IF;
 
-    IF now() > (v_reserva.inicio - INTERVAL '24 hours') THEN
-        RAISE EXCEPTION 'El plazo para confirmar la reserva (hasta 24 horas antes del inicio) ha vencido.' USING ERRCODE = 'RS010';
+    IF now() < (v_reserva.inicio - INTERVAL '7 days') OR now() > (v_reserva.inicio - INTERVAL '72 hours') THEN
+        RAISE EXCEPTION 'La reserva solo puede confirmarse entre 7 días y 72 horas antes del inicio.' USING ERRCODE = 'RE011';
     END IF;
 
     SELECT a.*, c.zona_horaria INTO v_area
@@ -2239,7 +2253,7 @@ BEGIN
     WHERE a.id = v_reserva.area_id;
 
     IF NOT v_area.activo THEN
-        RAISE EXCEPTION 'El área común está inactiva.' USING ERRCODE = 'RS002';
+        RAISE EXCEPTION 'El área común está inactiva.' USING ERRCODE = 'RE001';
     END IF;
 
     v_zona_horaria := v_area.zona_horaria;
@@ -2252,7 +2266,7 @@ BEGIN
         WHERE id = p_reserva_id;
     EXCEPTION
         WHEN exclusion_violation THEN
-            RAISE EXCEPTION 'El horario ya fue confirmado por otra reserva o bloqueo.' USING ERRCODE = 'RS007';
+            RAISE EXCEPTION 'El horario ya fue confirmado por otra reserva o bloqueo.' USING ERRCODE = 'RE009';
     END;
 
     PERFORM public._insertar_notificacion_reserva(
@@ -2341,12 +2355,12 @@ BEGIN
     WHERE id = p_actor_id;
 
     IF NOT FOUND OR NOT v_actor.activo OR v_actor.rol_id <> 1 THEN
-        RAISE EXCEPTION 'Solo un administrador activo puede crear bloqueos.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'Solo un administrador activo puede crear bloqueos.' USING ERRCODE = 'RE003';
     END IF;
 
     v_motivo_limpio := trim(COALESCE(p_motivo, ''));
     IF length(v_motivo_limpio) = 0 THEN
-        RAISE EXCEPTION 'El motivo del bloqueo es obligatorio.' USING ERRCODE = 'RS005';
+        RAISE EXCEPTION 'El motivo del bloqueo es obligatorio.' USING ERRCODE = 'RE010';
     END IF;
 
     SELECT a.*, c.zona_horaria INTO v_area
@@ -2355,24 +2369,24 @@ BEGIN
     WHERE a.id = p_area_id;
 
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'El área común no existe.' USING ERRCODE = 'RS001';
+        RAISE EXCEPTION 'El área común no existe.' USING ERRCODE = 'RE001';
     END IF;
 
     IF v_area.condominio_id IS DISTINCT FROM v_actor.condominio_id THEN
-        RAISE EXCEPTION 'No tienes permiso sobre áreas de otro condominio.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'No tienes permiso sobre áreas de otro condominio.' USING ERRCODE = 'RE014';
     END IF;
 
     v_zona_horaria := v_area.zona_horaria;
 
     IF p_fin <= p_inicio THEN
-        RAISE EXCEPTION 'La fecha/hora de fin del bloqueo debe ser posterior a la de inicio.' USING ERRCODE = 'RS005';
+        RAISE EXCEPTION 'La fecha/hora de fin del bloqueo debe ser posterior a la de inicio.' USING ERRCODE = '22023';
     END IF;
 
     IF EXTRACT(MINUTE FROM (p_inicio AT TIME ZONE v_zona_horaria)) <> 0
        OR EXTRACT(SECOND FROM (p_inicio AT TIME ZONE v_zona_horaria)) <> 0
        OR EXTRACT(MINUTE FROM (p_fin AT TIME ZONE v_zona_horaria)) <> 0
        OR EXTRACT(SECOND FROM (p_fin AT TIME ZONE v_zona_horaria)) <> 0 THEN
-        RAISE EXCEPTION 'Los bloqueos deben alinearse a horas exactas (:00:00).' USING ERRCODE = 'RS006';
+        RAISE EXCEPTION 'Los bloqueos deben alinearse a horas exactas (:00:00).' USING ERRCODE = '22023';
     END IF;
 
     IF EXISTS (
@@ -2383,7 +2397,7 @@ BEGIN
           AND r.estado = 'CONFIRMADA'
           AND tstzrange(r.inicio, r.fin, '[)') && tstzrange(p_inicio, p_fin, '[)')
     ) THEN
-        RAISE EXCEPTION 'Ya existe otro bloqueo activo que se traslapa con este rango.' USING ERRCODE = 'RS007';
+        RAISE EXCEPTION 'Ya existe otro bloqueo activo que se traslapa con este rango.' USING ERRCODE = 'RE009';
     END IF;
 
     FOR v_afectada IN
@@ -2527,7 +2541,7 @@ BEGIN
     WHERE id = p_actor_id;
 
     IF NOT FOUND OR NOT v_actor.activo OR v_actor.rol_id <> 1 THEN
-        RAISE EXCEPTION 'Solo un administrador activo puede eliminar bloqueos.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'Solo un administrador activo puede eliminar bloqueos.' USING ERRCODE = 'RE003';
     END IF;
 
     SELECT * INTO v_bloqueo
@@ -2536,15 +2550,15 @@ BEGIN
     FOR UPDATE;
 
     IF NOT FOUND OR v_bloqueo.tipo <> 'BLOQUEO' THEN
-        RAISE EXCEPTION 'El bloqueo especificado no existe.' USING ERRCODE = 'RS009';
+        RAISE EXCEPTION 'El bloqueo especificado no existe.' USING ERRCODE = 'RE002';
     END IF;
 
     IF v_bloqueo.condominio_id IS DISTINCT FROM v_actor.condominio_id THEN
-        RAISE EXCEPTION 'No tienes permiso sobre bloqueos de otro condominio.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'No tienes permiso sobre bloqueos de otro condominio.' USING ERRCODE = 'RE014';
     END IF;
 
     IF v_bloqueo.estado <> 'CONFIRMADA' THEN
-        RAISE EXCEPTION 'El bloqueo ya fue eliminado o cancelado.' USING ERRCODE = 'RS009';
+        RAISE EXCEPTION 'El bloqueo ya fue eliminado o cancelado.' USING ERRCODE = 'RE004';
     END IF;
 
     UPDATE public.reservas
@@ -3363,7 +3377,7 @@ BEGIN
     WHERE id = p_actor_id;
 
     IF NOT FOUND OR NOT v_actor.activo OR v_actor.rol_id <> 1 THEN
-        RAISE EXCEPTION 'Solo un administrador activo puede registrar incumplimientos (no-show).' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'Solo un administrador activo puede registrar incumplimientos (no-show).' USING ERRCODE = 'RE003';
     END IF;
 
     SELECT * INTO v_reserva
@@ -3372,20 +3386,20 @@ BEGIN
     FOR UPDATE;
 
     IF NOT FOUND OR v_reserva.tipo <> 'RESERVA' THEN
-        RAISE EXCEPTION 'La reserva no existe.' USING ERRCODE = 'RS009';
+        RAISE EXCEPTION 'La reserva no existe.' USING ERRCODE = 'RE002';
     END IF;
 
     IF v_reserva.condominio_id IS DISTINCT FROM v_actor.condominio_id THEN
-        RAISE EXCEPTION 'No tienes permiso sobre reservas de otro condominio.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'No tienes permiso sobre reservas de otro condominio.' USING ERRCODE = 'RE014';
     END IF;
 
     IF v_reserva.fin > now() THEN
-        RAISE EXCEPTION 'Solo se puede marcar como no utilizada una vez concluido el horario de la reserva.' USING ERRCODE = 'RS010';
+        RAISE EXCEPTION 'Solo se puede marcar como no utilizada una vez concluido el horario de la reserva.' USING ERRCODE = 'RE013';
     END IF;
 
     IF v_reserva.estado NOT IN ('CONFIRMADA', 'FINALIZADA') THEN
         RAISE EXCEPTION 'Solo se pueden marcar como no utilizadas reservas confirmadas o finalizadas (estado actual: %).', v_reserva.estado
-            USING ERRCODE = 'RS009';
+            USING ERRCODE = 'RE004';
     END IF;
 
     UPDATE public.reservas
@@ -3495,13 +3509,13 @@ BEGIN
     FOR v_rec IN
         UPDATE public.reservas r
         SET estado = 'CANCELADA_EXPIRACION',
-            motivo = 'No confirmada antes de 24 horas previas al inicio',
+            motivo = 'No confirmada antes de 72 horas previas al inicio',
             actualizado_en = timezone('utc'::text, now())
         FROM public.areas_comunes a
         WHERE a.id = r.area_id
           AND r.tipo = 'RESERVA'
           AND r.estado = 'APROBADA'
-          AND now() > (r.inicio - INTERVAL '24 hours')
+          AND now() > (r.inicio - INTERVAL '72 hours')
         RETURNING r.id, r.solicitante_id, r.titular_id, a.nombre AS area_nombre
     LOOP
         v_expiradas_confirmacion := v_expiradas_confirmacion + 1;
@@ -3510,7 +3524,7 @@ BEGIN
             v_rec.solicitante_id,
             'reserva_expirada_confirmacion',
             'Reserva cancelada por falta de confirmación',
-            format('Tu reserva de %s fue cancelada automáticamente por no confirmarse con al menos 24 horas de anticipación.', v_rec.area_nombre),
+            format('Tu reserva de %s fue cancelada automáticamente por no confirmarse con al menos 72 horas de anticipación.', v_rec.area_nombre),
             '/reservas/mias',
             v_rec.id
         );
@@ -3639,7 +3653,7 @@ ALTER FUNCTION public.quitar_residente_vivienda(p_vivienda_id integer, p_usuario
 -- Name: reactivar_area_comun(uuid, uuid); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.reactivar_area_comun(p_actor_id uuid, p_area_id uuid) RETURNS boolean
+CREATE FUNCTION public.reactivar_area_comun(p_actor_id uuid, p_id uuid) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -3652,20 +3666,20 @@ BEGIN
     WHERE id = p_actor_id;
 
     IF NOT FOUND OR NOT v_actor.activo OR v_actor.rol_id <> 1 THEN
-        RAISE EXCEPTION 'Solo un administrador activo puede reactivar áreas comunes.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'Solo un administrador activo puede reactivar áreas comunes.' USING ERRCODE = 'RE003';
     END IF;
 
     SELECT * INTO v_area
     FROM public.areas_comunes
-    WHERE id = p_area_id
+    WHERE id = p_id
     FOR UPDATE;
 
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'El área común no existe.' USING ERRCODE = 'RS001';
+        RAISE EXCEPTION 'El área común no existe.' USING ERRCODE = 'RE001';
     END IF;
 
     IF v_area.condominio_id IS DISTINCT FROM v_actor.condominio_id THEN
-        RAISE EXCEPTION 'No tienes permiso sobre áreas de otro condominio.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'No tienes permiso sobre áreas de otro condominio.' USING ERRCODE = 'RE014';
     END IF;
 
     IF v_area.activo THEN
@@ -3674,14 +3688,14 @@ BEGIN
 
     UPDATE public.areas_comunes
     SET activo = true
-    WHERE id = p_area_id;
+    WHERE id = p_id;
 
     RETURN true;
 END;
 $$;
 
 
-ALTER FUNCTION public.reactivar_area_comun(p_actor_id uuid, p_area_id uuid) OWNER TO postgres;
+ALTER FUNCTION public.reactivar_area_comun(p_actor_id uuid, p_id uuid) OWNER TO postgres;
 
 --
 -- Name: reactivar_usuario(uuid); Type: FUNCTION; Schema: public; Owner: postgres
@@ -3722,12 +3736,12 @@ BEGIN
     WHERE id = p_actor_id;
 
     IF NOT FOUND OR NOT v_actor.activo OR v_actor.rol_id <> 1 THEN
-        RAISE EXCEPTION 'Solo un administrador activo puede rechazar reservas.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'Solo un administrador activo puede rechazar reservas.' USING ERRCODE = 'RE003';
     END IF;
 
     v_motivo_limpio := trim(COALESCE(p_motivo, ''));
     IF length(v_motivo_limpio) = 0 THEN
-        RAISE EXCEPTION 'El motivo de rechazo es obligatorio.' USING ERRCODE = 'RS009';
+        RAISE EXCEPTION 'El motivo de rechazo es obligatorio.' USING ERRCODE = 'RE010';
     END IF;
 
     SELECT * INTO v_reserva
@@ -3736,16 +3750,16 @@ BEGIN
     FOR UPDATE;
 
     IF NOT FOUND OR v_reserva.tipo <> 'RESERVA' THEN
-        RAISE EXCEPTION 'La reserva no existe.' USING ERRCODE = 'RS009';
+        RAISE EXCEPTION 'La reserva no existe.' USING ERRCODE = 'RE002';
     END IF;
 
     IF v_reserva.condominio_id IS DISTINCT FROM v_actor.condominio_id THEN
-        RAISE EXCEPTION 'No tienes permiso sobre reservas de otro condominio.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'No tienes permiso sobre reservas de otro condominio.' USING ERRCODE = 'RE014';
     END IF;
 
     IF v_reserva.estado <> 'PENDIENTE_ADMIN' THEN
         RAISE EXCEPTION 'Solo se pueden rechazar reservas en estado PENDIENTE_ADMIN (estado actual: %).', v_reserva.estado
-            USING ERRCODE = 'RS009';
+            USING ERRCODE = 'RE004';
     END IF;
 
     UPDATE public.reservas
@@ -3802,16 +3816,16 @@ BEGIN
     FOR UPDATE;
 
     IF NOT FOUND OR v_reserva.tipo <> 'RESERVA' THEN
-        RAISE EXCEPTION 'La reserva no existe.' USING ERRCODE = 'RS009';
+        RAISE EXCEPTION 'La reserva no existe.' USING ERRCODE = 'RE002';
     END IF;
 
     IF v_reserva.titular_id IS DISTINCT FROM p_actor_id THEN
-        RAISE EXCEPTION 'Solo el titular de la vivienda puede rechazar esta solicitud.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'Solo el titular de la vivienda puede rechazar esta solicitud.' USING ERRCODE = 'RE003';
     END IF;
 
     IF v_reserva.estado <> 'PENDIENTE_TITULAR' THEN
         RAISE EXCEPTION 'La reserva no se encuentra pendiente de autorización del titular (estado actual: %).', v_reserva.estado
-            USING ERRCODE = 'RS009';
+            USING ERRCODE = 'RE004';
     END IF;
 
     UPDATE public.reservas
@@ -5235,11 +5249,11 @@ BEGIN
     WHERE id = p_actor_id;
 
     IF NOT FOUND OR NOT v_actor.activo THEN
-        RAISE EXCEPTION 'Usuario solicitante no encontrado o inactivo.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'Usuario solicitante no encontrado o inactivo.' USING ERRCODE = 'RE003';
     END IF;
 
     IF v_actor.rol_id <> 2 THEN
-        RAISE EXCEPTION 'Solo los residentes pueden solicitar reservas.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'Solo los residentes pueden solicitar reservas.' USING ERRCODE = 'RE003';
     END IF;
 
     v_solicitante_nombre := trim(v_actor.nombre || ' ' || v_actor.apellidos);
@@ -5251,15 +5265,15 @@ BEGIN
     WHERE a.id = p_area_id;
 
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'El área común no existe.' USING ERRCODE = 'RS001';
+        RAISE EXCEPTION 'El área común no existe.' USING ERRCODE = 'RE001';
     END IF;
 
     IF NOT v_area.activo OR NOT v_area.condominio_activo THEN
-        RAISE EXCEPTION 'El área común se encuentra inactiva.' USING ERRCODE = 'RS002';
+        RAISE EXCEPTION 'El área común se encuentra inactiva.' USING ERRCODE = 'RE001';
     END IF;
 
     IF v_actor.condominio_id IS DISTINCT FROM v_area.condominio_id THEN
-        RAISE EXCEPTION 'No perteneces al condominio de esta área común.' USING ERRCODE = 'RS011';
+        RAISE EXCEPTION 'No perteneces al condominio de esta área común.' USING ERRCODE = 'RE014';
     END IF;
 
     v_zona_horaria := v_area.zona_horaria;
@@ -5292,7 +5306,7 @@ BEGIN
         LIMIT 1;
 
         IF NOT FOUND THEN
-            RAISE EXCEPTION 'Debes tener una vivienda activa asignada como titular o subusuario para reservar.' USING ERRCODE = 'RS012';
+            RAISE EXCEPTION 'Debes tener una vivienda activa asignada como titular o subusuario para reservar.' USING ERRCODE = 'RE015';
         END IF;
 
         v_es_titular := false;
@@ -5300,39 +5314,32 @@ BEGIN
     END IF;
 
     IF p_fin <= p_inicio THEN
-        RAISE EXCEPTION 'La fecha/hora de fin debe ser posterior a la de inicio.' USING ERRCODE = 'RS005';
+        RAISE EXCEPTION 'La fecha/hora de fin debe ser posterior a la de inicio.' USING ERRCODE = 'RE006';
     END IF;
 
-    IF EXTRACT(MINUTE FROM (p_inicio AT TIME ZONE v_zona_horaria)) <> 0
-       OR EXTRACT(SECOND FROM (p_inicio AT TIME ZONE v_zona_horaria)) <> 0
-       OR EXTRACT(MINUTE FROM (p_fin AT TIME ZONE v_zona_horaria)) <> 0
-       OR EXTRACT(SECOND FROM (p_fin AT TIME ZONE v_zona_horaria)) <> 0 THEN
-        RAISE EXCEPTION 'Las reservas solo pueden crearse en bloques de horas exactas (:00:00).' USING ERRCODE = 'RS006';
+    IF (p_fin - p_inicio) < INTERVAL '30 minutes' OR (p_fin - p_inicio) > INTERVAL '12 hours' THEN
+        RAISE EXCEPTION 'La duración de la reserva debe ser de entre 30 minutos y 12 horas.' USING ERRCODE = 'RE006';
     END IF;
 
-    IF (p_fin - p_inicio) < INTERVAL '1 hour' OR (p_fin - p_inicio) > INTERVAL '8 hours' THEN
-        RAISE EXCEPTION 'La duración de la reserva debe ser de entre 1 y 8 horas.' USING ERRCODE = 'RS004';
-    END IF;
-
-    IF p_inicio < (now() + INTERVAL '24 hours') THEN
-        RAISE EXCEPTION 'Las reservas deben solicitarse con al menos 24 horas de anticipación.' USING ERRCODE = 'RS003';
+    IF p_inicio < (now() + INTERVAL '7 days') THEN
+        RAISE EXCEPTION 'Las reservas deben solicitarse con al menos 7 días de anticipación.' USING ERRCODE = 'RE007';
     END IF;
 
     IF p_inicio > (now() + INTERVAL '30 days') THEN
-        RAISE EXCEPTION 'No se pueden solicitar reservas con más de 30 días de anticipación.' USING ERRCODE = 'RS003';
+        RAISE EXCEPTION 'No se pueden solicitar reservas con más de 30 días de anticipación.' USING ERRCODE = 'RE007';
     END IF;
 
     v_inicio_local := p_inicio AT TIME ZONE v_zona_horaria;
     v_fin_local := p_fin AT TIME ZONE v_zona_horaria;
 
     IF v_inicio_local::DATE <> v_fin_local::DATE THEN
-        RAISE EXCEPTION 'La reserva debe iniciar y finalizar el mismo día.' USING ERRCODE = 'RS005';
+        RAISE EXCEPTION 'La reserva debe iniciar y finalizar el mismo día.' USING ERRCODE = 'RE005';
     END IF;
 
     IF v_inicio_local::TIME < v_area.hora_apertura OR v_fin_local::TIME > v_area.hora_cierre THEN
         RAISE EXCEPTION 'El horario solicitado está fuera del horario de operación del área (% a %).',
             v_area.hora_apertura, v_area.hora_cierre
-            USING ERRCODE = 'RS005';
+            USING ERRCODE = 'RE005';
     END IF;
 
     IF EXISTS (
@@ -5342,18 +5349,18 @@ BEGIN
           AND r.estado = 'CONFIRMADA'
           AND tstzrange(r.inicio, r.fin, '[)') && tstzrange(p_inicio, p_fin, '[)')
     ) THEN
-        RAISE EXCEPTION 'El horario solicitado se traslapa con una reserva confirmada o bloqueo existente.' USING ERRCODE = 'RS007';
+        RAISE EXCEPTION 'El horario solicitado se traslapa con una reserva confirmada o bloqueo existente.' USING ERRCODE = 'RE009';
     END IF;
 
     IF EXISTS (
         SELECT 1
         FROM public.reservas r
-        WHERE r.titular_id = v_titular_id
+        WHERE r.vivienda_id = v_vivienda_id
           AND r.tipo = 'RESERVA'
           AND r.estado IN ('PENDIENTE_TITULAR', 'PENDIENTE_ADMIN', 'APROBADA', 'CONFIRMADA')
-          AND r.fin > now()
+          AND (r.inicio AT TIME ZONE v_zona_horaria)::DATE = v_inicio_local::DATE
     ) THEN
-        RAISE EXCEPTION 'Tu vivienda ya cuenta con una reserva activa o en proceso.' USING ERRCODE = 'RS008';
+        RAISE EXCEPTION 'Tu vivienda ya cuenta con una reserva para ese día.' USING ERRCODE = 'RE008';
     END IF;
 
     INSERT INTO public.reservas (
@@ -5399,7 +5406,7 @@ BEGIN
         );
     END IF;
 
-    RETURN to_jsonb(v_reserva);
+    RETURN (SELECT to_jsonb(vr.*) FROM public.vw_reservas_usuario vr WHERE vr.id = v_reserva.id);
 END;
 $$;
 
@@ -6187,8 +6194,8 @@ CREATE TABLE public.reservas (
     recordatorio_24h_enviado boolean DEFAULT false NOT NULL,
     creado_en timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
     actualizado_en timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-    CONSTRAINT chk_reservas_duracion CHECK ((((tipo)::text = 'BLOQUEO'::text) OR ((fin - inicio) <= '08:00:00'::interval))),
-    CONSTRAINT chk_reservas_fechas CHECK (((fin > inicio) AND (EXTRACT(minute FROM (inicio AT TIME ZONE 'UTC'::text)) = (0)::numeric) AND (EXTRACT(second FROM (inicio AT TIME ZONE 'UTC'::text)) = (0)::numeric) AND (EXTRACT(minute FROM (fin AT TIME ZONE 'UTC'::text)) = (0)::numeric) AND (EXTRACT(second FROM (fin AT TIME ZONE 'UTC'::text)) = (0)::numeric))),
+    CONSTRAINT chk_reservas_duracion CHECK ((((tipo)::text = 'BLOQUEO'::text) OR ((fin - inicio) <= '12:00:00'::interval))),
+    CONSTRAINT chk_reservas_fechas CHECK ((fin > inicio)),
     CONSTRAINT chk_reservas_tipo_campos CHECK (((((tipo)::text = 'RESERVA'::text) AND (titular_id IS NOT NULL) AND (vivienda_id IS NOT NULL)) OR (((tipo)::text = 'BLOQUEO'::text) AND (titular_id IS NULL) AND (vivienda_id IS NULL) AND (motivo IS NOT NULL) AND (length(TRIM(BOTH FROM motivo)) > 0)))),
     CONSTRAINT reservas_estado_check CHECK (((estado)::text = ANY (ARRAY[('PENDIENTE_TITULAR'::character varying)::text, ('PENDIENTE_ADMIN'::character varying)::text, ('APROBADA'::character varying)::text, ('CONFIRMADA'::character varying)::text, ('RECHAZADA_TITULAR'::character varying)::text, ('RECHAZADA_ADMIN'::character varying)::text, ('CANCELADA_USUARIO'::character varying)::text, ('CANCELADA_ADMIN'::character varying)::text, ('CANCELADA_EXPIRACION'::character varying)::text, ('FINALIZADA'::character varying)::text, ('NO_UTILIZADA'::character varying)::text]))),
     CONSTRAINT reservas_tipo_check CHECK (((tipo)::text = ANY (ARRAY[('RESERVA'::character varying)::text, ('BLOQUEO'::character varying)::text])))
@@ -9945,10 +9952,10 @@ GRANT ALL ON FUNCTION public.asignar_residente_vivienda(p_vivienda_id integer, p
 
 
 --
--- Name: FUNCTION baja_area_comun(p_actor_id uuid, p_area_id uuid); Type: ACL; Schema: public; Owner: postgres
+-- Name: FUNCTION baja_area_comun(p_actor_id uuid, p_id uuid); Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT ALL ON FUNCTION public.baja_area_comun(p_actor_id uuid, p_area_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.baja_area_comun(p_actor_id uuid, p_id uuid) TO service_role;
 
 
 --
@@ -9997,10 +10004,10 @@ GRANT ALL ON FUNCTION public.baja_vivienda(p_id integer) TO service_role;
 
 
 --
--- Name: FUNCTION cambio_area_comun(p_actor_id uuid, p_area_id uuid, p_nombre text, p_descripcion text, p_hora_apertura time without time zone, p_hora_cierre time without time zone); Type: ACL; Schema: public; Owner: postgres
+-- Name: FUNCTION cambio_area_comun(p_actor_id uuid, p_id uuid, p_nombre text, p_descripcion text, p_hora_apertura time without time zone, p_hora_cierre time without time zone); Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT ALL ON FUNCTION public.cambio_area_comun(p_actor_id uuid, p_area_id uuid, p_nombre text, p_descripcion text, p_hora_apertura time without time zone, p_hora_cierre time without time zone) TO service_role;
+GRANT ALL ON FUNCTION public.cambio_area_comun(p_actor_id uuid, p_id uuid, p_nombre text, p_descripcion text, p_hora_apertura time without time zone, p_hora_cierre time without time zone) TO service_role;
 
 
 --
@@ -10074,6 +10081,13 @@ GRANT ALL ON FUNCTION public.cancelar_reserva_admin(p_actor_id uuid, p_reserva_i
 --
 
 GRANT ALL ON FUNCTION public.cancelar_reserva_usuario(p_actor_id uuid, p_reserva_id uuid, p_motivo text) TO service_role;
+
+
+--
+-- Name: FUNCTION cancelar_reserva(p_actor_id uuid, p_reserva_id uuid, p_motivo text); Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON FUNCTION public.cancelar_reserva(p_actor_id uuid, p_reserva_id uuid, p_motivo text) TO service_role;
 
 
 --
@@ -10336,10 +10350,10 @@ GRANT ALL ON FUNCTION public.quitar_residente_vivienda(p_vivienda_id integer, p_
 
 
 --
--- Name: FUNCTION reactivar_area_comun(p_actor_id uuid, p_area_id uuid); Type: ACL; Schema: public; Owner: postgres
+-- Name: FUNCTION reactivar_area_comun(p_actor_id uuid, p_id uuid); Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT ALL ON FUNCTION public.reactivar_area_comun(p_actor_id uuid, p_area_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.reactivar_area_comun(p_actor_id uuid, p_id uuid) TO service_role;
 
 
 --
@@ -11319,7 +11333,7 @@ GRANT ALL ON FUNCTION public.asignar_residente(p_vivienda_id integer, p_usuario_
 REVOKE ALL ON FUNCTION public.asignar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.asignar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.asignar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) TO authenticated;
-GRANT ALL ON FUNCTION public.baja_area_comun(p_actor_id uuid, p_area_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.baja_area_comun(p_actor_id uuid, p_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.baja_aviso(p_id uuid, p_actor_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.baja_condominio(p_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.baja_servicio_paqueteria(p_id integer, p_actor_id uuid) TO service_role;
@@ -11329,7 +11343,7 @@ GRANT ALL ON FUNCTION public.baja_subusuario(p_vivienda_id integer, p_usuario_id
 GRANT ALL ON FUNCTION public.baja_usuario(p_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.baja_usuario(p_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.baja_vivienda(p_id integer) TO service_role;
-GRANT ALL ON FUNCTION public.cambio_area_comun(p_actor_id uuid, p_area_id uuid, p_nombre text, p_descripcion text, p_hora_apertura time without time zone, p_hora_cierre time without time zone) TO service_role;
+GRANT ALL ON FUNCTION public.cambio_area_comun(p_actor_id uuid, p_id uuid, p_nombre text, p_descripcion text, p_hora_apertura time without time zone, p_hora_cierre time without time zone) TO service_role;
 GRANT ALL ON FUNCTION public.cambio_aviso(p_id uuid, p_actor_id uuid, p_titulo text, p_contenido text, p_duracion_dias integer, p_fecha_expiracion timestamp with time zone, p_prioridad text) TO service_role;
 GRANT ALL ON FUNCTION public.cambio_condominio(p_id uuid, p_nombre text, p_direccion text, p_activo boolean, p_zona_horaria text) TO service_role;
 GRANT ALL ON FUNCTION public.cambio_paquete_esperado(p_id uuid, p_actor_id uuid, p_destinatario_nombre text, p_servicio_id integer, p_servicio_nombre text, p_numero_guia text, p_descripcion text, p_notas text, p_fecha_esperada_desde timestamp with time zone, p_fecha_esperada_hasta timestamp with time zone) TO service_role;
@@ -11398,7 +11412,7 @@ GRANT ALL ON FUNCTION public.procesar_transiciones_reservas() TO service_role;
 REVOKE ALL ON FUNCTION public.quitar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.quitar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.quitar_residente_vivienda(p_vivienda_id integer, p_usuario_id uuid) TO authenticated;
-GRANT ALL ON FUNCTION public.reactivar_area_comun(p_actor_id uuid, p_area_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.reactivar_area_comun(p_actor_id uuid, p_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.reactivar_usuario(p_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.reactivar_usuario(p_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.rechazar_reserva_admin(p_actor_id uuid, p_reserva_id uuid, p_motivo text) TO service_role;
@@ -11609,9 +11623,6 @@ CREATE EVENT TRIGGER ensure_rls ON ddl_command_end
   EXECUTE FUNCTION public.rls_auto_enable();
 
 -- 2.7 Cron jobs
-SELECT cron.schedule('expirar_reservas_pendientes', '*/15 * * * *', 'SELECT public.cron_expirar_reservas_pendientes();');
-SELECT cron.schedule('expirar_reservas_sin_confirmar', '*/15 * * * *', 'SELECT public.cron_expirar_reservas_sin_confirmar();');
-SELECT cron.schedule('notificaciones_confirmacion_reservas', '*/30 * * * *', 'SELECT public.cron_notificaciones_confirmacion();');
 SELECT cron.schedule('reservas_transiciones_minuto', '* * * * *', 'SELECT public.procesar_transiciones_reservas();');
 SELECT cron.schedule('pagos-generar-cargos-mensuales', '5 6 1 * *', 'SELECT public.rpc_generar_cargos_mensuales(date_trunc(''month'', CURRENT_DATE)::DATE, NULL, NULL);');
 SELECT cron.schedule('pagos-depurar-comprobantes-antiguos', '0 9 * * *', 'SELECT public.rpc_depurar_comprobantes_antiguos(90, 30);');
