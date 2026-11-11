@@ -788,7 +788,7 @@ ALTER FUNCTION public.alta_usuario(p_id uuid, p_email text, p_nombre text, p_ape
 -- Name: alta_visita(uuid, integer, character varying, character varying, character varying, character varying, integer, character varying, text, timestamp with time zone, integer); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.alta_visita(p_actor_id uuid, p_vivienda_id integer, p_nombre_visitante character varying, p_apellidos_visitante character varying, p_telefono_visitante character varying, p_motivo character varying, p_num_acompanantes integer, p_vehiculo_placas character varying, p_notas text, p_fecha_llegada timestamp with time zone, p_horas_vigencia integer DEFAULT 24) RETURNS jsonb
+CREATE FUNCTION public.alta_visita(p_actor_id uuid, p_vivienda_id integer, p_nombre_visitante character varying, p_apellidos_visitante character varying, p_telefono_visitante character varying, p_motivo character varying, p_num_acompanantes integer, p_vehiculo_placas character varying, p_notas text, p_fecha_llegada_esperada timestamp with time zone, p_horas_vigencia integer DEFAULT 24) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -805,7 +805,7 @@ BEGIN
     WHERE id = p_vivienda_id AND activo = true;
 
     IF v_condominio_id IS NULL THEN
-        RAISE EXCEPTION 'La vivienda especificada no existe o está inactiva.' USING ERRCODE = 'P0002';
+        RAISE EXCEPTION 'La vivienda especificada no existe o está inactiva.' USING ERRCODE = 'VI009';
     END IF;
 
     SELECT (
@@ -815,10 +815,10 @@ BEGIN
     ) INTO v_pertenece;
 
     IF NOT v_pertenece THEN
-        RAISE EXCEPTION 'No tienes permiso para registrar visitas en esta vivienda.' USING ERRCODE = 'VI001';
+        RAISE EXCEPTION 'No tienes permiso para registrar visitas en esta vivienda.' USING ERRCODE = 'VI002';
     END IF;
 
-    v_fecha_expiracion := p_fecha_llegada + (COALESCE(p_horas_vigencia, 24) || ' hours')::INTERVAL;
+    v_fecha_expiracion := p_fecha_llegada_esperada + (COALESCE(p_horas_vigencia, 24) || ' hours')::INTERVAL;
 
     IF v_fecha_expiracion <= now() THEN
         RAISE EXCEPTION 'VI008: La visita ya expiró o su vigencia ha concluido respecto a la fecha actual.' USING ERRCODE = 'VI008';
@@ -839,7 +839,7 @@ BEGIN
     VALUES (
         p_vivienda_id, v_condominio_id, p_nombre_visitante, p_apellidos_visitante,
         p_telefono_visitante, LOWER(TRIM(p_motivo)), COALESCE(p_num_acompanantes, 0), p_vehiculo_placas,
-        p_notas, p_fecha_llegada, v_fecha_expiracion, v_codigo,
+        p_notas, p_fecha_llegada_esperada, v_fecha_expiracion, v_codigo,
         'programada', p_actor_id
     )
     RETURNING id INTO v_visita_id;
@@ -849,7 +849,7 @@ END;
 $$;
 
 
-ALTER FUNCTION public.alta_visita(p_actor_id uuid, p_vivienda_id integer, p_nombre_visitante character varying, p_apellidos_visitante character varying, p_telefono_visitante character varying, p_motivo character varying, p_num_acompanantes integer, p_vehiculo_placas character varying, p_notas text, p_fecha_llegada timestamp with time zone, p_horas_vigencia integer) OWNER TO postgres;
+ALTER FUNCTION public.alta_visita(p_actor_id uuid, p_vivienda_id integer, p_nombre_visitante character varying, p_apellidos_visitante character varying, p_telefono_visitante character varying, p_motivo character varying, p_num_acompanantes integer, p_vehiculo_placas character varying, p_notas text, p_fecha_llegada_esperada timestamp with time zone, p_horas_vigencia integer) OWNER TO postgres;
 
 --
 -- Name: alta_vivienda(uuid, text, text); Type: FUNCTION; Schema: public; Owner: postgres
@@ -1810,7 +1810,7 @@ ALTER FUNCTION public.cambio_usuario(p_id uuid, p_nombre text, p_apellidos text,
 -- Name: cambio_visita(uuid, uuid, character varying, character varying, character varying, character varying, integer, character varying, text, timestamp with time zone, integer); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.cambio_visita(p_id uuid, p_actor_id uuid, p_nombre_visitante character varying DEFAULT NULL::character varying, p_apellidos_visitante character varying DEFAULT NULL::character varying, p_telefono_visitante character varying DEFAULT NULL::character varying, p_motivo character varying DEFAULT NULL::character varying, p_num_acompanantes integer DEFAULT NULL::integer, p_vehiculo_placas character varying DEFAULT NULL::character varying, p_notas text DEFAULT NULL::text, p_fecha_llegada timestamp with time zone DEFAULT NULL::timestamp with time zone, p_horas_vigencia integer DEFAULT NULL::integer) RETURNS jsonb
+CREATE FUNCTION public.cambio_visita(p_id uuid, p_actor_id uuid, p_nombre_visitante character varying DEFAULT NULL::character varying, p_apellidos_visitante character varying DEFAULT NULL::character varying, p_telefono_visitante character varying DEFAULT NULL::character varying, p_motivo character varying DEFAULT NULL::character varying, p_num_acompanantes integer DEFAULT NULL::integer, p_vehiculo_placas character varying DEFAULT NULL::character varying, p_notas text DEFAULT NULL::text, p_fecha_llegada_esperada timestamp with time zone DEFAULT NULL::timestamp with time zone, p_horas_vigencia integer DEFAULT NULL::integer) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -1823,7 +1823,7 @@ BEGIN
     SELECT * INTO v_visita FROM public.visitas WHERE id = p_id FOR UPDATE;
 
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'La visita no existe.' USING ERRCODE = 'VI002';
+        RAISE EXCEPTION 'La visita no existe.' USING ERRCODE = 'VI001';
     END IF;
 
     SELECT (
@@ -1835,18 +1835,18 @@ BEGIN
     ) INTO v_es_autorizado;
 
     IF NOT v_es_autorizado THEN
-        RAISE EXCEPTION 'No tienes permiso para modificar esta visita.' USING ERRCODE = 'VI001';
+        RAISE EXCEPTION 'No tienes permiso para modificar esta visita.' USING ERRCODE = 'VI002';
     END IF;
 
     IF v_visita.estado <> 'programada' THEN
         RAISE EXCEPTION 'Solo se pueden editar visitas en estado programada.' USING ERRCODE = 'VI003';
     END IF;
 
-    v_nueva_llegada := COALESCE(p_fecha_llegada, v_visita.fecha_llegada_esperada);
+    v_nueva_llegada := COALESCE(p_fecha_llegada_esperada, v_visita.fecha_llegada_esperada);
 
     IF p_horas_vigencia IS NOT NULL THEN
         v_nueva_expiracion := v_nueva_llegada + (p_horas_vigencia || ' hours')::INTERVAL;
-    ELSIF p_fecha_llegada IS NOT NULL THEN
+    ELSIF p_fecha_llegada_esperada IS NOT NULL THEN
         v_nueva_expiracion := v_nueva_llegada + (v_visita.fecha_expiracion - v_visita.fecha_llegada_esperada);
     ELSE
         v_nueva_expiracion := v_visita.fecha_expiracion;
@@ -1865,12 +1865,12 @@ BEGIN
         fecha_expiracion = v_nueva_expiracion
     WHERE id = p_id;
 
-    RETURN public._proyectar_visita_dto(p_id);
+    RETURN true;
 END;
 $$;
 
 
-ALTER FUNCTION public.cambio_visita(p_id uuid, p_actor_id uuid, p_nombre_visitante character varying, p_apellidos_visitante character varying, p_telefono_visitante character varying, p_motivo character varying, p_num_acompanantes integer, p_vehiculo_placas character varying, p_notas text, p_fecha_llegada timestamp with time zone, p_horas_vigencia integer) OWNER TO postgres;
+ALTER FUNCTION public.cambio_visita(p_id uuid, p_actor_id uuid, p_nombre_visitante character varying, p_apellidos_visitante character varying, p_telefono_visitante character varying, p_motivo character varying, p_num_acompanantes integer, p_vehiculo_placas character varying, p_notas text, p_fecha_llegada_esperada timestamp with time zone, p_horas_vigencia integer) OWNER TO postgres;
 
 --
 -- Name: cambio_vivienda(integer, text, text, boolean); Type: FUNCTION; Schema: public; Owner: postgres
@@ -2192,7 +2192,7 @@ BEGIN
     ) INTO v_es_autorizado;
 
     IF NOT v_es_autorizado THEN
-        RAISE EXCEPTION 'No tienes permiso para cancelar esta visita.' USING ERRCODE = 'VI001';
+        RAISE EXCEPTION 'No tienes permiso para cancelar esta visita.' USING ERRCODE = 'VI002';
     END IF;
 
     IF v_visita.estado <> 'programada' THEN
@@ -4240,21 +4240,21 @@ BEGIN
     WHERE id = p_actor_id;
 
     IF NOT FOUND OR NOT v_actor.activo OR v_actor.rol_id NOT IN (1, 3) THEN
-        RAISE EXCEPTION 'Solo vigilancia o administración pueden registrar entradas.' USING ERRCODE = 'VI007';
+        RAISE EXCEPTION 'Solo vigilancia o administración pueden registrar entradas.' USING ERRCODE = 'VI002';
     END IF;
 
     SELECT * INTO v_visita FROM public.visitas WHERE id = p_visita_id FOR UPDATE;
 
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'La visita no existe.' USING ERRCODE = 'VI002';
+        RAISE EXCEPTION 'La visita no existe.' USING ERRCODE = 'VI001';
     END IF;
 
     IF v_visita.condominio_id <> v_actor.condominio_id THEN
-        RAISE EXCEPTION 'No puedes operar visitas de otro condominio.' USING ERRCODE = 'VI007';
+        RAISE EXCEPTION 'No puedes operar visitas de otro condominio.' USING ERRCODE = 'VI002';
     END IF;
 
     IF v_visita.estado = 'en_curso' THEN
-        RAISE EXCEPTION 'La visita ya se encuentra en curso.' USING ERRCODE = 'VI005';
+        RAISE EXCEPTION 'La visita ya se encuentra en curso.' USING ERRCODE = 'VI006';
     END IF;
 
     IF v_visita.estado <> 'programada' THEN
@@ -4263,7 +4263,7 @@ BEGIN
     END IF;
 
     IF now() > v_visita.fecha_expiracion THEN
-        RAISE EXCEPTION 'El código de acceso de esta visita ha expirado.' USING ERRCODE = 'VI004';
+        RAISE EXCEPTION 'El código de acceso de esta visita ha expirado.' USING ERRCODE = 'VI005';
     END IF;
 
     UPDATE public.visitas
@@ -4307,21 +4307,21 @@ BEGIN
     WHERE id = p_actor_id;
 
     IF NOT FOUND OR NOT v_actor.activo OR v_actor.rol_id NOT IN (1, 3) THEN
-        RAISE EXCEPTION 'Solo vigilancia o administración pueden registrar salidas.' USING ERRCODE = 'VI007';
+        RAISE EXCEPTION 'Solo vigilancia o administración pueden registrar salidas.' USING ERRCODE = 'VI002';
     END IF;
 
     SELECT * INTO v_visita FROM public.visitas WHERE id = p_visita_id FOR UPDATE;
 
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'La visita no existe.' USING ERRCODE = 'VI002';
+        RAISE EXCEPTION 'La visita no existe.' USING ERRCODE = 'VI001';
     END IF;
 
     IF v_visita.condominio_id <> v_actor.condominio_id THEN
-        RAISE EXCEPTION 'No puedes operar visitas de otro condominio.' USING ERRCODE = 'VI007';
+        RAISE EXCEPTION 'No puedes operar visitas de otro condominio.' USING ERRCODE = 'VI002';
     END IF;
 
     IF v_visita.estado <> 'en_curso' THEN
-        RAISE EXCEPTION 'Solo se puede registrar la salida de visitas que estén en curso.' USING ERRCODE = 'VI006';
+        RAISE EXCEPTION 'Solo se puede registrar la salida de visitas que estén en curso.' USING ERRCODE = 'VI007';
     END IF;
 
     UPDATE public.visitas
@@ -5430,7 +5430,7 @@ BEGIN
     WHERE id = p_actor_id;
 
     IF NOT FOUND OR NOT v_actor.activo OR v_actor.rol_id NOT IN (1, 3) THEN
-        RAISE EXCEPTION 'No tienes permisos para validar códigos de visita.' USING ERRCODE = 'VI007';
+        RAISE EXCEPTION 'No tienes permisos para validar códigos de visita.' USING ERRCODE = 'VI002';
     END IF;
 
     SELECT * INTO v_visita
@@ -5438,15 +5438,15 @@ BEGIN
     WHERE UPPER(TRIM(codigo_acceso)) = UPPER(TRIM(p_codigo));
 
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'El código de acceso no existe.' USING ERRCODE = 'VI002';
+        RAISE EXCEPTION 'El código de acceso no existe.' USING ERRCODE = 'VI004';
     END IF;
 
     IF v_visita.condominio_id <> v_actor.condominio_id THEN
-        RAISE EXCEPTION 'El actor no pertenece al mismo condominio de la visita.' USING ERRCODE = 'VI007';
+        RAISE EXCEPTION 'El actor no pertenece al mismo condominio de la visita.' USING ERRCODE = 'VI002';
     END IF;
 
     IF v_visita.estado = 'programada' AND now() > v_visita.fecha_expiracion THEN
-        RAISE EXCEPTION 'El código de acceso ha expirado.' USING ERRCODE = 'VI004';
+        RAISE EXCEPTION 'El código de acceso ha expirado.' USING ERRCODE = 'VI005';
     END IF;
 
     RETURN public._proyectar_visita_dto(v_visita.id);
@@ -9901,10 +9901,10 @@ GRANT ALL ON FUNCTION public.alta_usuario(p_id uuid, p_email text, p_nombre text
 
 
 --
--- Name: FUNCTION alta_visita(p_actor_id uuid, p_vivienda_id integer, p_nombre_visitante character varying, p_apellidos_visitante character varying, p_telefono_visitante character varying, p_motivo character varying, p_num_acompanantes integer, p_vehiculo_placas character varying, p_notas text, p_fecha_llegada timestamp with time zone, p_horas_vigencia integer); Type: ACL; Schema: public; Owner: postgres
+-- Name: FUNCTION alta_visita(p_actor_id uuid, p_vivienda_id integer, p_nombre_visitante character varying, p_apellidos_visitante character varying, p_telefono_visitante character varying, p_motivo character varying, p_num_acompanantes integer, p_vehiculo_placas character varying, p_notas text, p_fecha_llegada_esperada timestamp with time zone, p_horas_vigencia integer); Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT ALL ON FUNCTION public.alta_visita(p_actor_id uuid, p_vivienda_id integer, p_nombre_visitante character varying, p_apellidos_visitante character varying, p_telefono_visitante character varying, p_motivo character varying, p_num_acompanantes integer, p_vehiculo_placas character varying, p_notas text, p_fecha_llegada timestamp with time zone, p_horas_vigencia integer) TO service_role;
+GRANT ALL ON FUNCTION public.alta_visita(p_actor_id uuid, p_vivienda_id integer, p_nombre_visitante character varying, p_apellidos_visitante character varying, p_telefono_visitante character varying, p_motivo character varying, p_num_acompanantes integer, p_vehiculo_placas character varying, p_notas text, p_fecha_llegada_esperada timestamp with time zone, p_horas_vigencia integer) TO service_role;
 
 
 --
@@ -10040,10 +10040,10 @@ GRANT ALL ON FUNCTION public.cambio_usuario(p_id uuid, p_nombre text, p_apellido
 
 
 --
--- Name: FUNCTION cambio_visita(p_id uuid, p_actor_id uuid, p_nombre_visitante character varying, p_apellidos_visitante character varying, p_telefono_visitante character varying, p_motivo character varying, p_num_acompanantes integer, p_vehiculo_placas character varying, p_notas text, p_fecha_llegada timestamp with time zone, p_horas_vigencia integer); Type: ACL; Schema: public; Owner: postgres
+-- Name: FUNCTION cambio_visita(p_id uuid, p_actor_id uuid, p_nombre_visitante character varying, p_apellidos_visitante character varying, p_telefono_visitante character varying, p_motivo character varying, p_num_acompanantes integer, p_vehiculo_placas character varying, p_notas text, p_fecha_llegada_esperada timestamp with time zone, p_horas_vigencia integer); Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT ALL ON FUNCTION public.cambio_visita(p_id uuid, p_actor_id uuid, p_nombre_visitante character varying, p_apellidos_visitante character varying, p_telefono_visitante character varying, p_motivo character varying, p_num_acompanantes integer, p_vehiculo_placas character varying, p_notas text, p_fecha_llegada timestamp with time zone, p_horas_vigencia integer) TO service_role;
+GRANT ALL ON FUNCTION public.cambio_visita(p_id uuid, p_actor_id uuid, p_nombre_visitante character varying, p_apellidos_visitante character varying, p_telefono_visitante character varying, p_motivo character varying, p_num_acompanantes integer, p_vehiculo_placas character varying, p_notas text, p_fecha_llegada_esperada timestamp with time zone, p_horas_vigencia integer) TO service_role;
 
 
 --
@@ -11324,7 +11324,7 @@ GRANT ALL ON FUNCTION public.alta_notificacion(p_usuario_id uuid, p_tipo_evento 
 GRANT ALL ON FUNCTION public.alta_paquete_esperado(p_actor_id uuid, p_vivienda_id integer, p_destinatario_nombre text, p_servicio_id integer, p_servicio_nombre text, p_numero_guia text, p_descripcion text, p_notas text, p_fecha_esperada_desde timestamp with time zone, p_fecha_esperada_hasta timestamp with time zone) TO service_role;
 GRANT ALL ON FUNCTION public.alta_servicio_paqueteria(p_condominio_id uuid, p_nombre text, p_icono_url text, p_actor_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.alta_usuario(p_id uuid, p_email text, p_nombre text, p_apellidos text, p_telefono text, p_rol_id integer, p_condominio_id uuid) TO service_role;
-GRANT ALL ON FUNCTION public.alta_visita(p_actor_id uuid, p_vivienda_id integer, p_nombre_visitante character varying, p_apellidos_visitante character varying, p_telefono_visitante character varying, p_motivo character varying, p_num_acompanantes integer, p_vehiculo_placas character varying, p_notas text, p_fecha_llegada timestamp with time zone, p_horas_vigencia integer) TO service_role;
+GRANT ALL ON FUNCTION public.alta_visita(p_actor_id uuid, p_vivienda_id integer, p_nombre_visitante character varying, p_apellidos_visitante character varying, p_telefono_visitante character varying, p_motivo character varying, p_num_acompanantes integer, p_vehiculo_placas character varying, p_notas text, p_fecha_llegada_esperada timestamp with time zone, p_horas_vigencia integer) TO service_role;
 GRANT ALL ON FUNCTION public.alta_vivienda(p_condominio_id uuid, p_numero_casa text, p_tipo text) TO service_role;
 GRANT ALL ON FUNCTION public.aprobar_reserva_admin(p_actor_id uuid, p_reserva_id uuid) TO service_role;
 GRANT ALL ON FUNCTION public.aprobar_reserva_titular(p_actor_id uuid, p_reserva_id uuid) TO service_role;
@@ -11349,7 +11349,7 @@ GRANT ALL ON FUNCTION public.cambio_condominio(p_id uuid, p_nombre text, p_direc
 GRANT ALL ON FUNCTION public.cambio_paquete_esperado(p_id uuid, p_actor_id uuid, p_destinatario_nombre text, p_servicio_id integer, p_servicio_nombre text, p_numero_guia text, p_descripcion text, p_notas text, p_fecha_esperada_desde timestamp with time zone, p_fecha_esperada_hasta timestamp with time zone) TO service_role;
 GRANT ALL ON FUNCTION public.cambio_usuario(p_id uuid, p_nombre text, p_apellidos text, p_telefono text, p_rol_id integer, p_condominio_id uuid, p_debe_cambiar_password boolean) TO service_role;
 GRANT ALL ON FUNCTION public.cambio_usuario(p_id uuid, p_nombre text, p_apellidos text, p_telefono text, p_rol_id integer, p_condominio_id uuid, p_debe_cambiar_password boolean) TO authenticated;
-GRANT ALL ON FUNCTION public.cambio_visita(p_id uuid, p_actor_id uuid, p_nombre_visitante character varying, p_apellidos_visitante character varying, p_telefono_visitante character varying, p_motivo character varying, p_num_acompanantes integer, p_vehiculo_placas character varying, p_notas text, p_fecha_llegada timestamp with time zone, p_horas_vigencia integer) TO service_role;
+GRANT ALL ON FUNCTION public.cambio_visita(p_id uuid, p_actor_id uuid, p_nombre_visitante character varying, p_apellidos_visitante character varying, p_telefono_visitante character varying, p_motivo character varying, p_num_acompanantes integer, p_vehiculo_placas character varying, p_notas text, p_fecha_llegada_esperada timestamp with time zone, p_horas_vigencia integer) TO service_role;
 GRANT ALL ON FUNCTION public.cambio_vivienda(p_id integer, p_numero_casa text, p_tipo text, p_activo boolean) TO service_role;
 REVOKE ALL ON FUNCTION public.cancelar_invitacion_subusuario(p_id uuid, p_invitacion_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.cancelar_invitacion_subusuario(p_id uuid, p_invitacion_id uuid) TO service_role;
