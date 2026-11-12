@@ -4,9 +4,11 @@ on:
   push:
     paths:
       - 'supabase/**'
+      - '.github/workflows/supabase-ci.yml'
   pull_request:
     paths:
       - 'supabase/**'
+      - '.github/workflows/supabase-ci.yml'
 
 env:
   DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_DB }}
@@ -35,7 +37,17 @@ jobs:
           
       - name: DB Linting
         run: supabase db lint
-        
+
+      # Las pruebas corren contra la BD real: la que arman los scripts de supabase/reset,
+      # no la de supabase/migrations (desactualizadas respecto a lo que usan los servicios).
+      - name: Load real schema (supabase/reset)
+        run: |
+          DB_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+          for script in 01_tirar 02_recrear 03_seed; do
+            echo "== $script"
+            psql "$DB_URL" -v ON_ERROR_STOP=1 -q -f "supabase/reset/$script.sql" > /dev/null
+          done
+
       - name: Run DB Tests
         run: supabase db test
 
