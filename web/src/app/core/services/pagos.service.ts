@@ -207,7 +207,7 @@ export class PagosService {
     );
     return {
       pagoAnulado: aPago(r.pago_anulado),
-      pagoReversa: aPago(r.pago_reversa),
+      pagoReversa: r.pago_reversa ? aPago(r.pago_reversa) : null,
       cargo: aCargo(r.cargo),
       saldoAFavor: Number(r.saldo_a_favor) || 0
     };

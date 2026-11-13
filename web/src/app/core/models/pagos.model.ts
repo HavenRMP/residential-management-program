@@ -212,7 +212,8 @@ export interface ResultadoPago {
 
 export interface ResultadoAnulacion {
   pagoAnulado: Pago;
-  pagoReversa: Pago;
+  /** Puede no venir: el backend anula igual aunque no devuelva el pago de reversa */
+  pagoReversa: Pago | null;
   cargo: Cargo;
   saldoAFavor: number;
 }
